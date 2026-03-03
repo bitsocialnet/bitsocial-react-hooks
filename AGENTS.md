@@ -98,7 +98,7 @@ src/
 - Never mark work complete without verification.
 - After code changes, run: `yarn build`.
 - After test changes, run: `yarn test`.
-- Maintain mandatory 100% test coverage for hooks and stores (`src/hooks/`, `src/stores/`); every feature or bug fix in these areas must include/adjust tests to keep coverage at 100%.
+- Maintain mandatory 100% test coverage for hooks and stores (`src/hooks/`, `src/stores/`); every feature or bug fix in these areas must include/adjust tests to keep coverage at 100%, verified via coverage run + `node scripts/verify-hooks-stores-coverage.mjs`.
 - Before committing, run: `yarn prettier` to format.
 - If verification fails, fix and re-run until passing.
 
@@ -132,6 +132,8 @@ src/
 yarn install
 yarn build                # TypeScript compilation
 yarn test                 # Vitest unit tests
+vitest run --config config/vitest.config.js --coverage.enabled --coverage.provider=istanbul --coverage.reporter=text --coverage.reporter=json-summary --coverage.reportsDirectory=./coverage
+node scripts/verify-hooks-stores-coverage.mjs # Enforce 100% lines/branches/functions/statements for src/hooks and src/stores
 yarn test:e2e:mock        # E2E tests with mock backend
 yarn test:e2e:chrome      # E2E tests in Chrome
 yarn prettier             # Format all source files
