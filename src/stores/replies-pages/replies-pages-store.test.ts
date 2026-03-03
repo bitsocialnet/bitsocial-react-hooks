@@ -64,6 +64,7 @@ class MockSubplebbit extends EventEmitter {
 
 class MockComment extends EventEmitter {
   cid: string;
+  subplebbitAddress: string;
   replies: MockPages;
   constructor({ cid }: any) {
     super();

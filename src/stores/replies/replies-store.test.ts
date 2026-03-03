@@ -110,7 +110,7 @@ describe("replies store", () => {
   afterAll(async () => {
     // restore accountsStore
     // @ts-ignore
-    accountsStoreGetState.getState = accountsStoreGetState;
+    accountsStore.getState = accountsStoreGetState;
 
     testUtils.restoreAll();
 

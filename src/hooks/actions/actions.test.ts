@@ -131,9 +131,9 @@ describe("actions", () => {
         useSubscribe({ subplebbitAddress: subplebbitAddress2 }),
       );
       const waitFor2 = testUtils.createWaitFor(rendered2);
-      await waitFor(() => rendered.result.current[1].state === "ready");
-      expect(rendered.result.current[1].state).toBe("ready");
-      expect(rendered.result.current[1].subscribed).toBe(true);
+      await waitFor2(() => rendered2.result.current.state === "ready");
+      expect(rendered2.result.current.state).toBe("ready");
+      expect(rendered2.result.current.subscribed).toBe(true);
     });
   });
 
@@ -225,12 +225,12 @@ describe("actions", () => {
       // reset stores to force using the db
       await testUtils.resetStores();
 
-      // subscribing persists in database after store reset
+      // blocking persists in database after store reset
       const rendered2 = renderHook<any, any>(() => useBlock({ address: address2 }));
       const waitFor2 = testUtils.createWaitFor(rendered2);
-      await waitFor(() => rendered.result.current[1].state === "ready");
-      expect(rendered.result.current[1].state).toBe("ready");
-      expect(rendered.result.current[1].blocked).toBe(true);
+      await waitFor2(() => rendered2.result.current.state === "ready");
+      expect(rendered2.result.current.state).toBe("ready");
+      expect(rendered2.result.current.blocked).toBe(true);
     });
 
     test(`block and unblock two cids (hide comment)`, async () => {
@@ -305,12 +305,12 @@ describe("actions", () => {
       // reset stores to force using the db
       await testUtils.resetStores();
 
-      // subscribing persists in database after store reset
+      // blocking persists in database after store reset
       const rendered2 = renderHook<any, any>(() => useBlock({ cid: cid2 }));
       const waitFor2 = testUtils.createWaitFor(rendered2);
-      await waitFor(() => rendered.result.current[1].state === "ready");
-      expect(rendered.result.current[1].state).toBe("ready");
-      expect(rendered.result.current[1].blocked).toBe(true);
+      await waitFor2(() => rendered2.result.current.state === "ready");
+      expect(rendered2.result.current.state).toBe("ready");
+      expect(rendered2.result.current.blocked).toBe(true);
     });
   });
 

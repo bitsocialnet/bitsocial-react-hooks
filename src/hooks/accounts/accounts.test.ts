@@ -516,7 +516,7 @@ describe("accounts", () => {
           return { account, accountComments, accountVotes, accountEdits };
         });
         const waitFor2 = testUtils.createWaitFor(rendered2);
-        await waitFor2(() => (rendered2.result.current.account.name = exported?.account.name));
+        await waitFor2(() => rendered2.result.current.account.name === exported?.account.name);
         expect(rendered2.result.current.account.author?.name).toBe(exported?.account.author.name);
         expect(rendered2.result.current.account.name).toBe(exported?.account.name);
         // account.id has been reset
