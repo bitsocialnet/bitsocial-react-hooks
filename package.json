@@ -1,6 +1,7 @@
 {
   "name": "@bitsocialhq/pkc-react-hooks",
   "type": "module",
+  "author": "Bitsocial Labs",
   "keywords": [
     "bitsocial",
     "pkc"
