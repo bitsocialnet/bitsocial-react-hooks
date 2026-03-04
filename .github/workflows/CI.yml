@@ -9,12 +9,12 @@ on:
       - 'test/**'
       - 'src/**'
       - 'config/**'
-      # - '.github/**'
+      - '.github/**'
       - 'package.json'
       - 'yarn.lock'
   push:
     branches:
-      - '**'
+      - master
     paths:
       - 'test/**'
       - 'src/**'
@@ -22,6 +22,10 @@ on:
       - '.github/**'
       - 'package.json'
       - 'yarn.lock'
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
