@@ -1,12 +1,15 @@
-import { render, act } from "@testing-library/react";
 import React from "react";
+import ReactDOM from "react-dom/client";
+import { act } from "@testing-library/react";
 
-// Custom renderHook that sets result.current synchronously during render,
-// matching @testing-library/react-hooks behavior. RTL v16's renderHook defers
-// result.current via useEffect, which breaks polling-based waitFor patterns
-// and throws "Cannot update an unmounted root" on rerender with React 19.
+// Custom renderHook that manages the React root directly, bypassing RTL's
+// render/rerender. This is necessary because:
+// 1. RTL auto-cleanup unmounts roots between it() blocks via afterEach,
+//    breaking tests that create `rendered` in beforeAll and reuse across tests.
+// 2. React 19 throws "Cannot update an unmounted root" when rerender is called
+//    on a root that RTL's cleanup already unmounted.
 export function renderHook(callback, options) {
-  const { initialProps, ...renderOptions } = options || {};
+  const { initialProps, wrapper: Wrapper } = options || {};
   const result = { current: null, all: [] };
 
   function TestComponent({ renderCallbackProps }) {
@@ -16,15 +19,31 @@ export function renderHook(callback, options) {
     return null;
   }
 
-  const { rerender: baseRerender, unmount } = render(
-    React.createElement(TestComponent, { renderCallbackProps: initialProps }),
-    renderOptions,
-  );
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = ReactDOM.createRoot(container);
+
+  function renderUI(props) {
+    let element = React.createElement(TestComponent, { renderCallbackProps: props });
+    if (Wrapper) {
+      element = React.createElement(Wrapper, null, element);
+    }
+    act(() => {
+      root.render(element);
+    });
+  }
+
+  renderUI(initialProps);
 
   function rerender(rerenderCallbackProps) {
-    return baseRerender(
-      React.createElement(TestComponent, { renderCallbackProps: rerenderCallbackProps }),
-    );
+    renderUI(rerenderCallbackProps);
+  }
+
+  function unmount() {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
   }
 
   return { result, rerender, unmount };

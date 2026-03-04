@@ -50,6 +50,9 @@ export default defineConfig({
     },
     server: { deps: { inline: true } },
   },
+  optimizeDeps: {
+    include: ["react-dom/client"],
+  },
   define: {
     localStorageDebug: JSON.stringify(process.env.DEBUG || ""),
   },
