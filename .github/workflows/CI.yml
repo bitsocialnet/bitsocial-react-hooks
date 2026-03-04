@@ -40,7 +40,7 @@ jobs:
           node-version: 22
           cache: 'yarn'
 
-      - run: HUSKY=0 yarn install --frozen-lockfile || (yarn cache clean && HUSKY=0 yarn install --frozen-lockfile)
+      - run: HUSKY=0 yarn install --frozen-lockfile --network-concurrency 1
       - uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
