@@ -32,6 +32,7 @@ This repo is a temporary fork of [plebbit/plebbit-react-hooks](https://github.co
 | `package.json` changed | Run `yarn install` to keep `yarn.lock` in sync |
 | Bug report in a specific file/line | Start with git history scan from `docs/agent-playbooks/bug-investigation.md` before editing |
 | Public API changed (`src/index.ts`, `src/types.ts`) | Ensure backward compatibility; update README if signatures changed |
+| User-facing behavior/feature added or changed | Update `README.md` usage/docs in the same task before marking work complete |
 | Tests added or changed (`src/**/*.test.ts`, `test/`) | Run `yarn test` to verify |
 | GitHub operation needed | Use `gh` CLI, not GitHub MCP |
 | User asks for commit/issue phrasing | Use `docs/agent-playbooks/commit-issue-format.md` |
@@ -80,6 +81,11 @@ src/
 - Shared utilities go in `src/lib/`. Hook-specific helpers stay co-located in the hook's directory.
 - Type definitions that cross module boundaries go in `src/types.ts`.
 - Add comments for complex/non-obvious code; skip obvious comments.
+
+### Documentation Rules
+
+- Keep `README.md` current for all user-facing features, behavior changes, and new workflows.
+- Do not mark a feature task complete until corresponding README usage/docs are updated.
 
 ### Naming and Branding Rules
 
