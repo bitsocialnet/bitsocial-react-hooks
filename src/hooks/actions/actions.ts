@@ -169,6 +169,11 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
   const [challengeVerification, setChallengeVerification] = useState<ChallengeVerification>();
   const [publishChallengeAnswers, setPublishChallengeAnswers] = useState<PublishChallengeAnswers>();
   const indexRef = useRef<number | undefined>(undefined);
+  const onPendingCommentIndex = (pendingIndex: number) => {
+    indexRef.current = pendingIndex;
+    setIndex(pendingIndex);
+  };
+  publishCommentOptions._onPendingCommentIndex = onPendingCommentIndex;
 
   let initialState = "initializing";
   // before the accountId and options is defined, nothing can happen

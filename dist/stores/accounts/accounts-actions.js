@@ -430,7 +430,7 @@ export const unblockCid = (cid, accountName) => __awaiter(void 0, void 0, void 0
     accountsStore.setState({ accounts: updatedAccounts });
 });
 export const publishComment = (publishCommentOptions, accountName) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
+    var _a, _b, _c;
     const { accounts, accountsComments, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
     assert(accounts && accountNamesToAccountIds && activeAccountId, `can't use accountsStore.accountActions before initialized`);
     let account = accounts[activeAccountId];
@@ -458,6 +458,7 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
     delete createCommentOptions.onChallengeVerification;
     delete createCommentOptions.onError;
     delete createCommentOptions.onPublishingStateChange;
+    delete createCommentOptions._onPendingCommentIndex;
     // make sure the options dont throw
     yield account.plebbit.createComment(createCommentOptions);
     // try to get comment depth needed for custom depth flat account replies
@@ -486,6 +487,7 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
     let createdAccountComment = Object.assign(Object.assign({}, createCommentOptions), { depth, index: accountCommentIndex, accountId: account.id });
     createdAccountComment = addShortAddressesToAccountComment(createdAccountComment);
     yield saveCreatedAccountComment(createdAccountComment);
+    (_c = publishCommentOptions._onPendingCommentIndex) === null || _c === void 0 ? void 0 : _c.call(publishCommentOptions, accountCommentIndex, createdAccountComment);
     let comment;
     (() => __awaiter(void 0, void 0, void 0, function* () {
         // fetch comment.link dimensions
@@ -649,7 +651,6 @@ export const deleteComment = (commentCidOrAccountCommentIndex, accountName) => _
     assert(accountCommentIndex >= 0 && accountCommentIndex < accountComments.length, `accountsActions.deleteComment index '${accountCommentIndex}' out of range`);
     abandonAndStopPublishSession(account.id, accountCommentIndex);
     shiftPublishSessionIndicesAfterDelete(account.id, accountCommentIndex);
-    yield accountsDatabase.deleteAccountComment(account.id, accountCommentIndex);
     const spliced = [...accountComments];
     spliced.splice(accountCommentIndex, 1);
     const reindexed = spliced.map((c, i) => (Object.assign(Object.assign({}, c), { index: i, accountId: account.id })));
@@ -659,6 +660,7 @@ export const deleteComment = (commentCidOrAccountCommentIndex, accountName) => _
         accountsComments: newAccountsComments,
         commentCidsToAccountsComments: newCommentCidsToAccountsComments,
     });
+    yield accountsDatabase.deleteAccountComment(account.id, accountCommentIndex);
     log("accountsActions.deleteComment", { accountId: account.id, accountCommentIndex });
 });
 export const publishVote = (publishVoteOptions, accountName) => __awaiter(void 0, void 0, void 0, function* () {

@@ -640,6 +640,7 @@ export const publishComment = async (
   delete createCommentOptions.onChallengeVerification;
   delete createCommentOptions.onError;
   delete createCommentOptions.onPublishingStateChange;
+  delete createCommentOptions._onPendingCommentIndex;
 
   // make sure the options dont throw
   await account.plebbit.createComment(createCommentOptions);
@@ -681,6 +682,7 @@ export const publishComment = async (
   };
   createdAccountComment = addShortAddressesToAccountComment(createdAccountComment);
   await saveCreatedAccountComment(createdAccountComment);
+  publishCommentOptions._onPendingCommentIndex?.(accountCommentIndex, createdAccountComment);
 
   let comment: any;
   (async () => {
@@ -878,8 +880,6 @@ export const deleteComment = async (
   abandonAndStopPublishSession(account.id, accountCommentIndex);
   shiftPublishSessionIndicesAfterDelete(account.id, accountCommentIndex);
 
-  await accountsDatabase.deleteAccountComment(account.id, accountCommentIndex);
-
   const spliced = [...accountComments];
   spliced.splice(accountCommentIndex, 1);
   const reindexed = spliced.map((c, i) => ({ ...c, index: i, accountId: account.id }));
@@ -890,6 +890,8 @@ export const deleteComment = async (
     accountsComments: newAccountsComments,
     commentCidsToAccountsComments: newCommentCidsToAccountsComments,
   });
+
+  await accountsDatabase.deleteAccountComment(account.id, accountCommentIndex);
 
   log("accountsActions.deleteComment", { accountId: account.id, accountCommentIndex });
 };

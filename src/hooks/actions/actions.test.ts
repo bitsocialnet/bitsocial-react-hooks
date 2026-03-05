@@ -26,6 +26,7 @@ import PlebbitJsMock, {
   resetPlebbitJsMock,
   debugPlebbitJsMock,
 } from "../../lib/plebbit-js/plebbit-js-mock";
+import useAccountsStore from "../../stores/accounts";
 
 describe("actions", () => {
   beforeAll(async () => {
@@ -512,6 +513,63 @@ describe("actions", () => {
         () => renderedWithComments.result.current.accountComments?.length === 0,
       );
       expect(renderedWithComments.result.current.accountComments.length).toBe(0);
+    });
+
+    test(`abandon from onChallenge removes pending local comment even if publishComment() has not resolved yet`, async () => {
+      const originalPublishComment = useAccountsStore.getState().accountsActions.publishComment;
+      useAccountsStore.setState((state: any) => ({
+        ...state,
+        accountsActions: {
+          ...state.accountsActions,
+          publishComment: async (...args: any[]) => {
+            const pendingComment = await originalPublishComment(...args);
+            // Ensure onChallenge can fire before usePublishComment receives the returned index.
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            return pendingComment;
+          },
+        },
+      }));
+
+      const renderedWithComments = renderHook(() => useAccountComments());
+      const waitForComments = testUtils.createWaitFor(renderedWithComments);
+      let challengeCalls = 0;
+
+      const publishCommentOptions = {
+        subplebbitAddress: "12D3KooW... actions.test early abandon",
+        parentCid: "Qm... actions.test early abandon",
+        content: "abandon onChallenge test content",
+        onChallenge: async () => {
+          challengeCalls += 1;
+          expect(rendered.result.current.index).toBe(undefined);
+          await rendered.result.current.abandonPublish();
+        },
+      };
+      rendered.rerender(publishCommentOptions);
+
+      await waitFor(() => rendered.result.current.state === "ready");
+      await act(async () => {
+        await rendered.result.current.publishComment();
+      });
+
+      await waitFor(() => challengeCalls === 1);
+      await waitFor(() => rendered.result.current.state === "ready");
+      expect(rendered.result.current.index).toBe(undefined);
+      expect(rendered.result.current.challenge).toBe(undefined);
+      expect(rendered.result.current.challengeVerification).toBe(undefined);
+
+      renderedWithComments.rerender();
+      await waitForComments(
+        () => renderedWithComments.result.current.accountComments?.length === 0,
+      );
+      expect(renderedWithComments.result.current.accountComments.length).toBe(0);
+
+      useAccountsStore.setState((state: any) => ({
+        ...state,
+        accountsActions: {
+          ...state.accountsActions,
+          publishComment: originalPublishComment,
+        },
+      }));
     });
 
     test(`abandon is idempotent-safe (second call no-ops or fails predictably, does not corrupt state)`, async () => {

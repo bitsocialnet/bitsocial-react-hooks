@@ -138,6 +138,11 @@ export function usePublishComment(options) {
     const [challengeVerification, setChallengeVerification] = useState();
     const [publishChallengeAnswers, setPublishChallengeAnswers] = useState();
     const indexRef = useRef(undefined);
+    const onPendingCommentIndex = (pendingIndex) => {
+        indexRef.current = pendingIndex;
+        setIndex(pendingIndex);
+    };
+    publishCommentOptions._onPendingCommentIndex = onPendingCommentIndex;
     let initialState = "initializing";
     // before the accountId and options is defined, nothing can happen
     if (accountId && options) {

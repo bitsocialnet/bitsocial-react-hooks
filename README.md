@@ -414,6 +414,7 @@ if (index !== undefined) {
 // if the user closes the challenge modal and wants to cancel publishing:
 await abandonPublish()
 // the pending local account comment is removed from accountComments
+// this works even if called immediately from onChallenge before publishComment() resolves
 
 // reply to a post or comment
 const publishReplyOptions = {
