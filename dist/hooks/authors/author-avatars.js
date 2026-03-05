@@ -7,15 +7,15 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { useEffect, useState } from 'react';
-import { useAccount } from '../accounts';
-import Logger from '@plebbit/plebbit-logger';
-const log = Logger('bitsocial-react-hooks:authors:hooks');
-import assert from 'assert';
-import { ethers } from 'ethers';
-import { getNftMetadataUrl, getNftImageUrl, getNftOwner } from '../../lib/chain';
-import createStore from 'zustand';
-const noMediaIpfsGatewayUrl = 'http://no-media-ipfs-gateway-url';
+import { useEffect, useState } from "react";
+import { useAccount } from "../accounts";
+import Logger from "@plebbit/plebbit-logger";
+const log = Logger("bitsocial-react-hooks:authors:hooks");
+import assert from "assert";
+import { ethers } from "ethers";
+import { getNftMetadataUrl, getNftImageUrl, getNftOwner } from "../../lib/chain";
+import createStore from "zustand";
+const noMediaIpfsGatewayUrl = "http://no-media-ipfs-gateway-url";
 /**
  * @param nft - The NFT object to resolve the URL of.
  * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
@@ -45,7 +45,6 @@ export function useNftMetadataUrl(nft, accountName) {
         if (!account || !nft) {
             return;
         }
-        ;
         (() => __awaiter(this, void 0, void 0, function* () {
             try {
                 const url = yield getNftMetadataUrl(...getNftMetadataUrlArgs);
@@ -53,7 +52,12 @@ export function useNftMetadataUrl(nft, accountName) {
             }
             catch (error) {
                 setError(error);
-                log.error('useNftMetadataUrl getNftMetadataUrl error', { nft, ipfsGatewayUrl, chainProviders, error });
+                log.error("useNftMetadataUrl getNftMetadataUrl error", {
+                    nft,
+                    ipfsGatewayUrl,
+                    chainProviders,
+                    error,
+                });
             }
         }))();
     }, getNftMetadataUrlArgs);
@@ -67,7 +71,7 @@ export function useNftMetadataUrl(nft, accountName) {
  */
 // NOTE: useNftImageUrl tests are skipped, if changes are made they must be tested manually
 export function useNftImageUrl(nftMetadataUrl, accountName) {
-    assert(!nftMetadataUrl || typeof nftMetadataUrl === 'string', `useNftImageUrl invalid argument nftMetadataUrl '${nftMetadataUrl}' not a string`);
+    assert(!nftMetadataUrl || typeof nftMetadataUrl === "string", `useNftImageUrl invalid argument nftMetadataUrl '${nftMetadataUrl}' not a string`);
     const account = useAccount({ accountName });
     // possible to use account.plebbit instead of account.plebbitOptions
     const ipfsGatewayUrl = (account === null || account === void 0 ? void 0 : account.mediaIpfsGatewayUrl) || noMediaIpfsGatewayUrl;
@@ -80,7 +84,6 @@ export function useNftImageUrl(nftMetadataUrl, accountName) {
         if (!account || !nftMetadataUrl) {
             return;
         }
-        ;
         (() => __awaiter(this, void 0, void 0, function* () {
             try {
                 const url = yield getNftImageUrl(nftMetadataUrl, ipfsGatewayUrl);
@@ -88,7 +91,7 @@ export function useNftImageUrl(nftMetadataUrl, accountName) {
             }
             catch (error) {
                 setError(error);
-                log.error('useNftImageUrl getNftImageUrl error', { nftMetadataUrl, ipfsGatewayUrl, error });
+                log.error("useNftImageUrl getNftImageUrl error", { nftMetadataUrl, ipfsGatewayUrl, error });
             }
         }))();
     }, [nftMetadataUrl, ipfsGatewayUrl]);
@@ -110,7 +113,6 @@ export function useVerifiedAuthorAvatarSignature(author, accountName) {
         if (!account || !(author === null || author === void 0 ? void 0 : author.avatar)) {
             return;
         }
-        ;
         (() => __awaiter(this, void 0, void 0, function* () {
             try {
                 const res = yield verifyAuthorAvatarSignature(author.avatar, author.address, chainProviders);
@@ -118,7 +120,11 @@ export function useVerifiedAuthorAvatarSignature(author, accountName) {
             }
             catch (error) {
                 setError(error);
-                log.error('useVerifiedAuthorAvatarSignature verifyAuthorAvatarSignature error', { author, chainProviders, error });
+                log.error("useVerifiedAuthorAvatarSignature verifyAuthorAvatarSignature error", {
+                    author,
+                    chainProviders,
+                    error,
+                });
             }
         }))();
     }, [author === null || author === void 0 ? void 0 : author.avatar, author === null || author === void 0 ? void 0 : author.address, chainProviders]);
@@ -131,9 +137,9 @@ export function useVerifiedAuthorAvatarSignature(author, accountName) {
 }
 const defaultWhitelistedTokenAddresses = [
     // xpleb nfts
-    '0x890a2e81836e0e76e0f49995e6b51ca6ce6f39ed',
+    "0x890a2e81836e0e76e0f49995e6b51ca6ce6f39ed",
     // plebsquat
-    '0x52e6cd20f5fca56da5a0e489574c92af118b8188',
+    "0x52e6cd20f5fca56da5a0e489574c92af118b8188",
 ];
 const useAuthorAvatarsWhitelistedTokenAddressesStore = createStore((setState, getState) => ({
     authorAvatarsWhitelistedTokenAddresses: {},
@@ -147,7 +153,8 @@ const useAuthorAvatarsWhitelistedTokenAddressesStore = createStore((setState, ge
         setState({ authorAvatarsWhitelistedTokenAddresses });
     },
 }));
-export const setAuthorAvatarsWhitelistedTokenAddresses = useAuthorAvatarsWhitelistedTokenAddressesStore.getState().setAuthorAvatarsWhitelistedTokenAddresses;
+export const setAuthorAvatarsWhitelistedTokenAddresses = useAuthorAvatarsWhitelistedTokenAddressesStore.getState()
+    .setAuthorAvatarsWhitelistedTokenAddresses;
 setAuthorAvatarsWhitelistedTokenAddresses(defaultWhitelistedTokenAddresses); // init default
 export function useAuthorAvatarIsWhitelisted(nft) {
     // TODO: make a list that a dao can vote it, get the list from plebbit.getDefaults()
@@ -167,10 +174,10 @@ export const getNftMessageToSign = (authorAddress, timestamp, tokenAddress, toke
 // NOTE: verifyAuthorAvatarSignature tests are skipped, if changes are made they must be tested manually
 export const verifyAuthorAvatarSignature = (nft, authorAddress, chainProviders) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c, _d, _e;
-    assert(nft && typeof nft === 'object', `verifyAuthorAvatarSignature invalid nft argument '${nft}'`);
+    assert(nft && typeof nft === "object", `verifyAuthorAvatarSignature invalid nft argument '${nft}'`);
     assert(nft === null || nft === void 0 ? void 0 : nft.address, `verifyAuthorAvatarSignature invalid nft.address '${nft === null || nft === void 0 ? void 0 : nft.address}'`);
-    assert((nft === null || nft === void 0 ? void 0 : nft.id) && typeof (nft === null || nft === void 0 ? void 0 : nft.id) === 'string', `verifyAuthorAvatarSignature invalid nft.tokenAddress '${nft === null || nft === void 0 ? void 0 : nft.id}' not a string`);
-    assert(typeof (nft === null || nft === void 0 ? void 0 : nft.timestamp) === 'number', `verifyAuthorAvatarSignature invalid nft.timestamp '${nft === null || nft === void 0 ? void 0 : nft.timestamp}' not a number`);
+    assert((nft === null || nft === void 0 ? void 0 : nft.id) && typeof (nft === null || nft === void 0 ? void 0 : nft.id) === "string", `verifyAuthorAvatarSignature invalid nft.tokenAddress '${nft === null || nft === void 0 ? void 0 : nft.id}' not a string`);
+    assert(typeof (nft === null || nft === void 0 ? void 0 : nft.timestamp) === "number", `verifyAuthorAvatarSignature invalid nft.timestamp '${nft === null || nft === void 0 ? void 0 : nft.timestamp}' not a number`);
     assert(nft === null || nft === void 0 ? void 0 : nft.signature, `verifyAuthorAvatarSignature invalid nft.signature '${nft === null || nft === void 0 ? void 0 : nft.signature}'`);
     assert((_a = nft === null || nft === void 0 ? void 0 : nft.signature) === null || _a === void 0 ? void 0 : _a.signature, `verifyAuthorAvatarSignature invalid nft.signature.signature '${(_b = nft === null || nft === void 0 ? void 0 : nft.signature) === null || _b === void 0 ? void 0 : _b.signature}'`);
     assert(authorAddress, `verifyAuthorAvatarSignature invalid authorAddress '${authorAddress}'`);

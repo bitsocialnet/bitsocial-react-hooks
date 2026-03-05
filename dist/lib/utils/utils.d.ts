@@ -1,4 +1,4 @@
-import { Comment } from '../../types';
+import { Comment } from "../../types";
 export declare const flattenCommentsPages: (pageInstanceOrPagesInstance: any) => any[];
 export declare const memo: (functionToMemo: Function, memoOptions: any) => (...args: any) => Promise<any>;
 export declare const memoSync: (functionToMemo: Function, memoOptions: any) => (...args: any) => any;

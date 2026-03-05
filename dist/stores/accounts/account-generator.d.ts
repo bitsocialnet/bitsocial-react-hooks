@@ -1,10 +1,10 @@
-import { AccountSubplebbit } from '../../types';
+import { AccountSubplebbit } from "../../types";
 export declare const overwritePlebbitOptions: {
     resolveAuthorAddresses: boolean;
     validatePages: boolean;
 };
 export declare const getDefaultPlebbitOptions: () => any;
-export declare const defaultMediaIpfsGatewayUrl: any;
+export declare const defaultMediaIpfsGatewayUrl: string;
 export declare const generateDefaultAccount: () => Promise<{
     id: string;
     version: number;
@@ -39,7 +39,7 @@ export declare const generateDefaultAccount: () => Promise<{
     subplebbits: {
         [subplebbitAddress: string]: AccountSubplebbit;
     };
-    mediaIpfsGatewayUrl: any;
+    mediaIpfsGatewayUrl: string;
 }>;
 declare const accountGenerator: {
     generateDefaultAccount: () => Promise<{
@@ -76,7 +76,7 @@ declare const accountGenerator: {
         subplebbits: {
             [subplebbitAddress: string]: AccountSubplebbit;
         };
-        mediaIpfsGatewayUrl: any;
+        mediaIpfsGatewayUrl: string;
     }>;
     getDefaultPlebbitOptions: () => any;
 };

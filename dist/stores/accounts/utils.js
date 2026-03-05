@@ -7,13 +7,13 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import assert from 'assert';
-import Logger from '@plebbit/plebbit-logger';
-const log = Logger('bitsocial-react-hooks:accounts:stores');
-import commentsStore from '../comments';
-import repliesPagesStore from '../replies-pages';
-import subplebbitsPagesStore from '../subplebbits-pages';
-import PlebbitJs from '../../lib/plebbit-js';
+import assert from "assert";
+import Logger from "@plebbit/plebbit-logger";
+const log = Logger("bitsocial-react-hooks:accounts:stores");
+import commentsStore from "../comments";
+import repliesPagesStore from "../replies-pages";
+import subplebbitsPagesStore from "../subplebbits-pages";
+import PlebbitJs from "../../lib/plebbit-js";
 const getAuthorAddressRolesFromSubplebbits = (authorAddress, subplebbits) => {
     var _a, _b;
     const roles = {};
@@ -27,8 +27,8 @@ const getAuthorAddressRolesFromSubplebbits = (authorAddress, subplebbits) => {
 };
 export const getAccountSubplebbits = (account, subplebbits) => {
     var _a, _b, _c;
-    assert(((_a = account === null || account === void 0 ? void 0 : account.author) === null || _a === void 0 ? void 0 : _a.address) && typeof ((_b = account === null || account === void 0 ? void 0 : account.author) === null || _b === void 0 ? void 0 : _b.address) === 'string', `accountsStore utils getAccountSubplebbits invalid account.author.address '${(_c = account === null || account === void 0 ? void 0 : account.author) === null || _c === void 0 ? void 0 : _c.address}'`);
-    assert(subplebbits && typeof subplebbits === 'object', `accountsStore utils getAccountSubplebbits invalid subplebbits '${subplebbits}'`);
+    assert(((_a = account === null || account === void 0 ? void 0 : account.author) === null || _a === void 0 ? void 0 : _a.address) && typeof ((_b = account === null || account === void 0 ? void 0 : account.author) === null || _b === void 0 ? void 0 : _b.address) === "string", `accountsStore utils getAccountSubplebbits invalid account.author.address '${(_c = account === null || account === void 0 ? void 0 : account.author) === null || _c === void 0 ? void 0 : _c.address}'`);
+    assert(subplebbits && typeof subplebbits === "object", `accountsStore utils getAccountSubplebbits invalid subplebbits '${subplebbits}'`);
     const roles = getAuthorAddressRolesFromSubplebbits(account.author.address, subplebbits);
     const accountSubplebbits = Object.assign({}, account.subplebbits);
     for (const subplebbitAddress in roles) {
@@ -42,7 +42,10 @@ export const getCommentCidsToAccountsComments = (accountsComments) => {
     for (const accountId in accountsComments) {
         for (const accountComment of accountsComments[accountId]) {
             if (accountComment.cid) {
-                commentCidsToAccountsComments[accountComment.cid] = { accountId, accountCommentIndex: accountComment.index };
+                commentCidsToAccountsComments[accountComment.cid] = {
+                    accountId,
+                    accountCommentIndex: accountComment.index,
+                };
             }
         }
     }
@@ -62,11 +65,11 @@ export const fetchCommentLinkDimensions = (link) => __awaiter(void 0, void 0, vo
             resolve({
                 linkWidth: image.width,
                 linkHeight: image.height,
-                linkHtmlTagName: 'img',
+                linkHtmlTagName: "img",
             });
             // remove image from memory
             try {
-                image.src = '';
+                image.src = "";
             }
             catch (e) { }
         };
@@ -80,10 +83,10 @@ export const fetchCommentLinkDimensions = (link) => __awaiter(void 0, void 0, vo
         image.src = url;
     });
     const fetchVideoDimensions = (url) => new Promise((resolve, reject) => {
-        const video = document.createElement('video');
+        const video = document.createElement("video");
         video.muted = true;
         video.loop = false;
-        video.addEventListener('loadeddata', () => {
+        video.addEventListener("loadeddata", () => {
             // don't accept 0px value
             if (!video.videoWidth || !video.videoHeight) {
                 return reject(Error(`failed fetching video dimensions for url '${url}'`));
@@ -91,7 +94,7 @@ export const fetchCommentLinkDimensions = (link) => __awaiter(void 0, void 0, vo
             resolve({
                 linkWidth: video.videoWidth,
                 linkHeight: video.videoHeight,
-                linkHtmlTagName: 'video',
+                linkHtmlTagName: "video",
             });
             // prevent video from playing
             try {
@@ -100,11 +103,11 @@ export const fetchCommentLinkDimensions = (link) => __awaiter(void 0, void 0, vo
             catch (e) { }
             // prevent video from loading
             try {
-                video.src = '';
+                video.src = "";
             }
             catch (e) { }
         });
-        video.addEventListener('error', (error) => {
+        video.addEventListener("error", (error) => {
             reject(Error(`failed fetching video dimensions for url '${url}'`));
         });
         // max loading time
@@ -114,21 +117,21 @@ export const fetchCommentLinkDimensions = (link) => __awaiter(void 0, void 0, vo
         video.src = url;
     });
     const fetchAudio = (url) => new Promise((resolve, reject) => {
-        const audio = document.createElement('audio');
-        audio.addEventListener('loadeddata', () => {
+        const audio = document.createElement("audio");
+        audio.addEventListener("loadeddata", () => {
             resolve({
-                linkHtmlTagName: 'audio',
+                linkHtmlTagName: "audio",
             });
             try {
                 audio.pause();
             }
             catch (_a) { }
             try {
-                audio.src = '';
+                audio.src = "";
             }
             catch (_b) { }
         });
-        audio.addEventListener('error', () => reject(Error(`failed fetching audio html tag name for url '${url}'`)));
+        audio.addEventListener("error", () => reject(Error(`failed fetching audio html tag name for url '${url}'`)));
         const timeout = 20000;
         setTimeout(() => reject(Error(`failed fetching audio html tag name for url '${url}' timeout '${timeout}'`)), timeout);
         audio.src = url;
@@ -137,23 +140,27 @@ export const fetchCommentLinkDimensions = (link) => __awaiter(void 0, void 0, vo
     const PromiseAny = (promises) => new Promise((res, rej) => {
         let count = promises.length;
         if (count === 0)
-            return rej(Error('all promises rejected'));
+            return rej(Error("all promises rejected"));
         promises.forEach((p) => Promise.resolve(p)
             .then(res)
             .catch((e) => {
             if (--count === 0)
-                rej(Error('all promises rejected'));
+                rej(Error("all promises rejected"));
         }));
     });
     try {
-        if (new URL(link).protocol !== 'https:') {
+        if (new URL(link).protocol !== "https:") {
             throw Error(`failed fetching comment.link dimensions for link '${link}' not https protocol`);
         }
-        const dimensions = yield PromiseAny([fetchImageDimensions(link), fetchVideoDimensions(link), fetchAudio(link)]);
+        const dimensions = yield PromiseAny([
+            fetchImageDimensions(link),
+            fetchVideoDimensions(link),
+            fetchAudio(link),
+        ]);
         return dimensions;
     }
     catch (error) {
-        log.error('fetchCommentLinkDimensions error', { error, link });
+        log.error("fetchCommentLinkDimensions error", { error, link });
         return {};
     }
 });
@@ -180,15 +187,15 @@ export const getAccountCommentDepth = (comment) => {
         return 0;
     }
     let parentCommentDepth = (_a = commentsStore.getState().comments[comment.parentCid]) === null || _a === void 0 ? void 0 : _a.depth;
-    if (typeof parentCommentDepth === 'number') {
+    if (typeof parentCommentDepth === "number") {
         return parentCommentDepth + 1;
     }
     parentCommentDepth = (_b = repliesPagesStore.getState().comments[comment.parentCid]) === null || _b === void 0 ? void 0 : _b.depth;
-    if (typeof parentCommentDepth === 'number') {
+    if (typeof parentCommentDepth === "number") {
         return parentCommentDepth + 1;
     }
     parentCommentDepth = (_c = subplebbitsPagesStore.getState().comments[comment.parentCid]) === null || _c === void 0 ? void 0 : _c.depth;
-    if (typeof parentCommentDepth === 'number') {
+    if (typeof parentCommentDepth === "number") {
         return parentCommentDepth + 1;
     }
     // if can't find the parent comment depth anywhere, don't include it with the account comment
@@ -197,12 +204,16 @@ export const getAccountCommentDepth = (comment) => {
 export const addShortAddressesToAccountComment = (comment) => {
     comment = Object.assign({}, comment);
     try {
-        comment.shortSubplebbitAddress = PlebbitJs.Plebbit.getShortAddress({ address: comment.subplebbitAddress });
+        comment.shortSubplebbitAddress = PlebbitJs.Plebbit.getShortAddress({
+            address: comment.subplebbitAddress,
+        });
     }
     catch (e) { }
     try {
         comment.author = Object.assign({}, comment.author);
-        comment.author.shortAddress = PlebbitJs.Plebbit.getShortAddress({ address: comment.author.address });
+        comment.author.shortAddress = PlebbitJs.Plebbit.getShortAddress({
+            address: comment.author.address,
+        });
     }
     catch (e) { }
     return comment;

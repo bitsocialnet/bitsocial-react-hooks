@@ -7,26 +7,26 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import PlebbitJs from '../../lib/plebbit-js';
-import validator from '../../lib/validator';
-import chain from '../../lib/chain';
-import { v4 as uuid } from 'uuid';
-import accountsDatabase from './accounts-database';
-import Logger from '@plebbit/plebbit-logger';
-const log = Logger('bitsocial-react-hooks:accounts:stores');
+import PlebbitJs from "../../lib/plebbit-js";
+import validator from "../../lib/validator";
+import chain from "../../lib/chain";
+import { v4 as uuid } from "uuid";
+import accountsDatabase from "./accounts-database";
+import Logger from "@plebbit/plebbit-logger";
+const log = Logger("bitsocial-react-hooks:accounts:stores");
 // default chain providers
 const chainProviders = {
     eth: {
         // default should not use a url, but rather ethers' default provider
-        urls: ['https://ethrpc.xyz', 'viem', 'ethers.js'],
+        urls: ["https://ethrpc.xyz", "viem", "ethers.js"],
         chainId: 1,
     },
     matic: {
-        urls: ['https://polygon-rpc.com'],
+        urls: ["https://polygon-rpc.com"],
         chainId: 137,
     },
     sol: {
-        urls: ['https://solrpc.xyz'],
+        urls: ["https://solrpc.xyz"],
         chainId: 1,
     },
 };
@@ -43,7 +43,8 @@ export const getDefaultPlebbitOptions = () => {
         // @ts-ignore
         const defaultPlebbitOptions = JSON.parse(JSON.stringify(Object.assign(Object.assign({}, window.defaultPlebbitOptions), { libp2pJsClientsOptions: undefined })));
         // @ts-ignore
-        defaultPlebbitOptions.libp2pJsClientsOptions = window.defaultPlebbitOptions.libp2pJsClientsOptions; // libp2pJsClientsOptions is not always just json
+        defaultPlebbitOptions.libp2pJsClientsOptions =
+            window.defaultPlebbitOptions.libp2pJsClientsOptions; // libp2pJsClientsOptions is not always just json
         // add missing chain providers
         if (!defaultPlebbitOptions.chainProviders) {
             defaultPlebbitOptions.chainProviders = {};
@@ -57,17 +58,30 @@ export const getDefaultPlebbitOptions = () => {
         return defaultPlebbitOptions;
     }
     // default plebbit options for web client
-    return Object.assign({ ipfsGatewayUrls: ['https://ipfsgateway.xyz', 'https://gateway.plebpubsub.xyz', 'https://gateway.forumindex.com'], kuboRpcClientsOptions: undefined, pubsubKuboRpcClientsOptions: ['https://pubsubprovider.xyz/api/v0', 'https://plebpubsub.xyz/api/v0', 'https://rannithepleb.com/api/v0'], httpRoutersOptions: ['https://routing.lol', 'https://peers.pleb.bot', 'https://peers.plebpubsub.xyz', 'https://peers.forumindex.com'], chainProviders }, overwritePlebbitOptions);
+    return Object.assign({ ipfsGatewayUrls: [
+            "https://ipfsgateway.xyz",
+            "https://gateway.plebpubsub.xyz",
+            "https://gateway.forumindex.com",
+        ], kuboRpcClientsOptions: undefined, pubsubKuboRpcClientsOptions: [
+            "https://pubsubprovider.xyz/api/v0",
+            "https://plebpubsub.xyz/api/v0",
+            "https://rannithepleb.com/api/v0",
+        ], httpRoutersOptions: [
+            "https://routing.lol",
+            "https://peers.pleb.bot",
+            "https://peers.plebpubsub.xyz",
+            "https://peers.forumindex.com",
+        ], chainProviders }, overwritePlebbitOptions);
 };
 // the gateway to use in <img src> for nft avatars
 // @ts-ignore
-export const defaultMediaIpfsGatewayUrl = window.defaultMediaIpfsGatewayUrl || 'https://ipfs.io';
+export const defaultMediaIpfsGatewayUrl = window.defaultMediaIpfsGatewayUrl || "https://ipfs.io";
 export const generateDefaultAccount = () => __awaiter(void 0, void 0, void 0, function* () {
     const plebbitOptions = getDefaultPlebbitOptions();
     const plebbit = yield PlebbitJs.Plebbit(plebbitOptions);
     // handle errors or error events are uncaught
     // no need to log them because plebbit-js already logs them
-    plebbit.on('error', (error) => log.error('uncaught plebbit instance error, should never happen', { error }));
+    plebbit.on("error", (error) => log.error("uncaught plebbit instance error, should never happen", { error }));
     const signer = yield plebbit.createSigner();
     const author = {
         address: signer.address,
@@ -96,7 +110,7 @@ export const generateDefaultAccount = () => __awaiter(void 0, void 0, void 0, fu
     return account;
 });
 const getNextAvailableDefaultAccountName = () => __awaiter(void 0, void 0, void 0, function* () {
-    const accountIds = yield accountsDatabase.accountsMetadataDatabase.getItem('accountIds');
+    const accountIds = yield accountsDatabase.accountsMetadataDatabase.getItem("accountIds");
     const accountNames = [];
     if (accountIds === null || accountIds === void 0 ? void 0 : accountIds.length) {
         const accounts = yield accountsDatabase.getAccounts(accountIds);

@@ -1,4 +1,4 @@
-import { Subplebbit, SubplebbitPage, SubplebbitsPages, Comments } from '../../types';
+import { Subplebbit, SubplebbitPage, SubplebbitsPages, Comments } from "../../types";
 export declare const listeners: any;
 export type SubplebbitsPagesState = {
     subplebbitsPages: SubplebbitsPages;

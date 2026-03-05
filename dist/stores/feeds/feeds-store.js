@@ -7,16 +7,16 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import assert from 'assert';
-import Logger from '@plebbit/plebbit-logger';
-const log = Logger('bitsocial-react-hooks:feeds:stores');
-import createStore from 'zustand';
-import localForageLru from '../../lib/localforage-lru';
-import { subplebbitPostsCacheExpired } from '../../lib/utils';
-import accountsStore from '../accounts';
-import subplebbitsStore from '../subplebbits';
-import subplebbitsPagesStore from '../subplebbits-pages';
-import { getFeedsSubplebbitsFirstPageCids, getLoadedFeeds, getUpdatedFeeds, getBufferedFeedsWithoutLoadedFeeds, getFeedsSubplebbitsPostCounts, getFeedsHaveMore, getAccountsBlockedAddresses, feedsHaveChangedBlockedAddresses, accountsBlockedAddressesChanged, getAccountsBlockedCids, feedsHaveChangedBlockedCids, accountsBlockedCidsChanged, feedsSubplebbitsChanged, getFeedsSubplebbits, getFeedsSubplebbitsLoadedCount, getFeedsSubplebbitsPostsPagesFirstUpdatedAts, getFilteredSortedFeeds, getFeedsSubplebbitAddressesWithNewerPosts, } from './utils';
+import assert from "assert";
+import Logger from "@plebbit/plebbit-logger";
+const log = Logger("bitsocial-react-hooks:feeds:stores");
+import createStore from "zustand";
+import localForageLru from "../../lib/localforage-lru";
+import { subplebbitPostsCacheExpired } from "../../lib/utils";
+import accountsStore from "../accounts";
+import subplebbitsStore from "../subplebbits";
+import subplebbitsPagesStore from "../subplebbits-pages";
+import { getFeedsSubplebbitsFirstPageCids, getLoadedFeeds, getUpdatedFeeds, getBufferedFeedsWithoutLoadedFeeds, getFeedsSubplebbitsPostCounts, getFeedsHaveMore, getAccountsBlockedAddresses, feedsHaveChangedBlockedAddresses, accountsBlockedAddressesChanged, getAccountsBlockedCids, feedsHaveChangedBlockedCids, accountsBlockedCidsChanged, feedsSubplebbitsChanged, getFeedsSubplebbits, getFeedsSubplebbitsLoadedCount, getFeedsSubplebbitsPostsPagesFirstUpdatedAts, getFilteredSortedFeeds, getFeedsSubplebbitAddressesWithNewerPosts, } from "./utils";
 // reddit loads approximately 25 posts per page
 // while infinite scrolling
 export const defaultPostsPerPage = 25;
@@ -38,17 +38,19 @@ const feedsStore = createStore((setState, getState) => ({
             var _a;
             // init here because must be called after async accounts store finished initializing
             initializeFeedsStore();
-            assert(feedName && typeof feedName === 'string', `feedsStore.addFeedToStore feedName '${feedName}' invalid`);
+            assert(feedName && typeof feedName === "string", `feedsStore.addFeedToStore feedName '${feedName}' invalid`);
             assert(Array.isArray(subplebbitAddresses), `addFeedToStore.addFeedToStore subplebbitAddresses '${subplebbitAddresses}' invalid`);
-            assert(sortType && typeof sortType === 'string', `addFeedToStore.addFeedToStore sortType '${sortType}' invalid`);
-            assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.plebbit) === null || _a === void 0 ? void 0 : _a.getSubplebbit) === 'function', `addFeedToStore.addFeedToStore account '${account}' invalid`);
-            assert(typeof isBufferedFeed === 'boolean' || isBufferedFeed === undefined || isBufferedFeed === null, `addFeedToStore.addFeedToStore isBufferedFeed '${isBufferedFeed}' invalid`);
-            assert(!filter || typeof (filter === null || filter === void 0 ? void 0 : filter.filter) === 'function', `addFeedToStore.addFeedToStore filter.filter '${filter === null || filter === void 0 ? void 0 : filter.filter}' invalid`);
-            assert(!filter || typeof (filter === null || filter === void 0 ? void 0 : filter.key) === 'string', `addFeedToStore.addFeedToStore filter.key '${filter === null || filter === void 0 ? void 0 : filter.key}' invalid`);
-            assert(!newerThan || typeof newerThan === 'number', `addFeedToStore.addFeedToStore newerThan '${newerThan}' invalid`);
+            assert(sortType && typeof sortType === "string", `addFeedToStore.addFeedToStore sortType '${sortType}' invalid`);
+            assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.plebbit) === null || _a === void 0 ? void 0 : _a.getSubplebbit) === "function", `addFeedToStore.addFeedToStore account '${account}' invalid`);
+            assert(typeof isBufferedFeed === "boolean" ||
+                isBufferedFeed === undefined ||
+                isBufferedFeed === null, `addFeedToStore.addFeedToStore isBufferedFeed '${isBufferedFeed}' invalid`);
+            assert(!filter || typeof (filter === null || filter === void 0 ? void 0 : filter.filter) === "function", `addFeedToStore.addFeedToStore filter.filter '${filter === null || filter === void 0 ? void 0 : filter.filter}' invalid`);
+            assert(!filter || typeof (filter === null || filter === void 0 ? void 0 : filter.key) === "string", `addFeedToStore.addFeedToStore filter.key '${filter === null || filter === void 0 ? void 0 : filter.key}' invalid`);
+            assert(!newerThan || typeof newerThan === "number", `addFeedToStore.addFeedToStore newerThan '${newerThan}' invalid`);
             postsPerPage = postsPerPage || defaultPostsPerPage;
-            assert(typeof postsPerPage === 'number', `addFeedToStore.addFeedToStore postsPerPage '${postsPerPage}' invalid`);
-            assert(!accountComments || typeof (accountComments === null || accountComments === void 0 ? void 0 : accountComments.newerThan) === 'number', `addFeedToStore.addFeedToStore accountComments.newerThan '${accountComments === null || accountComments === void 0 ? void 0 : accountComments.newerThan}' invalid`);
+            assert(typeof postsPerPage === "number", `addFeedToStore.addFeedToStore postsPerPage '${postsPerPage}' invalid`);
+            assert(!accountComments || typeof (accountComments === null || accountComments === void 0 ? void 0 : accountComments.newerThan) === "number", `addFeedToStore.addFeedToStore accountComments.newerThan '${accountComments === null || accountComments === void 0 ? void 0 : accountComments.newerThan}' invalid`);
             assert(!modQueue || Array.isArray(modQueue), `addFeedToStore.addFeedToStore modQueue '${modQueue}' invalid`);
             const { feedsOptions, updateFeeds } = getState();
             // feed is in store already, do nothing
@@ -69,7 +71,7 @@ const feedsStore = createStore((setState, getState) => ({
                 // TODO: allow multiple modQueue at once, fow now only use first in array
                 modQueue,
             };
-            log('feedsActions.addFeedToStore', feedOptions);
+            log("feedsActions.addFeedToStore", feedOptions);
             setState(({ feedsOptions }) => {
                 // make sure to never overwrite a feed already added
                 if (feedsOptions[feedName] && feedsOptions[feedName].pageNumber !== 0) {
@@ -87,11 +89,13 @@ const feedsStore = createStore((setState, getState) => ({
     incrementFeedPageNumber(feedName) {
         const { feedsOptions, loadedFeeds, updateFeeds } = getState();
         assert(feedsOptions[feedName], `feedsActions.incrementFeedPageNumber feed name '${feedName}' does not exist in feeds store`);
-        log('feedsActions.incrementFeedPageNumber', { feedName });
-        assert(feedsOptions[feedName].pageNumber * feedsOptions[feedName].postsPerPage <= loadedFeeds[feedName].length, `feedsActions.incrementFeedPageNumber cannot increment feed page number before current page has loaded`);
+        log("feedsActions.incrementFeedPageNumber", { feedName });
+        assert(feedsOptions[feedName].pageNumber * feedsOptions[feedName].postsPerPage <=
+            loadedFeeds[feedName].length, `feedsActions.incrementFeedPageNumber cannot increment feed page number before current page has loaded`);
         setState(({ feedsOptions, loadedFeeds }) => {
             // don't increment page number before the current page has loaded
-            if (feedsOptions[feedName].pageNumber * feedsOptions[feedName].postsPerPage > loadedFeeds[feedName].length) {
+            if (feedsOptions[feedName].pageNumber * feedsOptions[feedName].postsPerPage >
+                loadedFeeds[feedName].length) {
                 return {};
             }
             const feedOptions = Object.assign(Object.assign({}, feedsOptions[feedName]), { pageNumber: feedsOptions[feedName].pageNumber + 1 });
@@ -105,7 +109,7 @@ const feedsStore = createStore((setState, getState) => ({
         const { feedsOptions, updateFeeds } = getState();
         assert(feedsOptions[feedName], `feedsActions.resetFeed feed name '${feedName}' does not exist in feeds store`);
         assert(feedsOptions[feedName].pageNumber >= 1, `feedsActions.resetFeed cannot reset feed page number '${feedsOptions[feedName].pageNumber}' lower than 1`);
-        log('feedsActions.resetFeed', { feedName });
+        log("feedsActions.resetFeed", { feedName });
         setState(({ feedsOptions, loadedFeeds, updatedFeeds }) => {
             const feedOptions = Object.assign(Object.assign({}, feedsOptions[feedName]), { pageNumber: 1 });
             return {
@@ -142,8 +146,15 @@ const feedsStore = createStore((setState, getState) => ({
             const feedsSubplebbitAddressesWithNewerPosts = getFeedsSubplebbitAddressesWithNewerPosts(filteredSortedFeeds, loadedFeeds, previousState.feedsSubplebbitAddressesWithNewerPosts);
             const updatedFeeds = yield getUpdatedFeeds(feedsOptions, filteredSortedFeeds, previousState.updatedFeeds, loadedFeeds, accounts);
             // set new feeds
-            setState((state) => ({ bufferedFeeds, loadedFeeds, updatedFeeds, bufferedFeedsSubplebbitsPostCounts, feedsHaveMore, feedsSubplebbitAddressesWithNewerPosts }));
-            log.trace('feedsStore.updateFeeds', {
+            setState((state) => ({
+                bufferedFeeds,
+                loadedFeeds,
+                updatedFeeds,
+                bufferedFeedsSubplebbitsPostCounts,
+                feedsHaveMore,
+                feedsSubplebbitAddressesWithNewerPosts,
+            }));
+            log.trace("feedsStore.updateFeeds", {
                 feedsOptions,
                 bufferedFeeds,
                 loadedFeeds,
@@ -266,8 +277,10 @@ const addSubplebbitsPagesOnLowBufferedFeedsSubplebbitsPostCounts = (feedsStoreSt
     previousBufferedFeedsSubplebbitsPostCounts = bufferedFeedsSubplebbitsPostCounts;
     // in case feeds subplebbit changed, but the first page cids haven't
     const bufferedFeedsSubplebbitsPostCountsPageCids = getFeedsSubplebbitsFirstPageCids(bufferedFeedsSubplebbits);
-    const bufferedFeedsSubplebbitsPostCountsPageCidsChanged = bufferedFeedsSubplebbitsPostCountsPageCids.toString() !== previousBufferedFeedsSubplebbitsPostCountsPageCids.toString();
-    if (!bufferedFeedsSubplebbitsPostCountsPageCidsChanged && !bufferedFeedsSubplebbitsPostCountsChanged) {
+    const bufferedFeedsSubplebbitsPostCountsPageCidsChanged = bufferedFeedsSubplebbitsPostCountsPageCids.toString() !==
+        previousBufferedFeedsSubplebbitsPostCountsPageCids.toString();
+    if (!bufferedFeedsSubplebbitsPostCountsPageCidsChanged &&
+        !bufferedFeedsSubplebbitsPostCountsChanged) {
         return;
     }
     previousBufferedFeedsSubplebbitsPostCountsPageCids = bufferedFeedsSubplebbitsPostCountsPageCids;
@@ -293,7 +306,12 @@ const addSubplebbitsPagesOnLowBufferedFeedsSubplebbitsPostCounts = (feedsStoreSt
             }
             // subplebbit post count is low, fetch next subplebbit page
             if (subplebbitsPostCounts[subplebbitAddress] <= subplebbitPostsLeftBeforeNextPage) {
-                addNextSubplebbitPageToStore(subplebbits[subplebbitAddress], sortType, account, modQueue).catch((error) => log.error('feedsStore subplebbitsActions.addNextSubplebbitPageToStore error', { subplebbitAddress, subplebbit: subplebbits[subplebbitAddress], sortType, error }));
+                addNextSubplebbitPageToStore(subplebbits[subplebbitAddress], sortType, account, modQueue).catch((error) => log.error("feedsStore subplebbitsActions.addNextSubplebbitPageToStore error", {
+                    subplebbitAddress,
+                    subplebbit: subplebbits[subplebbitAddress],
+                    sortType,
+                    error,
+                }));
             }
         }
     }
@@ -301,7 +319,7 @@ const addSubplebbitsPagesOnLowBufferedFeedsSubplebbitsPostCounts = (feedsStoreSt
 let previousFeedsSubplebbitsFirstPageCids = [];
 let previousFeedsSubplebbits = new Map();
 let previousFeedsSubplebbitsLoadedCount = 0;
-let previousFeedsSubplebbitsPostsPagesFirstUpdatedAts = '';
+let previousFeedsSubplebbitsPostsPagesFirstUpdatedAts = "";
 const updateFeedsOnFeedsSubplebbitsChange = (subplebbitsStoreState) => {
     const { subplebbits } = subplebbitsStoreState;
     const { feedsOptions, updateFeeds } = feedsStore.getState();
@@ -322,7 +340,8 @@ const updateFeedsOnFeedsSubplebbitsChange = (subplebbitsStoreState) => {
         if (feedsSubplebbitsLoadedCount === previousFeedsSubplebbitsLoadedCount) {
             // if subplebbit.posts.pages haven't changed, do nothing
             const feedsSubplebbitsPostsPagesFirstUpdatedAts = getFeedsSubplebbitsPostsPagesFirstUpdatedAts(feedsSubplebbits);
-            if (feedsSubplebbitsPostsPagesFirstUpdatedAts === previousFeedsSubplebbitsPostsPagesFirstUpdatedAts) {
+            if (feedsSubplebbitsPostsPagesFirstUpdatedAts ===
+                previousFeedsSubplebbitsPostsPagesFirstUpdatedAts) {
                 return;
             }
             previousFeedsSubplebbitsPostsPagesFirstUpdatedAts = feedsSubplebbitsPostsPagesFirstUpdatedAts;
@@ -334,14 +353,14 @@ const updateFeedsOnFeedsSubplebbitsChange = (subplebbitsStoreState) => {
     updateFeeds();
 };
 let previousAccountsCommentsCount = 0;
-let previousAccountsCommentsCids = '';
+let previousAccountsCommentsCids = "";
 const updateFeedsOnAccountsCommentsChange = (accountsStoreState) => {
     const { accountsComments } = accountsStoreState;
     const accountsCommentsCount = Object.values(accountsComments).reduce((count, accountComments) => count + accountComments.length, 0);
     // no changes, do nothing
     if (accountsCommentsCount === previousAccountsCommentsCount) {
         // if cids haven't changed (account comments receive cids after pending), do nothing
-        const accountsCommentsCids = Object.values(accountsComments).reduce((cids, accountComments) => cids + String(accountComments.map((comment) => comment.cid || '')), '');
+        const accountsCommentsCids = Object.values(accountsComments).reduce((cids, accountComments) => cids + String(accountComments.map((comment) => comment.cid || "")), "");
         if (accountsCommentsCids === previousAccountsCommentsCids) {
             return;
         }
@@ -354,7 +373,10 @@ const updateFeedsOnAccountsCommentsChange = (accountsStoreState) => {
 const addSubplebbitsToSubplebbitsStore = (subplebbitAddresses, account) => {
     const addSubplebbitToStore = subplebbitsStore.getState().addSubplebbitToStore;
     for (const subplebbitAddress of subplebbitAddresses) {
-        addSubplebbitToStore(subplebbitAddress, account).catch((error) => log.error('feedsStore subplebbitsActions.addSubplebbitToStore error', { subplebbitAddress, error }));
+        addSubplebbitToStore(subplebbitAddress, account).catch((error) => log.error("feedsStore subplebbitsActions.addSubplebbitToStore error", {
+            subplebbitAddress,
+            error,
+        }));
     }
 };
 // reset store in between tests
@@ -371,10 +393,10 @@ export const resetFeedsStore = () => __awaiter(void 0, void 0, void 0, function*
     previousFeedsSubplebbitsFirstPageCids = [];
     previousFeedsSubplebbits = new Map();
     previousFeedsSubplebbitsLoadedCount = 0;
-    previousFeedsSubplebbitsPostsPagesFirstUpdatedAts = '';
+    previousFeedsSubplebbitsPostsPagesFirstUpdatedAts = "";
     previousSubplebbitsPages = {};
     previousAccountsCommentsCount = 0;
-    previousAccountsCommentsCids = '';
+    previousAccountsCommentsCids = "";
     updateFeedsPending = false;
     // destroy all component subscriptions to the store
     feedsStore.destroy();
@@ -384,7 +406,7 @@ export const resetFeedsStore = () => __awaiter(void 0, void 0, void 0, function*
 });
 // reset database and store in between tests
 export const resetFeedsDatabaseAndStore = () => __awaiter(void 0, void 0, void 0, function* () {
-    yield localForageLru.createInstance({ name: 'plebbitReactHooks-subplebbitsPages' }).clear();
+    yield localForageLru.createInstance({ name: "plebbitReactHooks-subplebbitsPages" }).clear();
     yield resetFeedsStore();
 });
 export default feedsStore;

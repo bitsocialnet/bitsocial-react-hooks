@@ -7,12 +7,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { getSubplebbitPages, getSubplebbitFirstPageCid } from '../subplebbits-pages';
-import accountsStore from '../accounts';
-import feedSorter from './feed-sorter';
-import { subplebbitPostsCacheExpired, commentIsValid, removeInvalidComments } from '../../lib/utils';
-import Logger from '@plebbit/plebbit-logger';
-const log = Logger('bitsocial-react-hooks:feeds:stores');
+import { getSubplebbitPages, getSubplebbitFirstPageCid } from "../subplebbits-pages";
+import accountsStore from "../accounts";
+import feedSorter from "./feed-sorter";
+import { subplebbitPostsCacheExpired, commentIsValid, removeInvalidComments, } from "../../lib/utils";
+import Logger from "@plebbit/plebbit-logger";
+const log = Logger("bitsocial-react-hooks:feeds:stores");
 /**
  * Calculate the feeds from all the loaded subplebbit pages, filter and sort them
  */
@@ -23,11 +23,11 @@ export const getFilteredSortedFeeds = (feedsOptions, subplebbits, subplebbitsPag
     for (const feedName in feedsOptions) {
         let { subplebbitAddresses, sortType, accountId, filter, newerThan, modQueue } = feedsOptions[feedName];
         const newerThanTimestamp = newerThan ? Math.floor(Date.now() / 1000) - newerThan : undefined;
-        let pageType = 'posts';
+        let pageType = "posts";
         if (modQueue === null || modQueue === void 0 ? void 0 : modQueue[0]) {
             // TODO: allow multiple modQueue at once, fow now only use first in array
             sortType = modQueue[0];
-            pageType = 'modQueue';
+            pageType = "modQueue";
         }
         // find all fetched posts
         const bufferedFeedPosts = [];
@@ -73,7 +73,8 @@ export const getFilteredSortedFeeds = (feedsOptions, subplebbits, subplebbitsPag
         const filteredSortedBufferedFeedPosts = [];
         for (const post of sortedBufferedFeedPosts) {
             // address is blocked
-            if (((_a = accounts[accountId]) === null || _a === void 0 ? void 0 : _a.blockedAddresses[post.subplebbitAddress]) || (((_b = post.author) === null || _b === void 0 ? void 0 : _b.address) && ((_c = accounts[accountId]) === null || _c === void 0 ? void 0 : _c.blockedAddresses[post.author.address]))) {
+            if (((_a = accounts[accountId]) === null || _a === void 0 ? void 0 : _a.blockedAddresses[post.subplebbitAddress]) ||
+                (((_b = post.author) === null || _b === void 0 ? void 0 : _b.address) && ((_c = accounts[accountId]) === null || _c === void 0 ? void 0 : _c.blockedAddresses[post.author.address]))) {
                 continue;
             }
             // comment cid is blocked
@@ -91,7 +92,7 @@ export const getFilteredSortedFeeds = (feedsOptions, subplebbits, subplebbitsPag
             }
             // filter posts older than newerThan option
             if (newerThanTimestamp) {
-                if (sortType === 'active') {
+                if (sortType === "active") {
                     if ((post.lastReplyTimestamp || post.timestamp) <= newerThanTimestamp) {
                         continue;
                     }
@@ -162,7 +163,10 @@ export const getLoadedFeeds = (feedsOptions, loadedFeeds, bufferedFeeds, account
     }
     let newLoadedFeeds = {};
     for (const feedName in loadedFeedsMissingPosts) {
-        newLoadedFeeds[feedName] = [...(loadedFeeds[feedName] || []), ...loadedFeedsMissingPosts[feedName]];
+        newLoadedFeeds[feedName] = [
+            ...(loadedFeeds[feedName] || []),
+            ...loadedFeedsMissingPosts[feedName],
+        ];
     }
     // add account comments
     newLoadedFeeds = Object.assign(Object.assign({}, loadedFeeds), newLoadedFeeds);
@@ -177,7 +181,7 @@ export const addAccountsComments = (feedsOptions, loadedFeeds) => {
     let loadedFeedsChanged = false;
     const accountsComments = accountsStore.getState().accountsComments || {};
     for (const feedName in feedsOptions) {
-        const { accountId, accountComments: accountCommentsOptions, subplebbitAddresses } = feedsOptions[feedName];
+        const { accountId, accountComments: accountCommentsOptions, subplebbitAddresses, } = feedsOptions[feedName];
         const { newerThan, append } = accountCommentsOptions || {};
         if (!newerThan) {
             continue;
@@ -263,11 +267,13 @@ export const getBufferedFeedsWithoutLoadedFeeds = (bufferedFeeds, loadedFeeds) =
             newBufferedFeeds[feedName].push(post);
             if (!bufferedFeedPostChanged &&
                 (((_b = newBufferedFeeds[feedName][i]) === null || _b === void 0 ? void 0 : _b.cid) !== ((_c = bufferedFeeds[feedName][i]) === null || _c === void 0 ? void 0 : _c.cid) ||
-                    (((_d = newBufferedFeeds[feedName][i]) === null || _d === void 0 ? void 0 : _d.updatedAt) || 0) > (((_e = bufferedFeeds[feedName][i]) === null || _e === void 0 ? void 0 : _e.updatedAt) || 0))) {
+                    (((_d = newBufferedFeeds[feedName][i]) === null || _d === void 0 ? void 0 : _d.updatedAt) || 0) >
+                        (((_e = bufferedFeeds[feedName][i]) === null || _e === void 0 ? void 0 : _e.updatedAt) || 0))) {
                 bufferedFeedPostChanged = true;
             }
         }
-        if (!bufferedFeedPostChanged && newBufferedFeeds[feedName].length === bufferedFeeds[feedName].length) {
+        if (!bufferedFeedPostChanged &&
+            newBufferedFeeds[feedName].length === bufferedFeeds[feedName].length) {
             newBufferedFeeds[feedName] = bufferedFeeds[feedName];
         }
     }
@@ -302,7 +308,8 @@ export const getUpdatedFeeds = (feedsOptions, filteredSortedFeeds, updatedFeeds,
                     const { index, updatedPost } = updatedFeedsPosts[feedName][post.cid];
                     // faster to validate comments async
                     promises.push((() => __awaiter(void 0, void 0, void 0, function* () {
-                        if ((post.updatedAt || 0) > (updatedPost.updatedAt || 0) && (yield commentIsValid(post, { validateReplies: false }, plebbit))) {
+                        if ((post.updatedAt || 0) > (updatedPost.updatedAt || 0) &&
+                            (yield commentIsValid(post, { validateReplies: false }, plebbit))) {
                             updatedFeed[index] = post;
                             updatedFeedChanged = true;
                         }
@@ -340,9 +347,12 @@ export const getFeedsSubplebbitAddressesWithNewerPosts = (filteredSortedFeeds, l
         const subplebbitAddressesWithNewerPosts = [...subplebbitAddressesWithNewerPostsSet];
         // don't update the array if the data is the same to avoid rerenders
         const previousSubplebbitAddressesWithNewerPosts = previousFeedsSubplebbitAddressesWithNewerPosts[feedName] || [];
-        if (subplebbitAddressesWithNewerPosts.length === previousSubplebbitAddressesWithNewerPosts.length &&
-            subplebbitAddressesWithNewerPosts.toString() === previousSubplebbitAddressesWithNewerPosts.toString()) {
-            feedsSubplebbitAddressesWithNewerPosts[feedName] = previousFeedsSubplebbitAddressesWithNewerPosts[feedName];
+        if (subplebbitAddressesWithNewerPosts.length ===
+            previousSubplebbitAddressesWithNewerPosts.length &&
+            subplebbitAddressesWithNewerPosts.toString() ===
+                previousSubplebbitAddressesWithNewerPosts.toString()) {
+            feedsSubplebbitAddressesWithNewerPosts[feedName] =
+                previousFeedsSubplebbitAddressesWithNewerPosts[feedName];
         }
         else {
             feedsSubplebbitAddressesWithNewerPosts[feedName] = subplebbitAddressesWithNewerPosts;
@@ -377,11 +387,11 @@ export const getFeedsHaveMore = (feedsOptions, bufferedFeeds, subplebbits, subpl
             continue feedsLoop;
         }
         let { subplebbitAddresses, sortType, accountId, modQueue } = feedsOptions[feedName];
-        let pageType = 'posts';
+        let pageType = "posts";
         if (modQueue === null || modQueue === void 0 ? void 0 : modQueue[0]) {
             // TODO: allow multiple modQueue at once, fow now only use first in array
             sortType = modQueue[0];
-            pageType = 'modQueue';
+            pageType = "modQueue";
         }
         subplebbitAddressesLoop: for (const subplebbitAddress of subplebbitAddresses) {
             // don't consider the sub if the address is blocked
@@ -486,11 +496,12 @@ export const getFeedsSubplebbitsFirstPageCids = (feedsSubplebbits) => {
 // get all subplebbits posts pages first post updatedAts, use to check if a subplebbitsStore change should trigger updateFeeds
 export const getFeedsSubplebbitsPostsPagesFirstUpdatedAts = (feedsSubplebbits) => {
     var _a, _b, _c;
-    let feedsSubplebbitsPostsPagesFirstUpdatedAts = '';
+    let feedsSubplebbitsPostsPagesFirstUpdatedAts = "";
     for (const subplebbit of feedsSubplebbits.values()) {
         for (const page of Object.values(((_a = subplebbit === null || subplebbit === void 0 ? void 0 : subplebbit.posts) === null || _a === void 0 ? void 0 : _a.pages) || {})) {
             if ((_c = (_b = page === null || page === void 0 ? void 0 : page.comments) === null || _b === void 0 ? void 0 : _b[0]) === null || _c === void 0 ? void 0 : _c.updatedAt) {
-                feedsSubplebbitsPostsPagesFirstUpdatedAts += page.comments[0].cid + page.comments[0].updatedAt;
+                feedsSubplebbitsPostsPagesFirstUpdatedAts +=
+                    page.comments[0].cid + page.comments[0].updatedAt;
             }
         }
     }
@@ -582,7 +593,9 @@ export const accountsBlockedCidsChanged = (previousAccountsBlockedCids, accounts
 };
 export const feedsHaveChangedBlockedCids = (feedsOptions, bufferedFeeds, blockedCids, previousBlockedCids) => {
     // find the difference between current and previous blocked addresses
-    const changedBlockedCids = blockedCids.filter((x) => !previousBlockedCids.includes(x)).concat(previousBlockedCids.filter((x) => !blockedCids.includes(x)));
+    const changedBlockedCids = blockedCids
+        .filter((x) => !previousBlockedCids.includes(x))
+        .concat(previousBlockedCids.filter((x) => !blockedCids.includes(x)));
     // feeds posts author addresses have a changed blocked address
     // NOTE: because of this, if a cid is unblocked, feeds won't update until some other event causes a feed update
     // it seems preferable to causing unnecessary rerenders every time an unused block event occurs

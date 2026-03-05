@@ -1,4 +1,4 @@
-import { AuthorCommentsOptions, Comment } from '../../types';
+import { AuthorCommentsOptions, Comment } from "../../types";
 export declare const commentsPerPage = 25;
 export declare const commentBufferSize = 50;
 export type AuthorsCommentsState = {

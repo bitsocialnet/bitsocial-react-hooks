@@ -1,4 +1,4 @@
-import { Comments } from '../../types';
+import { Comments } from "../../types";
 export declare const listeners: any;
 export type CommentsState = {
     comments: Comments;

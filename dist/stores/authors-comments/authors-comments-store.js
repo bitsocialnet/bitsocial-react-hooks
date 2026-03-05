@@ -7,14 +7,14 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import Logger from '@plebbit/plebbit-logger';
-const log = Logger('bitsocial-react-hooks:authors:stores');
-import createStore from 'zustand';
-import assert from 'assert';
-import commentsStore from '../comments';
-import QuickLru from 'quick-lru';
-import { getUpdatedLoadedAndBufferedComments, getNextCommentCidToFetchNotFetched } from './utils';
-import accountsStore from '../accounts';
+import Logger from "@plebbit/plebbit-logger";
+const log = Logger("bitsocial-react-hooks:authors:stores");
+import createStore from "zustand";
+import assert from "assert";
+import commentsStore from "../comments";
+import QuickLru from "quick-lru";
+import { getUpdatedLoadedAndBufferedComments, getNextCommentCidToFetchNotFetched, } from "./utils";
+import accountsStore from "../accounts";
 // reddit loads approximately 25 posts per page while infinite scrolling
 export const commentsPerPage = 25;
 // keep large buffer because fetching cids is slow
@@ -29,12 +29,12 @@ const authorsCommentsStore = createStore((setState, getState) => ({
     shouldFetchNextComment: {},
     addAuthorCommentsToStore: (authorCommentsName, authorAddress, commentCid, filter, account) => {
         var _a;
-        assert(authorCommentsName && typeof authorCommentsName === 'string', `addAuthorCommentsToStore.incrementPageNumber invalid argument authorCommentsName '${authorCommentsName}'`);
-        assert(authorAddress && typeof authorAddress === 'string', `authorsCommentsStore.addAuthorCommentsToStore invalid argument authorAddress '${authorAddress}'`);
-        assert(commentCid && typeof commentCid === 'string', `authorsCommentsStore.addAuthorCommentsToStore invalid argument commentCid '${commentCid}'`);
-        assert(!filter || typeof (filter === null || filter === void 0 ? void 0 : filter.filter) === 'function', `authorsCommentsStore.addAuthorCommentsToStore invalid argument filter.filter '${filter === null || filter === void 0 ? void 0 : filter.filter}'`);
-        assert(!filter || typeof (filter === null || filter === void 0 ? void 0 : filter.key) === 'string', `authorsCommentsStore.addAuthorCommentsToStore invalid argument filter.key '${filter === null || filter === void 0 ? void 0 : filter.key}'`);
-        assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.plebbit) === null || _a === void 0 ? void 0 : _a.getComment) === 'function', `authorsCommentsStore.addAuthorCommentsToStore account '${account}' invalid`);
+        assert(authorCommentsName && typeof authorCommentsName === "string", `addAuthorCommentsToStore.incrementPageNumber invalid argument authorCommentsName '${authorCommentsName}'`);
+        assert(authorAddress && typeof authorAddress === "string", `authorsCommentsStore.addAuthorCommentsToStore invalid argument authorAddress '${authorAddress}'`);
+        assert(commentCid && typeof commentCid === "string", `authorsCommentsStore.addAuthorCommentsToStore invalid argument commentCid '${commentCid}'`);
+        assert(!filter || typeof (filter === null || filter === void 0 ? void 0 : filter.filter) === "function", `authorsCommentsStore.addAuthorCommentsToStore invalid argument filter.filter '${filter === null || filter === void 0 ? void 0 : filter.filter}'`);
+        assert(!filter || typeof (filter === null || filter === void 0 ? void 0 : filter.key) === "string", `authorsCommentsStore.addAuthorCommentsToStore invalid argument filter.key '${filter === null || filter === void 0 ? void 0 : filter.key}'`);
+        assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.plebbit) === null || _a === void 0 ? void 0 : _a.getComment) === "function", `authorsCommentsStore.addAuthorCommentsToStore account '${account}' invalid`);
         const { options, updateLoadedComments } = getState();
         // in store already, do nothing
         if (options[authorCommentsName]) {
@@ -43,7 +43,12 @@ const authorsCommentsStore = createStore((setState, getState) => ({
         const authorCommentsOptions = { authorAddress, pageNumber: 1, filter, accountId: account.id };
         // subscribe to nextCommentCidsToFetch and shouldFetchNextComment to fetch the comments
         authorsCommentsStore.subscribe(fetchCommentOnShouldFetchOrNextCidChange(authorCommentsOptions));
-        log('authorsCommentsActions.addAuthorCommentsToStore', { authorCommentsName, authorCommentsOptions, commentCid, previousAuthorsCommentsOptions: options });
+        log("authorsCommentsActions.addAuthorCommentsToStore", {
+            authorCommentsName,
+            authorCommentsOptions,
+            commentCid,
+            previousAuthorsCommentsOptions: options,
+        });
         setState((state) => ({
             options: Object.assign(Object.assign({}, state.options), { [authorCommentsName]: authorCommentsOptions }),
             loadedComments: Object.assign(Object.assign({}, state.loadedComments), { [authorCommentsName]: [] }),
@@ -58,10 +63,10 @@ const authorsCommentsStore = createStore((setState, getState) => ({
     },
     setNextCommentCidsToFetch: (authorAddress, authorComment) => {
         var _a;
-        assert(authorAddress && typeof authorAddress === 'string', `authorsCommentsActions.setNextCommentCidsToFetch invalid argument authorAddress '${authorAddress}'`);
-        assert(typeof (authorComment === null || authorComment === void 0 ? void 0 : authorComment.timestamp) === 'number', `authorsCommentsActions.setNextCommentCidsToFetch invalid argument authorComment '${authorComment}'`);
+        assert(authorAddress && typeof authorAddress === "string", `authorsCommentsActions.setNextCommentCidsToFetch invalid argument authorAddress '${authorAddress}'`);
+        assert(typeof (authorComment === null || authorComment === void 0 ? void 0 : authorComment.timestamp) === "number", `authorsCommentsActions.setNextCommentCidsToFetch invalid argument authorComment '${authorComment}'`);
         const { nextCommentCidsToFetch, shouldFetchNextComment, lastCommentCids } = getState();
-        if (typeof shouldFetchNextComment[authorAddress] !== 'boolean') {
+        if (typeof shouldFetchNextComment[authorAddress] !== "boolean") {
             throw Error(`authorsCommentsActions.setNextCommentCidsToFetch can't set nextCommentCidToFetch '${authorAddress}' not in store`);
         }
         const nextCommentCidToFetch = (_a = authorComment === null || authorComment === void 0 ? void 0 : authorComment.author) === null || _a === void 0 ? void 0 : _a.previousCommentCid;
@@ -83,13 +88,14 @@ const authorsCommentsStore = createStore((setState, getState) => ({
         }));
     },
     incrementPageNumber: (authorCommentsName) => {
-        assert(authorCommentsName && typeof authorCommentsName === 'string', `authorsCommentsActions.incrementPageNumber invalid argument authorCommentsName '${authorCommentsName}'`);
+        assert(authorCommentsName && typeof authorCommentsName === "string", `authorsCommentsActions.incrementPageNumber invalid argument authorCommentsName '${authorCommentsName}'`);
         const { options, updateLoadedComments, loadedComments, nextCommentCidsToFetch } = getState();
         if (!options[authorCommentsName]) {
             throw Error(`authorsCommentsActions.incrementPageNumber can't increment page number of options '${authorCommentsName}' not in store`);
         }
-        assert(options[authorCommentsName].pageNumber * commentsPerPage <= loadedComments[authorCommentsName].length, `authorsCommentsActions.incrementPageNumber cannot increment page number before current page has loaded`);
-        log('authorsCommentsActions.incrementPageNumber', {
+        assert(options[authorCommentsName].pageNumber * commentsPerPage <=
+            loadedComments[authorCommentsName].length, `authorsCommentsActions.incrementPageNumber cannot increment page number before current page has loaded`);
+        log("authorsCommentsActions.incrementPageNumber", {
             authorCommentsName,
             pageNumber: options[authorCommentsName].pageNumber + 1,
             nextCommentCidsToFetch: nextCommentCidsToFetch[options[authorCommentsName].authorAddress],
@@ -103,8 +109,8 @@ const authorsCommentsStore = createStore((setState, getState) => ({
         updateLoadedComments();
     },
     addBufferedCommentCid: (authorAddress, commentCid) => {
-        assert(authorAddress && typeof authorAddress === 'string', `authorsCommentsActions.addBufferedCommentCid invalid argument authorAddress '${authorAddress}'`);
-        assert(commentCid && typeof commentCid === 'string', `authorsCommentsActions.addBufferedCommentCid invalid argument commentCid '${commentCid}'`);
+        assert(authorAddress && typeof authorAddress === "string", `authorsCommentsActions.addBufferedCommentCid invalid argument authorAddress '${authorAddress}'`);
+        assert(commentCid && typeof commentCid === "string", `authorsCommentsActions.addBufferedCommentCid invalid argument commentCid '${commentCid}'`);
         const { bufferedCommentCids } = getState();
         if (!bufferedCommentCids[authorAddress]) {
             throw Error(`authorsCommentsActions.addBufferedCommentCid can't add commentCid '${authorAddress}' not in store`);
@@ -119,7 +125,7 @@ const authorsCommentsStore = createStore((setState, getState) => ({
     },
     updateLoadedComments() {
         const { comments } = commentsStore.getState();
-        let { loadedComments: previousAuthorsLoadedComments, bufferedCommentCids, options, nextCommentCidsToFetch, lastCommentCids } = getState();
+        let { loadedComments: previousAuthorsLoadedComments, bufferedCommentCids, options, nextCommentCidsToFetch, lastCommentCids, } = getState();
         const newAuthorsLoadedComments = {};
         const newShouldFetchNextComment = {};
         const newHasMoreBufferedComments = {};
@@ -134,7 +140,8 @@ const authorsCommentsStore = createStore((setState, getState) => ({
             // if another authorCommentOptions should fetch, don't change it
             if (newShouldFetchNextComment[authorAddress] !== true) {
                 // fetch if less comments than full page + buffer size
-                newShouldFetchNextComment[authorAddress] = filteredBufferedComments.length < pageNumber * commentsPerPage + commentBufferSize;
+                newShouldFetchNextComment[authorAddress] =
+                    filteredBufferedComments.length < pageNumber * commentsPerPage + commentBufferSize;
             }
         }
         // log.trace('authorsCommentsActions.updateLoadedComments', {
@@ -154,16 +161,16 @@ const authorsCommentsStore = createStore((setState, getState) => ({
         }));
     },
     setLastCommentCid: (authorAddress, lastCommentCid) => {
-        assert(authorAddress && typeof authorAddress === 'string', `authorsCommentsActions.setLastCommentCid invalid argument authorAddress '${authorAddress}'`);
-        assert(lastCommentCid && typeof lastCommentCid === 'string', `authorsCommentsActions.setLastCommentCid invalid argument lastCommentCid '${lastCommentCid}'`);
+        assert(authorAddress && typeof authorAddress === "string", `authorsCommentsActions.setLastCommentCid invalid argument authorAddress '${authorAddress}'`);
+        assert(lastCommentCid && typeof lastCommentCid === "string", `authorsCommentsActions.setLastCommentCid invalid argument lastCommentCid '${lastCommentCid}'`);
         const { lastCommentCids, shouldFetchNextComment, nextCommentCidsToFetch } = getState();
-        if (typeof shouldFetchNextComment[authorAddress] !== 'boolean') {
+        if (typeof shouldFetchNextComment[authorAddress] !== "boolean") {
             throw Error(`authorsCommentsActions.setLastCommentCid can't set lastCommentCid '${authorAddress}' not in store`);
         }
         if (lastCommentCid === lastCommentCids[authorAddress]) {
             throw Error(`authorsCommentsActions.setLastCommentCid can't set setLastCommentCid '${authorAddress}' to '${lastCommentCid}' same value`);
         }
-        log('authorsCommentsActions.setLastCommentCid', {
+        log("authorsCommentsActions.setLastCommentCid", {
             authorAddress,
             lastCommentCid,
             previousLastCommentCid: lastCommentCids[authorAddress],
@@ -194,7 +201,7 @@ const fetchCommentOnShouldFetchOrNextCidChange = (options) => (state) => {
     // start fetching comment
     const account = accountsStore.getState().accounts[options.accountId];
     const addCommentToStore = commentsStore.getState().addCommentToStore;
-    addCommentToStore(nextCommentCidToFetch, account).catch((error) => log.error('authorsCommentsStore fetchCommentOnShouldFetchOrNextCidChange addCommentToStore error', { error, nextCommentCidToFetch, account }));
+    addCommentToStore(nextCommentCidToFetch, account).catch((error) => log.error("authorsCommentsStore fetchCommentOnShouldFetchOrNextCidChange addCommentToStore error", { error, nextCommentCidToFetch, account }));
 };
 // if commentStore changed, update loadedComments, bufferedCommentCids, shouldFetchNextComment and nextCommentCidsToFetch
 let previousComments = new QuickLru({ maxSize: 10000 });
@@ -216,7 +223,7 @@ const updateCommentsOnCommentsChange = (options, commentCid) => (state) => {
         return;
     }
     previousComments.set(commentCid, comment);
-    const { addBufferedCommentCid, bufferedCommentCids, updateLoadedComments, setNextCommentCidsToFetch, nextCommentCidsToFetch } = authorsCommentsStore.getState();
+    const { addBufferedCommentCid, bufferedCommentCids, updateLoadedComments, setNextCommentCidsToFetch, nextCommentCidsToFetch, } = authorsCommentsStore.getState();
     // the comment is a new comment, add it to buffered comment cids
     if (!bufferedCommentCids[options.authorAddress].has(commentCid)) {
         addBufferedCommentCid(options.authorAddress, commentCid);
@@ -240,7 +247,11 @@ const updateCommentsOnCommentsChange = (options, commentCid) => (state) => {
         const account = accountsStore.getState().accounts[options.accountId];
         state
             .addCommentToStore(subplebbitLastCommentCid, account)
-            .catch((error) => log.error('authorsCommentsStore updateCommentsOnCommentsChange addCommentToStore error', { error, subplebbitLastCommentCid, account }));
+            .catch((error) => log.error("authorsCommentsStore updateCommentsOnCommentsChange addCommentToStore error", {
+            error,
+            subplebbitLastCommentCid,
+            account,
+        }));
     }
 };
 let previousLastComments = new QuickLru({ maxSize: 10000 });
@@ -261,7 +272,7 @@ const setLastCommentCidOnCommentsChange = (options, commentCid) => (state) => {
         return;
     }
     previousLastComments.set(commentCid, comment);
-    const { addBufferedCommentCid, lastCommentCids, bufferedCommentCids, setLastCommentCid, setNextCommentCidsToFetch, updateLoadedComments } = authorsCommentsStore.getState();
+    const { addBufferedCommentCid, lastCommentCids, bufferedCommentCids, setLastCommentCid, setNextCommentCidsToFetch, updateLoadedComments, } = authorsCommentsStore.getState();
     // if the comment is a new comment, add it to buffered comment cids
     if (!bufferedCommentCids[options.authorAddress].has(commentCid)) {
         addBufferedCommentCid(options.authorAddress, commentCid);
@@ -272,7 +283,7 @@ const setLastCommentCidOnCommentsChange = (options, commentCid) => (state) => {
     }
     // if comment is newer than current lastCommentCid and all bufferedComments, is lastCommentCid
     const currentLastCommentCid = lastCommentCids[options.authorAddress];
-    const currentLastComment = comments[currentLastCommentCid || ''];
+    const currentLastComment = comments[currentLastCommentCid || ""];
     // comment is older or equal to current lastCommentCid, do nothing
     if (comment.timestamp <= ((currentLastComment === null || currentLastComment === void 0 ? void 0 : currentLastComment.timestamp) || 0)) {
         log.trace(`authorsCommentsStore setLastCommentCidOnCommentsChange don't set lastCommentCid older than current lastCommentCid`, { comment, currentLastComment });
@@ -291,7 +302,12 @@ const setLastCommentCidOnCommentsChange = (options, commentCid) => (state) => {
         }
     }
     // is last comment cid, set it
-    log(`authorsCommentsStore setLastCommentCidOnCommentsChange`, { lastCommentCid: comment.cid, lastComment: comment, currentLastComment, bufferedComments });
+    log(`authorsCommentsStore setLastCommentCidOnCommentsChange`, {
+        lastCommentCid: comment.cid,
+        lastComment: comment,
+        currentLastComment,
+        bufferedComments,
+    });
     setLastCommentCid(options.authorAddress, commentCid);
     // add the last comment to loadedComments
     updateLoadedComments();

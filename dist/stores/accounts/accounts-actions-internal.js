@@ -8,19 +8,19 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import accountsStore, { listeners } from './accounts-store';
-import accountsDatabase from './accounts-database';
-import Logger from '@plebbit/plebbit-logger';
-import assert from 'assert';
-const log = Logger('bitsocial-react-hooks:accounts:stores');
-import utils from '../../lib/utils';
+import accountsStore, { listeners } from "./accounts-store";
+import accountsDatabase from "./accounts-database";
+import Logger from "@plebbit/plebbit-logger";
+import assert from "assert";
+const log = Logger("bitsocial-react-hooks:accounts:stores");
+import utils from "../../lib/utils";
 // TODO: we currently subscribe to updates for every single comment
 // in the user's account history. This probably does not scale, we
 // need to eventually schedule and queue older comments to look
 // for updates at a lower priority.
 export const startUpdatingAccountCommentOnCommentUpdateEvents = (comment, account, accountCommentIndex) => __awaiter(void 0, void 0, void 0, function* () {
-    assert(typeof accountCommentIndex === 'number', `startUpdatingAccountCommentOnCommentUpdateEvents accountCommentIndex '${accountCommentIndex}' not a number`);
-    assert(typeof (account === null || account === void 0 ? void 0 : account.id) === 'string', `startUpdatingAccountCommentOnCommentUpdateEvents account '${account}' account.id '${account === null || account === void 0 ? void 0 : account.id}' not a string`);
+    assert(typeof accountCommentIndex === "number", `startUpdatingAccountCommentOnCommentUpdateEvents accountCommentIndex '${accountCommentIndex}' not a number`);
+    assert(typeof (account === null || account === void 0 ? void 0 : account.id) === "string", `startUpdatingAccountCommentOnCommentUpdateEvents account '${account}' account.id '${account === null || account === void 0 ? void 0 : account.id}' not a string`);
     const commentArgument = comment;
     // comment doesn't have a cid yet, so can't receive updates
     if (!comment.cid) {
@@ -30,17 +30,24 @@ export const startUpdatingAccountCommentOnCommentUpdateEvents = (comment, accoun
     if (accountsStore.getState().accountsCommentsUpdating[comment.cid]) {
         return;
     }
-    accountsStore.setState(({ accountsCommentsUpdating }) => ({ accountsCommentsUpdating: Object.assign(Object.assign({}, accountsCommentsUpdating), { [comment.cid]: true }) }));
+    accountsStore.setState(({ accountsCommentsUpdating }) => ({
+        accountsCommentsUpdating: Object.assign(Object.assign({}, accountsCommentsUpdating), { [comment.cid]: true }),
+    }));
     // comment is not a `Comment` instance
     if (!comment.on) {
         comment = yield account.plebbit.createComment(comment);
     }
-    comment.on('update', (updatedComment) => __awaiter(void 0, void 0, void 0, function* () {
+    comment.on("update", (updatedComment) => __awaiter(void 0, void 0, void 0, function* () {
         var _a;
         // merge should not be needed if plebbit-js is implemented properly, but no harm in fixing potential errors
         updatedComment = utils.merge(commentArgument, comment, updatedComment);
         yield accountsDatabase.addAccountComment(account.id, updatedComment, accountCommentIndex);
-        log('startUpdatingAccountCommentOnCommentUpdateEvents comment update', { commentCid: comment.cid, accountCommentIndex, updatedComment, account });
+        log("startUpdatingAccountCommentOnCommentUpdateEvents comment update", {
+            commentCid: comment.cid,
+            accountCommentIndex,
+            updatedComment,
+            account,
+        });
         accountsStore.setState(({ accountsComments }) => {
             // account no longer exists
             if (!accountsComments[account.id]) {
@@ -55,7 +62,10 @@ export const startUpdatingAccountCommentOnCommentUpdateEvents = (comment, accoun
         });
         // update AccountCommentsReplies with new replies if has any new replies
         const replyPageArray = Object.values(((_a = updatedComment.replies) === null || _a === void 0 ? void 0 : _a.pages) || {});
-        const hasReplies = replyPageArray.length && replyPageArray.map((replyPage) => { var _a; return ((_a = replyPage === null || replyPage === void 0 ? void 0 : replyPage.comments) === null || _a === void 0 ? void 0 : _a.length) || 0; }).reduce((prev, curr) => prev + curr) > 0;
+        const hasReplies = replyPageArray.length &&
+            replyPageArray
+                .map((replyPage) => { var _a; return ((_a = replyPage === null || replyPage === void 0 ? void 0 : replyPage.comments) === null || _a === void 0 ? void 0 : _a.length) || 0; })
+                .reduce((prev, curr) => prev + curr) > 0;
         const repliesAreValid = yield utils.repliesAreValid(updatedComment, { validateReplies: false, blockSubplebbit: true }, account.plebbit);
         if (hasReplies && repliesAreValid) {
             accountsStore.setState(({ accountsCommentsReplies }) => {
@@ -69,7 +79,9 @@ export const startUpdatingAccountCommentOnCommentUpdateEvents = (comment, accoun
                 const updatedAccountCommentsReplies = {};
                 for (const replyPage of replyPageArray) {
                     for (const reply of (replyPage === null || replyPage === void 0 ? void 0 : replyPage.comments) || []) {
-                        const markedAsRead = ((_b = (_a = accountsCommentsReplies[account.id]) === null || _a === void 0 ? void 0 : _a[reply.cid]) === null || _b === void 0 ? void 0 : _b.markedAsRead) === true ? true : false;
+                        const markedAsRead = ((_b = (_a = accountsCommentsReplies[account.id]) === null || _a === void 0 ? void 0 : _a[reply.cid]) === null || _b === void 0 ? void 0 : _b.markedAsRead) === true
+                            ? true
+                            : false;
                         updatedAccountCommentsReplies[reply.cid] = Object.assign(Object.assign({}, reply), { markedAsRead });
                     }
                 }
@@ -81,12 +93,14 @@ export const startUpdatingAccountCommentOnCommentUpdateEvents = (comment, accoun
                 Promise.all(promises);
                 // set new store
                 const newAccountCommentsReplies = Object.assign(Object.assign({}, accountsCommentsReplies[account.id]), updatedAccountCommentsReplies);
-                return { accountsCommentsReplies: Object.assign(Object.assign({}, accountsCommentsReplies), { [account.id]: newAccountCommentsReplies }) };
+                return {
+                    accountsCommentsReplies: Object.assign(Object.assign({}, accountsCommentsReplies), { [account.id]: newAccountCommentsReplies }),
+                };
             });
         }
     }));
     listeners.push(comment);
-    comment.update().catch((error) => log.trace('comment.update error', { comment, error }));
+    comment.update().catch((error) => log.trace("comment.update error", { comment, error }));
 });
 // internal accounts action: the comment CID is not known at the time of publishing, so every time
 // we fetch a new comment, check if its our own, and attempt to add the CID
@@ -103,13 +117,19 @@ export const addCidToAccountComment = (comment) => __awaiter(void 0, void 0, voi
         if (accountComment.timestamp && accountComment.timestamp === comment.timestamp) {
             const commentWithCid = utils.merge(accountComment, comment);
             yield accountsDatabase.addAccountComment(accountComment.accountId, commentWithCid, accountComment.index);
-            log('accountsActions.addCidToAccountComment', { commentCid: comment.cid, accountCommentIndex: accountComment.index, accountComment: commentWithCid });
+            log("accountsActions.addCidToAccountComment", {
+                commentCid: comment.cid,
+                accountCommentIndex: accountComment.index,
+                accountComment: commentWithCid,
+            });
             accountsStore.setState(({ accountsComments }) => {
                 const updatedAccountComments = [...accountsComments[accountComment.accountId]];
                 updatedAccountComments[accountComment.index] = commentWithCid;
-                return { accountsComments: Object.assign(Object.assign({}, accountsComments), { [accountComment.accountId]: updatedAccountComments }) };
+                return {
+                    accountsComments: Object.assign(Object.assign({}, accountsComments), { [accountComment.accountId]: updatedAccountComments }),
+                };
             });
-            startUpdatingAccountCommentOnCommentUpdateEvents(comment, accounts[accountComment.accountId], accountComment.index).catch((error) => log.error('accountsActions.addCidToAccountComment startUpdatingAccountCommentOnCommentUpdateEvents error', {
+            startUpdatingAccountCommentOnCommentUpdateEvents(comment, accounts[accountComment.accountId], accountComment.index).catch((error) => log.error("accountsActions.addCidToAccountComment startUpdatingAccountCommentOnCommentUpdateEvents error", {
                 comment,
                 account: accounts[accountComment.accountId],
                 accountCommentIndex: accountComment.index,
@@ -158,7 +178,7 @@ const getAccountsCommentsWithoutCids = () => {
 // internal accounts action: mark an account's notifications as read
 export const markNotificationsAsRead = (account) => __awaiter(void 0, void 0, void 0, function* () {
     const { accountsCommentsReplies } = accountsStore.getState();
-    assert(typeof (account === null || account === void 0 ? void 0 : account.id) === 'string', `accountsStore.markNotificationsAsRead invalid account argument '${account}'`);
+    assert(typeof (account === null || account === void 0 ? void 0 : account.id) === "string", `accountsStore.markNotificationsAsRead invalid account argument '${account}'`);
     // find all unread replies
     const repliesToMarkAsRead = {};
     for (const replyCid in accountsCommentsReplies[account.id]) {
@@ -173,10 +193,12 @@ export const markNotificationsAsRead = (account) => __awaiter(void 0, void 0, vo
     }
     yield Promise.all(promises);
     // add all to react store
-    log('accountsActions.markNotificationsAsRead', { account, repliesToMarkAsRead });
+    log("accountsActions.markNotificationsAsRead", { account, repliesToMarkAsRead });
     accountsStore.setState(({ accountsCommentsReplies }) => {
         const updatedAccountCommentsReplies = Object.assign(Object.assign({}, accountsCommentsReplies[account.id]), repliesToMarkAsRead);
-        return { accountsCommentsReplies: Object.assign(Object.assign({}, accountsCommentsReplies), { [account.id]: updatedAccountCommentsReplies }) };
+        return {
+            accountsCommentsReplies: Object.assign(Object.assign({}, accountsCommentsReplies), { [account.id]: updatedAccountCommentsReplies }),
+        };
     });
 });
 // internal accounts action: if a subplebbit has a role with an account's address
@@ -228,7 +250,7 @@ export const addSubplebbitRoleToAccountsSubplebbits = (subplebbit) => __awaiter(
             nextAccounts[accountId] = account;
             accountsDatabase.addAccount(account);
         }
-        log('accountsActions.addSubplebbitRoleToAccountsSubplebbits', { subplebbit, toAdd, toRemove });
+        log("accountsActions.addSubplebbitRoleToAccountsSubplebbits", { subplebbit, toAdd, toRemove });
         return { accounts: nextAccounts };
     });
 });

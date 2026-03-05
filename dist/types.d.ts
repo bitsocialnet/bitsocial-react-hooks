@@ -447,7 +447,7 @@ export type AccountsNotifications = {
     [accountId: string]: Notification[];
 };
 export type Role = {
-    role: 'owner' | 'admin' | 'moderator';
+    role: "owner" | "admin" | "moderator";
 };
 export type AccountSubplebbit = {
     role: Role;

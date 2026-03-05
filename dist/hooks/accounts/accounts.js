@@ -7,21 +7,21 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { useMemo, useState, useEffect } from 'react';
-import isEqual from 'lodash.isequal';
-import useAccountsStore from '../../stores/accounts';
-import Logger from '@plebbit/plebbit-logger';
-const log = Logger('bitsocial-react-hooks:accounts:hooks');
-import assert from 'assert';
-import { useListSubplebbits, useSubplebbits } from '../subplebbits';
-import { useAccountsWithCalculatedProperties, useAccountWithCalculatedProperties, useCalculatedNotifications } from './utils';
-import useInterval from '../utils/use-interval';
+import { useMemo, useState, useEffect } from "react";
+import isEqual from "lodash.isequal";
+import useAccountsStore from "../../stores/accounts";
+import Logger from "@plebbit/plebbit-logger";
+const log = Logger("bitsocial-react-hooks:accounts:hooks");
+import assert from "assert";
+import { useListSubplebbits, useSubplebbits } from "../subplebbits";
+import { useAccountsWithCalculatedProperties, useAccountWithCalculatedProperties, useCalculatedNotifications, } from "./utils";
+import useInterval from "../utils/use-interval";
 /**
  * @param accountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, return
  * the active account id.
  */
 export function useAccountId(accountName) {
-    const accountId = useAccountsStore((state) => state.accountNamesToAccountIds[accountName || '']);
+    const accountId = useAccountsStore((state) => state.accountNamesToAccountIds[accountName || ""]);
     // don't consider active account if account name is defined
     const activeAccountId = useAccountsStore((state) => !accountName && state.activeAccountId);
     const accountIdToUse = accountName ? accountId : activeAccountId;
@@ -32,15 +32,15 @@ export function useAccountId(accountName) {
  * the active account.
  */
 export function useAccount(options) {
-    assert(!options || typeof options === 'object', `useAccount options argument '${options}' not an object`);
+    assert(!options || typeof options === "object", `useAccount options argument '${options}' not an object`);
     const { accountName } = options || {};
     // get state
     const accountId = useAccountId(accountName);
-    const accountStore = useAccountsStore((state) => state.accounts[accountId || '']);
-    const accountComments = useAccountsStore((state) => state.accountsComments[accountId || '']);
-    const accountCommentsReplies = useAccountsStore((state) => state.accountsCommentsReplies[accountId || '']);
+    const accountStore = useAccountsStore((state) => state.accounts[accountId || ""]);
+    const accountComments = useAccountsStore((state) => state.accountsComments[accountId || ""]);
+    const accountCommentsReplies = useAccountsStore((state) => state.accountsCommentsReplies[accountId || ""]);
     const account = useAccountWithCalculatedProperties(accountStore, accountComments, accountCommentsReplies);
-    log('useAccount', { accountId, account, accountName });
+    log("useAccount", { accountId, account, accountName });
     return account;
 }
 /**
@@ -61,8 +61,8 @@ export function useAccounts() {
         }
         return accountsArray;
     }, [accounts, accountIds]);
-    log('useAccounts', { accounts, accountIds });
-    const state = (accountsArray === null || accountsArray === void 0 ? void 0 : accountsArray.length) ? 'succeeded' : 'initializing';
+    log("useAccounts", { accounts, accountIds });
+    const state = (accountsArray === null || accountsArray === void 0 ? void 0 : accountsArray.length) ? "succeeded" : "initializing";
     return useMemo(() => ({
         accounts: accountsArray,
         state,
@@ -74,10 +74,10 @@ export function useAccounts() {
  * Returns all subplebbits where the account is a creator or moderator
  */
 export function useAccountSubplebbits(options) {
-    assert(!options || typeof options === 'object', `useAccountSubplebbits options argument '${options}' not an object`);
+    assert(!options || typeof options === "object", `useAccountSubplebbits options argument '${options}' not an object`);
     const { accountName, onlyIfCached } = options || {};
     const accountId = useAccountId(accountName);
-    const accountsStoreAccountSubplebbits = useAccountsStore((state) => { var _a; return (_a = state.accounts[accountId || '']) === null || _a === void 0 ? void 0 : _a.subplebbits; });
+    const accountsStoreAccountSubplebbits = useAccountsStore((state) => { var _a; return (_a = state.accounts[accountId || ""]) === null || _a === void 0 ? void 0 : _a.subplebbits; });
     // get all unique account subplebbit addresses
     const ownerSubplebbitAddresses = useListSubplebbits();
     const uniqueSubplebbitAddresses = useMemo(() => {
@@ -87,11 +87,17 @@ export function useAccountSubplebbits(options) {
                 accountSubplebbitAddresses.push(subplebbitAddress);
             }
         }
-        const uniqueSubplebbitAddresses = [...new Set([...ownerSubplebbitAddresses, ...accountSubplebbitAddresses])].sort();
+        const uniqueSubplebbitAddresses = [
+            ...new Set([...ownerSubplebbitAddresses, ...accountSubplebbitAddresses]),
+        ].sort();
         return uniqueSubplebbitAddresses;
     }, [accountsStoreAccountSubplebbits, ownerSubplebbitAddresses]);
     // fetch all subplebbit data
-    const { subplebbits: subplebbitsArray } = useSubplebbits({ subplebbitAddresses: uniqueSubplebbitAddresses, accountName, onlyIfCached });
+    const { subplebbits: subplebbitsArray } = useSubplebbits({
+        subplebbitAddresses: uniqueSubplebbitAddresses,
+        accountName,
+        onlyIfCached,
+    });
     const subplebbits = useMemo(() => {
         const subplebbits = {};
         for (const [i, subplebbit] of subplebbitsArray.entries()) {
@@ -112,15 +118,15 @@ export function useAccountSubplebbits(options) {
         // add plebbit.subplebbits data
         for (const subplebbitAddress in accountSubplebbits) {
             if (ownerSubplebbitAddresses.includes(subplebbitAddress)) {
-                accountSubplebbits[subplebbitAddress].role = { role: 'owner' };
+                accountSubplebbits[subplebbitAddress].role = { role: "owner" };
             }
         }
         return accountSubplebbits;
     }, [accountsStoreAccountSubplebbits, ownerSubplebbitAddresses, subplebbits]);
     if (accountId) {
-        log('useAccountSubplebbits', { accountSubplebbits });
+        log("useAccountSubplebbits", { accountSubplebbits });
     }
-    const state = accountId ? 'succeeded' : 'initializing';
+    const state = accountId ? "succeeded" : "initializing";
     return useMemo(() => ({
         accountSubplebbits,
         state,
@@ -135,19 +141,19 @@ export function useAccountSubplebbits(options) {
  * the active account's notifications.
  */
 export function useNotifications(options) {
-    assert(!options || typeof options === 'object', `useNotifications options argument '${options}' not an object`);
+    assert(!options || typeof options === "object", `useNotifications options argument '${options}' not an object`);
     const { accountName } = options || {};
     // get state
     const accountId = useAccountId(accountName);
-    const account = useAccountsStore((state) => state.accounts[accountId || '']);
-    const accountCommentsReplies = useAccountsStore((state) => state.accountsCommentsReplies[accountId || '']);
+    const account = useAccountsStore((state) => state.accounts[accountId || ""]);
+    const accountCommentsReplies = useAccountsStore((state) => state.accountsCommentsReplies[accountId || ""]);
     const accountsActionsInternal = useAccountsStore((state) => state.accountsActionsInternal);
     const notifications = useCalculatedNotifications(account, accountCommentsReplies);
     const [errors, setErrors] = useState([]);
     const markAsRead = () => __awaiter(this, void 0, void 0, function* () {
         try {
             if (!account) {
-                throw Error('useNotifications cannot mark as read accounts not initalized yet');
+                throw Error("useNotifications cannot mark as read accounts not initalized yet");
             }
             accountsActionsInternal.markNotificationsAsRead(account);
         }
@@ -156,9 +162,9 @@ export function useNotifications(options) {
         }
     });
     if (account) {
-        log('useNotifications', { notifications });
+        log("useNotifications", { notifications });
     }
-    const state = accountId ? 'succeeded' : 'initializing';
+    const state = accountId ? "succeeded" : "initializing";
     return useMemo(() => ({
         notifications,
         markAsRead,
@@ -173,13 +179,13 @@ const getAccountCommentsStates = (accountComments) => {
     const expiryTime = now - 60 * 20;
     const states = [];
     for (const accountComment of accountComments) {
-        let state = 'succeeded';
+        let state = "succeeded";
         if (!accountComment.cid) {
             if (accountComment.timestamp > expiryTime) {
-                state = 'pending';
+                state = "pending";
             }
             else {
-                state = 'failed';
+                state = "failed";
             }
         }
         states.push(state);
@@ -187,11 +193,11 @@ const getAccountCommentsStates = (accountComments) => {
     return states;
 };
 export function useAccountComments(options) {
-    assert(!options || typeof options === 'object', `useAccountComments options argument '${options}' not an object`);
+    assert(!options || typeof options === "object", `useAccountComments options argument '${options}' not an object`);
     const { accountName, filter } = options || {};
-    assert(!filter || typeof filter === 'function', `useAccountComments options.filter argument '${filter}' not an function`);
+    assert(!filter || typeof filter === "function", `useAccountComments options.filter argument '${filter}' not an function`);
     const accountId = useAccountId(accountName);
-    const accountComments = useAccountsStore((state) => state.accountsComments[accountId || '']);
+    const accountComments = useAccountsStore((state) => state.accountsComments[accountId || ""]);
     const [accountCommentStates, setAccountCommentStates] = useState([]);
     const filteredAccountComments = useMemo(() => {
         if (!accountComments) {
@@ -213,12 +219,17 @@ export function useAccountComments(options) {
     }, delay, immediate);
     const filteredAccountCommentsWithStates = useMemo(() => {
         const states = getAccountCommentsStates(filteredAccountComments);
-        return filteredAccountComments.map((comment, i) => (Object.assign(Object.assign({}, comment), { state: states[i] || 'initializing' })));
+        return filteredAccountComments.map((comment, i) => (Object.assign(Object.assign({}, comment), { state: states[i] || "initializing" })));
     }, [filteredAccountComments, accountCommentStates]);
     if (accountComments && options) {
-        log('useAccountComments', { accountId, filteredAccountCommentsWithStates, accountComments, filter });
+        log("useAccountComments", {
+            accountId,
+            filteredAccountCommentsWithStates,
+            accountComments,
+            filter,
+        });
     }
-    const state = accountId ? 'succeeded' : 'initializing';
+    const state = accountId ? "succeeded" : "initializing";
     return useMemo(() => ({
         accountComments: filteredAccountCommentsWithStates,
         state,
@@ -230,11 +241,11 @@ export function useAccountComments(options) {
  * Returns an account's single comment, e.g. a pending comment they published.
  */
 export function useAccountComment(options) {
-    assert(!options || typeof options === 'object', `useAccountComment options argument '${options}' not an object`);
+    assert(!options || typeof options === "object", `useAccountComment options argument '${options}' not an object`);
     const { commentIndex, accountName } = options || {};
     const { accountComments } = useAccountComments({ accountName });
     const accountComment = useMemo(() => (accountComments === null || accountComments === void 0 ? void 0 : accountComments[Number(commentIndex)]) || {}, [accountComments, commentIndex]);
-    const state = accountComment.state || 'initializing';
+    const state = accountComment.state || "initializing";
     return useMemo(() => (Object.assign(Object.assign({}, accountComment), { state, error: accountComment === null || accountComment === void 0 ? void 0 : accountComment.error, errors: (accountComment === null || accountComment === void 0 ? void 0 : accountComment.errors) || [] })), [accountComment, state]);
 }
 /**
@@ -242,11 +253,11 @@ export function useAccountComment(options) {
  * Check UseAccountCommentsOptions type in types.tsx to filter them, e.g. filter = {subplebbitAddresses: ['memes.eth']}.
  */
 export function useAccountVotes(options) {
-    assert(!options || typeof options === 'object', `useAccountVotes options argument '${options}' not an object`);
+    assert(!options || typeof options === "object", `useAccountVotes options argument '${options}' not an object`);
     const { accountName, filter } = options || {};
-    assert(!filter || typeof filter === 'function', `useAccountVotes options.filter argument '${filter}' not an function`);
+    assert(!filter || typeof filter === "function", `useAccountVotes options.filter argument '${filter}' not an function`);
     const accountId = useAccountId(accountName);
-    const accountVotes = useAccountsStore((state) => state.accountsVotes[accountId || '']);
+    const accountVotes = useAccountsStore((state) => state.accountsVotes[accountId || ""]);
     const filteredAccountVotesArray = useMemo(() => {
         let accountVotesArray = [];
         if (!accountVotes) {
@@ -261,10 +272,10 @@ export function useAccountVotes(options) {
         return accountVotesArray;
     }, [accountVotes, filter]);
     if (accountVotes && filter) {
-        log('useAccountVotes', { accountId, filteredAccountVotesArray, accountVotes, filter });
+        log("useAccountVotes", { accountId, filteredAccountVotesArray, accountVotes, filter });
     }
     // TODO: add failed / pending states
-    const state = accountId ? 'succeeded' : 'initializing';
+    const state = accountId ? "succeeded" : "initializing";
     return useMemo(() => ({
         accountVotes: filteredAccountVotesArray,
         state,
@@ -276,12 +287,12 @@ export function useAccountVotes(options) {
  * Returns an account's single vote on a comment, e.g. to know if you already voted on a comment.
  */
 export function useAccountVote(options) {
-    assert(!options || typeof options === 'object', `useAccountVote options argument '${options}' not an object`);
+    assert(!options || typeof options === "object", `useAccountVote options argument '${options}' not an object`);
     const { commentCid, accountName } = options || {};
     const accountId = useAccountId(accountName);
-    const accountVotes = useAccountsStore((state) => state.accountsVotes[accountId || '']);
-    const accountVote = accountVotes === null || accountVotes === void 0 ? void 0 : accountVotes[commentCid || ''];
-    const state = accountId && commentCid ? 'succeeded' : 'initializing';
+    const accountVotes = useAccountsStore((state) => state.accountsVotes[accountId || ""]);
+    const accountVote = accountVotes === null || accountVotes === void 0 ? void 0 : accountVotes[commentCid || ""];
+    const state = accountId && commentCid ? "succeeded" : "initializing";
     // TODO: add failed / pending state
     return useMemo(() => (Object.assign(Object.assign({}, accountVote), { state, error: undefined, errors: [] })), [accountVote, state]);
 }
@@ -289,11 +300,11 @@ export function useAccountVote(options) {
  * Returns all the comment and subplebbit edits published by an account.
  */
 export function useAccountEdits(options) {
-    assert(!options || typeof options === 'object', `useAccountEdits options argument '${options}' not an object`);
+    assert(!options || typeof options === "object", `useAccountEdits options argument '${options}' not an object`);
     const { filter, accountName } = options || {};
-    assert(!filter || typeof filter === 'function', `useAccountEdits options.filter argument '${filter}' not an function`);
+    assert(!filter || typeof filter === "function", `useAccountEdits options.filter argument '${filter}' not an function`);
     const accountId = useAccountId(accountName);
-    const accountEdits = useAccountsStore((state) => state.accountsEdits[accountId || '']);
+    const accountEdits = useAccountsStore((state) => state.accountsEdits[accountId || ""]);
     const accountEditsArray = useMemo(() => {
         const accountEditsArray = [];
         for (const i in accountEdits) {
@@ -309,7 +320,7 @@ export function useAccountEdits(options) {
         return accountEditsArray.filter(filter);
     }, [accountEditsArray, filter]);
     // TODO: add failed / pending states
-    const state = accountId ? 'succeeded' : 'initializing';
+    const state = accountId ? "succeeded" : "initializing";
     return useMemo(() => ({
         accountEdits: filteredAccountEditsArray,
         state,
@@ -321,13 +332,13 @@ export function useAccountEdits(options) {
  * Returns the comment edited (if has any edits), as well as the pending, succeeded or failed state of the edit.
  */
 export function useEditedComment(options) {
-    assert(!options || typeof options === 'object', `useEditedComment options argument '${options}' not an object`);
+    assert(!options || typeof options === "object", `useEditedComment options argument '${options}' not an object`);
     const { comment, accountName } = options || {};
     const accountId = useAccountId(accountName);
-    const commentEdits = useAccountsStore((state) => { var _a; return (_a = state.accountsEdits[accountId || '']) === null || _a === void 0 ? void 0 : _a[(comment === null || comment === void 0 ? void 0 : comment.cid) || '']; });
-    let initialState = 'initializing';
+    const commentEdits = useAccountsStore((state) => { var _a; return (_a = state.accountsEdits[accountId || ""]) === null || _a === void 0 ? void 0 : _a[(comment === null || comment === void 0 ? void 0 : comment.cid) || ""]; });
+    let initialState = "initializing";
     if (accountId && (comment === null || comment === void 0 ? void 0 : comment.cid)) {
-        initialState = 'unedited';
+        initialState = "unedited";
     }
     const editedResult = useMemo(() => {
         var _a;
@@ -343,7 +354,13 @@ export function useEditedComment(options) {
             return editedResult;
         }
         // don't include these props as they are not edit props, they are publication props
-        const nonEditPropertyNames = new Set(['author', 'signer', 'commentCid', 'subplebbitAddress', 'timestamp']);
+        const nonEditPropertyNames = new Set([
+            "author",
+            "signer",
+            "commentCid",
+            "subplebbitAddress",
+            "timestamp",
+        ]);
         // iterate over commentEdits and consolidate them into 1 propertyNameEdits object
         const propertyNameEdits = {};
         for (let commentEdit of commentEdits) {
@@ -381,16 +398,16 @@ export function useEditedComment(options) {
                 // set propertyNameEdit e.g. editedResult.succeededEdits.removed = true
                 editedResult[`${state}Edits`][propertyName] = propertyNameEdit.value;
                 // if any propertyNameEdit failed, consider the commentEdit failed
-                if (state === 'failed') {
-                    editedResult.state = 'failed';
+                if (state === "failed") {
+                    editedResult.state = "failed";
                 }
                 // if all propertyNameEdit succeeded, consider the commentEdit succeeded
-                if (state === 'succeeded' && !editedResult.state) {
-                    editedResult.state = 'succeeded';
+                if (state === "succeeded" && !editedResult.state) {
+                    editedResult.state = "succeeded";
                 }
                 // if any propertyNameEdit are pending, and none have failed, consider the commentEdit pending
-                if (state === 'pending' && editedResult.state !== 'failed') {
-                    editedResult.state = 'pending';
+                if (state === "pending" && editedResult.state !== "failed") {
+                    editedResult.state = "pending";
                 }
                 if (!editedResult.state) {
                     throw Error(`didn't define editedResult.state`);
@@ -399,13 +416,13 @@ export function useEditedComment(options) {
             // comment update hasn't been received, impossible to evaluate the status of a comment edit
             // better to show pending than unedited, otherwise the editor might try to edit again
             if (!(comment === null || comment === void 0 ? void 0 : comment.updatedAt)) {
-                setPropertyNameEditState('pending');
+                setPropertyNameEditState("pending");
                 continue;
             }
             // comment.updatedAt is older than propertyNameEdit, propertyNameEdit is pending
             // because we haven't received the update yet and can't evaluate
             if (comment.updatedAt < propertyNameEdit.timestamp) {
-                setPropertyNameEditState('pending');
+                setPropertyNameEditState("pending");
                 continue;
             }
             // comment.updatedAt is newer than propertyNameEdit, a comment update
@@ -413,7 +430,7 @@ export function useEditedComment(options) {
             else {
                 // comment has propertyNameEdit, propertyNameEdit succeeded
                 if (isEqual(comment[propertyName], propertyNameEdit.value)) {
-                    setPropertyNameEditState('succeeded');
+                    setPropertyNameEditState("succeeded");
                     continue;
                 }
                 // comment does not have propertyNameEdit
@@ -421,7 +438,7 @@ export function useEditedComment(options) {
                     // propertyNameEdit is newer than 20min, it is too recent to evaluate
                     // so we should assume pending
                     if (propertyNameEdit.timestamp > now - expiryTime) {
-                        setPropertyNameEditState('pending');
+                        setPropertyNameEditState("pending");
                         continue;
                     }
                     // propertyNameEdit is older than 20min, we can evaluate it
@@ -430,13 +447,13 @@ export function useEditedComment(options) {
                         // published, assume pending until a more recent comment update is received
                         const timeSinceUpdate = comment.updatedAt - propertyNameEdit.timestamp;
                         if (timeSinceUpdate < expiryTime) {
-                            setPropertyNameEditState('pending');
+                            setPropertyNameEditState("pending");
                             continue;
                         }
                         // comment update time is sufficiently distanced from propertyNameEdit
                         // and comment doesn't have propertyNameEdit, assume failed
                         else {
-                            setPropertyNameEditState('failed');
+                            setPropertyNameEditState("failed");
                             continue;
                         }
                     }
@@ -466,31 +483,34 @@ export function useEditedComment(options) {
  * @param subplebbitAddress - The subplebbit address to subscribe to, e.g. 'news.eth'.
  */
 export function usePubsubSubscribe(options) {
-    assert(!options || typeof options === 'object', `usePubsubSubscribe options argument '${options}' not an object`);
+    assert(!options || typeof options === "object", `usePubsubSubscribe options argument '${options}' not an object`);
     const { accountName, subplebbitAddress } = options || {};
     // get state
     const accountId = useAccountId(accountName);
-    const account = useAccountsStore((state) => state.accounts[accountId || '']);
-    const [state, setState] = useState('initializing');
+    const account = useAccountsStore((state) => state.accounts[accountId || ""]);
+    const [state, setState] = useState("initializing");
     const [errors, setErrors] = useState([]);
     useEffect(() => {
         if (!(account === null || account === void 0 ? void 0 : account.plebbit) || !subplebbitAddress) {
             return;
         }
-        setState('subscribing');
+        setState("subscribing");
         account.plebbit
             .pubsubSubscribe(subplebbitAddress)
-            .then(() => setState('succeeded'))
+            .then(() => setState("succeeded"))
             .catch((error) => {
             setErrors([...errors, error]);
-            setState('failed');
-            log.error('usePubsubSubscribe plebbit.pubsubSubscribe error', { subplebbitAddress, error });
+            setState("failed");
+            log.error("usePubsubSubscribe plebbit.pubsubSubscribe error", { subplebbitAddress, error });
         });
         // unsub on component unmount
         return function () {
             account.plebbit.pubsubUnsubscribe(subplebbitAddress).catch((error) => {
                 setErrors([...errors, error]);
-                log.error('usePubsubSubscribe plebbit.pubsubUnsubscribe error', { subplebbitAddress, error });
+                log.error("usePubsubSubscribe plebbit.pubsubUnsubscribe error", {
+                    subplebbitAddress,
+                    error,
+                });
             });
         };
     }, [account === null || account === void 0 ? void 0 : account.plebbit, subplebbitAddress]);

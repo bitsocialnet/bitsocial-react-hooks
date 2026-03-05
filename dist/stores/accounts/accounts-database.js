@@ -7,29 +7,31 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import PlebbitJs from '../../lib/plebbit-js';
-import validator from '../../lib/validator';
-import chain from '../../lib/chain';
-import assert from 'assert';
-import localForage from 'localforage';
-import localForageLru from '../../lib/localforage-lru';
-import utils from '../../lib/utils';
-import { getDefaultPlebbitOptions, overwritePlebbitOptions } from './account-generator';
-import Logger from '@plebbit/plebbit-logger';
-const log = Logger('bitsocial-react-hooks:accounts:stores');
-const accountsDatabase = localForage.createInstance({ name: 'plebbitReactHooks-accounts' });
-const accountsMetadataDatabase = localForage.createInstance({ name: 'plebbitReactHooks-accountsMetadata' });
+import PlebbitJs from "../../lib/plebbit-js";
+import validator from "../../lib/validator";
+import chain from "../../lib/chain";
+import assert from "assert";
+import localForage from "localforage";
+import localForageLru from "../../lib/localforage-lru";
+import utils from "../../lib/utils";
+import { getDefaultPlebbitOptions, overwritePlebbitOptions } from "./account-generator";
+import Logger from "@plebbit/plebbit-logger";
+const log = Logger("bitsocial-react-hooks:accounts:stores");
+const accountsDatabase = localForage.createInstance({ name: "plebbitReactHooks-accounts" });
+const accountsMetadataDatabase = localForage.createInstance({
+    name: "plebbitReactHooks-accountsMetadata",
+});
 // TODO: remove this eventually after everyone has migrated
 // migrate to name with safe prefix
 const migrate = () => __awaiter(void 0, void 0, void 0, function* () {
-    const previousAccountsDatabase = localForage.createInstance({ name: 'accounts' });
-    const previousAccountsMetadataDatabase = localForage.createInstance({ name: 'accountsMetadata' });
+    const previousAccountsDatabase = localForage.createInstance({ name: "accounts" });
+    const previousAccountsMetadataDatabase = localForage.createInstance({ name: "accountsMetadata" });
     // no previous db to migrate
-    if (!(yield previousAccountsMetadataDatabase.getItem('activeAccountId'))) {
+    if (!(yield previousAccountsMetadataDatabase.getItem("activeAccountId"))) {
         return;
     }
     // db already migrated
-    if (yield accountsMetadataDatabase.getItem('activeAccountId')) {
+    if (yield accountsMetadataDatabase.getItem("activeAccountId")) {
         return;
     }
     // migrate
@@ -38,15 +40,26 @@ const migrate = () => __awaiter(void 0, void 0, void 0, function* () {
         promises.push(previousAccountsDatabase.getItem(key).then((value) => accountsDatabase.setItem(key, value)));
     }
     for (const key of yield previousAccountsMetadataDatabase.keys()) {
-        promises.push(previousAccountsMetadataDatabase.getItem(key).then((value) => accountsMetadataDatabase.setItem(key, value)));
+        promises.push(previousAccountsMetadataDatabase
+            .getItem(key)
+            .then((value) => accountsMetadataDatabase.setItem(key, value)));
     }
-    const accountIds = yield previousAccountsMetadataDatabase.getItem('accountIds');
+    const accountIds = yield previousAccountsMetadataDatabase.getItem("accountIds");
     if (Array.isArray(accountIds)) {
-        const databaseNames = ['accountComments', 'accountVotes', 'accountCommentsReplies', 'accountEdits'];
+        const databaseNames = [
+            "accountComments",
+            "accountVotes",
+            "accountCommentsReplies",
+            "accountEdits",
+        ];
         for (const databaseName of databaseNames) {
             for (const accountId of accountIds) {
-                const previousDatabase = localForage.createInstance({ name: `${databaseName}-${accountId}` });
-                const database = localForage.createInstance({ name: `plebbitReactHooks-${databaseName}-${accountId}` });
+                const previousDatabase = localForage.createInstance({
+                    name: `${databaseName}-${accountId}`,
+                });
+                const database = localForage.createInstance({
+                    name: `plebbitReactHooks-${databaseName}-${accountId}`,
+                });
                 for (const key of yield previousDatabase.keys()) {
                     promises.push(previousDatabase.getItem(key).then((value) => database.setItem(key, value)));
                 }
@@ -74,7 +87,7 @@ const getAccounts = (accountIds) => __awaiter(void 0, void 0, void 0, function* 
         accounts[accountId].plebbit = yield PlebbitJs.Plebbit(accounts[accountId].plebbitOptions);
         // handle errors or error events are uncaught
         // no need to log them because plebbit-js already logs them
-        accounts[accountId].plebbit.on('error', (error) => log.error('uncaught plebbit instance error, should never happen', { error }));
+        accounts[accountId].plebbit.on("error", (error) => log.error("uncaught plebbit instance error, should never happen", { error }));
     }
     return accounts;
 });
@@ -90,7 +103,8 @@ const migrateAccount = (account) => __awaiter(void 0, void 0, void 0, function* 
             delete account.plebbitOptions.ipfsHttpClientsOptions;
         }
         if ((_b = account.plebbitOptions) === null || _b === void 0 ? void 0 : _b.pubsubHttpClientsOptions) {
-            account.plebbitOptions.pubsubKuboRpcClientsOptions = account.plebbitOptions.pubsubHttpClientsOptions;
+            account.plebbitOptions.pubsubKuboRpcClientsOptions =
+                account.plebbitOptions.pubsubHttpClientsOptions;
             delete account.plebbitOptions.pubsubHttpClientsOptions;
         }
     }
@@ -125,7 +139,7 @@ const getAccount = (accountId) => __awaiter(void 0, void 0, void 0, function* ()
     return accounts[accountId];
 });
 const getExportedAccountJson = (accountId) => __awaiter(void 0, void 0, void 0, function* () {
-    assert(accountId && typeof accountId === 'string', `getAccountJson argument accountId '${accountId}' invalid`);
+    assert(accountId && typeof accountId === "string", `getAccountJson argument accountId '${accountId}' invalid`);
     // do not serialize or instantiate anything (unlike getAccount)
     const account = yield accountsDatabase.getItem(accountId);
     if (!account) {
@@ -144,7 +158,7 @@ const getExportedAccountJson = (accountId) => __awaiter(void 0, void 0, void 0, 
 // accountVotes, accountComments and accountEdits are indexeddb
 // databases formed like an array (keys are numbers)
 const getDatabaseAsArray = (database) => __awaiter(void 0, void 0, void 0, function* () {
-    const length = (yield database.getItem('length')) || 0;
+    const length = (yield database.getItem("length")) || 0;
     let promises = [];
     let i = 0;
     while (i < length) {
@@ -156,7 +170,7 @@ const getDatabaseAsArray = (database) => __awaiter(void 0, void 0, void 0, funct
 const addAccount = (account) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c;
     validator.validateAccountsDatabaseAddAccountArguments(account);
-    let accountIds = yield accountsMetadataDatabase.getItem('accountIds');
+    let accountIds = yield accountsMetadataDatabase.getItem("accountIds");
     // handle no duplicate names
     if (accountIds === null || accountIds === void 0 ? void 0 : accountIds.length) {
         const accounts = yield getAccounts(accountIds);
@@ -169,23 +183,25 @@ const addAccount = (account) => __awaiter(void 0, void 0, void 0, function* () {
     // handle updating accounts database
     const accountToPutInDatabase = Object.assign(Object.assign({}, account), { plebbit: undefined });
     // don't save default plebbit options in database in case they change
-    if (JSON.stringify(accountToPutInDatabase.plebbitOptions) === JSON.stringify(getDefaultPlebbitOptions())) {
+    if (JSON.stringify(accountToPutInDatabase.plebbitOptions) ===
+        JSON.stringify(getDefaultPlebbitOptions())) {
         delete accountToPutInDatabase.plebbitOptions;
     }
     // make sure accountToPutInDatabase.plebbitOptions are valid
     if (accountToPutInDatabase.plebbitOptions) {
         const plebbit = yield PlebbitJs.Plebbit(accountToPutInDatabase.plebbitOptions);
-        plebbit.on('error', () => { });
-        (_c = (_a = plebbit.destroy) === null || _a === void 0 ? void 0 : (_b = _a.call(plebbit)).catch) === null || _c === void 0 ? void 0 : _c.call(_b, (error) => log('database.addAccount plebbit.destroy error', { error })); // make sure it's garbage collected
+        plebbit.on("error", () => { });
+        (_c = (_a = plebbit
+            .destroy) === null || _a === void 0 ? void 0 : (_b = _a.call(plebbit)).catch) === null || _c === void 0 ? void 0 : _c.call(_b, (error) => log("database.addAccount plebbit.destroy error", { error })); // make sure it's garbage collected
     }
     yield accountsDatabase.setItem(accountToPutInDatabase.id, accountToPutInDatabase);
     // handle updating accountNamesToAccountIds database
-    let accountNamesToAccountIds = yield accountsMetadataDatabase.getItem('accountNamesToAccountIds');
+    let accountNamesToAccountIds = yield accountsMetadataDatabase.getItem("accountNamesToAccountIds");
     if (!accountNamesToAccountIds) {
         accountNamesToAccountIds = {};
     }
     accountNamesToAccountIds[account.name] = account.id;
-    yield accountsMetadataDatabase.setItem('accountNamesToAccountIds', accountNamesToAccountIds);
+    yield accountsMetadataDatabase.setItem("accountNamesToAccountIds", accountNamesToAccountIds);
     // handle updating accountIds database
     if (!accountIds) {
         accountIds = [account.id];
@@ -193,35 +209,35 @@ const addAccount = (account) => __awaiter(void 0, void 0, void 0, function* () {
     if (!accountIds.includes(account.id)) {
         accountIds.push(account.id);
     }
-    yield accountsMetadataDatabase.setItem('accountIds', accountIds);
+    yield accountsMetadataDatabase.setItem("accountIds", accountIds);
     // handle updating activeAccountId database
     if (accountIds.length === 1) {
-        yield accountsMetadataDatabase.setItem('activeAccountId', account.id);
+        yield accountsMetadataDatabase.setItem("activeAccountId", account.id);
     }
 });
 const removeAccount = (account) => __awaiter(void 0, void 0, void 0, function* () {
-    assert((account === null || account === void 0 ? void 0 : account.id) && typeof (account === null || account === void 0 ? void 0 : account.id) === 'string', `accountsDatabase.removeAccount invalid account.id '${account.id}'`);
+    assert((account === null || account === void 0 ? void 0 : account.id) && typeof (account === null || account === void 0 ? void 0 : account.id) === "string", `accountsDatabase.removeAccount invalid account.id '${account.id}'`);
     // handle updating accounts database
     yield accountsDatabase.removeItem(account.id);
     // handle updating accountNamesToAccountIds database
-    let accountNamesToAccountIds = yield accountsMetadataDatabase.getItem('accountNamesToAccountIds');
+    let accountNamesToAccountIds = yield accountsMetadataDatabase.getItem("accountNamesToAccountIds");
     if (!accountNamesToAccountIds) {
         accountNamesToAccountIds = {};
     }
     delete accountNamesToAccountIds[account.name];
-    yield accountsMetadataDatabase.setItem('accountNamesToAccountIds', accountNamesToAccountIds);
+    yield accountsMetadataDatabase.setItem("accountNamesToAccountIds", accountNamesToAccountIds);
     // handle updating accountIds database
-    let accountIds = yield accountsMetadataDatabase.getItem('accountIds');
+    let accountIds = yield accountsMetadataDatabase.getItem("accountIds");
     accountIds = (accountIds || []).filter((accountId) => accountId !== account.id);
-    yield accountsMetadataDatabase.setItem('accountIds', accountIds);
+    yield accountsMetadataDatabase.setItem("accountIds", accountIds);
     // handle updating activeAccountId database
-    const activeAccountId = yield accountsMetadataDatabase.getItem('activeAccountId');
+    const activeAccountId = yield accountsMetadataDatabase.getItem("activeAccountId");
     if (activeAccountId === account.id) {
         if (accountIds.length) {
-            yield accountsMetadataDatabase.setItem('activeAccountId', accountIds[0]);
+            yield accountsMetadataDatabase.setItem("activeAccountId", accountIds[0]);
         }
         else {
-            yield accountsMetadataDatabase.removeItem('activeAccountId');
+            yield accountsMetadataDatabase.removeItem("activeAccountId");
         }
     }
     const accountCommentsDatabase = yield getAccountCommentsDatabase(account.id);
@@ -235,27 +251,32 @@ const removeAccount = (account) => __awaiter(void 0, void 0, void 0, function* (
 });
 const accountsCommentsDatabases = {};
 const getAccountCommentsDatabase = (accountId) => {
-    assert(accountId && typeof accountId === 'string', `getAccountCommentsDatabase '${accountId}' not a string`);
+    assert(accountId && typeof accountId === "string", `getAccountCommentsDatabase '${accountId}' not a string`);
     if (!accountsCommentsDatabases[accountId]) {
-        accountsCommentsDatabases[accountId] = localForage.createInstance({ name: `plebbitReactHooks-accountComments-${accountId}` });
+        accountsCommentsDatabases[accountId] = localForage.createInstance({
+            name: `plebbitReactHooks-accountComments-${accountId}`,
+        });
     }
     return accountsCommentsDatabases[accountId];
 };
 const addAccountComment = (accountId, comment, accountCommentIndex) => __awaiter(void 0, void 0, void 0, function* () {
     const accountCommentsDatabase = getAccountCommentsDatabase(accountId);
-    const length = (yield accountCommentsDatabase.getItem('length')) || 0;
+    const length = (yield accountCommentsDatabase.getItem("length")) || 0;
     comment = utils.clone(Object.assign(Object.assign({}, comment), { signer: undefined }));
-    if (typeof accountCommentIndex === 'number') {
+    if (typeof accountCommentIndex === "number") {
         assert(accountCommentIndex < length, `addAccountComment cannot edit comment no comment in database at accountCommentIndex '${accountCommentIndex}'`);
         yield accountCommentsDatabase.setItem(String(accountCommentIndex), comment);
     }
     else {
-        yield Promise.all([accountCommentsDatabase.setItem(String(length), comment), accountCommentsDatabase.setItem('length', length + 1)]);
+        yield Promise.all([
+            accountCommentsDatabase.setItem(String(length), comment),
+            accountCommentsDatabase.setItem("length", length + 1),
+        ]);
     }
 });
 const getAccountComments = (accountId) => __awaiter(void 0, void 0, void 0, function* () {
     const accountCommentsDatabase = getAccountCommentsDatabase(accountId);
-    const length = (yield accountCommentsDatabase.getItem('length')) || 0;
+    const length = (yield accountCommentsDatabase.getItem("length")) || 0;
     if (length === 0) {
         return [];
     }
@@ -287,34 +308,36 @@ const getAccountsComments = (accountIds) => __awaiter(void 0, void 0, void 0, fu
 });
 const accountsVotesDatabases = {};
 const getAccountVotesDatabase = (accountId) => {
-    assert(accountId && typeof accountId === 'string', `getAccountVotesDatabase '${accountId}' not a string`);
+    assert(accountId && typeof accountId === "string", `getAccountVotesDatabase '${accountId}' not a string`);
     if (!accountsVotesDatabases[accountId]) {
-        accountsVotesDatabases[accountId] = localForage.createInstance({ name: `plebbitReactHooks-accountVotes-${accountId}` });
+        accountsVotesDatabases[accountId] = localForage.createInstance({
+            name: `plebbitReactHooks-accountVotes-${accountId}`,
+        });
     }
     return accountsVotesDatabases[accountId];
 };
 const addAccountVote = (accountId, createVoteOptions) => __awaiter(void 0, void 0, void 0, function* () {
-    assert((createVoteOptions === null || createVoteOptions === void 0 ? void 0 : createVoteOptions.commentCid) && typeof (createVoteOptions === null || createVoteOptions === void 0 ? void 0 : createVoteOptions.commentCid) === 'string', `addAccountVote createVoteOptions.commentCid '${createVoteOptions === null || createVoteOptions === void 0 ? void 0 : createVoteOptions.commentCid}' not a string`);
+    assert((createVoteOptions === null || createVoteOptions === void 0 ? void 0 : createVoteOptions.commentCid) && typeof (createVoteOptions === null || createVoteOptions === void 0 ? void 0 : createVoteOptions.commentCid) === "string", `addAccountVote createVoteOptions.commentCid '${createVoteOptions === null || createVoteOptions === void 0 ? void 0 : createVoteOptions.commentCid}' not a string`);
     const accountVotesDatabase = getAccountVotesDatabase(accountId);
-    const length = (yield accountVotesDatabase.getItem('length')) || 0;
+    const length = (yield accountVotesDatabase.getItem("length")) || 0;
     const vote = Object.assign({}, createVoteOptions);
     delete vote.signer;
     delete vote.author;
     // delete all functions because they can't be added to indexeddb
     for (const i in vote) {
-        if (typeof vote[i] === 'function') {
+        if (typeof vote[i] === "function") {
             delete vote[i];
         }
     }
     yield Promise.all([
         accountVotesDatabase.setItem(vote.commentCid, vote),
         accountVotesDatabase.setItem(String(length), vote),
-        accountVotesDatabase.setItem('length', length + 1),
+        accountVotesDatabase.setItem("length", length + 1),
     ]);
 });
 const getAccountVotes = (accountId) => __awaiter(void 0, void 0, void 0, function* () {
     const accountVotesDatabase = getAccountVotesDatabase(accountId);
-    const length = (yield accountVotesDatabase.getItem('length')) || 0;
+    const length = (yield accountVotesDatabase.getItem("length")) || 0;
     const votes = {};
     if (length === 0) {
         return votes;
@@ -345,7 +368,7 @@ const getAccountsVotes = (accountIds) => __awaiter(void 0, void 0, void 0, funct
 });
 const accountsCommentsRepliesDatabases = {};
 const getAccountCommentsRepliesDatabase = (accountId) => {
-    assert(accountId && typeof accountId === 'string', `getAccountCommentsRepliesDatabase '${accountId}' not a string`);
+    assert(accountId && typeof accountId === "string", `getAccountCommentsRepliesDatabase '${accountId}' not a string`);
     if (!accountsCommentsRepliesDatabases[accountId]) {
         accountsCommentsRepliesDatabases[accountId] = localForageLru.createInstance({
             name: `plebbitReactHooks-accountCommentsReplies-${accountId}`,
@@ -383,22 +406,24 @@ const getAccountsCommentsReplies = (accountIds) => __awaiter(void 0, void 0, voi
 });
 const accountsEditsDatabases = {};
 const getAccountEditsDatabase = (accountId) => {
-    assert(accountId && typeof accountId === 'string', `getAccountEditsDatabase '${accountId}' not a string`);
+    assert(accountId && typeof accountId === "string", `getAccountEditsDatabase '${accountId}' not a string`);
     if (!accountsEditsDatabases[accountId]) {
-        accountsEditsDatabases[accountId] = localForage.createInstance({ name: `plebbitReactHooks-accountEdits-${accountId}` });
+        accountsEditsDatabases[accountId] = localForage.createInstance({
+            name: `plebbitReactHooks-accountEdits-${accountId}`,
+        });
     }
     return accountsEditsDatabases[accountId];
 };
 const addAccountEdit = (accountId, createEditOptions) => __awaiter(void 0, void 0, void 0, function* () {
-    assert((createEditOptions === null || createEditOptions === void 0 ? void 0 : createEditOptions.commentCid) && typeof (createEditOptions === null || createEditOptions === void 0 ? void 0 : createEditOptions.commentCid) === 'string', `addAccountEdit createEditOptions.commentCid '${createEditOptions === null || createEditOptions === void 0 ? void 0 : createEditOptions.commentCid}' not a string`);
+    assert((createEditOptions === null || createEditOptions === void 0 ? void 0 : createEditOptions.commentCid) && typeof (createEditOptions === null || createEditOptions === void 0 ? void 0 : createEditOptions.commentCid) === "string", `addAccountEdit createEditOptions.commentCid '${createEditOptions === null || createEditOptions === void 0 ? void 0 : createEditOptions.commentCid}' not a string`);
     const accountEditsDatabase = getAccountEditsDatabase(accountId);
-    const length = (yield accountEditsDatabase.getItem('length')) || 0;
+    const length = (yield accountEditsDatabase.getItem("length")) || 0;
     const edit = Object.assign({}, createEditOptions);
     delete edit.signer;
     delete edit.author;
     // delete all functions because they can't be added to indexeddb
     for (const i in edit) {
-        if (typeof edit[i] === 'function') {
+        if (typeof edit[i] === "function") {
             delete edit[i];
         }
     }
@@ -408,12 +433,12 @@ const addAccountEdit = (accountId, createEditOptions) => __awaiter(void 0, void 
     yield Promise.all([
         accountEditsDatabase.setItem(edit.commentCid, edits),
         accountEditsDatabase.setItem(String(length), edit),
-        accountEditsDatabase.setItem('length', length + 1),
+        accountEditsDatabase.setItem("length", length + 1),
     ]);
 });
 const getAccountEdits = (accountId) => __awaiter(void 0, void 0, void 0, function* () {
     const accountEditsDatabase = getAccountEditsDatabase(accountId);
-    const length = (yield accountEditsDatabase.getItem('length')) || 0;
+    const length = (yield accountEditsDatabase.getItem("length")) || 0;
     const edits = {};
     if (length === 0) {
         return edits;

@@ -7,14 +7,14 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import assert from 'assert';
-import QuickLru from 'quick-lru';
-import Logger from '@plebbit/plebbit-logger';
-const log = Logger('bitsocial-react-hooks:utils');
+import assert from "assert";
+import QuickLru from "quick-lru";
+import Logger from "@plebbit/plebbit-logger";
+const log = Logger("bitsocial-react-hooks:utils");
 const merge = (...args) => {
     // @ts-ignore
     const clonedArgs = args.map((arg) => {
-        assert(arg && typeof arg === 'object', `utils.merge argument '${arg}' not an object`);
+        assert(arg && typeof arg === "object", `utils.merge argument '${arg}' not an object`);
         return clone(arg);
     });
     const mergedObj = {};
@@ -31,23 +31,23 @@ const merge = (...args) => {
 };
 const clone = (obj) => {
     var _a, _b;
-    assert(obj && typeof obj === 'object', `utils.clone argument '${obj}' not an object`);
+    assert(obj && typeof obj === "object", `utils.clone argument '${obj}' not an object`);
     let clonedObj = {};
     // clean the object to be cloned
     for (const i in obj) {
         // remove functions
-        if (typeof obj[i] === 'function') {
+        if (typeof obj[i] === "function") {
             continue;
         }
         // remove internal props
-        if (i.startsWith('_')) {
+        if (i.startsWith("_")) {
             continue;
         }
         if (obj[i] === undefined || obj[i] === null) {
             continue;
         }
         // plebbit-js has a bug where plebbit instances have circular deps
-        if (((_b = (_a = obj[i]) === null || _a === void 0 ? void 0 : _a.constructor) === null || _b === void 0 ? void 0 : _b.name) === 'Plebbit') {
+        if (((_b = (_a = obj[i]) === null || _a === void 0 ? void 0 : _a.constructor) === null || _b === void 0 ? void 0 : _b.name) === "Plebbit") {
             continue;
         }
         clonedObj[i] = obj[i];
@@ -98,18 +98,21 @@ export const flattenCommentsPages = (pageInstanceOrPagesInstance) => {
     return uniqueFlattened;
 };
 export const memo = (functionToMemo, memoOptions) => {
-    assert(typeof functionToMemo === 'function', `memo first argument must be a function`);
+    assert(typeof functionToMemo === "function", `memo first argument must be a function`);
     const pendingPromises = new Map();
     const cache = new QuickLru(memoOptions);
     // preserve function name
-    const memoedFunctionName = functionToMemo.name || 'memoedFunction';
+    const memoedFunctionName = functionToMemo.name || "memoedFunction";
     const obj = {
         [memoedFunctionName]: (...args) => __awaiter(void 0, void 0, void 0, function* () {
             let cacheKey = args[0];
             if (args.length > 1) {
-                cacheKey = '';
+                cacheKey = "";
                 for (const arg of args) {
-                    if (typeof arg !== 'string' && typeof arg !== 'number' && arg !== undefined && arg !== null) {
+                    if (typeof arg !== "string" &&
+                        typeof arg !== "number" &&
+                        arg !== undefined &&
+                        arg !== null) {
                         const argumentIndex = args.indexOf(arg);
                         throw Error(`memoed function '${memoedFunctionName}' invalid argument number '${argumentIndex}' '${arg}', memoed function can only use multiple arguments if they are all of type string, number, undefined or null`);
                     }
@@ -150,17 +153,20 @@ export const memo = (functionToMemo, memoOptions) => {
     return obj[memoedFunctionName];
 };
 export const memoSync = (functionToMemo, memoOptions) => {
-    assert(typeof functionToMemo === 'function', `memo first argument must be a function`);
+    assert(typeof functionToMemo === "function", `memo first argument must be a function`);
     const cache = new QuickLru(memoOptions);
     // preserve function name
-    const memoedFunctionName = functionToMemo.name || 'memoedFunction';
+    const memoedFunctionName = functionToMemo.name || "memoedFunction";
     const obj = {
         [memoedFunctionName]: (...args) => {
             let cacheKey = args[0];
             if (args.length > 1) {
-                cacheKey = '';
+                cacheKey = "";
                 for (const arg of args) {
-                    if (typeof arg !== 'string' && typeof arg !== 'number' && arg !== undefined && arg !== null) {
+                    if (typeof arg !== "string" &&
+                        typeof arg !== "number" &&
+                        arg !== undefined &&
+                        arg !== null) {
                         const argumentIndex = args.indexOf(arg);
                         throw Error(`memoed function '${memoedFunctionName}' invalid argument number '${argumentIndex}' '${arg}', memoed function can only use multiple arguments if they are all of type string, number, undefined or null`);
                     }
@@ -174,7 +180,7 @@ export const memoSync = (functionToMemo, memoOptions) => {
             }
             // execute the function
             const result = functionToMemo(...args);
-            if (typeof (result === null || result === void 0 ? void 0 : result.then) === 'function') {
+            if (typeof (result === null || result === void 0 ? void 0 : result.then) === "function") {
                 throw Error(`memoed function '${memoedFunctionName}' is an async function, cannot be used with memoSync, use memo instead`);
             }
             cache.set(cacheKey, result);
@@ -186,23 +192,23 @@ export const memoSync = (functionToMemo, memoOptions) => {
 export const clientsOnStateChange = (clients, onStateChange) => {
     var _a, _b, _c, _d, _e, _f, _g, _h;
     for (const clientUrl in clients === null || clients === void 0 ? void 0 : clients.ipfsGateways) {
-        (_a = clients === null || clients === void 0 ? void 0 : clients.ipfsGateways) === null || _a === void 0 ? void 0 : _a[clientUrl].on('statechange', (state) => onStateChange(state, 'ipfsGateways', clientUrl));
+        (_a = clients === null || clients === void 0 ? void 0 : clients.ipfsGateways) === null || _a === void 0 ? void 0 : _a[clientUrl].on("statechange", (state) => onStateChange(state, "ipfsGateways", clientUrl));
     }
     for (const clientUrl in clients === null || clients === void 0 ? void 0 : clients.kuboRpcClients) {
-        (_b = clients === null || clients === void 0 ? void 0 : clients.kuboRpcClients) === null || _b === void 0 ? void 0 : _b[clientUrl].on('statechange', (state) => onStateChange(state, 'kuboRpcClients', clientUrl));
+        (_b = clients === null || clients === void 0 ? void 0 : clients.kuboRpcClients) === null || _b === void 0 ? void 0 : _b[clientUrl].on("statechange", (state) => onStateChange(state, "kuboRpcClients", clientUrl));
     }
     for (const clientUrl in clients === null || clients === void 0 ? void 0 : clients.pubsubKuboRpcClients) {
-        (_c = clients === null || clients === void 0 ? void 0 : clients.pubsubKuboRpcClients) === null || _c === void 0 ? void 0 : _c[clientUrl].on('statechange', (state) => onStateChange(state, 'pubsubKuboRpcClients', clientUrl));
+        (_c = clients === null || clients === void 0 ? void 0 : clients.pubsubKuboRpcClients) === null || _c === void 0 ? void 0 : _c[clientUrl].on("statechange", (state) => onStateChange(state, "pubsubKuboRpcClients", clientUrl));
     }
     for (const clientUrl in clients === null || clients === void 0 ? void 0 : clients.plebbitRpcClients) {
-        (_d = clients === null || clients === void 0 ? void 0 : clients.plebbitRpcClients) === null || _d === void 0 ? void 0 : _d[clientUrl].on('statechange', (state) => onStateChange(state, 'plebbitRpcClients', clientUrl));
+        (_d = clients === null || clients === void 0 ? void 0 : clients.plebbitRpcClients) === null || _d === void 0 ? void 0 : _d[clientUrl].on("statechange", (state) => onStateChange(state, "plebbitRpcClients", clientUrl));
     }
     for (const clientUrl in clients === null || clients === void 0 ? void 0 : clients.libp2pJsClients) {
-        (_e = clients === null || clients === void 0 ? void 0 : clients.libp2pJsClients) === null || _e === void 0 ? void 0 : _e[clientUrl].on('statechange', (state) => onStateChange(state, 'libp2pJsClients', clientUrl));
+        (_e = clients === null || clients === void 0 ? void 0 : clients.libp2pJsClients) === null || _e === void 0 ? void 0 : _e[clientUrl].on("statechange", (state) => onStateChange(state, "libp2pJsClients", clientUrl));
     }
     for (const chainTicker in clients === null || clients === void 0 ? void 0 : clients.chainProviders) {
         for (const clientUrl in (_f = clients === null || clients === void 0 ? void 0 : clients.chainProviders) === null || _f === void 0 ? void 0 : _f[chainTicker]) {
-            (_h = (_g = clients === null || clients === void 0 ? void 0 : clients.chainProviders) === null || _g === void 0 ? void 0 : _g[chainTicker]) === null || _h === void 0 ? void 0 : _h[clientUrl].on('statechange', (state) => onStateChange(state, 'chainProviders', clientUrl, chainTicker));
+            (_h = (_g = clients === null || clients === void 0 ? void 0 : clients.chainProviders) === null || _g === void 0 ? void 0 : _g[chainTicker]) === null || _h === void 0 ? void 0 : _h[clientUrl].on("statechange", (state) => onStateChange(state, "chainProviders", clientUrl, chainTicker));
         }
     }
 };
@@ -210,22 +216,22 @@ export const pageClientsOnStateChange = (clients, onStateChange) => {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
     for (const sortType in clients === null || clients === void 0 ? void 0 : clients.ipfsGateways) {
         for (const clientUrl in (_a = clients === null || clients === void 0 ? void 0 : clients.ipfsGateways) === null || _a === void 0 ? void 0 : _a[sortType]) {
-            (_c = (_b = clients === null || clients === void 0 ? void 0 : clients.ipfsGateways) === null || _b === void 0 ? void 0 : _b[sortType]) === null || _c === void 0 ? void 0 : _c[clientUrl].on('statechange', (state) => onStateChange(state, 'ipfsGateways', sortType, clientUrl));
+            (_c = (_b = clients === null || clients === void 0 ? void 0 : clients.ipfsGateways) === null || _b === void 0 ? void 0 : _b[sortType]) === null || _c === void 0 ? void 0 : _c[clientUrl].on("statechange", (state) => onStateChange(state, "ipfsGateways", sortType, clientUrl));
         }
     }
     for (const sortType in clients === null || clients === void 0 ? void 0 : clients.kuboRpcClients) {
         for (const clientUrl in (_d = clients === null || clients === void 0 ? void 0 : clients.kuboRpcClients) === null || _d === void 0 ? void 0 : _d[sortType]) {
-            (_f = (_e = clients === null || clients === void 0 ? void 0 : clients.kuboRpcClients) === null || _e === void 0 ? void 0 : _e[sortType]) === null || _f === void 0 ? void 0 : _f[clientUrl].on('statechange', (state) => onStateChange(state, 'kuboRpcClients', sortType, clientUrl));
+            (_f = (_e = clients === null || clients === void 0 ? void 0 : clients.kuboRpcClients) === null || _e === void 0 ? void 0 : _e[sortType]) === null || _f === void 0 ? void 0 : _f[clientUrl].on("statechange", (state) => onStateChange(state, "kuboRpcClients", sortType, clientUrl));
         }
     }
     for (const sortType in clients === null || clients === void 0 ? void 0 : clients.plebbitRpcClients) {
         for (const clientUrl in (_g = clients === null || clients === void 0 ? void 0 : clients.plebbitRpcClients) === null || _g === void 0 ? void 0 : _g[sortType]) {
-            (_j = (_h = clients === null || clients === void 0 ? void 0 : clients.plebbitRpcClients) === null || _h === void 0 ? void 0 : _h[sortType]) === null || _j === void 0 ? void 0 : _j[clientUrl].on('statechange', (state) => onStateChange(state, 'plebbitRpcClients', sortType, clientUrl));
+            (_j = (_h = clients === null || clients === void 0 ? void 0 : clients.plebbitRpcClients) === null || _h === void 0 ? void 0 : _h[sortType]) === null || _j === void 0 ? void 0 : _j[clientUrl].on("statechange", (state) => onStateChange(state, "plebbitRpcClients", sortType, clientUrl));
         }
     }
     for (const sortType in clients === null || clients === void 0 ? void 0 : clients.libp2pJsClients) {
         for (const clientUrl in (_k = clients === null || clients === void 0 ? void 0 : clients.libp2pJsClients) === null || _k === void 0 ? void 0 : _k[sortType]) {
-            (_m = (_l = clients === null || clients === void 0 ? void 0 : clients.libp2pJsClients) === null || _l === void 0 ? void 0 : _l[sortType]) === null || _m === void 0 ? void 0 : _m[clientUrl].on('statechange', (state) => onStateChange(state, 'libp2pJsClients', sortType, clientUrl));
+            (_m = (_l = clients === null || clients === void 0 ? void 0 : clients.libp2pJsClients) === null || _l === void 0 ? void 0 : _l[sortType]) === null || _m === void 0 ? void 0 : _m[clientUrl].on("statechange", (state) => onStateChange(state, "libp2pJsClients", sortType, clientUrl));
         }
     }
 };
@@ -266,7 +272,7 @@ export const commentIsValid = (comment_1, ...args_1) => __awaiter(void 0, [comme
         if (blockSubplebbit) {
             subplebbitsWithInvalidComments[comment.subplebbitAddress] = true;
         }
-        console.log('invalid comment', { comment, error: e });
+        console.log("invalid comment", { comment, error: e });
         return false;
     }
     return true;
@@ -288,13 +294,15 @@ export const repliesAreValid = (comment_1, ...args_1) => __awaiter(void 0, [comm
     const replies = replyPageArray.flatMap(({ comments }) => comments);
     // manual validation
     for (const reply of replies) {
-        if (reply.subplebbitAddress !== comment.subplebbitAddress || reply.depth !== comment.depth + 1 || reply.parentCid !== comment.cid) {
+        if (reply.subplebbitAddress !== comment.subplebbitAddress ||
+            reply.depth !== comment.depth + 1 ||
+            reply.parentCid !== comment.cid) {
             if (blockSubplebbit) {
                 subplebbitsWithInvalidComments[comment.subplebbitAddress] = true;
             }
-            console.log('invalid comment', {
+            console.log("invalid comment", {
                 comment: reply,
-                error: 'reply.subplebbitAddress !== comment.subplebbitAddress || reply.depth !== comment.depth + 1 || reply.parentCid !== comment.cid',
+                error: "reply.subplebbitAddress !== comment.subplebbitAddress || reply.depth !== comment.depth + 1 || reply.parentCid !== comment.cid",
             });
             return false;
         }
@@ -308,7 +316,7 @@ export const repliesAreValid = (comment_1, ...args_1) => __awaiter(void 0, [comm
         if (blockSubplebbit) {
             subplebbitsWithInvalidComments[comment.subplebbitAddress] = true;
         }
-        console.log('invalid comment', { comment, error: e });
+        console.log("invalid comment", { comment, error: e });
         return false;
     }
     return true;

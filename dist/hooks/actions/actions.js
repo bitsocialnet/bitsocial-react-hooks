@@ -18,27 +18,27 @@ var __rest = (this && this.__rest) || function (s, e) {
         }
     return t;
 };
-import { useMemo, useState } from 'react';
-import useAccountsStore from '../../stores/accounts';
-import Logger from '@plebbit/plebbit-logger';
-const log = Logger('bitsocial-react-hooks:actions:hooks');
-import assert from 'assert';
-import { useAccount, useAccountId } from '../accounts';
+import { useMemo, useState } from "react";
+import useAccountsStore from "../../stores/accounts";
+import Logger from "@plebbit/plebbit-logger";
+const log = Logger("bitsocial-react-hooks:actions:hooks");
+import assert from "assert";
+import { useAccount, useAccountId } from "../accounts";
 const publishChallengeAnswersNotReady = (challengeAnswers) => __awaiter(void 0, void 0, void 0, function* () {
     throw Error(`can't call publishChallengeAnswers() before result.challenge is defined (before the challenge message is received)`);
 });
 export function useSubscribe(options) {
     var _a;
-    assert(!options || typeof options === 'object', `useSubscribe options argument '${options}' not an object`);
+    assert(!options || typeof options === "object", `useSubscribe options argument '${options}' not an object`);
     const { subplebbitAddress, accountName, onError } = options || {};
     const account = useAccount({ accountName });
     const accountsActions = useAccountsStore((state) => state.accountsActions);
     const [errors, setErrors] = useState([]);
-    let state = 'initializing';
+    let state = "initializing";
     let subscribed;
     // before the account and subplebbitAddress is defined, nothing can happen
     if (account && subplebbitAddress) {
-        state = 'ready';
+        state = "ready";
         subscribed = Boolean((_a = account.subscriptions) === null || _a === void 0 ? void 0 : _a.includes(subplebbitAddress));
     }
     const subscribe = () => __awaiter(this, void 0, void 0, function* () {
@@ -69,7 +69,7 @@ export function useSubscribe(options) {
     }), [state, subscribed, errors, subplebbitAddress, accountName]);
 }
 export function useBlock(options) {
-    assert(!options || typeof options === 'object', `useBlock options argument '${options}' not an object`);
+    assert(!options || typeof options === "object", `useBlock options argument '${options}' not an object`);
     const { address, cid, accountName, onError } = options || {};
     if (address && cid) {
         throw Error(`can't useBlock with both an address '${address}' and cid '${cid}' argument at the same time`);
@@ -77,11 +77,11 @@ export function useBlock(options) {
     const account = useAccount({ accountName });
     const accountsActions = useAccountsStore((state) => state.accountsActions);
     const [errors, setErrors] = useState([]);
-    let state = 'initializing';
+    let state = "initializing";
     let blocked;
     // before the account and address is defined, nothing can happen
     if (account && (address || cid)) {
-        state = 'ready';
+        state = "ready";
         if (address) {
             blocked = Boolean(account.blockedAddresses[address]);
         }
@@ -127,7 +127,7 @@ export function useBlock(options) {
     }), [state, blocked, errors, address, accountName]);
 }
 export function usePublishComment(options) {
-    assert(!options || typeof options === 'object', `usePublishComment options argument '${options}' not an object`);
+    assert(!options || typeof options === "object", `usePublishComment options argument '${options}' not an object`);
     const _a = options || {}, { accountName } = _a, publishCommentOptions = __rest(_a, ["accountName"]);
     const accountsActions = useAccountsStore((state) => state.accountsActions);
     const accountId = useAccountId(accountName);
@@ -137,10 +137,10 @@ export function usePublishComment(options) {
     const [challenge, setChallenge] = useState();
     const [challengeVerification, setChallengeVerification] = useState();
     const [publishChallengeAnswers, setPublishChallengeAnswers] = useState();
-    let initialState = 'initializing';
+    let initialState = "initializing";
     // before the accountId and options is defined, nothing can happen
     if (accountId && options) {
-        initialState = 'ready';
+        initialState = "ready";
     }
     // define onError if not defined
     const originalOnError = publishCommentOptions.onError;
@@ -189,10 +189,20 @@ export function usePublishComment(options) {
         state: publishingState || initialState,
         error: errors[errors.length - 1],
         errors,
-    }), [publishingState, initialState, errors, index, challenge, challengeVerification, options, accountName, publishChallengeAnswers]);
+    }), [
+        publishingState,
+        initialState,
+        errors,
+        index,
+        challenge,
+        challengeVerification,
+        options,
+        accountName,
+        publishChallengeAnswers,
+    ]);
 }
 export function usePublishVote(options) {
-    assert(!options || typeof options === 'object', `usePublishVote options argument '${options}' not an object`);
+    assert(!options || typeof options === "object", `usePublishVote options argument '${options}' not an object`);
     const _a = options || {}, { accountName } = _a, publishVoteOptions = __rest(_a, ["accountName"]);
     const accountsActions = useAccountsStore((state) => state.accountsActions);
     const accountId = useAccountId(accountName);
@@ -201,10 +211,10 @@ export function usePublishVote(options) {
     const [challenge, setChallenge] = useState();
     const [challengeVerification, setChallengeVerification] = useState();
     const [publishChallengeAnswers, setPublishChallengeAnswers] = useState();
-    let initialState = 'initializing';
+    let initialState = "initializing";
     // before the accountId and options is defined, nothing can happen
     if (accountId && options) {
-        initialState = 'ready';
+        initialState = "ready";
     }
     // define onError if not defined
     const originalOnError = publishVoteOptions.onError;
@@ -251,10 +261,19 @@ export function usePublishVote(options) {
         state: publishingState || initialState,
         error: errors[errors.length - 1],
         errors,
-    }), [publishingState, initialState, errors, challenge, challengeVerification, options, accountName, publishChallengeAnswers]);
+    }), [
+        publishingState,
+        initialState,
+        errors,
+        challenge,
+        challengeVerification,
+        options,
+        accountName,
+        publishChallengeAnswers,
+    ]);
 }
 export function usePublishCommentEdit(options) {
-    assert(!options || typeof options === 'object', `usePublishCommentEdit options argument '${options}' not an object`);
+    assert(!options || typeof options === "object", `usePublishCommentEdit options argument '${options}' not an object`);
     const _a = options || {}, { accountName } = _a, publishCommentEditOptions = __rest(_a, ["accountName"]);
     const accountsActions = useAccountsStore((state) => state.accountsActions);
     const accountId = useAccountId(accountName);
@@ -263,10 +282,10 @@ export function usePublishCommentEdit(options) {
     const [challenge, setChallenge] = useState();
     const [challengeVerification, setChallengeVerification] = useState();
     const [publishChallengeAnswers, setPublishChallengeAnswers] = useState();
-    let initialState = 'initializing';
+    let initialState = "initializing";
     // before the accountId and options is defined, nothing can happen
     if (accountId && options) {
-        initialState = 'ready';
+        initialState = "ready";
     }
     // define onError if not defined
     const originalOnError = publishCommentEditOptions.onError;
@@ -313,10 +332,19 @@ export function usePublishCommentEdit(options) {
         state: publishingState || initialState,
         error: errors[errors.length - 1],
         errors,
-    }), [publishingState, initialState, errors, challenge, challengeVerification, options, accountName, publishChallengeAnswers]);
+    }), [
+        publishingState,
+        initialState,
+        errors,
+        challenge,
+        challengeVerification,
+        options,
+        accountName,
+        publishChallengeAnswers,
+    ]);
 }
 export function usePublishCommentModeration(options) {
-    assert(!options || typeof options === 'object', `usePublishCommentModeration options argument '${options}' not an object`);
+    assert(!options || typeof options === "object", `usePublishCommentModeration options argument '${options}' not an object`);
     const _a = options || {}, { accountName } = _a, publishCommentModerationOptions = __rest(_a, ["accountName"]);
     const accountsActions = useAccountsStore((state) => state.accountsActions);
     const accountId = useAccountId(accountName);
@@ -325,10 +353,10 @@ export function usePublishCommentModeration(options) {
     const [challenge, setChallenge] = useState();
     const [challengeVerification, setChallengeVerification] = useState();
     const [publishChallengeAnswers, setPublishChallengeAnswers] = useState();
-    let initialState = 'initializing';
+    let initialState = "initializing";
     // before the accountId and options is defined, nothing can happen
     if (accountId && options) {
-        initialState = 'ready';
+        initialState = "ready";
     }
     // define onError if not defined
     const originalOnError = publishCommentModerationOptions.onError;
@@ -375,10 +403,19 @@ export function usePublishCommentModeration(options) {
         state: publishingState || initialState,
         error: errors[errors.length - 1],
         errors,
-    }), [publishingState, initialState, errors, challenge, challengeVerification, options, accountName, publishChallengeAnswers]);
+    }), [
+        publishingState,
+        initialState,
+        errors,
+        challenge,
+        challengeVerification,
+        options,
+        accountName,
+        publishChallengeAnswers,
+    ]);
 }
 export function usePublishSubplebbitEdit(options) {
-    assert(!options || typeof options === 'object', `usePublishSubplebbitEdit options argument '${options}' not an object`);
+    assert(!options || typeof options === "object", `usePublishSubplebbitEdit options argument '${options}' not an object`);
     const _a = options || {}, { accountName, subplebbitAddress } = _a, publishSubplebbitEditOptions = __rest(_a, ["accountName", "subplebbitAddress"]);
     const accountsActions = useAccountsStore((state) => state.accountsActions);
     const accountId = useAccountId(accountName);
@@ -387,10 +424,10 @@ export function usePublishSubplebbitEdit(options) {
     const [challenge, setChallenge] = useState();
     const [challengeVerification, setChallengeVerification] = useState();
     const [publishChallengeAnswers, setPublishChallengeAnswers] = useState();
-    let initialState = 'initializing';
+    let initialState = "initializing";
     // before the accountId and options is defined, nothing can happen
     if (accountId && subplebbitAddress) {
-        initialState = 'ready';
+        initialState = "ready";
     }
     // define onError if not defined
     const originalOnError = publishSubplebbitEditOptions.onError;
@@ -437,31 +474,40 @@ export function usePublishSubplebbitEdit(options) {
         state: publishingState || initialState,
         error: errors[errors.length - 1],
         errors,
-    }), [publishingState, initialState, errors, challenge, challengeVerification, options, accountName, publishChallengeAnswers]);
+    }), [
+        publishingState,
+        initialState,
+        errors,
+        challenge,
+        challengeVerification,
+        options,
+        accountName,
+        publishChallengeAnswers,
+    ]);
 }
 export function useCreateSubplebbit(options) {
-    assert(!options || typeof options === 'object', `useCreateSubplebbit options argument '${options}' not an object`);
+    assert(!options || typeof options === "object", `useCreateSubplebbit options argument '${options}' not an object`);
     const _a = options || {}, { accountName, onError } = _a, createSubplebbitOptions = __rest(_a, ["accountName", "onError"]);
     const accountId = useAccountId(accountName);
     const accountsActions = useAccountsStore((state) => state.accountsActions);
     const [errors, setErrors] = useState([]);
     const [state, setState] = useState();
     const [createdSubplebbit, setCreatedSubplebbit] = useState();
-    let initialState = 'initializing';
+    let initialState = "initializing";
     // before the accountId and options is defined, nothing can happen
     if (accountId && options) {
-        initialState = 'ready';
+        initialState = "ready";
     }
     const createSubplebbit = () => __awaiter(this, void 0, void 0, function* () {
         try {
-            setState('creating');
+            setState("creating");
             const createdSubplebbit = yield accountsActions.createSubplebbit(createSubplebbitOptions, accountName);
             setCreatedSubplebbit(createdSubplebbit);
-            setState('succeeded');
+            setState("succeeded");
         }
         catch (e) {
             setErrors((errors) => [...errors, e]);
-            setState('failed');
+            setState("failed");
             onError === null || onError === void 0 ? void 0 : onError(e);
         }
     });

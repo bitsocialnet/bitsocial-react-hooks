@@ -7,12 +7,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { getRepliesPages, getRepliesFirstPageCid } from '../replies-pages';
-import repliesSorter from '../feeds/feed-sorter';
-import accountsStore from '../accounts';
-import { flattenCommentsPages, commentIsValid, removeInvalidComments } from '../../lib/utils';
-import Logger from '@plebbit/plebbit-logger';
-const log = Logger('bitsocial-react-hooks:replies:stores');
+import { getRepliesPages, getRepliesFirstPageCid } from "../replies-pages";
+import repliesSorter from "../feeds/feed-sorter";
+import accountsStore from "../accounts";
+import { flattenCommentsPages, commentIsValid, removeInvalidComments } from "../../lib/utils";
+import Logger from "@plebbit/plebbit-logger";
+const log = Logger("bitsocial-react-hooks:replies:stores");
 /**
  * Calculate the feeds from all the loaded replies pages, filter and sort them
  */
@@ -126,7 +126,8 @@ export const getLoadedFeeds = (feedsOptions, loadedFeeds, bufferedFeeds, account
         // TODO: fix design issue, pageNumber shouldnt be increased when loadMore is called and repliesPerPage not reached
         // if not always streaming replies, and page number didn't increase, skip updating
         // so UI isn't displaced when new nested replies are added
-        if (!alwaysStreamPage(feedsOptions[feedName]) && !pageNumberIncreased(feedName, pageNumber, loadedFeeds[feedName], bufferedFeeds[feedName])) {
+        if (!alwaysStreamPage(feedsOptions[feedName]) &&
+            !pageNumberIncreased(feedName, pageNumber, loadedFeeds[feedName], bufferedFeeds[feedName])) {
             continue;
         }
         const plebbit = (_a = accounts[accountId]) === null || _a === void 0 ? void 0 : _a.plebbit;
@@ -155,7 +156,10 @@ export const getLoadedFeeds = (feedsOptions, loadedFeeds, bufferedFeeds, account
     }
     let newLoadedFeeds = {};
     for (const feedName in loadedFeedsMissingReplies) {
-        newLoadedFeeds[feedName] = [...(loadedFeeds[feedName] || []), ...loadedFeedsMissingReplies[feedName]];
+        newLoadedFeeds[feedName] = [
+            ...(loadedFeeds[feedName] || []),
+            ...loadedFeedsMissingReplies[feedName],
+        ];
     }
     // add account comments
     newLoadedFeeds = Object.assign(Object.assign({}, loadedFeeds), newLoadedFeeds);
@@ -170,7 +174,7 @@ export const addAccountsComments = (feedsOptions, loadedFeeds) => {
     let loadedFeedsChanged = false;
     const accountsComments = accountsStore.getState().accountsComments || {};
     for (const feedName in feedsOptions) {
-        const { accountId, accountComments: accountCommentsOptions, commentCid, postCid, commentDepth, flat } = feedsOptions[feedName];
+        const { accountId, accountComments: accountCommentsOptions, commentCid, postCid, commentDepth, flat, } = feedsOptions[feedName];
         const { newerThan, append } = accountCommentsOptions || {};
         if (!newerThan) {
             continue;
@@ -255,11 +259,13 @@ export const getBufferedFeedsWithoutLoadedFeeds = (bufferedFeeds, loadedFeeds) =
             newBufferedFeeds[feedName].push(reply);
             if (!bufferedFeedReplyChanged &&
                 (((_b = newBufferedFeeds[feedName][i]) === null || _b === void 0 ? void 0 : _b.cid) !== ((_c = bufferedFeeds[feedName][i]) === null || _c === void 0 ? void 0 : _c.cid) ||
-                    (((_d = newBufferedFeeds[feedName][i]) === null || _d === void 0 ? void 0 : _d.updatedAt) || 0) > (((_e = bufferedFeeds[feedName][i]) === null || _e === void 0 ? void 0 : _e.updatedAt) || 0))) {
+                    (((_d = newBufferedFeeds[feedName][i]) === null || _d === void 0 ? void 0 : _d.updatedAt) || 0) >
+                        (((_e = bufferedFeeds[feedName][i]) === null || _e === void 0 ? void 0 : _e.updatedAt) || 0))) {
                 bufferedFeedReplyChanged = true;
             }
         }
-        if (!bufferedFeedReplyChanged && newBufferedFeeds[feedName].length === bufferedFeeds[feedName].length) {
+        if (!bufferedFeedReplyChanged &&
+            newBufferedFeeds[feedName].length === bufferedFeeds[feedName].length) {
             newBufferedFeeds[feedName] = bufferedFeeds[feedName];
         }
     }
@@ -293,7 +299,8 @@ export const getUpdatedFeeds = (feedsOptions, filteredSortedFeeds, updatedFeeds,
                 if ((_c = updatedFeedsReplies[feedName]) === null || _c === void 0 ? void 0 : _c[reply.cid]) {
                     const { index, updatedReply } = updatedFeedsReplies[feedName][reply.cid];
                     promises.push((() => __awaiter(void 0, void 0, void 0, function* () {
-                        if ((reply.updatedAt || 0) > (updatedReply.updatedAt || 0) && (yield commentIsValid(reply, { validateReplies: false }, plebbit))) {
+                        if ((reply.updatedAt || 0) > (updatedReply.updatedAt || 0) &&
+                            (yield commentIsValid(reply, { validateReplies: false }, plebbit))) {
                             updatedFeed[index] = reply;
                             updatedFeedChanged = true;
                         }
@@ -413,11 +420,12 @@ export const getFeedsCommentsFirstPageCids = (feedsComments) => {
 // get all comments replies pages first reply updatedAts, use to check if a commentsStore change should trigger updateFeeds
 export const getFeedsCommentsRepliesPagesFirstUpdatedAts = (feedsComments) => {
     var _a, _b, _c;
-    let feedsCommentsRepliesPagesFirstUpdatedAts = '';
+    let feedsCommentsRepliesPagesFirstUpdatedAts = "";
     for (const comment of feedsComments.values()) {
         for (const page of Object.values(((_a = comment === null || comment === void 0 ? void 0 : comment.replies) === null || _a === void 0 ? void 0 : _a.pages) || {})) {
             if ((_c = (_b = page === null || page === void 0 ? void 0 : page.comments) === null || _b === void 0 ? void 0 : _b[0]) === null || _c === void 0 ? void 0 : _c.updatedAt) {
-                feedsCommentsRepliesPagesFirstUpdatedAts += page.comments[0].cid + page.comments[0].updatedAt;
+                feedsCommentsRepliesPagesFirstUpdatedAts +=
+                    page.comments[0].cid + page.comments[0].updatedAt;
             }
         }
     }
@@ -441,36 +449,43 @@ export const getSortTypeFromComment = (comment, feedOptions) => {
         return sortType;
     }
     // 'topAll' and 'best' are similar enough to be used interchangeably
-    if (sortType === 'best' && !((_b = (_a = comment.replies) === null || _a === void 0 ? void 0 : _a.pages) === null || _b === void 0 ? void 0 : _b.best) && !((_d = (_c = comment.replies) === null || _c === void 0 ? void 0 : _c.pageCids) === null || _d === void 0 ? void 0 : _d.best) && (((_f = (_e = comment.replies) === null || _e === void 0 ? void 0 : _e.pages) === null || _f === void 0 ? void 0 : _f.topAll) || ((_h = (_g = comment.replies) === null || _g === void 0 ? void 0 : _g.pageCids) === null || _h === void 0 ? void 0 : _h.topAll))) {
-        sortType = 'topAll';
+    if (sortType === "best" &&
+        !((_b = (_a = comment.replies) === null || _a === void 0 ? void 0 : _a.pages) === null || _b === void 0 ? void 0 : _b.best) &&
+        !((_d = (_c = comment.replies) === null || _c === void 0 ? void 0 : _c.pageCids) === null || _d === void 0 ? void 0 : _d.best) &&
+        (((_f = (_e = comment.replies) === null || _e === void 0 ? void 0 : _e.pages) === null || _f === void 0 ? void 0 : _f.topAll) || ((_h = (_g = comment.replies) === null || _g === void 0 ? void 0 : _g.pageCids) === null || _h === void 0 ? void 0 : _h.topAll))) {
+        sortType = "topAll";
     }
-    else if (sortType === 'topAll' &&
+    else if (sortType === "topAll" &&
         !((_k = (_j = comment.replies) === null || _j === void 0 ? void 0 : _j.pages) === null || _k === void 0 ? void 0 : _k.topAll) &&
         !((_m = (_l = comment.replies) === null || _l === void 0 ? void 0 : _l.pageCids) === null || _m === void 0 ? void 0 : _m.topAll) &&
         (((_p = (_o = comment.replies) === null || _o === void 0 ? void 0 : _o.pages) === null || _p === void 0 ? void 0 : _p.best) || ((_r = (_q = comment.replies) === null || _q === void 0 ? void 0 : _q.pageCids) === null || _r === void 0 ? void 0 : _r.best))) {
-        sortType = 'best';
+        sortType = "best";
     }
     // if 'new' sort type and flat: true, use 'newFlat'
-    else if (sortType === 'new' && flat && (((_t = (_s = comment.replies) === null || _s === void 0 ? void 0 : _s.pages) === null || _t === void 0 ? void 0 : _t.newFlat) || ((_v = (_u = comment.replies) === null || _u === void 0 ? void 0 : _u.pageCids) === null || _v === void 0 ? void 0 : _v.newFlat))) {
-        sortType = 'newFlat';
+    else if (sortType === "new" &&
+        flat &&
+        (((_t = (_s = comment.replies) === null || _s === void 0 ? void 0 : _s.pages) === null || _t === void 0 ? void 0 : _t.newFlat) || ((_v = (_u = comment.replies) === null || _u === void 0 ? void 0 : _u.pageCids) === null || _v === void 0 ? void 0 : _v.newFlat))) {
+        sortType = "newFlat";
     }
     // if 'old' sort type and flat: true, use 'oldFlat'
-    else if (sortType === 'old' && flat && (((_x = (_w = comment.replies) === null || _w === void 0 ? void 0 : _w.pages) === null || _x === void 0 ? void 0 : _x.oldFlat) || ((_z = (_y = comment.replies) === null || _y === void 0 ? void 0 : _y.pageCids) === null || _z === void 0 ? void 0 : _z.oldFlat))) {
-        sortType = 'oldFlat';
+    else if (sortType === "old" &&
+        flat &&
+        (((_x = (_w = comment.replies) === null || _w === void 0 ? void 0 : _w.pages) === null || _x === void 0 ? void 0 : _x.oldFlat) || ((_z = (_y = comment.replies) === null || _y === void 0 ? void 0 : _y.pageCids) === null || _z === void 0 ? void 0 : _z.oldFlat))) {
+        sortType = "oldFlat";
     }
     // if 'newFlat' is missing, use 'new'
-    else if (sortType === 'newFlat' &&
+    else if (sortType === "newFlat" &&
         !((_1 = (_0 = comment.replies) === null || _0 === void 0 ? void 0 : _0.pages) === null || _1 === void 0 ? void 0 : _1.newFlat) &&
         !((_3 = (_2 = comment.replies) === null || _2 === void 0 ? void 0 : _2.pageCids) === null || _3 === void 0 ? void 0 : _3.newFlat) &&
         (((_5 = (_4 = comment.replies) === null || _4 === void 0 ? void 0 : _4.pages) === null || _5 === void 0 ? void 0 : _5.new) || ((_7 = (_6 = comment.replies) === null || _6 === void 0 ? void 0 : _6.pageCids) === null || _7 === void 0 ? void 0 : _7.new))) {
-        sortType = 'new';
+        sortType = "new";
     }
     // if 'oldFlat' is missing, use 'old'
-    else if (sortType === 'oldFlat' &&
+    else if (sortType === "oldFlat" &&
         !((_9 = (_8 = comment.replies) === null || _8 === void 0 ? void 0 : _8.pages) === null || _9 === void 0 ? void 0 : _9.oldFlat) &&
         !((_11 = (_10 = comment.replies) === null || _10 === void 0 ? void 0 : _10.pageCids) === null || _11 === void 0 ? void 0 : _11.oldFlat) &&
         (((_13 = (_12 = comment.replies) === null || _12 === void 0 ? void 0 : _12.pages) === null || _13 === void 0 ? void 0 : _13.old) || ((_15 = (_14 = comment.replies) === null || _14 === void 0 ? void 0 : _14.pageCids) === null || _15 === void 0 ? void 0 : _15.old))) {
-        sortType = 'old';
+        sortType = "old";
     }
     // TODO: if sort type doesn't exist on comment, maybe use first existing?
     // else if (!comment.replies?.pages?.[sortType] && !comment.replies?.pageCids?.[sortType]) {

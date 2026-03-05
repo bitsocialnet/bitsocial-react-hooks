@@ -7,16 +7,16 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import assert from 'assert';
-import Logger from '@plebbit/plebbit-logger';
-const log = Logger('bitsocial-react-hooks:accounts:stores');
-import accountsDatabase from './accounts-database';
-import accountGenerator from './account-generator';
-import createStore from 'zustand';
-import * as accountsActions from './accounts-actions';
-import * as accountsActionsInternal from './accounts-actions-internal';
-import localForage from 'localforage';
-import { getCommentCidsToAccountsComments, getInitAccountCommentsToUpdate } from './utils';
+import assert from "assert";
+import Logger from "@plebbit/plebbit-logger";
+const log = Logger("bitsocial-react-hooks:accounts:stores");
+import accountsDatabase from "./accounts-database";
+import accountGenerator from "./account-generator";
+import createStore from "zustand";
+import * as accountsActions from "./accounts-actions";
+import * as accountsActionsInternal from "./accounts-actions-internal";
+import localForage from "localforage";
+import { getCommentCidsToAccountsComments, getInitAccountCommentsToUpdate } from "./utils";
 // reset all event listeners in between tests
 export const listeners = [];
 const accountsStore = createStore((setState, getState) => ({
@@ -40,14 +40,13 @@ const initializeAccountsStore = () => __awaiter(void 0, void 0, void 0, function
     let activeAccountId;
     let accounts;
     let accountNamesToAccountIds;
-    accountIds = (yield accountsDatabase.accountsMetadataDatabase.getItem('accountIds')) || undefined;
+    accountIds = (yield accountsDatabase.accountsMetadataDatabase.getItem("accountIds")) || undefined;
     // get accounts from database if any
     if (accountIds === null || accountIds === void 0 ? void 0 : accountIds.length) {
-        ;
         [activeAccountId, accounts, accountNamesToAccountIds] = yield Promise.all([
-            accountsDatabase.accountsMetadataDatabase.getItem('activeAccountId'),
+            accountsDatabase.accountsMetadataDatabase.getItem("activeAccountId"),
             accountsDatabase.getAccounts(accountIds),
-            accountsDatabase.accountsMetadataDatabase.getItem('accountNamesToAccountIds'),
+            accountsDatabase.accountsMetadataDatabase.getItem("accountNamesToAccountIds"),
         ]);
     }
     // no accounts in database, create a default account
@@ -56,9 +55,9 @@ const initializeAccountsStore = () => __awaiter(void 0, void 0, void 0, function
         yield accountsDatabase.addAccount(defaultAccount);
         accounts = { [defaultAccount.id]: defaultAccount };
         [accountIds, activeAccountId, accountNamesToAccountIds] = yield Promise.all([
-            accountsDatabase.accountsMetadataDatabase.getItem('accountIds'),
-            accountsDatabase.accountsMetadataDatabase.getItem('activeAccountId'),
-            accountsDatabase.accountsMetadataDatabase.getItem('accountNamesToAccountIds'),
+            accountsDatabase.accountsMetadataDatabase.getItem("accountIds"),
+            accountsDatabase.accountsMetadataDatabase.getItem("activeAccountId"),
+            accountsDatabase.accountsMetadataDatabase.getItem("accountNamesToAccountIds"),
         ]);
         assert(accountIds && activeAccountId && accountNamesToAccountIds, `accountsStore error creating a default account during initialization accountsMetadataDatabase.accountIds '${accountIds}' accountsMetadataDatabase.activeAccountId '${activeAccountId}' accountsMetadataDatabase.accountNamesToAccountIds '${JSON.stringify(accountNamesToAccountIds)}'`);
     }
@@ -85,7 +84,7 @@ const initializeAccountsStore = () => __awaiter(void 0, void 0, void 0, function
         accountsStore
             .getState()
             .accountsActionsInternal.startUpdatingAccountCommentOnCommentUpdateEvents(accountComment, accounts[accountId], accountComment.index)
-            .catch((error) => log.error('accountsStore.initializeAccountsStore startUpdatingAccountCommentOnCommentUpdateEvents error', {
+            .catch((error) => log.error("accountsStore.initializeAccountsStore startUpdatingAccountCommentOnCommentUpdateEvents error", {
             accountComment,
             accountCommentIndex: accountComment.index,
             accounts,
@@ -112,19 +111,22 @@ const waitForInitialized = () => __awaiter(void 0, void 0, void 0, function* () 
     window.PLEBBIT_REACT_HOOKS_ACCOUNTS_STORE_INITIALIZED_ONCE = true;
     // @ts-ignore
     window.PLEBBIT_REACT_HOOKS_ACCOUNTS_STORE_INITIALIZING = true;
-    log('accounts store initializing started');
+    log("accounts store initializing started");
     try {
         yield initializeAccountsStore();
     }
     catch (error) {
         // initializing can fail in tests when store is being reset at the same time as databases are being deleted
-        log.error('accountsStore.initializeAccountsStore error', { accountsStore: accountsStore.getState(), error });
+        log.error("accountsStore.initializeAccountsStore error", {
+            accountsStore: accountsStore.getState(),
+            error,
+        });
     }
     finally {
         // @ts-ignore
         delete window.PLEBBIT_REACT_HOOKS_ACCOUNTS_STORE_INITIALIZING;
     }
-    log('accounts store initializing finished');
+    log("accounts store initializing finished");
 }))();
 // reset store in between tests
 const originalState = accountsStore.getState();
@@ -132,7 +134,7 @@ const originalState = accountsStore.getState();
 export const resetAccountsStore = () => __awaiter(void 0, void 0, void 0, function* () {
     // don't reset while initializing, it could happen during quick successive tests
     yield waitForInitialized();
-    log('accounts store reset started');
+    log("accounts store reset started");
     // remove all event listeners
     listeners.forEach((listener) => listener.removeAllListeners());
     // destroy all component subscriptions to the store
@@ -141,15 +143,15 @@ export const resetAccountsStore = () => __awaiter(void 0, void 0, void 0, functi
     accountsStore.setState(originalState);
     // init the store
     yield initializeAccountsStore();
-    log('accounts store reset finished');
+    log("accounts store reset finished");
 });
 // reset database and store in between tests
 export const resetAccountsDatabaseAndStore = () => __awaiter(void 0, void 0, void 0, function* () {
     // don't reset while initializing, it could happen during quick successive tests
     yield waitForInitialized();
     yield Promise.all([
-        localForage.createInstance({ name: 'plebbitReactHooks-accountsMetadata' }).clear(),
-        localForage.createInstance({ name: 'plebbitReactHooks-accounts' }).clear(),
+        localForage.createInstance({ name: "plebbitReactHooks-accountsMetadata" }).clear(),
+        localForage.createInstance({ name: "plebbitReactHooks-accounts" }).clear(),
     ]);
     yield resetAccountsStore();
 });

@@ -1,4 +1,4 @@
-import { Nft, ChainProviders, Author } from '../../types';
+import { Nft, ChainProviders, Author } from "../../types";
 /**
  * @param nft - The NFT object to resolve the URL of.
  * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use

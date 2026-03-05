@@ -7,17 +7,20 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import utils from '../../lib/utils';
-import Logger from '@plebbit/plebbit-logger';
+import utils from "../../lib/utils";
+import Logger from "@plebbit/plebbit-logger";
 // include replies pages store with feeds for debugging
-const log = Logger('bitsocial-react-hooks:replies:stores');
-import accountsStore from '../accounts';
-import commentsStore from '../comments';
-import { addChildrenRepliesFeedsToAddToStore } from './utils';
-import localForageLru from '../../lib/localforage-lru';
-import createStore from 'zustand';
-import assert from 'assert';
-const repliesPagesDatabase = localForageLru.createInstance({ name: 'plebbitReactHooks-repliesPages', size: 500 });
+const log = Logger("bitsocial-react-hooks:replies:stores");
+import accountsStore from "../accounts";
+import commentsStore from "../comments";
+import { addChildrenRepliesFeedsToAddToStore } from "./utils";
+import localForageLru from "../../lib/localforage-lru";
+import createStore from "zustand";
+import assert from "assert";
+const repliesPagesDatabase = localForageLru.createInstance({
+    name: "plebbitReactHooks-repliesPages",
+    size: 500,
+});
 // reset all event listeners in between tests
 export const listeners = [];
 const repliesPagesStore = createStore((setState, getState) => ({
@@ -26,9 +29,9 @@ const repliesPagesStore = createStore((setState, getState) => ({
     comments: {},
     addNextRepliesPageToStore: (comment, sortType, account) => __awaiter(void 0, void 0, void 0, function* () {
         var _a, _b, _c;
-        assert((comment === null || comment === void 0 ? void 0 : comment.cid) && typeof (comment === null || comment === void 0 ? void 0 : comment.cid) === 'string', `repliesPagesStore.addNextRepliesPageToStore comment '${comment}' invalid`);
-        assert(sortType && typeof sortType === 'string', `repliesPagesStore.addNextRepliesPageToStore sortType '${sortType}' invalid`);
-        assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.plebbit) === null || _a === void 0 ? void 0 : _a.createSubplebbit) === 'function', `repliesPagesStore.addNextRepliesPageToStore account '${account}' invalid`);
+        assert((comment === null || comment === void 0 ? void 0 : comment.cid) && typeof (comment === null || comment === void 0 ? void 0 : comment.cid) === "string", `repliesPagesStore.addNextRepliesPageToStore comment '${comment}' invalid`);
+        assert(sortType && typeof sortType === "string", `repliesPagesStore.addNextRepliesPageToStore sortType '${sortType}' invalid`);
+        assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.plebbit) === null || _a === void 0 ? void 0 : _a.createSubplebbit) === "function", `repliesPagesStore.addNextRepliesPageToStore account '${account}' invalid`);
         // check the preloaded replies on comment.replies.pages first, then the comment.replies.pageCids
         const repliesFirstPageCid = getRepliesFirstPageCid(comment, sortType);
         if (!repliesFirstPageCid) {
@@ -48,20 +51,25 @@ const repliesPagesStore = createStore((setState, getState) => ({
             const nextCid = (_b = repliesPages[repliesPages.length - 1]) === null || _b === void 0 ? void 0 : _b.nextCid;
             // if last nextCid is undefined, reached end of pages
             if (!nextCid) {
-                log.trace('repliesPagesStore.addNextRepliesPageToStore no more pages', { commentCid: comment.cid, sortType, account });
+                log.trace("repliesPagesStore.addNextRepliesPageToStore no more pages", {
+                    commentCid: comment.cid,
+                    sortType,
+                    account,
+                });
                 return;
             }
             pageCidToAdd = nextCid;
         }
         // page is already added or pending
-        if (repliesPagesStore.repliesPages[pageCidToAdd] || fetchPagePending[account.id + pageCidToAdd]) {
+        if (repliesPagesStore.repliesPages[pageCidToAdd] ||
+            fetchPagePending[account.id + pageCidToAdd]) {
             return;
         }
         fetchPagePending[account.id + pageCidToAdd] = true;
         let page;
         try {
             page = yield fetchPage(pageCidToAdd, comment, account);
-            log.trace('repliesPagesStore.addNextRepliesPageToStore comment.replies.getPage', {
+            log.trace("repliesPagesStore.addNextRepliesPageToStore comment.replies.getPage", {
                 pageCid: pageCidToAdd,
                 page,
                 commentCid: comment.cid,
@@ -100,7 +108,13 @@ const repliesPagesStore = createStore((setState, getState) => ({
             }
             return newState;
         });
-        log('repliesPagesStore.addNextRepliesPageToStore', { pageCid: pageCidToAdd, commentCid: comment.cid, sortType, page, account });
+        log("repliesPagesStore.addNextRepliesPageToStore", {
+            pageCid: pageCidToAdd,
+            commentCid: comment.cid,
+            sortType,
+            page,
+            account,
+        });
         // when publishing a comment, you don't yet know its CID
         // so when a new comment is fetched, check to see if it's your own
         // comment, and if yes, add the CID to your account comments database
@@ -108,7 +122,10 @@ const repliesPagesStore = createStore((setState, getState) => ({
             accountsStore
                 .getState()
                 .accountsActionsInternal.addCidToAccountComment(comment)
-                .catch((error) => log.error('repliesPagesStore.addNextRepliesPageToStore addCidToAccountComment error', { comment, error }));
+                .catch((error) => log.error("repliesPagesStore.addNextRepliesPageToStore addCidToAccountComment error", {
+                comment,
+                error,
+            }));
         }
     }),
     // comments contain preloaded pages, those page comments must be added separately
@@ -135,7 +152,7 @@ const repliesPagesStore = createStore((setState, getState) => ({
         setState(({ comments }) => {
             return { comments: Object.assign(Object.assign({}, comments), newComments) };
         });
-        log('repliesPagesStore.addRepliesPageCommentsToStore', { comment, newComments });
+        log("repliesPagesStore.addRepliesPageCommentsToStore", { comment, newComments });
     },
 }));
 // set clients states on comments store so the frontend can display it, dont persist in db because a reload cancels updating
@@ -185,7 +202,7 @@ const fetchPage = (pageCid, comment, account) => __awaiter(void 0, void 0, void 
  */
 export const getRepliesPages = (comment, sortType, repliesPages) => {
     var _a;
-    assert(repliesPages && typeof repliesPages === 'object', `getRepliesPages repliesPages '${repliesPages}' invalid`);
+    assert(repliesPages && typeof repliesPages === "object", `getRepliesPages repliesPages '${repliesPages}' invalid`);
     const pages = [];
     const firstPageCid = getRepliesFirstPageCid(comment, sortType);
     // comment has no pages
@@ -212,7 +229,7 @@ export const getRepliesPages = (comment, sortType, repliesPages) => {
 export const getRepliesFirstPageCid = (comment, sortType) => {
     var _a, _b, _c, _d, _e, _f, _g, _h;
     assert(comment === null || comment === void 0 ? void 0 : comment.cid, `getRepliesFirstPageCid comment '${comment}' invalid`);
-    assert(sortType && typeof sortType === 'string', `getRepliesFirstPageCid sortType '${sortType}' invalid`);
+    assert(sortType && typeof sortType === "string", `getRepliesFirstPageCid sortType '${sortType}' invalid`);
     // comment has preloaded replies for sort type
     if ((_c = (_b = (_a = comment.replies) === null || _a === void 0 ? void 0 : _a.pages) === null || _b === void 0 ? void 0 : _b[sortType]) === null || _c === void 0 ? void 0 : _c.comments) {
         return (_f = (_e = (_d = comment.replies) === null || _d === void 0 ? void 0 : _d.pages) === null || _e === void 0 ? void 0 : _e[sortType]) === null || _f === void 0 ? void 0 : _f.nextCid;
@@ -235,7 +252,7 @@ export const resetRepliesPagesStore = () => __awaiter(void 0, void 0, void 0, fu
 });
 // reset database and store in between tests
 export const resetRepliesPagesDatabaseAndStore = () => __awaiter(void 0, void 0, void 0, function* () {
-    yield localForageLru.createInstance({ name: 'plebbitReactHooks-repliesPages' }).clear();
+    yield localForageLru.createInstance({ name: "plebbitReactHooks-repliesPages" }).clear();
     yield resetRepliesPagesStore();
 });
 export default repliesPagesStore;

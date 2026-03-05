@@ -1,4 +1,4 @@
-import { RepliesPages, Comment, Comments } from '../../types';
+import { RepliesPages, Comment, Comments } from "../../types";
 export declare const listeners: any;
 export type RepliesPagesState = {
     repliesPages: RepliesPages;

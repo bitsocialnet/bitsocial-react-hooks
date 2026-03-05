@@ -7,15 +7,15 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import assert from 'assert';
-import Logger from '@plebbit/plebbit-logger';
-const log = Logger('bitsocial-react-hooks:replies:stores');
-import createStore from 'zustand';
-import localForageLru from '../../lib/localforage-lru';
-import accountsStore from '../accounts';
-import repliesCommentsStore from './replies-comments-store';
-import repliesPagesStore from '../replies-pages';
-import { getFeedsCommentsFirstPageCids, getLoadedFeeds, getBufferedFeedsWithoutLoadedFeeds, getUpdatedFeeds, getFeedsReplyCounts, getFeedsHaveMore, feedsCommentsChanged, getFeedsComments, getFeedsCommentsLoadedCount, getFeedsCommentsRepliesPagesFirstUpdatedAts, getFilteredSortedFeeds, getSortTypeFromComment, addAccountsComments, } from './utils';
+import assert from "assert";
+import Logger from "@plebbit/plebbit-logger";
+const log = Logger("bitsocial-react-hooks:replies:stores");
+import createStore from "zustand";
+import localForageLru from "../../lib/localforage-lru";
+import accountsStore from "../accounts";
+import repliesCommentsStore from "./replies-comments-store";
+import repliesPagesStore from "../replies-pages";
+import { getFeedsCommentsFirstPageCids, getLoadedFeeds, getBufferedFeedsWithoutLoadedFeeds, getUpdatedFeeds, getFeedsReplyCounts, getFeedsHaveMore, feedsCommentsChanged, getFeedsComments, getFeedsCommentsLoadedCount, getFeedsCommentsRepliesPagesFirstUpdatedAts, getFilteredSortedFeeds, getSortTypeFromComment, addAccountsComments, } from "./utils";
 // reddit loads approximately 25 posts per page
 // while infinite scrolling
 export const defaultRepliesPerPage = 25;
@@ -84,7 +84,7 @@ const repliesStore = createStore((setState, getState) => ({
             return { feedsOptions: Object.assign(Object.assign({}, feedsOptions), newFeedsOptions) };
         });
         if (feedsChanged) {
-            log('repliesStore.addFeedsToStore', newFeedsOptions);
+            log("repliesStore.addFeedsToStore", newFeedsOptions);
         }
         return feedsChanged;
     },
@@ -94,14 +94,14 @@ const repliesStore = createStore((setState, getState) => ({
             // init here because must be called after async accounts store finished initializing
             initializeRepliesStore();
             // validate options
-            assert(comment && comment.cid && typeof comment.cid === 'string', `repliesStore.addFeedToStoreOrUpdateComment comment.cid '${comment === null || comment === void 0 ? void 0 : comment.cid}' invalid`);
-            assert(feedOptions.commentCid && typeof feedOptions.commentCid === 'string', `repliesStore.addFeedToStoreOrUpdateComment feedOptions.commentCid '${feedOptions.commentCid}' invalid`);
-            assert(feedOptions.sortType && typeof feedOptions.sortType === 'string', `repliesStore.addFeedToStoreOrUpdateComment feedOptions.sortType '${feedOptions.sortType}' invalid`);
+            assert(comment && comment.cid && typeof comment.cid === "string", `repliesStore.addFeedToStoreOrUpdateComment comment.cid '${comment === null || comment === void 0 ? void 0 : comment.cid}' invalid`);
+            assert(feedOptions.commentCid && typeof feedOptions.commentCid === "string", `repliesStore.addFeedToStoreOrUpdateComment feedOptions.commentCid '${feedOptions.commentCid}' invalid`);
+            assert(feedOptions.sortType && typeof feedOptions.sortType === "string", `repliesStore.addFeedToStoreOrUpdateComment feedOptions.sortType '${feedOptions.sortType}' invalid`);
             const account = accountsStore.getState().accounts[feedOptions.accountId];
-            assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.plebbit) === null || _a === void 0 ? void 0 : _a.getSubplebbit) === 'function', `repliesStore.addFeedToStoreOrUpdateComment feedOptions.accountId '${feedOptions.accountId}' invalid`);
-            assert(!feedOptions.repliesPerPage || typeof feedOptions.repliesPerPage === 'number', `repliesStore.addFeedToStoreOrUpdateComment feedOptions.repliesPerPage '${feedOptions.repliesPerPage}' invalid`);
-            assert(!feedOptions.filter || typeof ((_b = feedOptions.filter) === null || _b === void 0 ? void 0 : _b.filter) === 'function', `repliesStore.addFeedToStoreOrUpdateComment feedOptions.filter.filter '${(_c = feedOptions.filter) === null || _c === void 0 ? void 0 : _c.filter}' invalid`);
-            assert(!feedOptions.filter || typeof ((_d = feedOptions.filter) === null || _d === void 0 ? void 0 : _d.key) === 'string', `repliesStore.addFeedToStoreOrUpdateComment feedOptions.filter.key '${(_e = feedOptions.filter) === null || _e === void 0 ? void 0 : _e.key}' invalid`);
+            assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.plebbit) === null || _a === void 0 ? void 0 : _a.getSubplebbit) === "function", `repliesStore.addFeedToStoreOrUpdateComment feedOptions.accountId '${feedOptions.accountId}' invalid`);
+            assert(!feedOptions.repliesPerPage || typeof feedOptions.repliesPerPage === "number", `repliesStore.addFeedToStoreOrUpdateComment feedOptions.repliesPerPage '${feedOptions.repliesPerPage}' invalid`);
+            assert(!feedOptions.filter || typeof ((_b = feedOptions.filter) === null || _b === void 0 ? void 0 : _b.filter) === "function", `repliesStore.addFeedToStoreOrUpdateComment feedOptions.filter.filter '${(_c = feedOptions.filter) === null || _c === void 0 ? void 0 : _c.filter}' invalid`);
+            assert(!feedOptions.filter || typeof ((_d = feedOptions.filter) === null || _d === void 0 ? void 0 : _d.key) === "string", `repliesStore.addFeedToStoreOrUpdateComment feedOptions.filter.key '${(_e = feedOptions.filter) === null || _e === void 0 ? void 0 : _e.key}' invalid`);
             // if replies feed aren't in store yet, add them recursively
             // TODO: optimize performance by only adding feeds that are in page 1, and add more on each page increase
             const commentsToAddToStoreOrUpdate = [];
@@ -125,9 +125,17 @@ const repliesStore = createStore((setState, getState) => ({
             const { addFeedsToStore, updateFeeds } = getState();
             const feedsChanged = addFeedsToStore(feedsToAddToStore);
             // add comments to store (do it after addFeedsToStore because it can trigger updateFeeds)
-            repliesCommentsStore.getState().addCommentsToStoreOrUpdateComments(commentsToAddToStoreOrUpdate);
+            repliesCommentsStore
+                .getState()
+                .addCommentsToStoreOrUpdateComments(commentsToAddToStoreOrUpdate);
             if (feedsChanged) {
-                log('repliesStore.addFeedToStoreOrUpdateComment', { comment, feedOptions, sortType, feedsToAddToStore, commentsToAddToStoreOrUpdate });
+                log("repliesStore.addFeedToStoreOrUpdateComment", {
+                    comment,
+                    feedOptions,
+                    sortType,
+                    feedsToAddToStore,
+                    commentsToAddToStoreOrUpdate,
+                });
                 updateFeeds();
             }
         });
@@ -135,13 +143,14 @@ const repliesStore = createStore((setState, getState) => ({
     incrementFeedPageNumber(feedName) {
         const { feedsOptions, loadedFeeds, bufferedFeeds, updateFeeds } = getState();
         assert(feedsOptions[feedName], `repliesStore.incrementFeedPageNumber feed name '${feedName}' does not exist in feeds store`);
-        log('repliesStore.incrementFeedPageNumber', { feedName });
+        log("repliesStore.incrementFeedPageNumber", { feedName });
         // TODO: fix design issue, pageNumber shouldnt be increased when loadMore is called and repliesPerPage not reached
         // assert(
         //   feedsOptions[feedName].pageNumber * feedsOptions[feedName].repliesPerPage <= loadedFeeds[feedName].length,
         //   `repliesStore.incrementFeedPageNumber cannot increment feed page number before current page has loaded`
         // )
-        if (feedsOptions[feedName].pageNumber * feedsOptions[feedName].repliesPerPage <= loadedFeeds[feedName].length) {
+        if (feedsOptions[feedName].pageNumber * feedsOptions[feedName].repliesPerPage <=
+            loadedFeeds[feedName].length) {
             assert(bufferedFeeds[feedName].length > 0, `repliesStore.incrementFeedPageNumber cannot increment feed page number before current page has loaded`);
         }
         setState(({ feedsOptions, loadedFeeds }) => {
@@ -160,7 +169,7 @@ const repliesStore = createStore((setState, getState) => ({
         const { feedsOptions, updateFeeds } = getState();
         assert(feedsOptions[feedName], `repliesStore.resetFeed feed name '${feedName}' does not exist in feeds store`);
         assert(feedsOptions[feedName].pageNumber >= 1, `repliesStore.resetFeed cannot reset feed page number '${feedsOptions[feedName].pageNumber}' lower than 1`);
-        log('repliesStore.resetFeed', { feedName });
+        log("repliesStore.resetFeed", { feedName });
         setState(({ feedsOptions, loadedFeeds, updatedFeeds }) => {
             const feedOptions = Object.assign(Object.assign({}, feedsOptions[feedName]), { pageNumber: 1 });
             return {
@@ -197,8 +206,14 @@ const repliesStore = createStore((setState, getState) => ({
             const feedsHaveMore = getFeedsHaveMore(feedsOptions, bufferedFeeds, comments, repliesPages, accounts);
             const updatedFeeds = yield getUpdatedFeeds(feedsOptions, filteredSortedFeeds, previousState.updatedFeeds, loadedFeeds, accounts);
             // set new feeds
-            setState((state) => ({ bufferedFeeds, loadedFeeds, bufferedFeedsReplyCounts, updatedFeeds, feedsHaveMore }));
-            log('repliesStore.updateFeeds', {
+            setState((state) => ({
+                bufferedFeeds,
+                loadedFeeds,
+                bufferedFeedsReplyCounts,
+                updatedFeeds,
+                feedsHaveMore,
+            }));
+            log("repliesStore.updateFeeds", {
                 feedsOptions,
                 bufferedFeeds,
                 loadedFeeds,
@@ -265,7 +280,8 @@ const addRepliesPagesOnLowBufferedFeedsReplyCounts = (repliesStoreState) => {
     previousBufferedFeedsReplyCounts = bufferedFeedsReplyCounts;
     // in case feeds comments changed, but the first page cids haven't
     const bufferedFeedsReplyCountsPageCids = getFeedsCommentsFirstPageCids(bufferedFeedsComments);
-    const bufferedFeedsReplyCountsPageCidsChanged = bufferedFeedsReplyCountsPageCids.toString() !== previousBufferedFeedsReplyCountsPageCids.toString();
+    const bufferedFeedsReplyCountsPageCidsChanged = bufferedFeedsReplyCountsPageCids.toString() !==
+        previousBufferedFeedsReplyCountsPageCids.toString();
     if (!bufferedFeedsReplyCountsPageCidsChanged && !bufferedFeedsReplyCountsChanged) {
         return;
     }
@@ -286,14 +302,19 @@ const addRepliesPagesOnLowBufferedFeedsReplyCounts = (repliesStoreState) => {
         sortType = getSortTypeFromComment(comments[commentCid], feedsOptions[feedName]);
         // comment replies count is low, fetch next replies page
         if (feedReplyCount <= commentRepliesLeftBeforeNextPage) {
-            addNextRepliesPageToStore(comments[commentCid], sortType, account).catch((error) => log.error('repliesStore repliesPagesStore.addNextRepliesPageToStore error', { commentCid, comment: comments[commentCid], sortType, error }));
+            addNextRepliesPageToStore(comments[commentCid], sortType, account).catch((error) => log.error("repliesStore repliesPagesStore.addNextRepliesPageToStore error", {
+                commentCid,
+                comment: comments[commentCid],
+                sortType,
+                error,
+            }));
         }
     }
 };
 let previousFeedsCommentsFirstPageCids = [];
 let previousFeedsComments = new Map();
 let previousFeedsCommentsLoadedCount = 0;
-let previousFeedsCommentsRepliesPagesFirstUpdatedAts = '';
+let previousFeedsCommentsRepliesPagesFirstUpdatedAts = "";
 const updateFeedsOnFeedsCommentsChange = (repliesCommentsStoreState) => {
     const { comments } = repliesCommentsStoreState;
     const { feedsOptions, updateFeeds } = repliesStore.getState();
@@ -314,7 +335,8 @@ const updateFeedsOnFeedsCommentsChange = (repliesCommentsStoreState) => {
         if (feedsCommentsLoadedCount === previousFeedsCommentsLoadedCount) {
             // if comment.replies.pages haven't changed, do nothing
             const feedsCommentsRepliesPagesFirstUpdatedAts = getFeedsCommentsRepliesPagesFirstUpdatedAts(feedsComments);
-            if (feedsCommentsRepliesPagesFirstUpdatedAts === previousFeedsCommentsRepliesPagesFirstUpdatedAts) {
+            if (feedsCommentsRepliesPagesFirstUpdatedAts ===
+                previousFeedsCommentsRepliesPagesFirstUpdatedAts) {
                 return;
             }
             previousFeedsCommentsRepliesPagesFirstUpdatedAts = feedsCommentsRepliesPagesFirstUpdatedAts;
@@ -326,14 +348,14 @@ const updateFeedsOnFeedsCommentsChange = (repliesCommentsStoreState) => {
     updateFeeds();
 };
 let previousAccountsCommentsCount = 0;
-let previousAccountsCommentsCids = '';
+let previousAccountsCommentsCids = "";
 const updateFeedsOnAccountsCommentsChange = (accountsStoreState) => {
     const { accountsComments } = accountsStoreState;
     const accountsCommentsCount = Object.values(accountsComments).reduce((count, accountComments) => count + accountComments.length, 0);
     // no changes, do nothing
     if (accountsCommentsCount === previousAccountsCommentsCount) {
         // if cids haven't changed (account comments receive cids after pending), do nothing
-        const accountsCommentsCids = Object.values(accountsComments).reduce((cids, accountComments) => cids + String(accountComments.map((comment) => comment.cid || '')), '');
+        const accountsCommentsCids = Object.values(accountsComments).reduce((cids, accountComments) => cids + String(accountComments.map((comment) => comment.cid || "")), "");
         if (accountsCommentsCids === previousAccountsCommentsCids) {
             return;
         }
@@ -373,10 +395,10 @@ export const resetRepliesStore = () => __awaiter(void 0, void 0, void 0, functio
     previousFeedsCommentsFirstPageCids = [];
     previousFeedsComments = new Map();
     previousFeedsCommentsLoadedCount = 0;
-    previousFeedsCommentsRepliesPagesFirstUpdatedAts = '';
+    previousFeedsCommentsRepliesPagesFirstUpdatedAts = "";
     previousRepliesPages = {};
     previousAccountsCommentsCount = 0;
-    previousAccountsCommentsCids = '';
+    previousAccountsCommentsCids = "";
     updateFeedsPending = false;
     // destroy all component subscriptions to the store
     repliesStore.destroy();
@@ -387,7 +409,7 @@ export const resetRepliesStore = () => __awaiter(void 0, void 0, void 0, functio
 });
 // reset database and store in between tests
 export const resetRepliesDatabaseAndStore = () => __awaiter(void 0, void 0, void 0, function* () {
-    yield localForageLru.createInstance({ name: 'plebbitReactHooks-repliesPages' }).clear();
+    yield localForageLru.createInstance({ name: "plebbitReactHooks-repliesPages" }).clear();
     yield resetRepliesStore();
 });
 export default repliesStore;

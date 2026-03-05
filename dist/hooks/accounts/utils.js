@@ -7,12 +7,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from "react";
 // @ts-ignore
-import memoize from 'memoizee';
-import PlebbitJs from '../../lib/plebbit-js';
-import Logger from '@plebbit/plebbit-logger';
-const log = Logger('bitsocial-react-hooks:accounts:hooks');
+import memoize from "memoizee";
+import PlebbitJs from "../../lib/plebbit-js";
+import Logger from "@plebbit/plebbit-logger";
+const log = Logger("bitsocial-react-hooks:accounts:hooks");
 export const useCalculatedNotifications = (account, accountCommentsReplies) => {
     return useMemo(() => {
         if (!account || !accountCommentsReplies) {
@@ -38,7 +38,10 @@ const getAccountsBlockedAddressesNoCache = (...args) => {
     return accountsBlockedAddresses;
 };
 // length false because variable arguments legnth
-const getAccountsBlockedAddressesCached = memoize(getAccountsBlockedAddressesNoCache, { max: 100, length: false });
+const getAccountsBlockedAddressesCached = memoize(getAccountsBlockedAddressesNoCache, {
+    max: 100,
+    length: false,
+});
 // accountsBlockedCids must be cached to prevent rerenders
 // TODO: add accountsBlockedCids as an object in the store that can easily be === checked for equality
 const getAccountsBlockedCidsNoCache = (...args) => {
@@ -54,7 +57,10 @@ const getAccountsBlockedCidsNoCache = (...args) => {
     return accountsBlockedCids;
 };
 // length false because variable arguments legnth
-const getAccountsBlockedCidsCached = memoize(getAccountsBlockedCidsNoCache, { max: 100, length: false });
+const getAccountsBlockedCidsCached = memoize(getAccountsBlockedCidsNoCache, {
+    max: 100,
+    length: false,
+});
 export const useCalculatedAccountsNotifications = (accounts, accountsCommentsReplies) => {
     // accountsBlockedAddresses and accountsBlockedCids must be cached to prevent rerenders
     // TODO: add accountsBlockedAddresses and accountsBlockedCids as objects in the store that can easily be === checked for equality
@@ -86,10 +92,13 @@ const getReplyNotificationsFromAccountCommentsReplies = (accountCommentsReplies,
     const replyNotifications = [];
     for (const replyCid in accountCommentsReplies) {
         const reply = accountCommentsReplies[replyCid];
-        if ((accountBlockedAddresses === null || accountBlockedAddresses === void 0 ? void 0 : accountBlockedAddresses[reply.subplebbitAddress]) || (accountBlockedAddresses === null || accountBlockedAddresses === void 0 ? void 0 : accountBlockedAddresses[(_a = reply.author) === null || _a === void 0 ? void 0 : _a.address])) {
+        if ((accountBlockedAddresses === null || accountBlockedAddresses === void 0 ? void 0 : accountBlockedAddresses[reply.subplebbitAddress]) ||
+            (accountBlockedAddresses === null || accountBlockedAddresses === void 0 ? void 0 : accountBlockedAddresses[(_a = reply.author) === null || _a === void 0 ? void 0 : _a.address])) {
             continue;
         }
-        if ((accountBlockedCids === null || accountBlockedCids === void 0 ? void 0 : accountBlockedCids[reply.cid]) || (accountBlockedCids === null || accountBlockedCids === void 0 ? void 0 : accountBlockedCids[reply.parentCid]) || (accountBlockedCids === null || accountBlockedCids === void 0 ? void 0 : accountBlockedCids[reply.postCid])) {
+        if ((accountBlockedCids === null || accountBlockedCids === void 0 ? void 0 : accountBlockedCids[reply.cid]) ||
+            (accountBlockedCids === null || accountBlockedCids === void 0 ? void 0 : accountBlockedCids[reply.parentCid]) ||
+            (accountBlockedCids === null || accountBlockedCids === void 0 ? void 0 : accountBlockedCids[reply.postCid])) {
             continue;
         }
         replyNotifications.push(reply);
@@ -106,7 +115,8 @@ const useAccountCalculatedProperties = (account, accountComments, accountComment
 export const useAccountWithCalculatedProperties = (account, accountComments, accountCommentsReplies) => {
     var _a, _b;
     const accountCalculatedProperties = useAccountCalculatedProperties(account, accountComments, accountCommentsReplies);
-    const shortAddress = ((_a = account === null || account === void 0 ? void 0 : account.author) === null || _a === void 0 ? void 0 : _a.address) && PlebbitJs.Plebbit.getShortAddress({ address: (_b = account === null || account === void 0 ? void 0 : account.author) === null || _b === void 0 ? void 0 : _b.address });
+    const shortAddress = ((_a = account === null || account === void 0 ? void 0 : account.author) === null || _a === void 0 ? void 0 : _a.address) &&
+        PlebbitJs.Plebbit.getShortAddress({ address: (_b = account === null || account === void 0 ? void 0 : account.author) === null || _b === void 0 ? void 0 : _b.address });
     return useMemo(() => {
         if (!account) {
             return;
@@ -189,7 +199,6 @@ const getAccountCalculatedProperties = memoize(getAccountCalculatedPropertiesNoC
 const useAccountsAuthorShortAddresses = (accounts) => {
     const [shortAddresses, setShortAddresses] = useState({});
     useEffect(() => {
-        ;
         (() => __awaiter(void 0, void 0, void 0, function* () {
             var _a, _b;
             const newShortAddresses = {};

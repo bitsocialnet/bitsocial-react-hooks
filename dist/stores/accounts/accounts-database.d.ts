@@ -1,4 +1,4 @@
-import { Accounts, CreateCommentOptions, Account, Comment, AccountsComments, AccountCommentReply, AccountsCommentsReplies } from '../../types';
+import { Accounts, CreateCommentOptions, Account, Comment, AccountsComments, AccountCommentReply, AccountsCommentsReplies } from "../../types";
 declare const database: {
     accountsDatabase: LocalForage;
     accountsMetadataDatabase: LocalForage;

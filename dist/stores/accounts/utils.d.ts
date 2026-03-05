@@ -1,10 +1,10 @@
-import { Account, Subplebbits, AccountComment, AccountsComments, CommentCidsToAccountsComments, Comment } from '../../types';
+import { Account, Subplebbits, AccountComment, AccountsComments, CommentCidsToAccountsComments, Comment } from "../../types";
 export declare const getAccountSubplebbits: (account: Account, subplebbits: Subplebbits) => any;
 export declare const getCommentCidsToAccountsComments: (accountsComments: AccountsComments) => CommentCidsToAccountsComments;
 interface CommentLinkDimensions {
     linkWidth?: number;
     linkHeight?: number;
-    linkHtmlTagName?: 'img' | 'video' | 'audio';
+    linkHtmlTagName?: "img" | "video" | "audio";
 }
 export declare const fetchCommentLinkDimensions: (link: string) => Promise<CommentLinkDimensions>;
 export declare const getInitAccountCommentsToUpdate: (accountsComments: AccountsComments) => {

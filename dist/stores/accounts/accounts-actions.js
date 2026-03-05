@@ -8,25 +8,25 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import accountsStore, { listeners } from './accounts-store';
-import subplebbitsStore from '../subplebbits';
-import accountsDatabase from './accounts-database';
-import accountGenerator from './account-generator';
-import Logger from '@plebbit/plebbit-logger';
-import validator from '../../lib/validator';
-import chain from '../../lib/chain';
-import assert from 'assert';
-const log = Logger('bitsocial-react-hooks:accounts:stores');
-import * as accountsActionsInternal from './accounts-actions-internal';
-import { getAccountSubplebbits, getCommentCidsToAccountsComments, fetchCommentLinkDimensions, getAccountCommentDepth, addShortAddressesToAccountComment } from './utils';
-import utils from '../../lib/utils';
+import accountsStore, { listeners } from "./accounts-store";
+import subplebbitsStore from "../subplebbits";
+import accountsDatabase from "./accounts-database";
+import accountGenerator from "./account-generator";
+import Logger from "@plebbit/plebbit-logger";
+import validator from "../../lib/validator";
+import chain from "../../lib/chain";
+import assert from "assert";
+const log = Logger("bitsocial-react-hooks:accounts:stores");
+import * as accountsActionsInternal from "./accounts-actions-internal";
+import { getAccountSubplebbits, getCommentCidsToAccountsComments, fetchCommentLinkDimensions, getAccountCommentDepth, addShortAddressesToAccountComment, } from "./utils";
+import utils from "../../lib/utils";
 const addNewAccountToDatabaseAndState = (newAccount) => __awaiter(void 0, void 0, void 0, function* () {
     // add to database first to init the account
     yield accountsDatabase.addAccount(newAccount);
     // use database data for these because it's easier
     const [newAccountIds, newAccountNamesToAccountIds] = yield Promise.all([
-        accountsDatabase.accountsMetadataDatabase.getItem('accountIds'),
-        accountsDatabase.accountsMetadataDatabase.getItem('accountNamesToAccountIds'),
+        accountsDatabase.accountsMetadataDatabase.getItem("accountIds"),
+        accountsDatabase.accountsMetadataDatabase.getItem("accountNamesToAccountIds"),
     ]);
     // set the new state
     const { accounts, accountsComments, accountsVotes, accountsEdits, accountsCommentsReplies } = accountsStore.getState();
@@ -53,7 +53,7 @@ export const createAccount = (accountName) => __awaiter(void 0, void 0, void 0, 
         newAccount.name = accountName;
     }
     yield addNewAccountToDatabaseAndState(newAccount);
-    log('accountsActions.createAccount', { accountName, account: newAccount });
+    log("accountsActions.createAccount", { accountName, account: newAccount });
 });
 export const deleteAccount = (accountName) => __awaiter(void 0, void 0, void 0, function* () {
     const { accounts, accountNamesToAccountIds, activeAccountId, accountsComments, accountsVotes } = accountsStore.getState();
@@ -68,9 +68,9 @@ export const deleteAccount = (accountName) => __awaiter(void 0, void 0, void 0, 
     const newAccounts = Object.assign({}, accounts);
     delete newAccounts[account.id];
     const [newAccountIds, newActiveAccountId, newAccountNamesToAccountIds] = yield Promise.all([
-        accountsDatabase.accountsMetadataDatabase.getItem('accountIds'),
-        accountsDatabase.accountsMetadataDatabase.getItem('activeAccountId'),
-        accountsDatabase.accountsMetadataDatabase.getItem('accountNamesToAccountIds'),
+        accountsDatabase.accountsMetadataDatabase.getItem("accountIds"),
+        accountsDatabase.accountsMetadataDatabase.getItem("activeAccountId"),
+        accountsDatabase.accountsMetadataDatabase.getItem("accountNamesToAccountIds"),
     ]);
     const newAccountsComments = Object.assign({}, accountsComments);
     delete newAccountsComments[account.id];
@@ -90,8 +90,8 @@ export const setActiveAccount = (accountName) => __awaiter(void 0, void 0, void 
     assert(accountNamesToAccountIds, `can't use accountsStore.accountActions before initialized`);
     validator.validateAccountsActionsSetActiveAccountArguments(accountName);
     const accountId = accountNamesToAccountIds[accountName];
-    yield accountsDatabase.accountsMetadataDatabase.setItem('activeAccountId', accountId);
-    log('accountsActions.setActiveAccount', { accountName, accountId });
+    yield accountsDatabase.accountsMetadataDatabase.setItem("activeAccountId", accountId);
+    log("accountsActions.setActiveAccount", { accountName, accountId });
     accountsStore.setState({ activeAccountId: accountId });
 });
 export const setAccount = (account) => __awaiter(void 0, void 0, void 0, function* () {
@@ -125,11 +125,14 @@ export const setAccount = (account) => __awaiter(void 0, void 0, void 0, functio
     const [newAccount, newAccountNamesToAccountIds] = yield Promise.all([
         // use this function to deserialize
         accountsDatabase.getAccount(account.id),
-        accountsDatabase.accountsMetadataDatabase.getItem('accountNamesToAccountIds'),
+        accountsDatabase.accountsMetadataDatabase.getItem("accountNamesToAccountIds"),
     ]);
     const newAccounts = Object.assign(Object.assign({}, accounts), { [newAccount.id]: newAccount });
-    log('accountsActions.setAccount', { account: newAccount });
-    accountsStore.setState({ accounts: newAccounts, accountNamesToAccountIds: newAccountNamesToAccountIds });
+    log("accountsActions.setAccount", { account: newAccount });
+    accountsStore.setState({
+        accounts: newAccounts,
+        accountNamesToAccountIds: newAccountNamesToAccountIds,
+    });
 });
 export const setAccountsOrder = (newOrderedAccountNames) => __awaiter(void 0, void 0, void 0, function* () {
     const { accounts, accountNamesToAccountIds } = accountsStore.getState();
@@ -142,11 +145,11 @@ export const setAccountsOrder = (newOrderedAccountNames) => __awaiter(void 0, vo
         accountNames.push(accounts[accountId].name);
     }
     validator.validateAccountsActionsSetAccountsOrderArguments(newOrderedAccountNames, accountNames);
-    log('accountsActions.setAccountsOrder', {
+    log("accountsActions.setAccountsOrder", {
         previousAccountNames: accountNames,
         newAccountNames: newOrderedAccountNames,
     });
-    yield accountsDatabase.accountsMetadataDatabase.setItem('accountIds', accountIds);
+    yield accountsDatabase.accountsMetadataDatabase.setItem("accountIds", accountIds);
     accountsStore.setState({ accountIds });
 });
 export const importAccount = (serializedAccount) => __awaiter(void 0, void 0, void 0, function* () {
@@ -164,7 +167,7 @@ export const importAccount = (serializedAccount) => __awaiter(void 0, void 0, vo
     const subplebbits = getAccountSubplebbits(imported.account, subplebbitsStore.getState().subplebbits);
     // if imported.account.name already exists, add ' 2', don't overwrite
     if (accountNamesToAccountIds[imported.account.name]) {
-        imported.account.name += ' 2';
+        imported.account.name += " 2";
     }
     // generate new account
     const generatedAccount = yield accountGenerator.generateDefaultAccount();
@@ -189,8 +192,8 @@ export const importAccount = (serializedAccount) => __awaiter(void 0, void 0, vo
         accountsDatabase.getAccountComments(newAccount.id),
         accountsDatabase.getAccountVotes(newAccount.id),
         accountsDatabase.getAccountEdits(newAccount.id),
-        accountsDatabase.accountsMetadataDatabase.getItem('accountIds'),
-        accountsDatabase.accountsMetadataDatabase.getItem('accountNamesToAccountIds'),
+        accountsDatabase.accountsMetadataDatabase.getItem("accountIds"),
+        accountsDatabase.accountsMetadataDatabase.getItem("accountNamesToAccountIds"),
     ]);
     accountsStore.setState((state) => ({
         accounts: Object.assign(Object.assign({}, state.accounts), { [newAccount.id]: newAccount }),
@@ -203,13 +206,18 @@ export const importAccount = (serializedAccount) => __awaiter(void 0, void 0, vo
         // don't import/export replies to own comments, those are just cached and can be refetched
         accountsCommentsReplies: Object.assign(Object.assign({}, state.accountsCommentsReplies), { [newAccount.id]: {} }),
     }));
-    log('accountsActions.importAccount', { account: newAccount, accountComments, accountVotes, accountEdits });
+    log("accountsActions.importAccount", {
+        account: newAccount,
+        accountComments,
+        accountVotes,
+        accountEdits,
+    });
     // start looking for updates for all accounts comments in database
     for (const accountComment of accountComments) {
         accountsStore
             .getState()
             .accountsActionsInternal.startUpdatingAccountCommentOnCommentUpdateEvents(accountComment, newAccount, accountComment.index)
-            .catch((error) => log.error('accountsActions.importAccount startUpdatingAccountCommentOnCommentUpdateEvents error', {
+            .catch((error) => log.error("accountsActions.importAccount startUpdatingAccountCommentOnCommentUpdateEvents error", {
             accountComment,
             accountCommentIndex: accountComment.index,
             importedAccount: newAccount,
@@ -228,12 +236,12 @@ export const exportAccount = (accountName) => __awaiter(void 0, void 0, void 0, 
     }
     assert(account === null || account === void 0 ? void 0 : account.id, `accountsActions.exportAccount account.id '${account === null || account === void 0 ? void 0 : account.id}' doesn't exist, activeAccountId '${activeAccountId}' accountName '${accountName}'`);
     const exportedAccountJson = yield accountsDatabase.getExportedAccountJson(account.id);
-    log('accountsActions.exportAccount', { exportedAccountJson });
+    log("accountsActions.exportAccount", { exportedAccountJson });
     return exportedAccountJson;
 });
 export const subscribe = (subplebbitAddress, accountName) => __awaiter(void 0, void 0, void 0, function* () {
     const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
-    assert(subplebbitAddress && typeof subplebbitAddress === 'string', `accountsActions.subscribe invalid subplebbitAddress '${subplebbitAddress}'`);
+    assert(subplebbitAddress && typeof subplebbitAddress === "string", `accountsActions.subscribe invalid subplebbitAddress '${subplebbitAddress}'`);
     assert(accounts && accountNamesToAccountIds && activeAccountId, `can't use accountsStore.accountActions before initialized`);
     let account = accounts[activeAccountId];
     if (accountName) {
@@ -250,12 +258,12 @@ export const subscribe = (subplebbitAddress, accountName) => __awaiter(void 0, v
     // update account in db async for instant feedback speed
     accountsDatabase.addAccount(updatedAccount);
     const updatedAccounts = Object.assign(Object.assign({}, accounts), { [updatedAccount.id]: updatedAccount });
-    log('accountsActions.subscribe', { account: updatedAccount, accountName, subplebbitAddress });
+    log("accountsActions.subscribe", { account: updatedAccount, accountName, subplebbitAddress });
     accountsStore.setState({ accounts: updatedAccounts });
 });
 export const unsubscribe = (subplebbitAddress, accountName) => __awaiter(void 0, void 0, void 0, function* () {
     const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
-    assert(subplebbitAddress && typeof subplebbitAddress === 'string', `accountsActions.unsubscribe invalid subplebbitAddress '${subplebbitAddress}'`);
+    assert(subplebbitAddress && typeof subplebbitAddress === "string", `accountsActions.unsubscribe invalid subplebbitAddress '${subplebbitAddress}'`);
     assert(accounts && accountNamesToAccountIds && activeAccountId, `can't use accountsStore.accountActions before initialized`);
     let account = accounts[activeAccountId];
     if (accountName) {
@@ -273,12 +281,12 @@ export const unsubscribe = (subplebbitAddress, accountName) => __awaiter(void 0,
     // update account in db async for instant feedback speed
     accountsDatabase.addAccount(updatedAccount);
     const updatedAccounts = Object.assign(Object.assign({}, accounts), { [updatedAccount.id]: updatedAccount });
-    log('accountsActions.unsubscribe', { account: updatedAccount, accountName, subplebbitAddress });
+    log("accountsActions.unsubscribe", { account: updatedAccount, accountName, subplebbitAddress });
     accountsStore.setState({ accounts: updatedAccounts });
 });
 export const blockAddress = (address, accountName) => __awaiter(void 0, void 0, void 0, function* () {
     const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
-    assert(address && typeof address === 'string', `accountsActions.blockAddress invalid address '${address}'`);
+    assert(address && typeof address === "string", `accountsActions.blockAddress invalid address '${address}'`);
     assert(accounts && accountNamesToAccountIds && activeAccountId, `can't use accountsStore.accountActions before initialized`);
     let account = accounts[activeAccountId];
     if (accountName) {
@@ -295,12 +303,12 @@ export const blockAddress = (address, accountName) => __awaiter(void 0, void 0, 
     // update account in db async for instant feedback speed
     accountsDatabase.addAccount(updatedAccount);
     const updatedAccounts = Object.assign(Object.assign({}, accounts), { [updatedAccount.id]: updatedAccount });
-    log('accountsActions.blockAddress', { account: updatedAccount, accountName, address });
+    log("accountsActions.blockAddress", { account: updatedAccount, accountName, address });
     accountsStore.setState({ accounts: updatedAccounts });
 });
 export const unblockAddress = (address, accountName) => __awaiter(void 0, void 0, void 0, function* () {
     const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
-    assert(address && typeof address === 'string', `accountsActions.unblockAddress invalid address '${address}'`);
+    assert(address && typeof address === "string", `accountsActions.unblockAddress invalid address '${address}'`);
     assert(accounts && accountNamesToAccountIds && activeAccountId, `can't use accountsStore.accountActions before initialized`);
     let account = accounts[activeAccountId];
     if (accountName) {
@@ -317,12 +325,12 @@ export const unblockAddress = (address, accountName) => __awaiter(void 0, void 0
     // update account in db async for instant feedback speed
     accountsDatabase.addAccount(updatedAccount);
     const updatedAccounts = Object.assign(Object.assign({}, accounts), { [updatedAccount.id]: updatedAccount });
-    log('accountsActions.unblockAddress', { account: updatedAccount, accountName, address });
+    log("accountsActions.unblockAddress", { account: updatedAccount, accountName, address });
     accountsStore.setState({ accounts: updatedAccounts });
 });
 export const blockCid = (cid, accountName) => __awaiter(void 0, void 0, void 0, function* () {
     const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
-    assert(cid && typeof cid === 'string', `accountsActions.blockCid invalid cid '${cid}'`);
+    assert(cid && typeof cid === "string", `accountsActions.blockCid invalid cid '${cid}'`);
     assert(accounts && accountNamesToAccountIds && activeAccountId, `can't use accountsStore.accountActions before initialized`);
     let account = accounts[activeAccountId];
     if (accountName) {
@@ -339,12 +347,12 @@ export const blockCid = (cid, accountName) => __awaiter(void 0, void 0, void 0, 
     // update account in db async for instant feedback speed
     accountsDatabase.addAccount(updatedAccount);
     const updatedAccounts = Object.assign(Object.assign({}, accounts), { [updatedAccount.id]: updatedAccount });
-    log('accountsActions.blockCid', { account: updatedAccount, accountName, cid });
+    log("accountsActions.blockCid", { account: updatedAccount, accountName, cid });
     accountsStore.setState({ accounts: updatedAccounts });
 });
 export const unblockCid = (cid, accountName) => __awaiter(void 0, void 0, void 0, function* () {
     const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
-    assert(cid && typeof cid === 'string', `accountsActions.unblockCid invalid cid '${cid}'`);
+    assert(cid && typeof cid === "string", `accountsActions.unblockCid invalid cid '${cid}'`);
     assert(accounts && accountNamesToAccountIds && activeAccountId, `can't use accountsStore.accountActions before initialized`);
     let account = accounts[activeAccountId];
     if (accountName) {
@@ -361,7 +369,7 @@ export const unblockCid = (cid, accountName) => __awaiter(void 0, void 0, void 0
     // update account in db async for instant feedback speed
     accountsDatabase.addAccount(updatedAccount);
     const updatedAccounts = Object.assign(Object.assign({}, accounts), { [updatedAccount.id]: updatedAccount });
-    log('accountsActions.unblockCid', { account: updatedAccount, accountName, cid });
+    log("accountsActions.unblockCid", { account: updatedAccount, accountName, cid });
     accountsStore.setState({ accounts: updatedAccounts });
 });
 export const publishComment = (publishCommentOptions, accountName) => __awaiter(void 0, void 0, void 0, function* () {
@@ -373,7 +381,11 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
         const accountId = accountNamesToAccountIds[accountName];
         account = accounts[accountId];
     }
-    validator.validateAccountsActionsPublishCommentArguments({ publishCommentOptions, accountName, account });
+    validator.validateAccountsActionsPublishCommentArguments({
+        publishCommentOptions,
+        accountName,
+        account,
+    });
     // find author.previousCommentCid if any
     const accountCommentsWithCids = accountsComments[account.id]
         .filter((comment) => comment.cid)
@@ -396,8 +408,11 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
     // set fetching link dimensions state
     let fetchingLinkDimensionsStates;
     if (publishCommentOptions.link) {
-        (_b = publishCommentOptions.onPublishingStateChange) === null || _b === void 0 ? void 0 : _b.call(publishCommentOptions, 'fetching-link-dimensions');
-        fetchingLinkDimensionsStates = { state: 'publishing', publishingState: 'fetching-link-dimensions' };
+        (_b = publishCommentOptions.onPublishingStateChange) === null || _b === void 0 ? void 0 : _b.call(publishCommentOptions, "fetching-link-dimensions");
+        fetchingLinkDimensionsStates = {
+            state: "publishing",
+            publishingState: "fetching-link-dimensions",
+        };
     }
     // save comment to db
     let accountCommentIndex = accountsComments[account.id].length;
@@ -426,17 +441,17 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
         }
         comment = yield account.plebbit.createComment(createCommentOptions);
         publishAndRetryFailedChallengeVerification();
-        log('accountsActions.publishComment', { createCommentOptions });
+        log("accountsActions.publishComment", { createCommentOptions });
     }))();
     let lastChallenge;
     function publishAndRetryFailedChallengeVerification() {
         return __awaiter(this, void 0, void 0, function* () {
             var _a;
-            comment.once('challenge', (challenge) => __awaiter(this, void 0, void 0, function* () {
+            comment.once("challenge", (challenge) => __awaiter(this, void 0, void 0, function* () {
                 lastChallenge = challenge;
                 publishCommentOptions.onChallenge(challenge, comment);
             }));
-            comment.once('challengeverification', (challengeVerification) => __awaiter(this, void 0, void 0, function* () {
+            comment.once("challengeverification", (challengeVerification) => __awaiter(this, void 0, void 0, function* () {
                 var _a;
                 publishCommentOptions.onChallengeVerification(challengeVerification, comment);
                 if (!challengeVerification.challengeSuccess && lastChallenge) {
@@ -462,18 +477,21 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
                             updatedAccountComments[accountCommentIndex] = updatedAccountComment;
                             return {
                                 accountsComments: Object.assign(Object.assign({}, accountsComments), { [account.id]: updatedAccountComments }),
-                                commentCidsToAccountsComments: Object.assign(Object.assign({}, commentCidsToAccountsComments), { [(_a = challengeVerification === null || challengeVerification === void 0 ? void 0 : challengeVerification.commentUpdate) === null || _a === void 0 ? void 0 : _a.cid]: { accountId: account.id, accountCommentIndex } }),
+                                commentCidsToAccountsComments: Object.assign(Object.assign({}, commentCidsToAccountsComments), { [(_a = challengeVerification === null || challengeVerification === void 0 ? void 0 : challengeVerification.commentUpdate) === null || _a === void 0 ? void 0 : _a.cid]: {
+                                        accountId: account.id,
+                                        accountCommentIndex,
+                                    } }),
                             };
                         });
                         // clone the comment or it bugs publishing callbacks
                         const updatingComment = yield account.plebbit.createComment(Object.assign({}, comment));
                         accountsActionsInternal
                             .startUpdatingAccountCommentOnCommentUpdateEvents(updatingComment, account, accountCommentIndex)
-                            .catch((error) => log.error('accountsActions.publishComment startUpdatingAccountCommentOnCommentUpdateEvents error', { comment, account, accountCommentIndex, error }));
+                            .catch((error) => log.error("accountsActions.publishComment startUpdatingAccountCommentOnCommentUpdateEvents error", { comment, account, accountCommentIndex, error }));
                     }
                 }
             }));
-            comment.on('error', (error) => {
+            comment.on("error", (error) => {
                 var _a;
                 accountsStore.setState(({ accountsComments }) => {
                     const accountComments = [...(accountsComments[account.id] || [])];
@@ -488,7 +506,7 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
                 });
                 (_a = publishCommentOptions.onError) === null || _a === void 0 ? void 0 : _a.call(publishCommentOptions, error, comment);
             });
-            comment.on('publishingstatechange', (publishingState) => __awaiter(this, void 0, void 0, function* () {
+            comment.on("publishingstatechange", (publishingState) => __awaiter(this, void 0, void 0, function* () {
                 var _a;
                 // set publishing state on account comment so the frontend can display it, dont persist in db because a reload cancels publishing
                 accountsStore.setState(({ accountsComments }) => {
@@ -539,7 +557,7 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
     return createdAccountComment;
 });
 export const deleteComment = (commentCidOrAccountCommentIndex, accountName) => __awaiter(void 0, void 0, void 0, function* () {
-    throw Error('TODO: not implemented');
+    throw Error("TODO: not implemented");
 });
 export const publishVote = (publishVoteOptions, accountName) => __awaiter(void 0, void 0, void 0, function* () {
     const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
@@ -549,7 +567,11 @@ export const publishVote = (publishVoteOptions, accountName) => __awaiter(void 0
         const accountId = accountNamesToAccountIds[accountName];
         account = accounts[accountId];
     }
-    validator.validateAccountsActionsPublishVoteArguments({ publishVoteOptions, accountName, account });
+    validator.validateAccountsActionsPublishVoteArguments({
+        publishVoteOptions,
+        accountName,
+        account,
+    });
     let createVoteOptions = Object.assign({ timestamp: Math.floor(Date.now() / 1000), author: account.author, signer: account.signer }, publishVoteOptions);
     delete createVoteOptions.onChallenge;
     delete createVoteOptions.onChallengeVerification;
@@ -559,11 +581,11 @@ export const publishVote = (publishVoteOptions, accountName) => __awaiter(void 0
     let lastChallenge;
     const publishAndRetryFailedChallengeVerification = () => __awaiter(void 0, void 0, void 0, function* () {
         var _a;
-        vote.once('challenge', (challenge) => __awaiter(void 0, void 0, void 0, function* () {
+        vote.once("challenge", (challenge) => __awaiter(void 0, void 0, void 0, function* () {
             lastChallenge = challenge;
             publishVoteOptions.onChallenge(challenge, vote);
         }));
-        vote.once('challengeverification', (challengeVerification) => __awaiter(void 0, void 0, void 0, function* () {
+        vote.once("challengeverification", (challengeVerification) => __awaiter(void 0, void 0, void 0, function* () {
             publishVoteOptions.onChallengeVerification(challengeVerification, vote);
             if (!challengeVerification.challengeSuccess && lastChallenge) {
                 // publish again automatically on fail
@@ -573,9 +595,9 @@ export const publishVote = (publishVoteOptions, accountName) => __awaiter(void 0
                 publishAndRetryFailedChallengeVerification();
             }
         }));
-        vote.on('error', (error) => { var _a; return (_a = publishVoteOptions.onError) === null || _a === void 0 ? void 0 : _a.call(publishVoteOptions, error, vote); });
+        vote.on("error", (error) => { var _a; return (_a = publishVoteOptions.onError) === null || _a === void 0 ? void 0 : _a.call(publishVoteOptions, error, vote); });
         // TODO: add publishingState to account votes
-        vote.on('publishingstatechange', (publishingState) => { var _a; return (_a = publishVoteOptions.onPublishingStateChange) === null || _a === void 0 ? void 0 : _a.call(publishVoteOptions, publishingState); });
+        vote.on("publishingstatechange", (publishingState) => { var _a; return (_a = publishVoteOptions.onPublishingStateChange) === null || _a === void 0 ? void 0 : _a.call(publishVoteOptions, publishingState); });
         listeners.push(vote);
         try {
             // publish will resolve after the challenge request
@@ -588,7 +610,7 @@ export const publishVote = (publishVoteOptions, accountName) => __awaiter(void 0
     });
     publishAndRetryFailedChallengeVerification();
     yield accountsDatabase.addAccountVote(account.id, createVoteOptions);
-    log('accountsActions.publishVote', { createVoteOptions });
+    log("accountsActions.publishVote", { createVoteOptions });
     accountsStore.setState(({ accountsVotes }) => ({
         accountsVotes: Object.assign(Object.assign({}, accountsVotes), { [account.id]: Object.assign(Object.assign({}, accountsVotes[account.id]), { [createVoteOptions.commentCid]: Object.assign(Object.assign({}, createVoteOptions), { signer: undefined, author: undefined }) }) }),
     }));
@@ -601,7 +623,11 @@ export const publishCommentEdit = (publishCommentEditOptions, accountName) => __
         const accountId = accountNamesToAccountIds[accountName];
         account = accounts[accountId];
     }
-    validator.validateAccountsActionsPublishCommentEditArguments({ publishCommentEditOptions, accountName, account });
+    validator.validateAccountsActionsPublishCommentEditArguments({
+        publishCommentEditOptions,
+        accountName,
+        account,
+    });
     let createCommentEditOptions = Object.assign({ timestamp: Math.floor(Date.now() / 1000), author: account.author, signer: account.signer }, publishCommentEditOptions);
     delete createCommentEditOptions.onChallenge;
     delete createCommentEditOptions.onChallengeVerification;
@@ -611,10 +637,10 @@ export const publishCommentEdit = (publishCommentEditOptions, accountName) => __
     let lastChallenge;
     const publishAndRetryFailedChallengeVerification = () => __awaiter(void 0, void 0, void 0, function* () {
         var _a;
-        commentEdit.once('challenge', (challenge) => __awaiter(void 0, void 0, void 0, function* () {
+        commentEdit.once("challenge", (challenge) => __awaiter(void 0, void 0, void 0, function* () {
             publishCommentEditOptions.onChallenge(challenge, commentEdit);
         }));
-        commentEdit.once('challengeverification', (challengeVerification) => __awaiter(void 0, void 0, void 0, function* () {
+        commentEdit.once("challengeverification", (challengeVerification) => __awaiter(void 0, void 0, void 0, function* () {
             publishCommentEditOptions.onChallengeVerification(challengeVerification, commentEdit);
             if (!challengeVerification.challengeSuccess && lastChallenge) {
                 // publish again automatically on fail
@@ -624,9 +650,9 @@ export const publishCommentEdit = (publishCommentEditOptions, accountName) => __
                 publishAndRetryFailedChallengeVerification();
             }
         }));
-        commentEdit.on('error', (error) => { var _a; return (_a = publishCommentEditOptions.onError) === null || _a === void 0 ? void 0 : _a.call(publishCommentEditOptions, error, commentEdit); });
+        commentEdit.on("error", (error) => { var _a; return (_a = publishCommentEditOptions.onError) === null || _a === void 0 ? void 0 : _a.call(publishCommentEditOptions, error, commentEdit); });
         // TODO: add publishingState to account edits
-        commentEdit.on('publishingstatechange', (publishingState) => { var _a; return (_a = publishCommentEditOptions.onPublishingStateChange) === null || _a === void 0 ? void 0 : _a.call(publishCommentEditOptions, publishingState); });
+        commentEdit.on("publishingstatechange", (publishingState) => { var _a; return (_a = publishCommentEditOptions.onPublishingStateChange) === null || _a === void 0 ? void 0 : _a.call(publishCommentEditOptions, publishingState); });
         listeners.push(commentEdit);
         try {
             // publish will resolve after the challenge request
@@ -639,7 +665,7 @@ export const publishCommentEdit = (publishCommentEditOptions, accountName) => __
     });
     publishAndRetryFailedChallengeVerification();
     yield accountsDatabase.addAccountEdit(account.id, createCommentEditOptions);
-    log('accountsActions.publishCommentEdit', { createCommentEditOptions });
+    log("accountsActions.publishCommentEdit", { createCommentEditOptions });
     accountsStore.setState(({ accountsEdits }) => {
         // remove signer and author because not needed and they expose private key
         const commentEdit = Object.assign(Object.assign({}, createCommentEditOptions), { signer: undefined, author: undefined });
@@ -658,7 +684,11 @@ export const publishCommentModeration = (publishCommentModerationOptions, accoun
         const accountId = accountNamesToAccountIds[accountName];
         account = accounts[accountId];
     }
-    validator.validateAccountsActionsPublishCommentModerationArguments({ publishCommentModerationOptions, accountName, account });
+    validator.validateAccountsActionsPublishCommentModerationArguments({
+        publishCommentModerationOptions,
+        accountName,
+        account,
+    });
     let createCommentModerationOptions = Object.assign({ timestamp: Math.floor(Date.now() / 1000), author: account.author, signer: account.signer }, publishCommentModerationOptions);
     delete createCommentModerationOptions.onChallenge;
     delete createCommentModerationOptions.onChallengeVerification;
@@ -668,10 +698,10 @@ export const publishCommentModeration = (publishCommentModerationOptions, accoun
     let lastChallenge;
     const publishAndRetryFailedChallengeVerification = () => __awaiter(void 0, void 0, void 0, function* () {
         var _a;
-        commentModeration.once('challenge', (challenge) => __awaiter(void 0, void 0, void 0, function* () {
+        commentModeration.once("challenge", (challenge) => __awaiter(void 0, void 0, void 0, function* () {
             publishCommentModerationOptions.onChallenge(challenge, commentModeration);
         }));
-        commentModeration.once('challengeverification', (challengeVerification) => __awaiter(void 0, void 0, void 0, function* () {
+        commentModeration.once("challengeverification", (challengeVerification) => __awaiter(void 0, void 0, void 0, function* () {
             publishCommentModerationOptions.onChallengeVerification(challengeVerification, commentModeration);
             if (!challengeVerification.challengeSuccess && lastChallenge) {
                 // publish again automatically on fail
@@ -681,9 +711,9 @@ export const publishCommentModeration = (publishCommentModerationOptions, accoun
                 publishAndRetryFailedChallengeVerification();
             }
         }));
-        commentModeration.on('error', (error) => { var _a; return (_a = publishCommentModerationOptions.onError) === null || _a === void 0 ? void 0 : _a.call(publishCommentModerationOptions, error, commentModeration); });
+        commentModeration.on("error", (error) => { var _a; return (_a = publishCommentModerationOptions.onError) === null || _a === void 0 ? void 0 : _a.call(publishCommentModerationOptions, error, commentModeration); });
         // TODO: add publishingState to account edits
-        commentModeration.on('publishingstatechange', (publishingState) => { var _a; return (_a = publishCommentModerationOptions.onPublishingStateChange) === null || _a === void 0 ? void 0 : _a.call(publishCommentModerationOptions, publishingState); });
+        commentModeration.on("publishingstatechange", (publishingState) => { var _a; return (_a = publishCommentModerationOptions.onPublishingStateChange) === null || _a === void 0 ? void 0 : _a.call(publishCommentModerationOptions, publishingState); });
         listeners.push(commentModeration);
         try {
             // publish will resolve after the challenge request
@@ -696,7 +726,7 @@ export const publishCommentModeration = (publishCommentModerationOptions, accoun
     });
     publishAndRetryFailedChallengeVerification();
     yield accountsDatabase.addAccountEdit(account.id, createCommentModerationOptions);
-    log('accountsActions.publishCommentModeration', { createCommentModerationOptions });
+    log("accountsActions.publishCommentModeration", { createCommentModerationOptions });
     accountsStore.setState(({ accountsEdits }) => {
         // remove signer and author because not needed and they expose private key
         const commentModeration = Object.assign(Object.assign({}, createCommentModerationOptions), { signer: undefined, author: undefined });
@@ -716,7 +746,12 @@ export const publishSubplebbitEdit = (subplebbitAddress, publishSubplebbitEditOp
         const accountId = accountNamesToAccountIds[accountName];
         account = accounts[accountId];
     }
-    validator.validateAccountsActionsPublishSubplebbitEditArguments({ subplebbitAddress, publishSubplebbitEditOptions, accountName, account });
+    validator.validateAccountsActionsPublishSubplebbitEditArguments({
+        subplebbitAddress,
+        publishSubplebbitEditOptions,
+        accountName,
+        account,
+    });
     const subplebbitEditOptions = Object.assign({}, publishSubplebbitEditOptions);
     delete subplebbitEditOptions.onChallenge;
     delete subplebbitEditOptions.onChallengeVerification;
@@ -725,13 +760,16 @@ export const publishSubplebbitEdit = (subplebbitAddress, publishSubplebbitEditOp
     // account is the owner of the subplebbit and can edit it locally, no need to publish
     const localSubplebbitAddresses = account.plebbit.subplebbits;
     if (localSubplebbitAddresses.includes(subplebbitAddress)) {
-        yield subplebbitsStore.getState().editSubplebbit(subplebbitAddress, subplebbitEditOptions, account);
+        yield subplebbitsStore
+            .getState()
+            .editSubplebbit(subplebbitAddress, subplebbitEditOptions, account);
         // create fake success challenge verification for consistent behavior with remote subplebbit edit
         publishSubplebbitEditOptions.onChallengeVerification({ challengeSuccess: true });
-        (_a = publishSubplebbitEditOptions.onPublishingStateChange) === null || _a === void 0 ? void 0 : _a.call(publishSubplebbitEditOptions, 'succeeded');
+        (_a = publishSubplebbitEditOptions.onPublishingStateChange) === null || _a === void 0 ? void 0 : _a.call(publishSubplebbitEditOptions, "succeeded");
         return;
     }
-    assert(!publishSubplebbitEditOptions.address || publishSubplebbitEditOptions.address === subplebbitAddress, `accountsActions.publishSubplebbitEdit can't edit address of a remote subplebbit`);
+    assert(!publishSubplebbitEditOptions.address ||
+        publishSubplebbitEditOptions.address === subplebbitAddress, `accountsActions.publishSubplebbitEdit can't edit address of a remote subplebbit`);
     let createSubplebbitEditOptions = {
         timestamp: Math.floor(Date.now() / 1000),
         author: account.author,
@@ -744,10 +782,10 @@ export const publishSubplebbitEdit = (subplebbitAddress, publishSubplebbitEditOp
     let lastChallenge;
     const publishAndRetryFailedChallengeVerification = () => __awaiter(void 0, void 0, void 0, function* () {
         var _a;
-        subplebbitEdit.once('challenge', (challenge) => __awaiter(void 0, void 0, void 0, function* () {
+        subplebbitEdit.once("challenge", (challenge) => __awaiter(void 0, void 0, void 0, function* () {
             publishSubplebbitEditOptions.onChallenge(challenge, subplebbitEdit);
         }));
-        subplebbitEdit.once('challengeverification', (challengeVerification) => __awaiter(void 0, void 0, void 0, function* () {
+        subplebbitEdit.once("challengeverification", (challengeVerification) => __awaiter(void 0, void 0, void 0, function* () {
             publishSubplebbitEditOptions.onChallengeVerification(challengeVerification, subplebbitEdit);
             if (!challengeVerification.challengeSuccess && lastChallenge) {
                 // publish again automatically on fail
@@ -757,9 +795,9 @@ export const publishSubplebbitEdit = (subplebbitAddress, publishSubplebbitEditOp
                 publishAndRetryFailedChallengeVerification();
             }
         }));
-        subplebbitEdit.on('error', (error) => { var _a; return (_a = publishSubplebbitEditOptions.onError) === null || _a === void 0 ? void 0 : _a.call(publishSubplebbitEditOptions, error, subplebbitEdit); });
+        subplebbitEdit.on("error", (error) => { var _a; return (_a = publishSubplebbitEditOptions.onError) === null || _a === void 0 ? void 0 : _a.call(publishSubplebbitEditOptions, error, subplebbitEdit); });
         // TODO: add publishingState to account edits
-        subplebbitEdit.on('publishingstatechange', (publishingState) => { var _a; return (_a = publishSubplebbitEditOptions.onPublishingStateChange) === null || _a === void 0 ? void 0 : _a.call(publishSubplebbitEditOptions, publishingState); });
+        subplebbitEdit.on("publishingstatechange", (publishingState) => { var _a; return (_a = publishSubplebbitEditOptions.onPublishingStateChange) === null || _a === void 0 ? void 0 : _a.call(publishSubplebbitEditOptions, publishingState); });
         listeners.push(subplebbitEdit);
         try {
             // publish will resolve after the challenge request
@@ -771,7 +809,7 @@ export const publishSubplebbitEdit = (subplebbitAddress, publishSubplebbitEditOp
         }
     });
     publishAndRetryFailedChallengeVerification();
-    log('accountsActions.publishSubplebbitEdit', { createSubplebbitEditOptions });
+    log("accountsActions.publishSubplebbitEdit", { createSubplebbitEditOptions });
 });
 export const createSubplebbit = (createSubplebbitOptions, accountName) => __awaiter(void 0, void 0, void 0, function* () {
     const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
@@ -781,8 +819,10 @@ export const createSubplebbit = (createSubplebbitOptions, accountName) => __awai
         const accountId = accountNamesToAccountIds[accountName];
         account = accounts[accountId];
     }
-    const subplebbit = yield subplebbitsStore.getState().createSubplebbit(createSubplebbitOptions, account);
-    log('accountsActions.createSubplebbit', { createSubplebbitOptions, subplebbit });
+    const subplebbit = yield subplebbitsStore
+        .getState()
+        .createSubplebbit(createSubplebbitOptions, account);
+    log("accountsActions.createSubplebbit", { createSubplebbitOptions, subplebbit });
     return subplebbit;
 });
 export const deleteSubplebbit = (subplebbitAddress, accountName) => __awaiter(void 0, void 0, void 0, function* () {
@@ -794,5 +834,5 @@ export const deleteSubplebbit = (subplebbitAddress, accountName) => __awaiter(vo
         account = accounts[accountId];
     }
     yield subplebbitsStore.getState().deleteSubplebbit(subplebbitAddress, account);
-    log('accountsActions.deleteSubplebbit', { subplebbitAddress });
+    log("accountsActions.deleteSubplebbit", { subplebbitAddress });
 });

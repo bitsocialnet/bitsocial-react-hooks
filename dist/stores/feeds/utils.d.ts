@@ -1,4 +1,4 @@
-import { Feeds, FeedsOptions, Subplebbit, Subplebbits, Accounts, SubplebbitsPages, FeedsSubplebbitsPostCounts } from '../../types';
+import { Feeds, FeedsOptions, Subplebbit, Subplebbits, Accounts, SubplebbitsPages, FeedsSubplebbitsPostCounts } from "../../types";
 /**
  * Calculate the feeds from all the loaded subplebbit pages, filter and sort them
  */

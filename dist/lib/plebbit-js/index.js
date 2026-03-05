@@ -1,10 +1,10 @@
 // NOTE: don't import plebbit-js directly to be able to replace the implementation
-import PlebbitJsMockContent from './plebbit-js-mock-content';
-import Logger from '@plebbit/plebbit-logger';
+import PlebbitJsMockContent from "./plebbit-js-mock-content";
+import Logger from "@plebbit/plebbit-logger";
 // @ts-ignore
-import Plebbit from '@plebbit/plebbit-js';
-import assert from 'assert';
-const log = Logger('bitsocial-react-hooks:plebbit-js');
+import Plebbit from "@plebbit/plebbit-js";
+import assert from "assert";
+const log = Logger("bitsocial-react-hooks:plebbit-js");
 const PlebbitJs = {
     Plebbit: Plebbit,
 };
@@ -15,13 +15,13 @@ const PlebbitJs = {
  * desktop privileges in the Electron build.
  */
 export function setPlebbitJs(_Plebbit) {
-    assert(typeof _Plebbit === 'function', `setPlebbitJs invalid Plebbit argument '${_Plebbit}' not a function`);
+    assert(typeof _Plebbit === "function", `setPlebbitJs invalid Plebbit argument '${_Plebbit}' not a function`);
     PlebbitJs.Plebbit = _Plebbit;
-    log('setPlebbitJs', _Plebbit === null || _Plebbit === void 0 ? void 0 : _Plebbit.name);
+    log("setPlebbitJs", _Plebbit === null || _Plebbit === void 0 ? void 0 : _Plebbit.name);
 }
 export function restorePlebbitJs() {
     PlebbitJs.Plebbit = Plebbit;
-    log('restorePlebbitJs');
+    log("restorePlebbitJs");
 }
 try {
     // mock content for front-end dev with this env var

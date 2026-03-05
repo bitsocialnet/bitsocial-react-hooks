@@ -1,8 +1,8 @@
-import repliesStore from '../replies';
-import repliesCommentsStore from '../replies/replies-comments-store';
-import Logger from '@plebbit/plebbit-logger';
+import repliesStore from "../replies";
+import repliesCommentsStore from "../replies/replies-comments-store";
+import Logger from "@plebbit/plebbit-logger";
 // include replies pages store with feeds for debugging
-const log = Logger('bitsocial-react-hooks:replies:stores');
+const log = Logger("bitsocial-react-hooks:replies:stores");
 const getSortTypeFromPage = (page) => {
     var _a, _b, _c;
     for (const reply of page.comments || []) {
@@ -19,7 +19,7 @@ export const addChildrenRepliesFeedsToAddToStore = (page, comment) => {
     const feedsToAddToStore = [];
     // assume a page always uses the same sort type recursively
     // could be incorrect, but we don't care about bad pages implementations for now
-    const sortType = getSortTypeFromPage(page) || 'best';
+    const sortType = getSortTypeFromPage(page) || "best";
     const addRepliesFeedsToStoreRecursively = (page, feedOptions) => {
         var _a, _b;
         for (const reply of (page === null || page === void 0 ? void 0 : page.comments) || []) {
@@ -33,7 +33,7 @@ export const addChildrenRepliesFeedsToAddToStore = (page, comment) => {
     for (const feedOptions of feedsOptionsToAddToStore) {
         addRepliesFeedsToStoreRecursively(page, feedOptions);
     }
-    log('repliesPagesStore.addChildrenRepliesFeedsToAddToStore', {
+    log("repliesPagesStore.addChildrenRepliesFeedsToAddToStore", {
         feedsToAddToStore,
         commentsToAddToStoreOrUpdate,
     });

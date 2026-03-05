@@ -7,15 +7,18 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import assert from 'assert';
-import localForageLru from '../../lib/localforage-lru';
-const subplebbitsDatabase = localForageLru.createInstance({ name: 'plebbitReactHooks-subplebbits', size: 500 });
-import Logger from '@plebbit/plebbit-logger';
-const log = Logger('bitsocial-react-hooks:subplebbits:stores');
-import utils from '../../lib/utils';
-import createStore from 'zustand';
-import accountsStore from '../accounts';
-import subplebbitsPagesStore from '../subplebbits-pages';
+import assert from "assert";
+import localForageLru from "../../lib/localforage-lru";
+const subplebbitsDatabase = localForageLru.createInstance({
+    name: "plebbitReactHooks-subplebbits",
+    size: 500,
+});
+import Logger from "@plebbit/plebbit-logger";
+const log = Logger("bitsocial-react-hooks:subplebbits:stores");
+import utils from "../../lib/utils";
+import createStore from "zustand";
+import accountsStore from "../accounts";
+import subplebbitsPagesStore from "../subplebbits-pages";
 let plebbitGetSubplebbitPending = {};
 // reset all event listeners in between tests
 export const listeners = [];
@@ -25,8 +28,8 @@ const subplebbitsStore = createStore((setState, getState) => ({
     addSubplebbitToStore(subplebbitAddress, account) {
         return __awaiter(this, void 0, void 0, function* () {
             var _a;
-            assert(subplebbitAddress !== '' && typeof subplebbitAddress === 'string', `subplebbitsStore.addSubplebbitToStore invalid subplebbitAddress argument '${subplebbitAddress}'`);
-            assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.plebbit) === null || _a === void 0 ? void 0 : _a.getSubplebbit) === 'function', `subplebbitsStore.addSubplebbitToStore invalid account argument '${account}'`);
+            assert(subplebbitAddress !== "" && typeof subplebbitAddress === "string", `subplebbitsStore.addSubplebbitToStore invalid subplebbitAddress argument '${subplebbitAddress}'`);
+            assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.plebbit) === null || _a === void 0 ? void 0 : _a.getSubplebbit) === "function", `subplebbitsStore.addSubplebbitToStore invalid account argument '${account}'`);
             // subplebbit is in store already, do nothing
             const { subplebbits } = getState();
             let subplebbit = subplebbits[subplebbitAddress];
@@ -53,7 +56,10 @@ const subplebbitsStore = createStore((setState, getState) => ({
                     catch (e) {
                         fetchedAt = undefined;
                         // need to log this always or it could silently fail in production and cache never be used
-                        console.error('failed plebbit.createSubplebbit(cachedSubplebbit)', { cachedSubplebbit: subplebbitData, error: e });
+                        console.error("failed plebbit.createSubplebbit(cachedSubplebbit)", {
+                            cachedSubplebbit: subplebbitData,
+                            error: e,
+                        });
                     }
                 }
                 if (subplebbit) {
@@ -81,33 +87,44 @@ const subplebbitsStore = createStore((setState, getState) => ({
                         return Object.assign(Object.assign({}, state), { errors: Object.assign(Object.assign({}, state.errors), { [subplebbitAddress]: subplebbitErrors }) });
                     });
                 }
-                throw errorGettingSubplebbit || Error(`subplebbitsStore.addSubplebbitToStore failed getting subplebbit '${subplebbitAddress}'`);
+                throw (errorGettingSubplebbit ||
+                    Error(`subplebbitsStore.addSubplebbitToStore failed getting subplebbit '${subplebbitAddress}'`));
             }
             // success getting subplebbit
             const firstSubplebbitState = utils.clone(Object.assign(Object.assign({}, subplebbit), { fetchedAt }));
             yield subplebbitsDatabase.setItem(subplebbitAddress, firstSubplebbitState);
-            log('subplebbitsStore.addSubplebbitToStore', { subplebbitAddress, subplebbit, account });
-            setState((state) => ({ subplebbits: Object.assign(Object.assign({}, state.subplebbits), { [subplebbitAddress]: firstSubplebbitState }) }));
+            log("subplebbitsStore.addSubplebbitToStore", { subplebbitAddress, subplebbit, account });
+            setState((state) => ({
+                subplebbits: Object.assign(Object.assign({}, state.subplebbits), { [subplebbitAddress]: firstSubplebbitState }),
+            }));
             // the subplebbit has published new posts
-            subplebbit.on('update', (updatedSubplebbit) => __awaiter(this, void 0, void 0, function* () {
+            subplebbit.on("update", (updatedSubplebbit) => __awaiter(this, void 0, void 0, function* () {
                 updatedSubplebbit = utils.clone(updatedSubplebbit);
                 // add fetchedAt to be able to expire the cache
                 // NOTE: fetchedAt is undefined on owner subplebbits because never stale
                 updatedSubplebbit.fetchedAt = Math.floor(Date.now() / 1000);
                 yield subplebbitsDatabase.setItem(subplebbitAddress, updatedSubplebbit);
-                log('subplebbitsStore subplebbit update', { subplebbitAddress, updatedSubplebbit, account });
-                setState((state) => ({ subplebbits: Object.assign(Object.assign({}, state.subplebbits), { [subplebbitAddress]: updatedSubplebbit }) }));
+                log("subplebbitsStore subplebbit update", {
+                    subplebbitAddress,
+                    updatedSubplebbit,
+                    account,
+                });
+                setState((state) => ({
+                    subplebbits: Object.assign(Object.assign({}, state.subplebbits), { [subplebbitAddress]: updatedSubplebbit }),
+                }));
                 // if a subplebbit has a role with an account's address add it to the account.subplebbits
-                accountsStore.getState().accountsActionsInternal.addSubplebbitRoleToAccountsSubplebbits(updatedSubplebbit);
+                accountsStore
+                    .getState()
+                    .accountsActionsInternal.addSubplebbitRoleToAccountsSubplebbits(updatedSubplebbit);
                 // add page comments to subplebbitsPagesStore so they can be used in useComment
                 subplebbitsPagesStore.getState().addSubplebbitPageCommentsToStore(updatedSubplebbit);
             }));
-            subplebbit.on('updatingstatechange', (updatingState) => {
+            subplebbit.on("updatingstatechange", (updatingState) => {
                 setState((state) => ({
                     subplebbits: Object.assign(Object.assign({}, state.subplebbits), { [subplebbitAddress]: Object.assign(Object.assign({}, state.subplebbits[subplebbitAddress]), { updatingState }) }),
                 }));
             });
-            subplebbit.on('error', (error) => {
+            subplebbit.on("error", (error) => {
                 setState((state) => {
                     let subplebbitErrors = state.errors[subplebbitAddress] || [];
                     subplebbitErrors = [...subplebbitErrors, error];
@@ -131,32 +148,41 @@ const subplebbitsStore = createStore((setState, getState) => ({
                     else {
                         clients[clientType] = Object.assign(Object.assign({}, clients[clientType]), { [clientUrl]: client });
                     }
-                    return { subplebbits: Object.assign(Object.assign({}, state.subplebbits), { [subplebbitAddress]: Object.assign(Object.assign({}, state.subplebbits[subplebbitAddress]), { clients }) }) };
+                    return {
+                        subplebbits: Object.assign(Object.assign({}, state.subplebbits), { [subplebbitAddress]: Object.assign(Object.assign({}, state.subplebbits[subplebbitAddress]), { clients }) }),
+                    };
                 });
             });
             listeners.push(subplebbit);
-            subplebbit.update().catch((error) => log.trace('subplebbit.update error', { subplebbit, error }));
+            subplebbit
+                .update()
+                .catch((error) => log.trace("subplebbit.update error", { subplebbit, error }));
         });
     },
     // user is the owner of the subplebbit and can edit it locally
     editSubplebbit(subplebbitAddress, subplebbitEditOptions, account) {
         return __awaiter(this, void 0, void 0, function* () {
             var _a;
-            assert(subplebbitAddress !== '' && typeof subplebbitAddress === 'string', `subplebbitsStore.editSubplebbit invalid subplebbitAddress argument '${subplebbitAddress}'`);
-            assert(subplebbitEditOptions && typeof subplebbitEditOptions === 'object', `subplebbitsStore.editSubplebbit invalid subplebbitEditOptions argument '${subplebbitEditOptions}'`);
-            assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.plebbit) === null || _a === void 0 ? void 0 : _a.createSubplebbit) === 'function', `subplebbitsStore.editSubplebbit invalid account argument '${account}'`);
+            assert(subplebbitAddress !== "" && typeof subplebbitAddress === "string", `subplebbitsStore.editSubplebbit invalid subplebbitAddress argument '${subplebbitAddress}'`);
+            assert(subplebbitEditOptions && typeof subplebbitEditOptions === "object", `subplebbitsStore.editSubplebbit invalid subplebbitEditOptions argument '${subplebbitEditOptions}'`);
+            assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.plebbit) === null || _a === void 0 ? void 0 : _a.createSubplebbit) === "function", `subplebbitsStore.editSubplebbit invalid account argument '${account}'`);
             // if not added to store first, subplebbit.update() is never called
             yield getState().addSubplebbitToStore(subplebbitAddress, account);
             // `subplebbitAddress` is different from  `subplebbitEditOptions.address` when editing the subplebbit address
             const subplebbit = yield account.plebbit.createSubplebbit({ address: subplebbitAddress });
             // could fix some test issues
-            subplebbit.on('error', console.log);
+            subplebbit.on("error", console.log);
             yield subplebbit.edit(subplebbitEditOptions);
             const updatedSubplebbit = utils.clone(subplebbit);
             // edit db of both old and new subplebbit address to not break the UI
             yield subplebbitsDatabase.setItem(subplebbitAddress, updatedSubplebbit);
             yield subplebbitsDatabase.setItem(subplebbit.address, updatedSubplebbit);
-            log('subplebbitsStore.editSubplebbit', { subplebbitAddress, subplebbitEditOptions, subplebbit, account });
+            log("subplebbitsStore.editSubplebbit", {
+                subplebbitAddress,
+                subplebbitEditOptions,
+                subplebbit,
+                account,
+            });
             setState((state) => ({
                 subplebbits: Object.assign(Object.assign({}, state.subplebbits), { 
                     // edit react state of both old and new subplebbit address to not break the UI
@@ -168,19 +194,21 @@ const subplebbitsStore = createStore((setState, getState) => ({
     createSubplebbit(createSubplebbitOptions, account) {
         return __awaiter(this, void 0, void 0, function* () {
             var _a;
-            assert(!createSubplebbitOptions || typeof createSubplebbitOptions === 'object', `subplebbitsStore.createSubplebbit invalid createSubplebbitOptions argument '${createSubplebbitOptions}'`);
+            assert(!createSubplebbitOptions || typeof createSubplebbitOptions === "object", `subplebbitsStore.createSubplebbit invalid createSubplebbitOptions argument '${createSubplebbitOptions}'`);
             if (!(createSubplebbitOptions === null || createSubplebbitOptions === void 0 ? void 0 : createSubplebbitOptions.signer)) {
                 assert(!(createSubplebbitOptions === null || createSubplebbitOptions === void 0 ? void 0 : createSubplebbitOptions.address), `subplebbitsStore.createSubplebbit createSubplebbitOptions.address '${createSubplebbitOptions === null || createSubplebbitOptions === void 0 ? void 0 : createSubplebbitOptions.address}' must be undefined to create a subplebbit`);
             }
-            assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.plebbit) === null || _a === void 0 ? void 0 : _a.createSubplebbit) === 'function', `subplebbitsStore.createSubplebbit invalid account argument '${account}'`);
+            assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.plebbit) === null || _a === void 0 ? void 0 : _a.createSubplebbit) === "function", `subplebbitsStore.createSubplebbit invalid account argument '${account}'`);
             const subplebbit = yield account.plebbit.createSubplebbit(createSubplebbitOptions);
             // could fix some test issues
-            subplebbit.on('error', console.log);
+            subplebbit.on("error", console.log);
             // if not added to store first, subplebbit.update() is never called
             yield getState().addSubplebbitToStore(subplebbit.address, account);
             yield subplebbitsDatabase.setItem(subplebbit.address, utils.clone(subplebbit));
-            log('subplebbitsStore.createSubplebbit', { createSubplebbitOptions, subplebbit, account });
-            setState((state) => ({ subplebbits: Object.assign(Object.assign({}, state.subplebbits), { [subplebbit.address]: utils.clone(subplebbit) }) }));
+            log("subplebbitsStore.createSubplebbit", { createSubplebbitOptions, subplebbit, account });
+            setState((state) => ({
+                subplebbits: Object.assign(Object.assign({}, state.subplebbits), { [subplebbit.address]: utils.clone(subplebbit) }),
+            }));
             return subplebbit;
         });
     },
@@ -188,15 +216,17 @@ const subplebbitsStore = createStore((setState, getState) => ({
     deleteSubplebbit(subplebbitAddress, account) {
         return __awaiter(this, void 0, void 0, function* () {
             var _a;
-            assert(subplebbitAddress && typeof subplebbitAddress === 'string', `subplebbitsStore.deleteSubplebbit invalid subplebbitAddress argument '${subplebbitAddress}'`);
-            assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.plebbit) === null || _a === void 0 ? void 0 : _a.createSubplebbit) === 'function', `subplebbitsStore.deleteSubplebbit invalid account argument '${account}'`);
+            assert(subplebbitAddress && typeof subplebbitAddress === "string", `subplebbitsStore.deleteSubplebbit invalid subplebbitAddress argument '${subplebbitAddress}'`);
+            assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.plebbit) === null || _a === void 0 ? void 0 : _a.createSubplebbit) === "function", `subplebbitsStore.deleteSubplebbit invalid account argument '${account}'`);
             const subplebbit = yield account.plebbit.createSubplebbit({ address: subplebbitAddress });
             // could fix some test issues
-            subplebbit.on('error', console.log);
+            subplebbit.on("error", console.log);
             yield subplebbit.delete();
             yield subplebbitsDatabase.removeItem(subplebbitAddress);
-            log('subplebbitsStore.deleteSubplebbit', { subplebbitAddress, subplebbit, account });
-            setState((state) => ({ subplebbits: Object.assign(Object.assign({}, state.subplebbits), { [subplebbitAddress]: undefined }) }));
+            log("subplebbitsStore.deleteSubplebbit", { subplebbitAddress, subplebbit, account });
+            setState((state) => ({
+                subplebbits: Object.assign(Object.assign({}, state.subplebbits), { [subplebbitAddress]: undefined }),
+            }));
         });
     },
 }));
@@ -214,7 +244,7 @@ export const resetSubplebbitsStore = () => __awaiter(void 0, void 0, void 0, fun
 });
 // reset database and store in between tests
 export const resetSubplebbitsDatabaseAndStore = () => __awaiter(void 0, void 0, void 0, function* () {
-    yield localForageLru.createInstance({ name: 'plebbitReactHooks-subplebbits' }).clear();
+    yield localForageLru.createInstance({ name: "plebbitReactHooks-subplebbits" }).clear();
     yield resetSubplebbitsStore();
 });
 export default subplebbitsStore;

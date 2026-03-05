@@ -1,4 +1,4 @@
-import { Feeds, RepliesFeedOptions, RepliesFeedsOptions, Comment, Comments, Accounts, RepliesPages } from '../../types';
+import { Feeds, RepliesFeedOptions, RepliesFeedsOptions, Comment, Comments, Accounts, RepliesPages } from "../../types";
 /**
  * Calculate the feeds from all the loaded replies pages, filter and sort them
  */

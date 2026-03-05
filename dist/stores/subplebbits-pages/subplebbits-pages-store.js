@@ -7,16 +7,19 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import utils from '../../lib/utils';
-import Logger from '@plebbit/plebbit-logger';
+import utils from "../../lib/utils";
+import Logger from "@plebbit/plebbit-logger";
 // include subplebbits pages store with feeds for debugging
-const log = Logger('bitsocial-react-hooks:feeds:stores');
-import accountsStore from '../accounts';
-import subplebbitsStore from '../subplebbits';
-import localForageLru from '../../lib/localforage-lru';
-import createStore from 'zustand';
-import assert from 'assert';
-const subplebbitsPagesDatabase = localForageLru.createInstance({ name: 'plebbitReactHooks-subplebbitsPages', size: 500 });
+const log = Logger("bitsocial-react-hooks:feeds:stores");
+import accountsStore from "../accounts";
+import subplebbitsStore from "../subplebbits";
+import localForageLru from "../../lib/localforage-lru";
+import createStore from "zustand";
+import assert from "assert";
+const subplebbitsPagesDatabase = localForageLru.createInstance({
+    name: "plebbitReactHooks-subplebbitsPages",
+    size: 500,
+});
 // reset all event listeners in between tests
 export const listeners = [];
 const subplebbitsPagesStore = createStore((setState, getState) => ({
@@ -25,16 +28,16 @@ const subplebbitsPagesStore = createStore((setState, getState) => ({
     comments: {},
     addNextSubplebbitPageToStore: (subplebbit, sortType, account, modQueue) => __awaiter(void 0, void 0, void 0, function* () {
         var _a, _b, _c;
-        assert((subplebbit === null || subplebbit === void 0 ? void 0 : subplebbit.address) && typeof (subplebbit === null || subplebbit === void 0 ? void 0 : subplebbit.address) === 'string', `subplebbitsPagesStore.addNextSubplebbitPageToStore subplebbit '${subplebbit}' invalid`);
-        assert(sortType && typeof sortType === 'string', `subplebbitsPagesStore.addNextSubplebbitPageToStore sortType '${sortType}' invalid`);
-        assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.plebbit) === null || _a === void 0 ? void 0 : _a.createSubplebbit) === 'function', `subplebbitsPagesStore.addNextSubplebbitPageToStore account '${account}' invalid`);
+        assert((subplebbit === null || subplebbit === void 0 ? void 0 : subplebbit.address) && typeof (subplebbit === null || subplebbit === void 0 ? void 0 : subplebbit.address) === "string", `subplebbitsPagesStore.addNextSubplebbitPageToStore subplebbit '${subplebbit}' invalid`);
+        assert(sortType && typeof sortType === "string", `subplebbitsPagesStore.addNextSubplebbitPageToStore sortType '${sortType}' invalid`);
+        assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.plebbit) === null || _a === void 0 ? void 0 : _a.createSubplebbit) === "function", `subplebbitsPagesStore.addNextSubplebbitPageToStore account '${account}' invalid`);
         assert(!modQueue || Array.isArray(modQueue), `subplebbitsPagesStore.addNextSubplebbitPageToStore modQueue '${modQueue}' invalid`);
-        let pageType = 'posts';
+        let pageType = "posts";
         if (modQueue === null || modQueue === void 0 ? void 0 : modQueue[0]) {
             // TODO: allow multiple modQueue at once, fow now only use first in array
             // TODO: fix 'sortType' is not accurate variable name when pageType is 'modQueue'
             sortType = modQueue[0];
-            pageType = 'modQueue';
+            pageType = "modQueue";
         }
         // check the preloaded posts on subplebbit.posts.pages first, then the subplebbit.posts.pageCids
         const subplebbitFirstPageCid = getSubplebbitFirstPageCid(subplebbit, sortType, pageType);
@@ -55,7 +58,11 @@ const subplebbitsPagesStore = createStore((setState, getState) => ({
             const nextCid = (_b = subplebbitPages[subplebbitPages.length - 1]) === null || _b === void 0 ? void 0 : _b.nextCid;
             // if last nextCid is undefined, reached end of pages
             if (!nextCid) {
-                log.trace('subplebbitsPagesStore.addNextSubplebbitPageToStore no more pages', { subplebbitAddress: subplebbit.address, sortType, account });
+                log.trace("subplebbitsPagesStore.addNextSubplebbitPageToStore no more pages", {
+                    subplebbitAddress: subplebbit.address,
+                    sortType,
+                    account,
+                });
                 return;
             }
             pageCidToAdd = nextCid;
@@ -68,7 +75,11 @@ const subplebbitsPagesStore = createStore((setState, getState) => ({
         let page;
         try {
             page = yield fetchPage(pageCidToAdd, subplebbit.address, account, pageType);
-            log.trace('subplebbitsPagesStore.addNextSubplebbitPageToStore subplebbit.posts.getPage', { pageCid: pageCidToAdd, subplebbitAddress: subplebbit.address, account });
+            log.trace("subplebbitsPagesStore.addNextSubplebbitPageToStore subplebbit.posts.getPage", {
+                pageCid: pageCidToAdd,
+                subplebbitAddress: subplebbit.address,
+                account,
+            });
         }
         catch (e) {
             throw e;
@@ -99,7 +110,13 @@ const subplebbitsPagesStore = createStore((setState, getState) => ({
             }
             return newState;
         });
-        log('subplebbitsPagesStore.addNextSubplebbitPageToStore', { pageCid: pageCidToAdd, subplebbitAddress: subplebbit.address, sortType, page, account });
+        log("subplebbitsPagesStore.addNextSubplebbitPageToStore", {
+            pageCid: pageCidToAdd,
+            subplebbitAddress: subplebbit.address,
+            sortType,
+            page,
+            account,
+        });
         // when publishing a comment, you don't yet know its CID
         // so when a new comment is fetched, check to see if it's your own
         // comment, and if yes, add the CID to your account comments database
@@ -107,7 +124,7 @@ const subplebbitsPagesStore = createStore((setState, getState) => ({
             accountsStore
                 .getState()
                 .accountsActionsInternal.addCidToAccountComment(comment)
-                .catch((error) => log.error('subplebbitsPagesStore.addNextSubplebbitPageToStore addCidToAccountComment error', { comment, error }));
+                .catch((error) => log.error("subplebbitsPagesStore.addNextSubplebbitPageToStore addCidToAccountComment error", { comment, error }));
         }
     }),
     // subplebbits contain preloaded pages, those page comments must be added separately
@@ -134,7 +151,7 @@ const subplebbitsPagesStore = createStore((setState, getState) => ({
         setState(({ comments }) => {
             return { comments: Object.assign(Object.assign({}, comments), newComments) };
         });
-        log('subplebbitsPagesStore.addSubplebbitPageCommentsToStore', { subplebbit, newComments });
+        log("subplebbitsPagesStore.addSubplebbitPageCommentsToStore", { subplebbit, newComments });
     },
 }));
 // set clients states on subplebbits store so the frontend can display it, dont persist in db because a reload cancels updating
@@ -164,7 +181,9 @@ const fetchPage = (pageCid, subplebbitAddress, account, pageType) => __awaiter(v
         return cachedSubplebbitPage;
     }
     if (!fetchPageSubplebbits[subplebbitAddress]) {
-        fetchPageSubplebbits[subplebbitAddress] = yield account.plebbit.createSubplebbit({ address: subplebbitAddress });
+        fetchPageSubplebbits[subplebbitAddress] = yield account.plebbit.createSubplebbit({
+            address: subplebbitAddress,
+        });
         // set clients states on subplebbits store so the frontend can display it
         utils.pageClientsOnStateChange((_a = fetchPageSubplebbits[subplebbitAddress][pageType]) === null || _a === void 0 ? void 0 : _a.clients, onSubplebbitPostsClientsStateChange(subplebbitAddress));
     }
@@ -179,7 +198,7 @@ const fetchPage = (pageCid, subplebbitAddress, account, pageType) => __awaiter(v
  */
 export const getSubplebbitPages = (subplebbit, sortType, subplebbitsPages, pageType) => {
     var _a;
-    assert(subplebbitsPages && typeof subplebbitsPages === 'object', `getSubplebbitPages subplebbitsPages '${subplebbitsPages}' invalid`);
+    assert(subplebbitsPages && typeof subplebbitsPages === "object", `getSubplebbitPages subplebbitsPages '${subplebbitsPages}' invalid`);
     const pages = [];
     const firstPageCid = getSubplebbitFirstPageCid(subplebbit, sortType, pageType);
     // subplebbit has no pages
@@ -203,10 +222,10 @@ export const getSubplebbitPages = (subplebbit, sortType, subplebbitsPages, pageT
         pages.push(subplebbitPage);
     }
 };
-export const getSubplebbitFirstPageCid = (subplebbit, sortType, pageType = 'posts') => {
+export const getSubplebbitFirstPageCid = (subplebbit, sortType, pageType = "posts") => {
     var _a, _b, _c, _d, _e, _f, _g, _h;
     assert(subplebbit === null || subplebbit === void 0 ? void 0 : subplebbit.address, `getSubplebbitFirstPageCid subplebbit '${subplebbit}' invalid`);
-    assert(sortType && typeof sortType === 'string', `getSubplebbitFirstPageCid sortType '${sortType}' invalid`);
+    assert(sortType && typeof sortType === "string", `getSubplebbitFirstPageCid sortType '${sortType}' invalid`);
     // subplebbit has preloaded posts for sort type
     if ((_c = (_b = (_a = subplebbit[pageType]) === null || _a === void 0 ? void 0 : _a.pages) === null || _b === void 0 ? void 0 : _b[sortType]) === null || _c === void 0 ? void 0 : _c.comments) {
         return (_f = (_e = (_d = subplebbit[pageType]) === null || _d === void 0 ? void 0 : _d.pages) === null || _e === void 0 ? void 0 : _e[sortType]) === null || _f === void 0 ? void 0 : _f.nextCid;
@@ -229,7 +248,7 @@ export const resetSubplebbitsPagesStore = () => __awaiter(void 0, void 0, void 0
 });
 // reset database and store in between tests
 export const resetSubplebbitsPagesDatabaseAndStore = () => __awaiter(void 0, void 0, void 0, function* () {
-    yield localForageLru.createInstance({ name: 'plebbitReactHooks-subplebbitsPages' }).clear();
+    yield localForageLru.createInstance({ name: "plebbitReactHooks-subplebbitsPages" }).clear();
     yield resetSubplebbitsPagesStore();
 });
 export default subplebbitsPagesStore;

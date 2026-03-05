@@ -1,4 +1,4 @@
-import { AccountNamesToAccountIds, Accounts, AccountsVotes, AccountsEdits, AccountsComments, AccountsCommentsReplies, CommentCidsToAccountsComments } from '../../types';
+import { AccountNamesToAccountIds, Accounts, AccountsVotes, AccountsEdits, AccountsComments, AccountsCommentsReplies, CommentCidsToAccountsComments } from "../../types";
 export declare const listeners: any;
 type AccountsState = {
     accounts: Accounts;

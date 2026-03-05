@@ -7,14 +7,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import localForageLru from '../../lib/localforage-lru';
-const commentsDatabase = localForageLru.createInstance({ name: 'plebbitReactHooks-comments', size: 5000 });
-import Logger from '@plebbit/plebbit-logger';
-const log = Logger('bitsocial-react-hooks:comments:stores');
-import utils from '../../lib/utils';
-import createStore from 'zustand';
-import accountsStore from '../accounts';
-import repliesPagesStore from '../replies-pages';
+import localForageLru from "../../lib/localforage-lru";
+const commentsDatabase = localForageLru.createInstance({
+    name: "plebbitReactHooks-comments",
+    size: 5000,
+});
+import Logger from "@plebbit/plebbit-logger";
+const log = Logger("bitsocial-react-hooks:comments:stores");
+import utils from "../../lib/utils";
+import createStore from "zustand";
+import accountsStore from "../accounts";
+import repliesPagesStore from "../replies-pages";
 let plebbitGetCommentPending = {};
 // reset all event listeners in between tests
 export const listeners = [];
@@ -42,8 +45,10 @@ const commentsStore = createStore((setState, getState) => ({
                     comment = yield account.plebbit.createComment({ cid: commentCid });
                     yield commentsDatabase.setItem(commentCid, utils.clone(comment));
                 }
-                log('commentsStore.addCommentToStore', { commentCid, comment, account });
-                setState((state) => ({ comments: Object.assign(Object.assign({}, state.comments), { [commentCid]: utils.clone(comment) }) }));
+                log("commentsStore.addCommentToStore", { commentCid, comment, account });
+                setState((state) => ({
+                    comments: Object.assign(Object.assign({}, state.comments), { [commentCid]: utils.clone(comment) }),
+                }));
             }
             catch (e) {
                 setState((state) => {
@@ -57,20 +62,22 @@ const commentsStore = createStore((setState, getState) => ({
                 plebbitGetCommentPending[commentCid + account.id] = false;
             }
             // the comment is still missing up to date mutable data like upvotes, edits, replies, etc
-            comment === null || comment === void 0 ? void 0 : comment.on('update', (updatedComment) => __awaiter(this, void 0, void 0, function* () {
+            comment === null || comment === void 0 ? void 0 : comment.on("update", (updatedComment) => __awaiter(this, void 0, void 0, function* () {
                 updatedComment = utils.clone(updatedComment);
                 yield commentsDatabase.setItem(commentCid, updatedComment);
-                log('commentsStore comment update', { commentCid, updatedComment, account });
-                setState((state) => ({ comments: Object.assign(Object.assign({}, state.comments), { [commentCid]: updatedComment }) }));
+                log("commentsStore comment update", { commentCid, updatedComment, account });
+                setState((state) => ({
+                    comments: Object.assign(Object.assign({}, state.comments), { [commentCid]: updatedComment }),
+                }));
                 // add comment replies pages to repliesPagesStore so they can be used in useComment
                 repliesPagesStore.getState().addRepliesPageCommentsToStore(comment);
             }));
-            comment === null || comment === void 0 ? void 0 : comment.on('updatingstatechange', (updatingState) => {
+            comment === null || comment === void 0 ? void 0 : comment.on("updatingstatechange", (updatingState) => {
                 setState((state) => ({
                     comments: Object.assign(Object.assign({}, state.comments), { [commentCid]: Object.assign(Object.assign({}, state.comments[commentCid]), { updatingState }) }),
                 }));
             });
-            comment === null || comment === void 0 ? void 0 : comment.on('error', (error) => {
+            comment === null || comment === void 0 ? void 0 : comment.on("error", (error) => {
                 setState((state) => {
                     let commentErrors = state.errors[commentCid] || [];
                     commentErrors = [...commentErrors, error];
@@ -94,7 +101,9 @@ const commentsStore = createStore((setState, getState) => ({
                     else {
                         clients[clientType] = Object.assign(Object.assign({}, clients[clientType]), { [clientUrl]: client });
                     }
-                    return { comments: Object.assign(Object.assign({}, state.comments), { [commentCid]: Object.assign(Object.assign({}, state.comments[commentCid]), { clients }) }) };
+                    return {
+                        comments: Object.assign(Object.assign({}, state.comments), { [commentCid]: Object.assign(Object.assign({}, state.comments[commentCid]), { clients }) }),
+                    };
                 });
             });
             // when publishing a comment, you don't yet know its CID
@@ -103,13 +112,13 @@ const commentsStore = createStore((setState, getState) => ({
             // if comment.timestamp isn't defined, it means the next update will contain the timestamp and author
             // which is used in addCidToAccountComment
             if (!(comment === null || comment === void 0 ? void 0 : comment.timestamp)) {
-                comment === null || comment === void 0 ? void 0 : comment.once('update', () => accountsStore
+                comment === null || comment === void 0 ? void 0 : comment.once("update", () => accountsStore
                     .getState()
                     .accountsActionsInternal.addCidToAccountComment(comment)
-                    .catch((error) => log.error('accountsActionsInternal.addCidToAccountComment error', { comment, error })));
+                    .catch((error) => log.error("accountsActionsInternal.addCidToAccountComment error", { comment, error })));
             }
             listeners.push(comment);
-            comment === null || comment === void 0 ? void 0 : comment.update().catch((error) => log.trace('comment.update error', { comment, error }));
+            comment === null || comment === void 0 ? void 0 : comment.update().catch((error) => log.trace("comment.update error", { comment, error }));
         });
     },
 }));
@@ -124,7 +133,10 @@ const getCommentFromDatabase = (commentCid, account) => __awaiter(void 0, void 0
     }
     catch (e) {
         // need to log this always or it could silently fail in production and cache never be used
-        console.error('failed plebbit.createComment(cachedComment)', { cachedComment: commentData, error: e });
+        console.error("failed plebbit.createComment(cachedComment)", {
+            cachedComment: commentData,
+            error: e,
+        });
     }
 });
 // reset store in between tests
@@ -141,7 +153,7 @@ export const resetCommentsStore = () => __awaiter(void 0, void 0, void 0, functi
 });
 // reset database and store in between tests
 export const resetCommentsDatabaseAndStore = () => __awaiter(void 0, void 0, void 0, function* () {
-    yield localForageLru.createInstance({ name: 'plebbitReactHooks-comments' }).clear();
+    yield localForageLru.createInstance({ name: "plebbitReactHooks-comments" }).clear();
     yield resetCommentsStore();
 });
 export default commentsStore;

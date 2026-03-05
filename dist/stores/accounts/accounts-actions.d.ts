@@ -1,4 +1,4 @@
-import { Account, PublishCommentOptions, PublishVoteOptions, PublishCommentEditOptions, PublishCommentModerationOptions, PublishSubplebbitEditOptions, CreateSubplebbitOptions } from '../../types';
+import { Account, PublishCommentOptions, PublishVoteOptions, PublishCommentEditOptions, PublishCommentModerationOptions, PublishSubplebbitEditOptions, CreateSubplebbitOptions } from "../../types";
 export declare const createAccount: (accountName?: string) => Promise<void>;
 export declare const deleteAccount: (accountName?: string) => Promise<void>;
 export declare const setActiveAccount: (accountName: string) => Promise<void>;

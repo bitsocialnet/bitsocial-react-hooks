@@ -7,13 +7,13 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import localForageLru from './localforage-lru';
+import localForageLru from "./localforage-lru";
 try {
     // for debugging without caching
     if (process.env.REACT_APP_PLEBBIT_REACT_HOOKS_NO_CACHE) {
         // @ts-ignore
         localForageLru.createInstance = () => {
-            console.warn('@bitsocialhq/bitsocial-react-hooks cache is disabled for testing');
+            console.warn("@bitsocialhq/bitsocial-react-hooks cache is disabled for testing");
             return {
                 getItem: function (key) {
                     return __awaiter(this, void 0, void 0, function* () { });
