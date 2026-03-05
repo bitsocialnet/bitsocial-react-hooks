@@ -391,7 +391,7 @@ const publishCommentOptions = {
   onError
 }
 
-const {index, state, publishComment} = usePublishComment(publishCommentOptions)
+const {index, state, publishComment, abandonPublish} = usePublishComment(publishCommentOptions)
 
 // create post
 await publishComment()
@@ -410,6 +410,10 @@ if (index !== undefined) {
   // after accountComment.cid gets defined, it means the comment was published successfully
   // it is recommended to immediately redirect to `/p/${accountComment.subplebbitAddress}/c/${useAccountComment.cid}`
 }
+
+// if the user closes the challenge modal and wants to cancel publishing:
+await abandonPublish()
+// the pending local account comment is removed from accountComments
 
 // reply to a post or comment
 const publishReplyOptions = {
@@ -437,7 +441,7 @@ const publishCommentOptions = {
   subplebbitAddress: '12D3KooW...',
 }
 
-const {index, state, publishComment, challenge, challengeVerification, publishChallengeAnswers, error} = usePublishComment(publishCommentOptions)
+const {index, state, publishComment, challenge, challengeVerification, publishChallengeAnswers, abandonPublish, error} = usePublishComment(publishCommentOptions)
 
 if (challenge) {
   // display challenges to user and call publishChallengeAnswers(challengeAnswers)
@@ -450,6 +454,11 @@ if (challengeVerification) {
 
 if (error) {
   // display error to user
+}
+
+// if the user closes your challenge modal:
+if (challenge && challengeModalClosedByUser) {
+  await abandonPublish()
 }
 
 // after publishComment is called, the account comment index gets defined
@@ -599,12 +608,13 @@ if (editedCommentState === 'failed') {
 
 #### Delete a comment
 
-You can remove a comment from your local account in two ways:
+You can remove comments from your local account database (local JSON export / IndexedDB state) in two ways.
+This only removes local account history entries; it does not delete already-published network comments.
 
 **1. Abandon a pending publish** — if you just published and want to cancel before it propagates:
 
 ```jsx
-const {index, publishComment, abandonPublish} = usePublishComment(publishCommentOptions)
+const {publishComment, abandonPublish} = usePublishComment(publishCommentOptions)
 
 await publishComment()
 // User changes mind — abandon the pending comment
@@ -615,20 +625,34 @@ await abandonPublish()
 **2. Delete by index or CID** — remove any of your comments (pending or published):
 
 ```jsx
-import {deleteComment, useAccountComment, useAccountComments} from '@bitsocialhq/bitsocial-react-hooks'
+import {deleteComment, useAccountComments} from '@bitsocialhq/bitsocial-react-hooks'
 
 // By account comment index (from usePublishComment or useAccountComment)
-const {index} = usePublishComment(publishCommentOptions)
+const {index, publishComment} = usePublishComment(publishCommentOptions)
 await publishComment()
-await deleteComment(index, accountName)
+await deleteComment(index)
 
 // By comment CID (from useAccountComments or useAccountComment)
 const {accountComments} = useAccountComments()
 const accountComment = accountComments[0]
-await deleteComment(accountComment.cid, accountName)
+await deleteComment(accountComment.cid)
 ```
 
 > **Note:** `accountComment.index` can change after deletions. If you delete a comment, indices of comments after it may shift. Prefer using `commentCid` when you need a stable identifier, or re-fetch `accountComments` after deletions.
+
+**Common cleanup pattern (remove failed UI clutter):**
+
+```jsx
+import {deleteComment, useAccountComments} from '@bitsocialhq/bitsocial-react-hooks'
+
+const {accountComments} = useAccountComments()
+const failedComments = accountComments.filter((comment) => comment.state === 'failed')
+
+for (const failedComment of failedComments) {
+  // failed pending comments may not have a cid yet, so fallback to index
+  await deleteComment(failedComment.cid || failedComment.index)
+}
+```
 
 #### Subscribe to a subplebbit
 
