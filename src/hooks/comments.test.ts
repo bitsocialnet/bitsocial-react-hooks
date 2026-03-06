@@ -1,23 +1,13 @@
 import { act } from "@testing-library/react";
 import testUtils, { renderHook } from "../lib/test-utils";
-import { useComment, useComments, useReplies, useValidateComment, setPlebbitJs } from "..";
+import { useComment, useComments, useValidateComment, setPlebbitJs } from "..";
 import { getCommentFreshness, preferFresher } from "./comments";
 import * as accountsHooks from "./accounts";
 import commentsStore from "../stores/comments";
-import repliesCommentsStore from "../stores/replies/replies-comments-store";
 import subplebbitsPagesStore from "../stores/subplebbits-pages";
 import accountsStore from "../stores/accounts";
-import PlebbitJsMock, {
-  Plebbit,
-  Comment,
-  Pages,
-  simulateLoadingTime,
-} from "../lib/plebbit-js/plebbit-js-mock";
-import utils from "../lib/utils";
-import repliesStore, { defaultRepliesPerPage as repliesPerPage } from "../stores/replies";
+import PlebbitJsMock, { Plebbit, Comment, Pages } from "../lib/plebbit-js/plebbit-js-mock";
 import repliesPagesStore from "../stores/replies-pages";
-
-const plebbitJsMockRepliesPageLength = 100;
 
 describe("comments", () => {
   beforeAll(async () => {
@@ -127,9 +117,9 @@ describe("comments", () => {
     });
 
     test(`onlyIfCached: true doesn't add to store`, async () => {
-      let rendered, waitFor;
+      let rendered;
       rendered = renderHook<any, any>((options: any) => useComment(options));
-      waitFor = testUtils.createWaitFor(rendered);
+      testUtils.createWaitFor(rendered);
 
       rendered.rerender({ commentCid: "comment cid 1", onlyIfCached: true });
       // TODO: find better way to wait
@@ -138,7 +128,7 @@ describe("comments", () => {
       expect(commentsStore.getState().comments).toEqual({});
 
       rendered = renderHook<any, any>((options: any) => useComments(options));
-      waitFor = testUtils.createWaitFor(rendered);
+      testUtils.createWaitFor(rendered);
 
       rendered.rerender({ commentCids: ["comment cid 1", "comment cid 2"], onlyIfCached: true });
       expect(rendered.result.current.comments.length).toBe(2);
@@ -258,7 +248,7 @@ describe("comments", () => {
         updatedAt: Math.round(Date.now() / 1000) + 60, // 1 minute in the future to make sure it's more recent
       };
       act(() => {
-        subplebbitsPagesStore.setState((state: any) => ({
+        subplebbitsPagesStore.setState((_state: any) => ({
           comments: { "comment cid 1": subplebbitsPagesComment },
         }));
       });
@@ -293,7 +283,7 @@ describe("comments", () => {
         updatedAt: Math.round(Date.now() / 1000) + 60,
       };
       act(() => {
-        subplebbitsPagesStore.setState((state: any) => ({
+        subplebbitsPagesStore.setState((_state: any) => ({
           comments: { "comment cid 2": subplebbitsPagesComment },
         }));
       });
@@ -316,7 +306,7 @@ describe("comments", () => {
         subplebbitAddress: "subplebbit address 1",
       };
       act(() => {
-        subplebbitsPagesStore.setState((state: any) => ({
+        subplebbitsPagesStore.setState((_state: any) => ({
           comments: { [pendingCommentCid]: pendingComment },
         }));
       });
@@ -403,7 +393,7 @@ describe("comments", () => {
         updatedAt: undefined,
       };
       act(() => {
-        subplebbitsPagesStore.setState((state: any) => ({
+        subplebbitsPagesStore.setState((_state: any) => ({
           comments: { "comment cid 1": pageStoreComment },
         }));
       });

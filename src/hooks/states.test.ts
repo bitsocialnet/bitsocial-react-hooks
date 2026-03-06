@@ -12,9 +12,6 @@ import {
   usePublishComment,
   useAccount,
 } from "..";
-import commentsStore from "../stores/comments";
-import subplebbitsPagesStore from "../stores/subplebbits-pages";
-import utils from "../lib/utils";
 import EventEmitter from "events";
 import PlebbitJsMock, { Plebbit } from "../lib/plebbit-js/plebbit-js-mock";
 
@@ -440,7 +437,7 @@ class Pages {
       ],
     };
   }
-  async validatePage(page: any) {}
+  async validatePage(_page: any) {}
 }
 
 class Subplebbit extends EventEmitter {
@@ -1011,7 +1008,7 @@ describe("states", () => {
       expect(rendered.result.current.feed.length).toEqual(9);
 
       // states contained resolving address (React 19 may batch past this intermediate state)
-      let resolvingAddress = false;
+      let _resolvingAddress = false;
       for (const result of rendered.result.all) {
         if (result.states["resolving-address"]?.subplebbitAddresses.length === 3) {
           expect(result.states).toEqual({
@@ -1024,14 +1021,14 @@ describe("states", () => {
               clientUrls: ["https://ethchainprovider1.com", "https://ethchainprovider2.com"],
             },
           });
-          resolvingAddress = true;
+          _resolvingAddress = true;
           break;
         }
       }
       // React 19 may batch past intermediate state, so don't fail if not captured
 
       // states contained fetching ipns (React 19 may batch past this intermediate state)
-      let fetchingIpns = false;
+      let _fetchingIpns = false;
       for (const result of rendered.result.all) {
         if (result.states["fetching-ipns"]?.subplebbitAddresses.length === 3) {
           expect(result.states).toEqual({
@@ -1051,7 +1048,7 @@ describe("states", () => {
               ],
             },
           });
-          fetchingIpns = true;
+          _fetchingIpns = true;
           break;
         }
       }
@@ -1062,7 +1059,7 @@ describe("states", () => {
       expect(rendered.result.current.feed.length).toEqual(18);
 
       // states contained fetching ipfs page new (React 19 may batch past this intermediate state)
-      let fetchingIpfsPageNew = false;
+      let _fetchingIpfsPageNew = false;
       for (const result of rendered.result.all) {
         if (result.states["fetching-ipfs-page-new"]?.subplebbitAddresses.length === 3) {
           expect(result.states).toEqual({
@@ -1082,7 +1079,7 @@ describe("states", () => {
               ],
             },
           });
-          fetchingIpfsPageNew = true;
+          _fetchingIpfsPageNew = true;
           break;
         }
       }

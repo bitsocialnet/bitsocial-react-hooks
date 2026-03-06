@@ -4,13 +4,12 @@ import validator from "../lib/validator";
 import Logger from "@plebbit/plebbit-logger";
 const log = Logger("bitsocial-react-hooks:replies:hooks");
 import assert from "assert";
-import { Comment, UseRepliesOptions, UseRepliesResult, CommentsFilter } from "../types";
+import { UseRepliesOptions, UseRepliesResult } from "../types";
 import useRepliesStore, {
   RepliesState,
   feedOptionsToFeedName,
   getRepliesFirstPageSkipValidation,
 } from "../stores/replies";
-import shallow from "zustand/shallow";
 
 /** Pure helper to append an error to the errors array; used for deterministic coverage of reset/loadMore catch paths. */
 export function appendErrorToErrors(prevErrors: Error[], e: Error): Error[] {

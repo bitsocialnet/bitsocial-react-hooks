@@ -1,21 +1,14 @@
 import { act } from "@testing-library/react";
 import testUtils, { renderHook } from "../lib/test-utils";
-import { useComment, useComments, useReplies, useValidateComment, setPlebbitJs } from "..";
+import { useComment, useReplies, setPlebbitJs } from "..";
 import { appendErrorToErrors } from "./replies";
-import commentsStore from "../stores/comments";
 import repliesCommentsStore from "../stores/replies/replies-comments-store";
-import subplebbitsPagesStore from "../stores/subplebbits-pages";
 import PlebbitJsMock, {
-  Plebbit,
   Comment,
   Pages,
   simulateLoadingTime,
 } from "../lib/plebbit-js/plebbit-js-mock";
-import utils from "../lib/utils";
-import repliesStore, {
-  defaultRepliesPerPage as repliesPerPage,
-  feedOptionsToFeedName,
-} from "../stores/replies";
+import repliesStore, { defaultRepliesPerPage as repliesPerPage } from "../stores/replies";
 import repliesPagesStore from "../stores/replies-pages";
 import accountsStore from "../stores/accounts";
 import * as accountsActions from "../stores/accounts/accounts-actions";
@@ -123,7 +116,7 @@ describe("replies", () => {
         });
         try {
           await waitFor(() => rendered.result.current.replies?.length >= nextFeedLength);
-        } catch (e) {
+        } catch {
           // console.error('scrollOnePage failed:', e)
         }
       };
@@ -730,8 +723,7 @@ describe("replies", () => {
     beforeAll(async () => {
       pageToGet = Pages.prototype.pageToGet;
       Pages.prototype.pageToGet = function (pageCid) {
-        const pageCidSortType =
-          pageCid.match(/\b(best|newFlat|new|oldFlat|old|topAll)\b/)?.[1] || "best";
+        void (pageCid.match(/\b(best|newFlat|new|oldFlat|old|topAll)\b/)?.[1] || "best");
         const subplebbitAddress = this.subplebbit?.address || this.comment?.subplebbitAddress;
         const depth = (this.comment.depth || 0) + 1;
         const page: any = { comments: [] };
@@ -780,6 +772,7 @@ describe("replies", () => {
       Comment.prototype.simulateUpdateEvent = simulateUpdateEvent;
     });
 
+    // eslint-disable-next-line no-unused-vars -- scrollOnePage used by tests: scroll pages, if sort type topAll missing, hasMore false
     let rendered, waitFor, scrollOnePage;
 
     beforeEach(() => {
@@ -801,7 +794,7 @@ describe("replies", () => {
         });
         try {
           await waitFor(() => rendered.result.current.replies?.length >= nextFeedLength);
-        } catch (e) {
+        } catch {
           // console.error('scrollOnePage failed:', e)
         }
       };
@@ -934,7 +927,7 @@ describe("replies", () => {
       Pages.prototype.pageToGet = pageToGet;
     });
 
-    let rendered, waitFor, scrollOnePage;
+    let rendered, waitFor, _scrollOnePage;
     let _savedSUE: any;
 
     beforeEach(() => {
@@ -951,14 +944,14 @@ describe("replies", () => {
       });
 
       waitFor = testUtils.createWaitFor(rendered);
-      scrollOnePage = async () => {
+      _scrollOnePage = async () => {
         const nextFeedLength = (rendered.result.current.replies?.length || 0) + repliesPerPage;
         await act(async () => {
           await rendered.result.current.loadMore();
         });
         try {
           await waitFor(() => rendered.result.current.replies?.length >= nextFeedLength);
-        } catch (e) {
+        } catch {
           // console.error('scrollOnePage failed:', e)
         }
       };
@@ -1225,6 +1218,7 @@ describe("replies", () => {
       const simulateUpdateEvent = Comment.prototype.simulateUpdateEvent;
       let comment;
       Comment.prototype.simulateUpdateEvent = async function () {
+        // eslint-disable-next-line @typescript-eslint/no-this-alias -- test mock needs to capture comment reference
         comment = this;
         this.subplebbitAddress = "subplebbit address";
         this.replies.pages = { best: pages.shift() };
@@ -1394,7 +1388,7 @@ describe("replies", () => {
       Pages.prototype.pageToGet = pageToGet;
     });
 
-    let rendered, waitFor, scrollOnePage;
+    let rendered, waitFor, _scrollOnePage;
     let _savedSUE: any, _savedPTG: any;
 
     beforeEach(() => {
@@ -1426,14 +1420,14 @@ describe("replies", () => {
       });
 
       waitFor = testUtils.createWaitFor(rendered);
-      scrollOnePage = async () => {
+      _scrollOnePage = async () => {
         const nextFeedLength = (rendered.result.current.replies?.length || 0) + repliesPerPage;
         await act(async () => {
           await rendered.result.current.loadMore();
         });
         try {
           await waitFor(() => rendered.result.current.replies?.length >= nextFeedLength);
-        } catch (e) {
+        } catch {
           // console.error('scrollOnePage failed:', e)
         }
       };
@@ -2410,7 +2404,7 @@ describe("replies", () => {
         });
         try {
           await waitFor(() => current.replies?.length >= nextFeedLength);
-        } catch (e) {}
+        } catch {}
       };
 
       rendered.rerender({
@@ -2466,7 +2460,7 @@ describe("replies", () => {
         });
         try {
           await waitFor(() => current.replies?.length >= nextFeedLength);
-        } catch (e) {}
+        } catch {}
       };
 
       rendered.rerender({
@@ -2540,7 +2534,7 @@ describe("replies", () => {
         });
         try {
           await waitFor(() => current.replies?.length >= nextFeedLength);
-        } catch (e) {}
+        } catch {}
       };
 
       rendered.rerender({
@@ -2674,7 +2668,7 @@ describe("replies", () => {
         });
         try {
           await waitFor(() => current.replies?.length >= nextFeedLength);
-        } catch (e) {}
+        } catch {}
       };
 
       rendered.rerender({
@@ -2745,7 +2739,7 @@ describe("replies", () => {
         });
         try {
           await waitFor(() => current.replies?.length >= nextFeedLength);
-        } catch (e) {}
+        } catch {}
       };
 
       rendered.rerender({
@@ -2863,7 +2857,7 @@ describe("replies", () => {
         });
         try {
           await waitFor(() => current.replies?.length >= nextFeedLength);
-        } catch (e) {}
+        } catch {}
       };
 
       rendered.rerender({

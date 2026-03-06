@@ -7,7 +7,7 @@ const toString = (value: any) => {
   try {
     const string = JSON.stringify(value);
     return string;
-  } catch (e) {}
+  } catch {}
   return value;
 };
 

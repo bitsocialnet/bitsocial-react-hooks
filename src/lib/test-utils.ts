@@ -14,8 +14,6 @@ import {
 } from "../stores/authors-comments";
 import { resetRepliesStore, resetRepliesDatabaseAndStore } from "../stores/replies";
 import { resetRepliesPagesStore, resetRepliesPagesDatabaseAndStore } from "../stores/replies-pages";
-import localForageLru from "./localforage-lru";
-import localForage from "localforage";
 
 // Custom renderHook that sets result.current synchronously during render,
 // matching @testing-library/react-hooks behavior. RTL v16's renderHook defers
@@ -135,8 +133,8 @@ const createWaitFor = (rendered: any, waitForOptions?: WaitForOptions) => {
       // flush pending React/Zustand state updates before each check
       await tlAct(async () => {});
       try {
-        if (Boolean(waitForFunction())) return;
-      } catch (e) {
+        if (waitForFunction()) return;
+      } catch {
         // condition threw (e.g. accessing property on undefined), keep waiting
       }
       if (Date.now() - start >= timeout) {

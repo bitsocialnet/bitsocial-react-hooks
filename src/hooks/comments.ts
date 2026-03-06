@@ -10,7 +10,6 @@ import {
   UseCommentsResult,
   UseCommentOptions,
   UseCommentResult,
-  CommentsFilter,
   UseValidateCommentOptions,
   UseValidateCommentResult,
 } from "../types";
@@ -228,7 +227,7 @@ export function useValidateComment(options?: UseValidateCommentOptions): UseVali
   let { comment, validateReplies, accountName } = options ?? {};
   validateReplies = validateReplies ?? true;
   const [validated, setValidated] = useState<boolean | undefined>();
-  const [errors, setErrors] = useState([]);
+  const [errors] = useState([]);
   const account = useAccount({ accountName });
 
   useEffect(() => {

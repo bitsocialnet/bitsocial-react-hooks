@@ -1,7 +1,7 @@
 import { act } from "@testing-library/react";
 import testUtils, { renderHook } from "../lib/test-utils";
 import { usePlebbitRpcSettings, setPlebbitJs } from "..";
-import PlebbitJsMock, { Plebbit } from "../lib/plebbit-js/plebbit-js-mock";
+import PlebbitJsMock from "../lib/plebbit-js/plebbit-js-mock";
 import accountsStore from "../stores/accounts";
 import * as accountsHooks from "./accounts";
 

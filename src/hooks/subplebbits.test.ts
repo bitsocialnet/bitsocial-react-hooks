@@ -12,7 +12,6 @@ import subplebbitStore from "../stores/subplebbits";
 import subplebbitsPagesStore from "../stores/subplebbits-pages";
 import { useListSubplebbits, resolveSubplebbitAddress } from "./subplebbits";
 import PlebbitJsMock, { Plebbit, Subplebbit } from "../lib/plebbit-js/plebbit-js-mock";
-import utils from "../lib/utils";
 import * as chain from "../lib/chain";
 
 describe("subplebbits", () => {
@@ -136,9 +135,9 @@ describe("subplebbits", () => {
     });
 
     test(`onlyIfCached: true doesn't add to store`, async () => {
-      let rendered, waitFor;
+      let rendered;
       rendered = renderHook<any, any>((options: any) => useSubplebbit(options));
-      waitFor = testUtils.createWaitFor(rendered);
+      testUtils.createWaitFor(rendered);
 
       rendered.rerender({ subplebbitAddress: "subplebbit address 1", onlyIfCached: true });
       // TODO: find better way to wait
@@ -147,7 +146,7 @@ describe("subplebbits", () => {
       expect(subplebbitStore.getState().subplebbits).toEqual({});
 
       rendered = renderHook<any, any>((options: any) => useSubplebbits(options));
-      waitFor = testUtils.createWaitFor(rendered);
+      testUtils.createWaitFor(rendered);
 
       rendered.rerender({
         subplebbitAddresses: ["subplebbit address 1", "subplebbit address 2"],
@@ -336,7 +335,7 @@ describe("subplebbits", () => {
       addSubplebbitToStore: () => Promise.reject(new Error("addSubplebbit failed")),
     });
     const logSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const rendered = renderHook<any, any>(() =>
+    renderHook<any, any>(() =>
       useSubplebbits({ subplebbitAddresses: ["new-addr-1", "new-addr-2"] }),
     );
     await new Promise((r) => setTimeout(r, 100));
