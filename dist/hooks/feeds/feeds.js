@@ -14,6 +14,7 @@ import Logger from "@plebbit/plebbit-logger";
 const log = Logger("bitsocial-react-hooks:feeds:hooks");
 import assert from "assert";
 import useFeedsStore from "../../stores/feeds";
+import { addCommentModerationToComments } from "../../lib/utils/comment-moderation";
 import shallow from "zustand/shallow";
 /**
  * @param subplebbitAddresses - The addresses of the subplebbits, e.g. ['memes.eth', '12D3KooW...']
@@ -91,10 +92,13 @@ export function useFeed(options) {
         });
     }
     const state = !hasMore ? "succeeded" : "fetching-ipns";
+    const normalizedFeed = useMemo(() => addCommentModerationToComments(feed), [feed]);
+    const normalizedBufferedFeed = useMemo(() => addCommentModerationToComments(bufferedFeed), [bufferedFeed]);
+    const normalizedUpdatedFeed = useMemo(() => addCommentModerationToComments(updatedFeed), [updatedFeed]);
     return useMemo(() => ({
-        feed: feed || [],
-        bufferedFeed: bufferedFeed || [],
-        updatedFeed: updatedFeed || [],
+        feed: normalizedFeed,
+        bufferedFeed: normalizedBufferedFeed,
+        updatedFeed: normalizedUpdatedFeed,
         hasMore,
         subplebbitAddressesWithNewerPosts: subplebbitAddressesWithNewerPosts || [],
         loadMore,
@@ -102,7 +106,15 @@ export function useFeed(options) {
         state,
         error: errors[errors.length - 1],
         errors,
-    }), [feed, bufferedFeed, updatedFeed, feedName, hasMore, errors, subplebbitAddressesWithNewerPosts]);
+    }), [
+        normalizedFeed,
+        normalizedBufferedFeed,
+        normalizedUpdatedFeed,
+        feedName,
+        hasMore,
+        errors,
+        subplebbitAddressesWithNewerPosts,
+    ]);
 }
 /**
  * Use useBufferedFeeds to buffer multiple feeds in the background so what when
@@ -166,11 +178,10 @@ export function useBufferedFeeds(options) {
     }, [feedNames]);
     // only give to the user the buffered feeds he requested
     const bufferedFeedsArray = useMemo(() => {
-        var _a;
         const bufferedFeedsArray = [];
         for (const feedName of feedNames) {
             const key = feedName !== null && feedName !== void 0 ? feedName : "";
-            bufferedFeedsArray.push((_a = bufferedFeeds[key]) !== null && _a !== void 0 ? _a : []);
+            bufferedFeedsArray.push(addCommentModerationToComments(bufferedFeeds[key]));
         }
         return bufferedFeedsArray;
     }, [bufferedFeeds, feedNames]);

@@ -15,6 +15,7 @@ const log = Logger("bitsocial-react-hooks:accounts:hooks");
 import assert from "assert";
 import { useListSubplebbits, useSubplebbits } from "../subplebbits";
 import { useAccountsWithCalculatedProperties, useAccountWithCalculatedProperties, useCalculatedNotifications, } from "./utils";
+import { addCommentModeration } from "../../lib/utils/comment-moderation";
 import useInterval from "../utils/use-interval";
 /**
  * @param accountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, return
@@ -479,6 +480,7 @@ export function useEditedComment(options) {
         for (const propertyName in editedResult.succeededEdits) {
             editedResult.editedComment[propertyName] = editedResult.succeededEdits[propertyName];
         }
+        editedResult.editedComment = addCommentModeration(editedResult.editedComment);
         return editedResult;
     }, [comment, commentEdits]);
     return useMemo(() => (Object.assign(Object.assign({}, editedResult), { state: editedResult.state || initialState, error: undefined, errors: [] })), [editedResult, initialState]);

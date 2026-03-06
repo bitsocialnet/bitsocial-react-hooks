@@ -13,6 +13,7 @@ import validator from "../lib/validator";
 import Logger from "@plebbit/plebbit-logger";
 const log = Logger("bitsocial-react-hooks:replies:hooks");
 import assert from "assert";
+import { addCommentModerationToComments } from "../lib/utils/comment-moderation";
 import useRepliesStore, { feedOptionsToFeedName, getRepliesFirstPageSkipValidation, } from "../stores/replies";
 /** Pure helper to append an error to the errors array; used for deterministic coverage of reset/loadMore catch paths. */
 export function appendErrorToErrors(prevErrors, e) {
@@ -121,17 +122,27 @@ export function useReplies(options) {
         });
     }
     const state = !hasMore ? "succeeded" : "fetching";
+    const normalizedReplies = useMemo(() => addCommentModerationToComments(replies), [replies]);
+    const normalizedBufferedReplies = useMemo(() => addCommentModerationToComments(bufferedReplies), [bufferedReplies]);
+    const normalizedUpdatedReplies = useMemo(() => addCommentModerationToComments(updatedReplies), [updatedReplies]);
     return useMemo(() => ({
-        replies: replies || [],
-        bufferedReplies: bufferedReplies || [],
-        updatedReplies: updatedReplies || [],
+        replies: normalizedReplies,
+        bufferedReplies: normalizedBufferedReplies,
+        updatedReplies: normalizedUpdatedReplies,
         hasMore,
         loadMore,
         reset,
         state,
         error: errors[errors.length - 1],
         errors,
-    }), [replies, bufferedReplies, updatedReplies, repliesFeedName, hasMore, errors]);
+    }), [
+        normalizedReplies,
+        normalizedBufferedReplies,
+        normalizedUpdatedReplies,
+        repliesFeedName,
+        hasMore,
+        errors,
+    ]);
 }
 const emptyArray = [];
 const emptyFunction = () => __awaiter(void 0, void 0, void 0, function* () { });

@@ -7,6 +7,7 @@ import assert from "assert";
 import useCommentsStore from "../stores/comments";
 import useAccountsStore from "../stores/accounts";
 import { commentIsValid } from "../lib/utils";
+import { addCommentModeration, addCommentModerationToComments, } from "../lib/utils/comment-moderation";
 import useSubplebbitsPagesStore from "../stores/subplebbits-pages";
 import useRepliesPagesStore from "../stores/replies-pages";
 import shallow from "zustand/shallow";
@@ -66,6 +67,7 @@ export function useComment(options) {
     if (commentCid && commentFromStoreNotLoaded && accountComment) {
         comment = accountComment;
     }
+    comment = addCommentModeration(comment);
     let state = (comment === null || comment === void 0 ? void 0 : comment.updatingState) || "initializing";
     // force 'fetching-ipns' even if could be something else, so the frontend can use
     // the correct loading skeleton
@@ -146,14 +148,15 @@ export function useComments(options) {
         }
         return result;
     }, [commentsStoreComments, subplebbitsPagesComments]);
+    const normalizedComments = useMemo(() => addCommentModerationToComments(comments), [comments]);
     // succeed if no comments are undefined
-    const state = comments.indexOf(undefined) === -1 ? "succeeded" : "fetching-ipfs";
+    const state = normalizedComments.indexOf(undefined) === -1 ? "succeeded" : "fetching-ipfs";
     return useMemo(() => ({
-        comments,
+        comments: normalizedComments,
         state,
         error: undefined,
         errors: [],
-    }), [comments, commentCids === null || commentCids === void 0 ? void 0 : commentCids.toString()]);
+    }), [normalizedComments, commentCids === null || commentCids === void 0 ? void 0 : commentCids.toString()]);
 }
 export function useValidateComment(options) {
     assert(!options || typeof options === "object", `useValidateComment options argument '${options}' not an object`);
