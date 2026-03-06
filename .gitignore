@@ -16,6 +16,10 @@ test-karma-webpack
 dist/
 /dist/
 dist
+coverage/
+.nyc_output/
+**/coverage-final.json
+**/coverage-summary.json
 
 node_modules/
 packages/*/dist/
