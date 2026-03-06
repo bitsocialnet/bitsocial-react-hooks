@@ -122,10 +122,10 @@ const createWaitFor = (rendered, waitForOptions) => {
             // flush pending React/Zustand state updates before each check
             yield tlAct(() => __awaiter(void 0, void 0, void 0, function* () { }));
             try {
-                if (Boolean(waitForFunction()))
+                if (waitForFunction())
                     return;
             }
-            catch (e) {
+            catch (_a) {
                 // condition threw (e.g. accessing property on undefined), keep waiting
             }
             if (Date.now() - start >= timeout) {

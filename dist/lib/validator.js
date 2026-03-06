@@ -7,7 +7,7 @@ const toString = (value) => {
         const string = JSON.stringify(value);
         return string;
     }
-    catch (e) { }
+    catch (_a) { }
     return value;
 };
 export const validateAccountsActionsPublishCommentArguments = ({ publishCommentOptions, accountName, account, }) => {

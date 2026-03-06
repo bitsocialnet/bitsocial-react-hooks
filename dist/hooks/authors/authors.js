@@ -20,6 +20,16 @@ import useAuthorsCommentsStore from "../../stores/authors-comments";
 import PlebbitJs from "../../lib/plebbit-js";
 import QuickLRU from "quick-lru";
 export { setAuthorAvatarsWhitelistedTokenAddresses } from "./author-avatars";
+const cacheResolveAuthorAddressPromise = (address, promise) => {
+    resolveAuthorAddressPromises[address] = promise;
+    const clearCachedPromise = () => {
+        if (resolveAuthorAddressPromises[address] === promise) {
+            delete resolveAuthorAddressPromises[address];
+        }
+    };
+    void promise.then(clearCachedPromise, clearCachedPromise);
+    return promise;
+};
 /**
  * @param authorAddress - The address of the author
  * @param commentCid - The last known comment cid of the author (not possible to get an author without providing at least 1 comment cid)
@@ -237,9 +247,7 @@ export function useAuthorAddress(options) {
             if (existing)
                 return existing;
             log("useAuthorAddress plebbit.resolveAuthorAddress", { address: addr });
-            const promise = account.plebbit.resolveAuthorAddress({ address: addr });
-            resolveAuthorAddressPromises[addr] = promise;
-            return promise;
+            return cacheResolveAuthorAddressPromise(addr, account.plebbit.resolveAuthorAddress({ address: addr }));
         };
         const resolveAuthorAddress = () => __awaiter(this, void 0, void 0, function* () {
             const cached = resolvedAuthorAddressCache.get(addr);
@@ -340,10 +348,9 @@ export function useResolvedAuthorAddress(options) {
             return resolveAuthorAddressPromises[author === null || author === void 0 ? void 0 : author.address];
         }
         log("useResolvedAuthorAddress plebbit.resolveAuthorAddress", { address: author === null || author === void 0 ? void 0 : author.address });
-        resolveAuthorAddressPromises[author === null || author === void 0 ? void 0 : author.address] = account.plebbit.resolveAuthorAddress({
+        return cacheResolveAuthorAddressPromise(author === null || author === void 0 ? void 0 : author.address, account.plebbit.resolveAuthorAddress({
             address: author === null || author === void 0 ? void 0 : author.address,
-        });
-        return resolveAuthorAddressPromises[author === null || author === void 0 ? void 0 : author.address];
+        }));
     };
     const resolveAuthorAddress = () => __awaiter(this, void 0, void 0, function* () {
         const cached = resolvedAuthorAddressCache.get(author === null || author === void 0 ? void 0 : author.address);

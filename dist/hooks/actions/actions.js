@@ -200,7 +200,7 @@ export function usePublishComment(options) {
             setIndex(index);
         }
         catch (e) {
-            handlePublishErrorWhenAbandoned(activePublishRequestIdRef, requestId, e, setErrors, publishCommentOptions.onError);
+            handlePublishErrorWhenAbandoned(activePublishRequestIdRef, requestId, e, setErrors, originalOnError);
         }
     });
     const abandonPublish = () => __awaiter(this, void 0, void 0, function* () {
@@ -283,7 +283,7 @@ export function usePublishVote(options) {
             yield accountsActions.publishVote(publishVoteOptions, accountName);
         }
         catch (e) {
-            handlePublishVoteError(e, setErrors, publishVoteOptions.onError);
+            handlePublishVoteError(e, setErrors, originalOnError);
         }
     });
     return useMemo(() => ({
@@ -348,13 +348,12 @@ export function usePublishCommentEdit(options) {
         setPublishingState(publishingState);
     };
     const publishCommentEdit = () => __awaiter(this, void 0, void 0, function* () {
-        var _a;
         try {
             yield accountsActions.publishCommentEdit(publishCommentEditOptions, accountName);
         }
         catch (e) {
             setErrors((errors) => [...errors, e]);
-            (_a = publishCommentEditOptions.onError) === null || _a === void 0 ? void 0 : _a.call(publishCommentEditOptions, e);
+            originalOnError === null || originalOnError === void 0 ? void 0 : originalOnError(e);
         }
     });
     return useMemo(() => ({
@@ -419,13 +418,12 @@ export function usePublishCommentModeration(options) {
         setPublishingState(publishingState);
     };
     const publishCommentModeration = () => __awaiter(this, void 0, void 0, function* () {
-        var _a;
         try {
             yield accountsActions.publishCommentModeration(publishCommentModerationOptions, accountName);
         }
         catch (e) {
             setErrors((errors) => [...errors, e]);
-            (_a = publishCommentModerationOptions.onError) === null || _a === void 0 ? void 0 : _a.call(publishCommentModerationOptions, e);
+            originalOnError === null || originalOnError === void 0 ? void 0 : originalOnError(e);
         }
     });
     return useMemo(() => ({
@@ -490,13 +488,12 @@ export function usePublishSubplebbitEdit(options) {
         setPublishingState(publishingState);
     };
     const publishSubplebbitEdit = () => __awaiter(this, void 0, void 0, function* () {
-        var _a;
         try {
             yield accountsActions.publishSubplebbitEdit(subplebbitAddress, publishSubplebbitEditOptions, accountName);
         }
         catch (e) {
             setErrors((errors) => [...errors, e]);
-            (_a = publishSubplebbitEditOptions.onError) === null || _a === void 0 ? void 0 : _a.call(publishSubplebbitEditOptions, e);
+            originalOnError === null || originalOnError === void 0 ? void 0 : originalOnError(e);
         }
     });
     return useMemo(() => ({

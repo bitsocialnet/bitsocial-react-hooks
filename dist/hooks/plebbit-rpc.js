@@ -9,8 +9,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import { useState, useMemo, useEffect } from "react";
 import { useAccount } from "./accounts";
-import Logger from "@plebbit/plebbit-logger";
-const log = Logger("bitsocial-react-hooks:states:plebbit-rpc");
 import assert from "assert";
 /**
  * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
@@ -42,7 +40,7 @@ export function usePlebbitRpcSettings(options) {
             setState(rpcState);
         };
         const onRpcError = (e) => {
-            setErrors([...errors, e]);
+            setErrors((prevErrors) => [...prevErrors, e]);
         };
         rpcClient.on("settingschange", onRpcSettingsChange);
         rpcClient.on("statechange", onRpcStateChange);
@@ -65,14 +63,17 @@ export function usePlebbitRpcSettings(options) {
             setState("succeeded");
         }
         catch (e) {
-            setErrors([...errors, e]);
+            setErrors((prevErrors) => [...prevErrors, e]);
             setState("failed");
         }
         const rpcStateAfter = rpcClient.state;
         setTimeout(() => {
-            if (state !== rpcStateAfter && rpcStateAfter != null && rpcStateAfter !== "") {
-                setState(rpcStateAfter);
-            }
+            setState((prevState) => {
+                if (prevState !== rpcStateAfter && rpcStateAfter != null && rpcStateAfter !== "") {
+                    return rpcStateAfter;
+                }
+                return prevState;
+            });
         }, 10000);
     });
     return useMemo(() => ({

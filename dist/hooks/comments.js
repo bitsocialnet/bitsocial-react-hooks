@@ -160,7 +160,7 @@ export function useValidateComment(options) {
     let { comment, validateReplies, accountName } = options !== null && options !== void 0 ? options : {};
     validateReplies = validateReplies !== null && validateReplies !== void 0 ? validateReplies : true;
     const [validated, setValidated] = useState();
-    const [errors, setErrors] = useState([]);
+    const [errors] = useState([]);
     const account = useAccount({ accountName });
     useEffect(() => {
         if (!comment || !(account === null || account === void 0 ? void 0 : account.plebbit)) {

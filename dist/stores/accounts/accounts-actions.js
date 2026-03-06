@@ -32,14 +32,14 @@ const registerPublishSession = (accountId, index, comment) => {
     });
 };
 const abandonAndStopPublishSession = (accountId, index) => {
-    var _a;
+    var _a, _b;
     const key = getPublishSessionKey(accountId, index);
     abandonedPublishKeys.add(key);
     const session = activePublishSessions.get(key);
     if (!session)
         return;
     try {
-        const stop = (_a = session.comment) === null || _a === void 0 ? void 0 : _a.stop;
+        const stop = (_b = (_a = session.comment) === null || _a === void 0 ? void 0 : _a.stop) === null || _b === void 0 ? void 0 : _b.bind(session.comment);
         if (typeof stop === "function")
             stop();
     }

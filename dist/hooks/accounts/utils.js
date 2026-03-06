@@ -145,7 +145,9 @@ export const useAccountsWithCalculatedProperties = (accounts, accountsComments, 
             const account = Object.assign(Object.assign({}, accounts[accountId]), accountCalculatedProperties);
             if (account.author) {
                 const shortAddr = accountsShortAuthorAddresses[accountId];
-                account.author = Object.assign(Object.assign({}, account.author), { shortAddress: shortAddr });
+                if (shortAddr !== undefined || !account.author.shortAddress) {
+                    account.author = Object.assign(Object.assign({}, account.author), { shortAddress: shortAddr });
+                }
             }
             accountsWithCalculatedProperties[accountId] = account;
         }
