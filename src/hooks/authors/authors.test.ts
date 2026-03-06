@@ -194,6 +194,41 @@ describe("authors", () => {
       }
     });
 
+    test("useAuthorAddress retries after a cached rejection is cleared", async () => {
+      resetAuthorAddressCacheForTesting();
+      const cryptoName = "retry-after-reject.eth";
+      const signerAddr = comment.author.address;
+      let resolveCalls = 0;
+      let shouldReject = true;
+      const origResolve = Plebbit.prototype.resolveAuthorAddress;
+      Plebbit.prototype.resolveAuthorAddress = () => {
+        resolveCalls += 1;
+        return shouldReject
+          ? Promise.reject(new Error("resolve failed"))
+          : Promise.resolve(signerAddr);
+      };
+      try {
+        const commentWithCrypto = {
+          ...comment,
+          author: { ...comment.author, address: cryptoName },
+        };
+        const first = renderHook<any, any>((opts) => useAuthorAddress(opts));
+        first.rerender({ comment: commentWithCrypto });
+        await new Promise((r) => setTimeout(r, 150));
+        expect(resolveCalls).toBe(1);
+        first.unmount();
+
+        shouldReject = false;
+        const second = renderHook<any, any>((opts) => useAuthorAddress(opts));
+        const waitForSecond = testUtils.createWaitFor(second);
+        second.rerender({ comment: commentWithCrypto });
+        await waitForSecond(() => second.result.current.authorAddress === cryptoName);
+        expect(resolveCalls).toBe(2);
+      } finally {
+        Plebbit.prototype.resolveAuthorAddress = origResolve;
+      }
+    });
+
     test("useAuthorAddress first resolution with no cached promise (hits line 293)", async () => {
       resetAuthorAddressCacheForTesting();
       const cryptoName = "first-resolve-293.eth";
@@ -877,12 +912,15 @@ describe("authors", () => {
     test("useResolvedAuthorAddress handles resolve error", { timeout }, async () => {
       const origResolve = Plebbit.prototype.resolveAuthorAddress;
       Plebbit.prototype.resolveAuthorAddress = () => Promise.reject(new Error("resolution failed"));
-      const rendered = renderHook<any, any>((author) => useResolvedAuthorAddress({ author }));
-      const waitFor = testUtils.createWaitFor(rendered, { timeout: 20000 });
-      rendered.rerender({ address: "fail.eth" });
-      await waitFor(() => rendered.result.current.error !== undefined);
-      expect(rendered.result.current.error?.message).toBe("resolution failed");
-      Plebbit.prototype.resolveAuthorAddress = origResolve;
+      try {
+        const rendered = renderHook<any, any>((author) => useResolvedAuthorAddress({ author }));
+        const waitFor = testUtils.createWaitFor(rendered, { timeout: 20000 });
+        rendered.rerender({ address: "fail.eth" });
+        await waitFor(() => rendered.result.current.error !== undefined);
+        expect(rendered.result.current.error?.message).toBe("resolution failed");
+      } finally {
+        Plebbit.prototype.resolveAuthorAddress = origResolve;
+      }
     });
 
     test("useResolvedAuthorAddress cache default when undefined", () => {
@@ -897,23 +935,28 @@ describe("authors", () => {
       const addr = "cache-hit.eth";
       const resolved = "12D3KooWresolved";
       let resolveCalls = 0;
+      const origResolve = Plebbit.prototype.resolveAuthorAddress;
       Plebbit.prototype.resolveAuthorAddress = () => {
         resolveCalls++;
         return Promise.resolve(resolved);
       };
-      const r1 = renderHook<any, any>(() =>
-        useResolvedAuthorAddress({ author: { address: addr }, cache: true }),
-      );
-      const waitFor1 = testUtils.createWaitFor(r1, { timeout: 20000 });
-      await waitFor1(() => r1.result.current.resolvedAddress === resolved);
-      expect(resolveCalls).toBe(1);
-      r1.unmount();
-      const r2 = renderHook<any, any>(() =>
-        useResolvedAuthorAddress({ author: { address: addr }, cache: true }),
-      );
-      const waitFor2 = testUtils.createWaitFor(r2, { timeout: 20000 });
-      await waitFor2(() => r2.result.current.resolvedAddress === resolved);
-      expect(resolveCalls).toBe(1);
+      try {
+        const r1 = renderHook<any, any>(() =>
+          useResolvedAuthorAddress({ author: { address: addr }, cache: true }),
+        );
+        const waitFor1 = testUtils.createWaitFor(r1, { timeout: 20000 });
+        await waitFor1(() => r1.result.current.resolvedAddress === resolved);
+        expect(resolveCalls).toBe(1);
+        r1.unmount();
+        const r2 = renderHook<any, any>(() =>
+          useResolvedAuthorAddress({ author: { address: addr }, cache: true }),
+        );
+        const waitFor2 = testUtils.createWaitFor(r2, { timeout: 20000 });
+        await waitFor2(() => r2.result.current.resolvedAddress === resolved);
+        expect(resolveCalls).toBe(1);
+      } finally {
+        Plebbit.prototype.resolveAuthorAddress = origResolve;
+      }
     });
 
     test("useResolvedAuthorAddress uses cached path when resolveAuthorAddressPromises has entry", async () => {
@@ -921,23 +964,62 @@ describe("authors", () => {
       const addr = "cached-promise.eth";
       const resolved = "12D3KooWresolved";
       let resolveCalls = 0;
+      const origResolve = Plebbit.prototype.resolveAuthorAddress;
       Plebbit.prototype.resolveAuthorAddress = () => {
         resolveCalls++;
         return Promise.resolve(resolved);
       };
-      const r1 = renderHook<any, any>(() =>
-        useResolvedAuthorAddress({ author: { address: addr }, cache: true }),
-      );
-      const waitFor1 = testUtils.createWaitFor(r1, { timeout: 20000 });
-      r1.rerender();
-      await waitFor1(() => r1.result.current.resolvedAddress === resolved);
-      expect(resolveCalls).toBe(1);
-      const r2 = renderHook<any, any>(() =>
-        useResolvedAuthorAddress({ author: { address: addr }, cache: true }),
-      );
-      const waitFor2 = testUtils.createWaitFor(r2, { timeout: 20000 });
-      await waitFor2(() => r2.result.current.resolvedAddress === resolved);
-      expect(resolveCalls).toBe(1);
+      try {
+        const r1 = renderHook<any, any>(() =>
+          useResolvedAuthorAddress({ author: { address: addr }, cache: true }),
+        );
+        const waitFor1 = testUtils.createWaitFor(r1, { timeout: 20000 });
+        r1.rerender();
+        await waitFor1(() => r1.result.current.resolvedAddress === resolved);
+        expect(resolveCalls).toBe(1);
+        const r2 = renderHook<any, any>(() =>
+          useResolvedAuthorAddress({ author: { address: addr }, cache: true }),
+        );
+        const waitFor2 = testUtils.createWaitFor(r2, { timeout: 20000 });
+        await waitFor2(() => r2.result.current.resolvedAddress === resolved);
+        expect(resolveCalls).toBe(1);
+      } finally {
+        Plebbit.prototype.resolveAuthorAddress = origResolve;
+      }
+    });
+
+    test("useResolvedAuthorAddress retries after a cached rejection is cleared", async () => {
+      resetAuthorAddressCacheForTesting();
+      const addr = "retry-after-reject.eth";
+      const resolved = "12D3KooWresolved";
+      let resolveCalls = 0;
+      let shouldReject = true;
+      const origResolve = Plebbit.prototype.resolveAuthorAddress;
+      Plebbit.prototype.resolveAuthorAddress = () => {
+        resolveCalls++;
+        return shouldReject
+          ? Promise.reject(new Error("resolution failed"))
+          : Promise.resolve(resolved);
+      };
+      try {
+        const first = renderHook<any, any>(() =>
+          useResolvedAuthorAddress({ author: { address: addr }, cache: true }),
+        );
+        const waitForFirst = testUtils.createWaitFor(first, { timeout: 20000 });
+        await waitForFirst(() => first.result.current.error?.message === "resolution failed");
+        expect(resolveCalls).toBe(1);
+        first.unmount();
+
+        shouldReject = false;
+        const second = renderHook<any, any>(() =>
+          useResolvedAuthorAddress({ author: { address: addr }, cache: true }),
+        );
+        const waitForSecond = testUtils.createWaitFor(second, { timeout: 20000 });
+        await waitForSecond(() => second.result.current.resolvedAddress === resolved);
+        expect(resolveCalls).toBe(2);
+      } finally {
+        Plebbit.prototype.resolveAuthorAddress = origResolve;
+      }
     });
   });
 

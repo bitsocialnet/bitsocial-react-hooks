@@ -179,6 +179,22 @@ describe("accounts utils", () => {
       expect(result.current?.id1?.author?.shortAddress).toBeDefined();
     });
 
+    test("preserves existing shortAddress when no new shortAddress is available", () => {
+      const accounts = {
+        id1: {
+          id: "id1",
+          name: "Account 1",
+          author: { shortAddress: "existing-short" },
+        },
+      } as any;
+      const accountsComments = { id1: [] };
+      const accountsCommentsReplies = { id1: {} };
+      const { result } = renderHook(() =>
+        useAccountsWithCalculatedProperties(accounts, accountsComments, accountsCommentsReplies),
+      );
+      expect(result.current?.id1?.author?.shortAddress).toBe("existing-short");
+    });
+
     test("skips shortAddress when account has no author", () => {
       const accounts = {
         id1: { id: "id1", name: "Account 1", author: undefined },

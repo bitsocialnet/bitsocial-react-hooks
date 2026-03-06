@@ -55,7 +55,7 @@ const abandonAndStopPublishSession = (accountId: string, index: number) => {
   const session = activePublishSessions.get(key);
   if (!session) return;
   try {
-    const stop = session.comment?.stop;
+    const stop = session.comment?.stop?.bind(session.comment);
     if (typeof stop === "function") stop();
   } catch (e) {
     log.error("comment.stop() error during abandon", { accountId, index, error: e });

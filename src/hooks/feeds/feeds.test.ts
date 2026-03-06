@@ -65,22 +65,27 @@ describe("feeds", () => {
 
     test("useFeed addFeedToStore error is caught and logged", async () => {
       const originalAddFeedToStore = feedsStore.getState().addFeedToStore;
-      feedsStore.setState((state: any) => ({
-        ...state,
-        addFeedToStore: async () => {
-          throw Error("addFeedToStore test error");
-        },
-      }));
+      const logSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        feedsStore.setState((state: any) => ({
+          ...state,
+          addFeedToStore: async () => {
+            throw Error("addFeedToStore test error");
+          },
+        }));
 
-      rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"] });
-      await new Promise((r) => setTimeout(r, 150));
+        rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"] });
+        await new Promise((r) => setTimeout(r, 150));
 
-      expect(rendered.result.current.feed).toEqual([]);
-
-      feedsStore.setState((state: any) => ({
-        ...state,
-        addFeedToStore: originalAddFeedToStore,
-      }));
+        expect(rendered.result.current.feed).toEqual([]);
+        expect(logSpy).toHaveBeenCalled();
+      } finally {
+        feedsStore.setState((state: any) => ({
+          ...state,
+          addFeedToStore: originalAddFeedToStore,
+        }));
+        logSpy.mockRestore();
+      }
     });
 
     test("useFeed hasMore false when subplebbitAddresses empty", async () => {
@@ -915,26 +920,31 @@ describe("feeds", () => {
 
     test("useBufferedFeeds addFeedToStore error is caught", async () => {
       const originalAddFeedToStore = feedsStore.getState().addFeedToStore;
-      feedsStore.setState((state: any) => ({
-        ...state,
-        addFeedToStore: async () => {
-          throw Error("useBufferedFeeds addFeedToStore test error");
-        },
-      }));
+      const logSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        feedsStore.setState((state: any) => ({
+          ...state,
+          addFeedToStore: async () => {
+            throw Error("useBufferedFeeds addFeedToStore test error");
+          },
+        }));
 
-      const rendered = renderHook<any, any>(() =>
-        useBufferedFeeds({
-          feedsOptions: [{ subplebbitAddresses: ["subplebbit address 1"], sortType: "new" }],
-        }),
-      );
-      await new Promise((r) => setTimeout(r, 150));
+        const rendered = renderHook<any, any>(() =>
+          useBufferedFeeds({
+            feedsOptions: [{ subplebbitAddresses: ["subplebbit address 1"], sortType: "new" }],
+          }),
+        );
+        await new Promise((r) => setTimeout(r, 150));
 
-      expect(rendered.result.current.bufferedFeeds).toEqual([[]]);
-
-      feedsStore.setState((state: any) => ({
-        ...state,
-        addFeedToStore: originalAddFeedToStore,
-      }));
+        expect(rendered.result.current.bufferedFeeds).toEqual([[]]);
+        expect(logSpy).toHaveBeenCalled();
+      } finally {
+        feedsStore.setState((state: any) => ({
+          ...state,
+          addFeedToStore: originalAddFeedToStore,
+        }));
+        logSpy.mockRestore();
+      }
     });
 
     test(`useBufferedFeeds can fetch multiple subs in the background before delivering the first page`, async () => {

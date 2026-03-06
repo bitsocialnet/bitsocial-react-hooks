@@ -268,7 +268,7 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
         requestId,
         e,
         setErrors,
-        publishCommentOptions.onError,
+        originalOnError,
       );
     }
   };
@@ -369,7 +369,7 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
     try {
       await accountsActions.publishVote(publishVoteOptions, accountName);
     } catch (e: any) {
-      handlePublishVoteError(e, setErrors, publishVoteOptions.onError);
+      handlePublishVoteError(e, setErrors, originalOnError);
     }
   };
 
@@ -457,7 +457,7 @@ export function usePublishCommentEdit(
       await accountsActions.publishCommentEdit(publishCommentEditOptions, accountName);
     } catch (e: any) {
       setErrors((errors) => [...errors, e]);
-      publishCommentEditOptions.onError?.(e);
+      originalOnError?.(e);
     }
   };
 
@@ -547,7 +547,7 @@ export function usePublishCommentModeration(
       await accountsActions.publishCommentModeration(publishCommentModerationOptions, accountName);
     } catch (e: any) {
       setErrors((errors) => [...errors, e]);
-      publishCommentModerationOptions.onError?.(e);
+      originalOnError?.(e);
     }
   };
 
@@ -639,7 +639,7 @@ export function usePublishSubplebbitEdit(
       );
     } catch (e: any) {
       setErrors((errors) => [...errors, e]);
-      publishSubplebbitEditOptions.onError?.(e);
+      originalOnError?.(e);
     }
   };
 

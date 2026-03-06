@@ -371,34 +371,45 @@ describe("replies store", () => {
     await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length > 0);
 
     const addNextOrig = repliesPagesStore.getState().addNextRepliesPageToStore;
-    repliesPagesStore.setState((s: any) => ({
-      ...s,
-      addNextRepliesPageToStore: () => Promise.reject(new Error("addNext failed")),
-    }));
+    const logSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      repliesPagesStore.setState((s: any) => ({
+        ...s,
+        addNextRepliesPageToStore: () => Promise.reject(new Error("addNext failed")),
+      }));
 
-    act(() => rendered.result.current.incrementFeedPageNumber(feedName));
-    await waitFor(() => rendered.result.current.bufferedFeedsReplyCounts[feedName] <= 50);
+      act(() => rendered.result.current.incrementFeedPageNumber(feedName));
+      await waitFor(() => rendered.result.current.bufferedFeedsReplyCounts[feedName] <= 50);
 
-    await new Promise((r) => setTimeout(r, 300));
-    repliesPagesStore.setState((s: any) => ({ ...s, addNextRepliesPageToStore: addNextOrig }));
+      await new Promise((r) => setTimeout(r, 300));
+      expect(logSpy).toHaveBeenCalled();
+    } finally {
+      repliesPagesStore.setState((s: any) => ({ ...s, addNextRepliesPageToStore: addNextOrig }));
+      logSpy.mockRestore();
+    }
   });
 
   test("updateFeedsAgain when updateFeeds called twice quickly", async () => {
     const commentCid = "double-update-cid";
     const feedOptions = { sortType: "new", commentCid, accountId: mockAccount.id };
+    const feedName = feedOptionsToFeedName(feedOptions);
     const comment = new MockComment({ cid: commentCid });
 
     act(() => {
       rendered.result.current.addFeedToStoreOrUpdateComment(comment, feedOptions);
     });
-    await waitFor(
-      () => rendered.result.current.loadedFeeds[feedOptionsToFeedName(feedOptions)]?.length > 0,
-    );
+    await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length > 0);
+    const initialFeed = rendered.result.current.loadedFeeds[feedName];
+    expect(initialFeed.length).toBeGreaterThan(0);
 
     act(() => {
       rendered.result.current.updateFeeds();
       rendered.result.current.updateFeeds();
     });
     await new Promise((r) => setTimeout(r, 300));
+    expect(rendered.result.current.loadedFeeds[feedName]).toHaveLength(initialFeed.length);
+    expect(rendered.result.current.loadedFeeds[feedName].map((reply: any) => reply.cid)).toEqual(
+      initialFeed.map((reply: any) => reply.cid),
+    );
   });
 });

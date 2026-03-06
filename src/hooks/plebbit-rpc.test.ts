@@ -171,14 +171,16 @@ describe("plebbit-rpc", () => {
     const { accounts, activeAccountId } = accountsStore.getState();
     const account = accounts[activeAccountId || ""];
     const rpc = Object.values(account?.plebbit?.clients?.plebbitRpcClients || {})[0] as any;
-    const origSet = rpc?.setSettings;
-    if (rpc) {
+    expect(rpc).toBeDefined();
+    const origSet = rpc.setSettings;
+    try {
       rpc.setSettings = () => Promise.reject(new Error("setSettings failed"));
       await act(async () => {
         await rendered.result.current.setPlebbitRpcSettings({ challenges: {} });
       });
       await waitFor(() => rendered.result.current.state === "failed");
       expect(rendered.result.current.error?.message).toBe("setSettings failed");
+    } finally {
       rpc.setSettings = origSet;
     }
   });
@@ -190,11 +192,10 @@ describe("plebbit-rpc", () => {
     const { accounts, activeAccountId } = accountsStore.getState();
     const account = accounts[activeAccountId || ""];
     const rpc = Object.values(account?.plebbit?.clients?.plebbitRpcClients || {})[0] as any;
-    if (rpc) {
-      rpc.emit("error", new Error("rpc error event"));
-      await waitFor(() => rendered.result.current.error?.message === "rpc error event");
-      expect(rendered.result.current.errors.length).toBeGreaterThan(0);
-    }
+    expect(rpc).toBeDefined();
+    rpc.emit("error", new Error("rpc error event"));
+    await waitFor(() => rendered.result.current.error?.message === "rpc error event");
+    expect(rendered.result.current.errors.length).toBeGreaterThan(0);
   });
 
   test("usePlebbitRpcSettings setPlebbitRpcSettings no rpcClient asserts (branch 74)", async () => {
@@ -204,14 +205,16 @@ describe("plebbit-rpc", () => {
     const { accounts, activeAccountId } = accountsStore.getState();
     const account = accounts[activeAccountId || ""];
     const origClients = account?.plebbit?.clients;
-    if (account?.plebbit) {
+    expect(account?.plebbit).toBeDefined();
+    try {
       (account.plebbit as any).clients = { plebbitRpcClients: {} };
-    }
-    await expect(rendered.result.current.setPlebbitRpcSettings({ challenges: {} })).rejects.toThrow(
-      /no account.plebbit.clients.plebbitRpcClients/,
-    );
-    if (origClients && account?.plebbit) {
-      (account.plebbit as any).clients = origClients;
+      await expect(
+        rendered.result.current.setPlebbitRpcSettings({ challenges: {} }),
+      ).rejects.toThrow(/no account.plebbit.clients.plebbitRpcClients/);
+    } finally {
+      if (origClients && account?.plebbit) {
+        (account.plebbit as any).clients = origClients;
+      }
     }
   });
 
@@ -229,13 +232,14 @@ describe("plebbit-rpc", () => {
 
   test("usePlebbitRpcSettings timeout state-restore branch (branch 94)", async () => {
     vi.useFakeTimers();
-    const rendered = renderHook<any, any>(() => usePlebbitRpcSettings());
-    vi.advanceTimersByTime(100);
-    await act(async () => {});
-    const { accounts, activeAccountId } = accountsStore.getState();
-    const account = accounts[activeAccountId || ""];
-    const rpc = Object.values(account?.plebbit?.clients?.plebbitRpcClients || {})[0] as any;
-    if (rpc) {
+    try {
+      const rendered = renderHook<any, any>(() => usePlebbitRpcSettings());
+      vi.advanceTimersByTime(100);
+      await act(async () => {});
+      const { accounts, activeAccountId } = accountsStore.getState();
+      const account = accounts[activeAccountId || ""];
+      const rpc = Object.values(account?.plebbit?.clients?.plebbitRpcClients || {})[0] as any;
+      expect(rpc).toBeDefined();
       rpc.state = "connected";
       rpc.emit("statechange", "connected");
       vi.advanceTimersByTime(50);
@@ -247,7 +251,8 @@ describe("plebbit-rpc", () => {
       vi.advanceTimersByTime(10010);
       await act(async () => {});
       expect(rendered.result.current.state).toBe("connected");
+    } finally {
+      vi.useRealTimers();
     }
-    vi.useRealTimers();
   });
 });

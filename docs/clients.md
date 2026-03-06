@@ -86,7 +86,7 @@ const errorString = useMemo(() => {
   if (subplebbit?.state === "failed") {
     let errorString = "Failed fetching subplebbit";
     if (subplebbit.error) {
-      errorString += `: ${error.toString().slice(0, 300)}`;
+      errorString += `: ${subplebbit.error.toString().slice(0, 300)}`;
     }
     return errorString;
   }
@@ -249,7 +249,7 @@ const errorString = useMemo(() => {
   if (subplebbit?.state === "failed") {
     let errorString = "Failed fetching subplebbit";
     if (subplebbit.error) {
-      errorString += `: ${error.toString().slice(0, 300)}`;
+      errorString += `: ${subplebbit.error.toString().slice(0, 300)}`;
     }
     return errorString;
   }
@@ -281,7 +281,7 @@ const errorString = useMemo(() => {
   // only show the first error found because not possible to show all of them
   for (const subplebbit of subplebbits) {
     if (subplebbit.error) {
-      return `Failed fetching subplebbit: ${error.toString().slice(0, 300)}`;
+      return `Failed fetching subplebbit: ${subplebbit.error.toString().slice(0, 300)}`;
     }
   }
 }, [subplebbits]);

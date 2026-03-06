@@ -40,7 +40,7 @@ export function usePlebbitRpcSettings(
       setState(rpcState);
     };
     const onRpcError = (e: any) => {
-      setErrors([...errors, e]);
+      setErrors((prevErrors) => [...prevErrors, e]);
     };
 
     rpcClient.on("settingschange", onRpcSettingsChange);
@@ -71,15 +71,18 @@ export function usePlebbitRpcSettings(
       await rpcClient.setSettings(plebbitRpcSettings);
       setState("succeeded");
     } catch (e: any) {
-      setErrors([...errors, e]);
+      setErrors((prevErrors) => [...prevErrors, e]);
       setState("failed");
     }
 
     const rpcStateAfter = rpcClient.state;
     setTimeout(() => {
-      if (state !== rpcStateAfter && rpcStateAfter != null && rpcStateAfter !== "") {
-        setState(rpcStateAfter);
-      }
+      setState((prevState) => {
+        if (prevState !== rpcStateAfter && rpcStateAfter != null && rpcStateAfter !== "") {
+          return rpcStateAfter;
+        }
+        return prevState;
+      });
     }, 10000);
   };
 

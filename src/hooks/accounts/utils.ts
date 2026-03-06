@@ -211,7 +211,9 @@ export const useAccountsWithCalculatedProperties = (
       const account = { ...accounts[accountId], ...accountCalculatedProperties };
       if (account.author) {
         const shortAddr = accountsShortAuthorAddresses[accountId];
-        account.author = { ...account.author, shortAddress: shortAddr };
+        if (shortAddr !== undefined || !account.author.shortAddress) {
+          account.author = { ...account.author, shortAddress: shortAddr };
+        }
       }
       accountsWithCalculatedProperties[accountId] = account;
     }

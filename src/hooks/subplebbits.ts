@@ -221,7 +221,7 @@ export function useListSubplebbits() {
     () => {
       const plebbit = account?.plebbit;
       if (!plebbit) return;
-      const newAddrs = plebbit.subplebbits;
+      const newAddrs = Array.isArray(plebbit.subplebbits) ? plebbit.subplebbits : [];
       if (newAddrs.toString() !== subplebbitAddresses.toString()) {
         log("useListSubplebbits", { subplebbitAddresses });
         setSubplebbitAddresses(newAddrs);
@@ -279,7 +279,7 @@ export function useResolvedSubplebbitAddress(
       if (!account || !subplebbitAddress) {
         setResolvedAddress(undefined);
         setState(undefined);
-        setErrors([]);
+        setErrors((prevErrors) => (prevErrors.length ? [] : prevErrors));
         return;
       }
 

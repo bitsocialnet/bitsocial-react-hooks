@@ -762,9 +762,9 @@ describe("accounts-actions", () => {
 
     test("deleteComment abandons pending publish session, no-op mutation when session removed", async () => {
       const rendered = renderHook(() => {
-        const { accountComments, activeAccountId } = accountsStore.getState();
+        const { accountsComments, activeAccountId } = accountsStore.getState();
         const comments =
-          activeAccountId && accountComments ? accountComments?.[activeAccountId] || [] : [];
+          activeAccountId && accountsComments ? accountsComments?.[activeAccountId] || [] : [];
         return {
           comments,
           publishComment: accountsActions.publishComment,
@@ -817,9 +817,9 @@ describe("accounts-actions", () => {
       });
 
       const rendered = renderHook(() => {
-        const { accountComments, activeAccountId } = accountsStore.getState();
+        const { accountsComments, activeAccountId } = accountsStore.getState();
         const comments =
-          activeAccountId && accountComments ? accountComments?.[activeAccountId] || [] : [];
+          activeAccountId && accountsComments ? accountsComments?.[activeAccountId] || [] : [];
         return { comments };
       });
       const waitFor = testUtils.createWaitFor(rendered);
@@ -877,9 +877,9 @@ describe("accounts-actions", () => {
 
     test("error handler no-op when session abandoned", async () => {
       const rendered = renderHook(() => {
-        const { accountComments, activeAccountId } = accountsStore.getState();
+        const { accountsComments, activeAccountId } = accountsStore.getState();
         const comments =
-          activeAccountId && accountComments ? accountComments?.[activeAccountId] || [] : [];
+          activeAccountId && accountsComments ? accountsComments?.[activeAccountId] || [] : [];
         return {
           comments,
           publishComment: accountsActions.publishComment,

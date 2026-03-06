@@ -304,29 +304,50 @@ describe("subplebbits", () => {
 
   test("useListSubplebbits hits log and setState when arrays differ (lines 225, 228)", async () => {
     vi.useFakeTimers();
-    const subplebbits = ["addr-a", "addr-b"];
-    const mockAccount = { plebbit: { subplebbits } };
-    vi.spyOn(accountsHooks, "useAccount").mockReturnValue(mockAccount as any);
-    const rendered = renderHook<any, any>(() => useListSubplebbits());
-    await act(async () => {});
-    vi.advanceTimersByTime(1100);
-    await act(async () => {});
-    expect(rendered.result.current).toEqual(["addr-a", "addr-b"]);
-    vi.mocked(accountsHooks.useAccount).mockRestore();
-    vi.useRealTimers();
+    try {
+      const subplebbits = ["addr-a", "addr-b"];
+      const mockAccount = { plebbit: { subplebbits } };
+      vi.spyOn(accountsHooks, "useAccount").mockReturnValue(mockAccount as any);
+      const rendered = renderHook<any, any>(() => useListSubplebbits());
+      await act(async () => {});
+      vi.advanceTimersByTime(1100);
+      await act(async () => {});
+      expect(rendered.result.current).toEqual(["addr-a", "addr-b"]);
+    } finally {
+      vi.mocked(accountsHooks.useAccount).mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   test("useListSubplebbits no-change branch when arrays match (line 227)", async () => {
     vi.useFakeTimers();
-    const rendered = renderHook<any, any>(() => useListSubplebbits());
-    await act(async () => {});
-    vi.advanceTimersByTime(2500);
-    await act(async () => {});
-    const first = [...rendered.result.current];
-    vi.advanceTimersByTime(1100);
-    await act(async () => {});
-    expect(rendered.result.current).toEqual(first);
-    vi.useRealTimers();
+    try {
+      const rendered = renderHook<any, any>(() => useListSubplebbits());
+      await act(async () => {});
+      vi.advanceTimersByTime(2500);
+      await act(async () => {});
+      const first = [...rendered.result.current];
+      vi.advanceTimersByTime(1100);
+      await act(async () => {});
+      expect(rendered.result.current).toEqual(first);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("useListSubplebbits treats missing plebbit.subplebbits as empty", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(accountsHooks, "useAccount").mockReturnValue({ plebbit: {} } as any);
+      const rendered = renderHook<any, any>(() => useListSubplebbits());
+      await act(async () => {});
+      vi.advanceTimersByTime(1100);
+      await act(async () => {});
+      expect(rendered.result.current).toEqual([]);
+    } finally {
+      vi.mocked(accountsHooks.useAccount).mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   test("useSubplebbits addSubplebbitToStore catch logs error (stmt 189)", async () => {

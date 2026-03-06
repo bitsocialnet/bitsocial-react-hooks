@@ -220,17 +220,18 @@ describe("accounts", () => {
       Plebbit.prototype.pubsubSubscribe = async () => {
         throw Error("pubsub subscribe error");
       };
+      try {
+        const rendered = renderHook<any, any>(() =>
+          usePubsubSubscribe({ subplebbitAddress: "error-sub.eth" }),
+        );
+        const waitFor = testUtils.createWaitFor(rendered);
 
-      const rendered = renderHook<any, any>(() =>
-        usePubsubSubscribe({ subplebbitAddress: "error-sub.eth" }),
-      );
-      const waitFor = testUtils.createWaitFor(rendered);
-
-      await waitFor(() => rendered.result.current.state === "failed");
-      expect(rendered.result.current.state).toBe("failed");
-      expect(rendered.result.current.error?.message).toBe("pubsub subscribe error");
-
-      Plebbit.prototype.pubsubSubscribe = originalPubsubSubscribe;
+        await waitFor(() => rendered.result.current.state === "failed");
+        expect(rendered.result.current.state).toBe("failed");
+        expect(rendered.result.current.error?.message).toBe("pubsub subscribe error");
+      } finally {
+        Plebbit.prototype.pubsubSubscribe = originalPubsubSubscribe;
+      }
     });
 
     test("usePubsubSubscribe pubsubUnsubscribe error on unmount", async () => {
@@ -238,17 +239,18 @@ describe("accounts", () => {
       Plebbit.prototype.pubsubUnsubscribe = async () => {
         throw Error("pubsub unsubscribe error");
       };
+      try {
+        const rendered = renderHook<any, any>(() =>
+          usePubsubSubscribe({ subplebbitAddress: "unsub-error.eth" }),
+        );
+        const waitFor = testUtils.createWaitFor(rendered);
 
-      const rendered = renderHook<any, any>(() =>
-        usePubsubSubscribe({ subplebbitAddress: "unsub-error.eth" }),
-      );
-      const waitFor = testUtils.createWaitFor(rendered);
-
-      await waitFor(() => rendered.result.current.state === "succeeded");
-      rendered.unmount();
-      await new Promise((r) => setTimeout(r, 50));
-
-      Plebbit.prototype.pubsubUnsubscribe = originalPubsubUnsubscribe;
+        await waitFor(() => rendered.result.current.state === "succeeded");
+        rendered.unmount();
+        await new Promise((r) => setTimeout(r, 50));
+      } finally {
+        Plebbit.prototype.pubsubUnsubscribe = originalPubsubUnsubscribe;
+      }
     });
 
     test("useNotifications markAsRead when account not initialized throws", async () => {
@@ -686,20 +688,23 @@ describe("accounts", () => {
         });
 
         vi.useFakeTimers();
-        const intervalRendered = renderHook(() => useAccountComments());
-        const waitForInterval = testUtils.createWaitFor(intervalRendered);
-        await waitForInterval(() => intervalRendered.result.current.accountComments?.length >= 1);
-        expect(
-          intervalRendered.result.current.accountComments.some((c: any) => c.state === "pending"),
-        ).toBe(true);
+        try {
+          const intervalRendered = renderHook(() => useAccountComments());
+          const waitForInterval = testUtils.createWaitFor(intervalRendered);
+          await waitForInterval(() => intervalRendered.result.current.accountComments?.length >= 1);
+          expect(
+            intervalRendered.result.current.accountComments.some((c: any) => c.state === "pending"),
+          ).toBe(true);
 
-        vi.advanceTimersByTime(21 * 60 * 1000);
-        await act(async () => {});
+          vi.advanceTimersByTime(21 * 60 * 1000);
+          await act(async () => {});
 
-        expect(
-          intervalRendered.result.current.accountComments.some((c: any) => c.state === "failed"),
-        ).toBe(true);
-        vi.useRealTimers();
+          expect(
+            intervalRendered.result.current.accountComments.some((c: any) => c.state === "failed"),
+          ).toBe(true);
+        } finally {
+          vi.useRealTimers();
+        }
       });
 
       test(`deleteComment(index) removes pending comment, reindexes list, and persists after store reset`, async () => {

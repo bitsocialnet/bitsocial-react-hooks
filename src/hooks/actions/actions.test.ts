@@ -842,8 +842,9 @@ describe("actions", () => {
         await rendered.result.current.publishComment();
       });
       await waitFor(() => rendered.result.current.errors.length >= 1);
-      expect(rendered.result.current.errors.length).toBeGreaterThanOrEqual(1);
+      expect(rendered.result.current.errors.length).toBe(1);
       expect(onError).toHaveBeenCalledWith(expect.any(Error));
+      expect(onError).toHaveBeenCalledTimes(1);
 
       useAccountsStore.setState((state: any) => ({
         ...state,
@@ -876,7 +877,7 @@ describe("actions", () => {
         await rendered.result.current.publishComment();
       });
       await waitFor(() => rendered.result.current.errors.length >= 1);
-      expect(rendered.result.current.errors.length).toBeGreaterThanOrEqual(1);
+      expect(rendered.result.current.errors.length).toBe(1);
 
       useAccountsStore.setState((state: any) => ({
         ...state,
@@ -1161,8 +1162,9 @@ describe("actions", () => {
         await rendered.result.current.publishCommentEdit();
       });
 
-      expect(rendered.result.current.errors.length).toBeGreaterThanOrEqual(1);
+      expect(rendered.result.current.errors.length).toBe(1);
       expect(onError).toHaveBeenCalledWith(expect.any(Error));
+      expect(onError).toHaveBeenCalledTimes(1);
 
       useAccountsStore.setState((state: any) => ({
         ...state,
@@ -1369,8 +1371,9 @@ describe("actions", () => {
         await rendered.result.current.publishCommentModeration();
       });
 
-      expect(rendered.result.current.errors.length).toBeGreaterThanOrEqual(1);
+      expect(rendered.result.current.errors.length).toBe(1);
       expect(onError).toHaveBeenCalledWith(expect.any(Error));
+      expect(onError).toHaveBeenCalledTimes(1);
 
       useAccountsStore.setState((state: any) => ({
         ...state,
@@ -1518,8 +1521,9 @@ describe("actions", () => {
         await rendered.result.current.publishSubplebbitEdit();
       });
 
-      expect(rendered.result.current.errors.length).toBeGreaterThanOrEqual(1);
+      expect(rendered.result.current.errors.length).toBe(1);
       expect(onError).toHaveBeenCalledWith(expect.any(Error));
+      expect(onError).toHaveBeenCalledTimes(1);
 
       useAccountsStore.setState((state: any) => ({
         ...state,
@@ -1686,7 +1690,7 @@ describe("actions", () => {
       await act(async () => {
         await testRendered.result.current.publishVote();
       });
-      expect(testRendered.result.current.errors.length).toBeGreaterThanOrEqual(1);
+      expect(testRendered.result.current.errors.length).toBe(1);
       expect(testRendered.result.current.error?.message).toBe("publishVote threw");
 
       useAccountsStore.setState((s: any) => ({

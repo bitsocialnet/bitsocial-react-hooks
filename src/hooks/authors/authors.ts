@@ -31,6 +31,20 @@ import PlebbitJs from "../../lib/plebbit-js";
 import QuickLRU from "quick-lru";
 export { setAuthorAvatarsWhitelistedTokenAddresses } from "./author-avatars";
 
+const cacheResolveAuthorAddressPromise = (
+  address: string,
+  promise: Promise<string>,
+): Promise<string> => {
+  resolveAuthorAddressPromises[address] = promise;
+  const clearCachedPromise = () => {
+    if (resolveAuthorAddressPromises[address] === promise) {
+      delete resolveAuthorAddressPromises[address];
+    }
+  };
+  void promise.then(clearCachedPromise, clearCachedPromise);
+  return promise;
+};
+
 /**
  * @param authorAddress - The address of the author
  * @param commentCid - The last known comment cid of the author (not possible to get an author without providing at least 1 comment cid)
@@ -293,9 +307,10 @@ export function useAuthorAddress(options?: UseAuthorAddressOptions): UseAuthorAd
       const existing = resolveAuthorAddressPromises[addr];
       if (existing) return existing;
       log("useAuthorAddress plebbit.resolveAuthorAddress", { address: addr });
-      const promise = account.plebbit.resolveAuthorAddress({ address: addr });
-      resolveAuthorAddressPromises[addr] = promise;
-      return promise;
+      return cacheResolveAuthorAddressPromise(
+        addr,
+        account.plebbit.resolveAuthorAddress({ address: addr }),
+      );
     };
     const resolveAuthorAddress = async () => {
       const cached = resolvedAuthorAddressCache.get(addr);
@@ -420,10 +435,12 @@ export function useResolvedAuthorAddress(
       return resolveAuthorAddressPromises[author?.address];
     }
     log("useResolvedAuthorAddress plebbit.resolveAuthorAddress", { address: author?.address });
-    resolveAuthorAddressPromises[author?.address] = account.plebbit.resolveAuthorAddress({
-      address: author?.address,
-    });
-    return resolveAuthorAddressPromises[author?.address];
+    return cacheResolveAuthorAddressPromise(
+      author?.address,
+      account.plebbit.resolveAuthorAddress({
+        address: author?.address,
+      }),
+    );
   };
   const resolveAuthorAddress = async () => {
     const cached = resolvedAuthorAddressCache.get(author?.address);

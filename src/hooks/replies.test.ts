@@ -205,16 +205,20 @@ describe("replies", () => {
 
     test("addFeedToStoreOrUpdateComment catch logs error", async () => {
       const origAdd = repliesStore.getState().addFeedToStoreOrUpdateComment;
-      repliesStore.setState({
-        addFeedToStoreOrUpdateComment: () => Promise.reject(new Error("addFeed failed")),
-      });
       const logSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      rendered.rerender({ commentCid: "comment cid 1" });
-      await testUtils
-        .createWaitFor(rendered)(() => true, { timeout: 500 })
-        .catch(() => {});
-      repliesStore.setState({ addFeedToStoreOrUpdateComment: origAdd });
-      logSpy.mockRestore();
+      try {
+        repliesStore.setState({
+          addFeedToStoreOrUpdateComment: () => Promise.reject(new Error("addFeed failed")),
+        });
+        rendered.rerender({ commentCid: "comment cid 1" });
+        await testUtils
+          .createWaitFor(rendered)(() => true, { timeout: 500 })
+          .catch(() => {});
+        expect(logSpy).toHaveBeenCalled();
+      } finally {
+        repliesStore.setState({ addFeedToStoreOrUpdateComment: origAdd });
+        logSpy.mockRestore();
+      }
     });
 
     test("useReplies with no comment hasMore false (branches 89, 95)", () => {

@@ -585,23 +585,28 @@ describe("replies pages store", () => {
     };
 
     const logSpy = vi.spyOn(log, "error").mockImplementation(() => {});
+    try {
+      await act(async () => {
+        try {
+          await rendered.result.current.addNextRepliesPageToStore(
+            mockComment,
+            sortType,
+            mockAccount,
+          );
+        } catch {
+          // expected
+        }
+      });
 
-    await act(async () => {
-      try {
-        await rendered.result.current.addNextRepliesPageToStore(mockComment, sortType, mockAccount);
-      } catch {
-        // expected
-      }
-    });
-
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("failed comment.replies.getPage"),
-      expect.any(Error),
-    );
-
-    logSpy.mockRestore();
-    (utils.default as any).retryInfinity = retryOrig;
-    MockPages.prototype.getPage = getPageOrig;
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining("failed comment.replies.getPage"),
+        expect.any(Error),
+      );
+    } finally {
+      logSpy.mockRestore();
+      (utils.default as any).retryInfinity = retryOrig;
+      MockPages.prototype.getPage = getPageOrig;
+    }
   });
 
   test("addCidToAccountComment error is logged when it rejects", async () => {
