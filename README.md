@@ -1,5 +1,9 @@
 # bitsocial-react-hooks
 
+[![CI](https://github.com/bitsocialhq/bitsocial-react-hooks/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/bitsocialhq/bitsocial-react-hooks/actions/workflows/CI.yml)
+[![License](https://img.shields.io/badge/license-GPL--2.0--only-red.svg)](https://github.com/bitsocialhq/bitsocial-react-hooks/blob/master/LICENSE)
+[![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
+
 <p align="left">
   <img src="./docs/assets/readme/react-hooks-banner.jpg" alt="React Hooks banner" width="340" />
 </p>
