@@ -1223,14 +1223,16 @@ class Publication extends EventEmitter {
   timestamp: number | undefined;
   content: string | undefined;
   cid: string | undefined;
+  title: string | undefined;
+  link: string | undefined;
+  challengeRequestId!: string;
+  challengeAnswerId!: string;
 
   constructor() {
     super();
     Object.defineProperty(this, "challengeRequestId", { enumerable: false, writable: true });
     Object.defineProperty(this, "challengeAnswerId", { enumerable: false, writable: true });
-    // @ts-ignore
     this.challengeRequestId = `r${++challengeRequestCount}`;
-    // @ts-ignore
     this.challengeAnswerId = `a${++challengeAnswerCount}`;
   }
 
@@ -1241,7 +1243,6 @@ class Publication extends EventEmitter {
 
   async simulateChallengeEvent() {
     const challenges: any = [];
-    // @ts-ignore
     const challengeCount = await getNumberBetween(
       1,
       3,
@@ -1252,7 +1253,6 @@ class Publication extends EventEmitter {
     }
     const challengeMessage = {
       type: "CHALLENGE",
-      // @ts-ignore
       challengeRequestId: this.challengeRequestId,
       challenges,
     };
@@ -1266,18 +1266,13 @@ class Publication extends EventEmitter {
 
   async simulateChallengeVerificationEvent() {
     // if publication has content, create cid for this content and add it to comment and challengeVerificationMessage
-    // @ts-ignore
-    this.cid =
-      this.content || this.title || this.link
-        ? await getCidHash(this.content + this.title + this.link + "cid")
-        : undefined;
+    const cidSeed = `${this.content ?? ""}${this.title ?? ""}${this.link ?? ""}`;
+    this.cid = cidSeed.length > 0 ? await getCidHash(`${cidSeed}cid`) : undefined;
     const commentUpdate = this.cid && { cid: this.cid };
 
     const challengeVerificationMessage = {
       type: "CHALLENGEVERIFICATION",
-      // @ts-ignore
       challengeRequestId: this.challengeRequestId,
-      // @ts-ignore
       challengeAnswerId: this.challengeAnswerId,
       challengeSuccess: true,
       commentUpdate,
