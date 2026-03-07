@@ -14,10 +14,69 @@ import { subplebbitPostsCacheExpired, commentIsValid, removeInvalidComments, } f
 import { areEquivalentSubplebbitAddresses } from "../../lib/subplebbit-address";
 import Logger from "@plebbit/plebbit-logger";
 const log = Logger("bitsocial-react-hooks:feeds:stores");
+const getCommentFreshness = (comment) => { var _a, _b; return Math.max((_a = comment === null || comment === void 0 ? void 0 : comment.updatedAt) !== null && _a !== void 0 ? _a : 0, (_b = comment === null || comment === void 0 ? void 0 : comment.timestamp) !== null && _b !== void 0 ? _b : 0, 0); };
+const commentMatchesModQueue = (comment, modQueue) => {
+    const modQueueName = modQueue === null || modQueue === void 0 ? void 0 : modQueue[0];
+    if (!modQueueName) {
+        return true;
+    }
+    if (modQueueName === "pendingApproval") {
+        return (comment === null || comment === void 0 ? void 0 : comment.pendingApproval) === true;
+    }
+    return true;
+};
+const getFeedPost = (post, subplebbitAddress, modQueue, freshestComments) => {
+    const freshestComment = post.cid ? freshestComments === null || freshestComments === void 0 ? void 0 : freshestComments[post.cid] : undefined;
+    if (!areEquivalentSubplebbitAddresses(post.subplebbitAddress, subplebbitAddress)) {
+        return;
+    }
+    if (!freshestComment || getCommentFreshness(freshestComment) <= getCommentFreshness(post)) {
+        return post;
+    }
+    if (!commentMatchesModQueue(freshestComment, modQueue)) {
+        return;
+    }
+    if (!areEquivalentSubplebbitAddresses(freshestComment.subplebbitAddress, subplebbitAddress)) {
+        return;
+    }
+    return freshestComment;
+};
+const reconcileLoadedModQueueFeed = (feedOptions, loadedFeed, filteredSortedFeed) => {
+    var _a;
+    if (!((_a = feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.modQueue) === null || _a === void 0 ? void 0 : _a[0]) || !(loadedFeed === null || loadedFeed === void 0 ? void 0 : loadedFeed.length)) {
+        return loadedFeed;
+    }
+    const filteredSortedFeedByCid = new Map();
+    for (const post of filteredSortedFeed) {
+        if (post.cid) {
+            filteredSortedFeedByCid.set(post.cid, post);
+        }
+    }
+    let changed = false;
+    const nextLoadedFeed = [];
+    for (const post of loadedFeed) {
+        if (!post.cid) {
+            nextLoadedFeed.push(post);
+            continue;
+        }
+        const sourcePost = filteredSortedFeedByCid.get(post.cid);
+        if (!sourcePost) {
+            changed = true;
+            continue;
+        }
+        if (getCommentFreshness(sourcePost) > getCommentFreshness(post)) {
+            nextLoadedFeed.push(sourcePost);
+            changed = true;
+            continue;
+        }
+        nextLoadedFeed.push(post);
+    }
+    return changed ? nextLoadedFeed : loadedFeed;
+};
 /**
  * Calculate the feeds from all the loaded subplebbit pages, filter and sort them
  */
-export const getFilteredSortedFeeds = (feedsOptions, subplebbits, subplebbitsPages, accounts) => {
+export const getFilteredSortedFeeds = (feedsOptions, subplebbits, subplebbitsPages, accounts, freshestComments) => {
     var _a, _b, _c, _d;
     // calculate each feed
     let feeds = {};
@@ -50,7 +109,10 @@ export const getFilteredSortedFeeds = (feedsOptions, subplebbits, subplebbitsPag
                     if (!areEquivalentSubplebbitAddresses(post.subplebbitAddress, subplebbitAddress)) {
                         break;
                     }
-                    bufferedFeedPosts.push(post);
+                    const nextPost = getFeedPost(post, subplebbitAddress, modQueue, freshestComments);
+                    if (nextPost) {
+                        bufferedFeedPosts.push(nextPost);
+                    }
                 }
             }
             // add all posts from subplebbit pages
@@ -62,7 +124,10 @@ export const getFilteredSortedFeeds = (feedsOptions, subplebbits, subplebbitsPag
                         if (!areEquivalentSubplebbitAddresses(post.subplebbitAddress, subplebbitAddress)) {
                             break;
                         }
-                        bufferedFeedPosts.push(post);
+                        const nextPost = getFeedPost(post, subplebbitAddress, modQueue, freshestComments);
+                        if (nextPost) {
+                            bufferedFeedPosts.push(nextPost);
+                        }
                     }
                 }
             }
@@ -134,14 +199,19 @@ const getPreloadedPosts = (subplebbit, sortType) => {
         return pages[0].comments;
     }
 };
-export const getLoadedFeeds = (feedsOptions, loadedFeeds, bufferedFeeds, accounts) => __awaiter(void 0, void 0, void 0, function* () {
+export const getLoadedFeeds = (feedsOptions, filteredSortedFeeds, loadedFeeds, bufferedFeeds, accounts) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
-    const loadedFeedsMissingPosts = {};
+    const nextLoadedFeeds = Object.assign({}, loadedFeeds);
+    let loadedFeedsChanged = false;
     for (const feedName in feedsOptions) {
         const { pageNumber, postsPerPage, accountId } = feedsOptions[feedName];
         const plebbit = (_a = accounts[accountId]) === null || _a === void 0 ? void 0 : _a.plebbit;
         const loadedFeedPostCount = pageNumber * postsPerPage;
-        const currentLoadedFeed = loadedFeeds[feedName] || [];
+        const currentLoadedFeed = reconcileLoadedModQueueFeed(feedsOptions[feedName], loadedFeeds[feedName] || [], filteredSortedFeeds[feedName] || []);
+        if (currentLoadedFeed !== loadedFeeds[feedName]) {
+            nextLoadedFeeds[feedName] = currentLoadedFeed;
+            loadedFeedsChanged = true;
+        }
         const missingPostsCount = loadedFeedPostCount - currentLoadedFeed.filter((post) => post.index === undefined).length;
         // get new posts from buffered feed
         const bufferedFeed = bufferedFeeds[feedName] || [];
@@ -157,26 +227,23 @@ export const getLoadedFeeds = (feedsOptions, loadedFeeds, bufferedFeeds, account
             missingPosts.push(post);
         }
         // the current loaded feed already exist and doesn't need new posts
-        if (missingPosts.length === 0 && loadedFeeds[feedName]) {
+        if (missingPosts.length === 0 &&
+            loadedFeeds[feedName] &&
+            currentLoadedFeed === loadedFeeds[feedName]) {
             continue;
         }
-        loadedFeedsMissingPosts[feedName] = missingPosts;
-    }
-    let newLoadedFeeds = {};
-    for (const feedName in loadedFeedsMissingPosts) {
-        newLoadedFeeds[feedName] = [
-            ...(loadedFeeds[feedName] || []),
-            ...loadedFeedsMissingPosts[feedName],
-        ];
+        nextLoadedFeeds[feedName] = [...currentLoadedFeed, ...missingPosts];
+        if (missingPosts.length > 0) {
+            loadedFeedsChanged = true;
+        }
     }
     // add account comments
-    newLoadedFeeds = Object.assign(Object.assign({}, loadedFeeds), newLoadedFeeds);
-    const accountCommentsChangedFeeds = addAccountsComments(feedsOptions, newLoadedFeeds);
+    const accountCommentsChangedFeeds = addAccountsComments(feedsOptions, nextLoadedFeeds);
     // do nothing if there are no missing posts
-    if (Object.keys(loadedFeedsMissingPosts).length === 0 && !accountCommentsChangedFeeds) {
+    if (!loadedFeedsChanged && !accountCommentsChangedFeeds) {
         return loadedFeeds;
     }
-    return newLoadedFeeds;
+    return nextLoadedFeeds;
 });
 export const addAccountsComments = (feedsOptions, loadedFeeds) => {
     let loadedFeedsChanged = false;
