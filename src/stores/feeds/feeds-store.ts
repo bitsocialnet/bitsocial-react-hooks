@@ -46,9 +46,9 @@ import {
 export const defaultPostsPerPage = 25;
 
 // keep large buffer because fetching cids is slow
-export const subplebbitPostsLeftBeforeNextPage = 50;
+const subplebbitPostsLeftBeforeNextPage = 50;
 
-export type FeedsState = {
+type FeedsState = {
   feedsOptions: FeedsOptions;
   bufferedFeeds: Feeds;
   loadedFeeds: Feeds;

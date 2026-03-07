@@ -49,7 +49,7 @@ function renderHook<Result, Props>(
 
 const restorables: any = [];
 
-export const silenceUpdateUnmountedComponentWarning = () => {
+const silenceUpdateUnmountedComponentWarning = () => {
   const originalError = console.error;
   console.error = (...args) => {
     if (/Can't perform a React state update on an unmounted component/.test(args[0])) {
@@ -64,7 +64,7 @@ export const silenceUpdateUnmountedComponentWarning = () => {
   return restore;
 };
 
-export const silenceTestWasNotWrappedInActWarning = () => {
+const silenceTestWasNotWrappedInActWarning = () => {
   const originalError = console.error;
   console.error = (...args) => {
     if (/inside a test was not wrapped in act/.test(args[0])) {
@@ -80,7 +80,7 @@ export const silenceTestWasNotWrappedInActWarning = () => {
 };
 
 // this warning is usually good to have, so don't include it in silenceReactWarnings
-export const silenceOverlappingActWarning = () => {
+const silenceOverlappingActWarning = () => {
   const originalError = console.error;
   console.error = (...args) => {
     if (/overlapping act\(\) calls/.test(args[0])) {
@@ -95,7 +95,7 @@ export const silenceOverlappingActWarning = () => {
   return restore;
 };
 
-export const silenceReactWarnings = () => {
+const silenceReactWarnings = () => {
   silenceUpdateUnmountedComponentWarning();
   silenceTestWasNotWrappedInActWarning();
 };
@@ -151,7 +151,7 @@ const createWaitFor = (rendered: any, waitForOptions?: WaitForOptions) => {
 };
 
 // always reset the least important store first, because a store even can affect another store
-export const resetStores = async () => {
+const resetStores = async () => {
   await resetRepliesPagesStore();
   await resetRepliesStore();
   await resetAuthorsCommentsStore();
@@ -163,7 +163,7 @@ export const resetStores = async () => {
   await resetAccountsStore();
 };
 
-export const resetDatabasesAndStores = async () => {
+const resetDatabasesAndStores = async () => {
   await resetRepliesPagesDatabaseAndStore();
   await resetRepliesDatabaseAndStore();
   await resetAuthorsCommentsDatabaseAndStore();

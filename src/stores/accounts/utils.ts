@@ -67,7 +67,7 @@ interface CommentLinkDimensions {
 }
 
 // polyfill Promise.any, exported for test coverage of empty-array branch
-export const promiseAny = <T>(promises: Promise<T>[]): Promise<T> =>
+const promiseAny = <T>(promises: Promise<T>[]): Promise<T> =>
   new Promise((res, rej) => {
     let count = promises.length;
     if (count === 0) return rej(Error("all promises rejected"));

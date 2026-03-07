@@ -100,7 +100,7 @@ export const flattenCommentsPages = (pageInstanceOrPagesInstance: any) => {
   return uniqueFlattened;
 };
 
-export const memo = (functionToMemo: Function, memoOptions: any) => {
+const memo = (functionToMemo: Function, memoOptions: any) => {
   assert(typeof functionToMemo === "function", `memo first argument must be a function`);
   const pendingPromises: any = new Map();
   const cache = new QuickLru(memoOptions);
@@ -165,7 +165,7 @@ export const memo = (functionToMemo: Function, memoOptions: any) => {
   return obj[memoedFunctionName];
 };
 
-export const memoSync = (functionToMemo: Function, memoOptions: any) => {
+const memoSync = (functionToMemo: Function, memoOptions: any) => {
   assert(typeof functionToMemo === "function", `memo first argument must be a function`);
   const cache = new QuickLru(memoOptions);
 
@@ -212,7 +212,7 @@ export const memoSync = (functionToMemo: Function, memoOptions: any) => {
   return obj[memoedFunctionName];
 };
 
-export const clientsOnStateChange = (clients: any, onStateChange: Function) => {
+const clientsOnStateChange = (clients: any, onStateChange: Function) => {
   for (const clientUrl in clients?.ipfsGateways) {
     clients?.ipfsGateways?.[clientUrl].on("statechange", (state: string) =>
       onStateChange(state, "ipfsGateways", clientUrl),
@@ -247,7 +247,7 @@ export const clientsOnStateChange = (clients: any, onStateChange: Function) => {
   }
 };
 
-export const pageClientsOnStateChange = (clients: any, onStateChange: Function) => {
+const pageClientsOnStateChange = (clients: any, onStateChange: Function) => {
   for (const sortType in clients?.ipfsGateways) {
     for (const clientUrl in clients?.ipfsGateways?.[sortType]) {
       clients?.ipfsGateways?.[sortType]?.[clientUrl].on("statechange", (state: string) =>
@@ -336,7 +336,7 @@ export const commentIsValid = async (
   return true;
 };
 
-export const repliesAreValid = async (
+const repliesAreValid = async (
   comment: Comment,
   { validateReplies, blockSubplebbit }: any = {},
   plebbit: any,
@@ -410,7 +410,7 @@ const utils = {
   repliesAreValid,
 };
 
-export const retryInfinity = async (functionToRetry: any, options?: any) => {
+const retryInfinity = async (functionToRetry: any, options?: any) => {
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   let attempt = 0;
   while (true) {

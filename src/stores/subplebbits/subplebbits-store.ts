@@ -15,7 +15,7 @@ import subplebbitsPagesStore from "../subplebbits-pages";
 let plebbitGetSubplebbitPending: { [key: string]: boolean } = {};
 
 // reset all event listeners in between tests
-export const listeners: any = [];
+const listeners: any = [];
 
 export type SubplebbitsState = {
   subplebbits: Subplebbits;

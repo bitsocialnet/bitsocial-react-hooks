@@ -141,7 +141,7 @@ export function useSubplebbitStats(options?: UseSubplebbitStatsOptions): UseSubp
   );
 }
 
-export type SubplebbitsStatsState = {
+type SubplebbitsStatsState = {
   subplebbitsStats: { [subplebbitAddress: string]: SubplebbitStats };
   setSubplebbitStats: Function;
 };

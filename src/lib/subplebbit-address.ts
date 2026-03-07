@@ -1,4 +1,4 @@
-export const isEthAliasDomain = (address: string) => {
+const isEthAliasDomain = (address: string) => {
   const lower = address.toLowerCase();
   return lower.endsWith(".eth") || lower.endsWith(".bso");
 };

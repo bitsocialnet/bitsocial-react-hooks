@@ -38,7 +38,7 @@ import {
 export const defaultRepliesPerPage = 25;
 
 // keep large buffer because fetching cids is slow
-export const commentRepliesLeftBeforeNextPage = 50;
+const commentRepliesLeftBeforeNextPage = 50;
 
 export type RepliesState = {
   feedsOptions: RepliesFeedsOptions;

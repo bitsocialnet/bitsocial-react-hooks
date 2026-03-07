@@ -11,7 +11,7 @@ const toString = (value: any) => {
   return value;
 };
 
-export const validateAccountsActionsPublishCommentArguments = ({
+const validateAccountsActionsPublishCommentArguments = ({
   publishCommentOptions,
   accountName,
   account,
@@ -81,7 +81,7 @@ export const validateAccountsActionsPublishCommentArguments = ({
   );
 };
 
-export const validateAccountsActionsPublishVoteArguments = ({
+const validateAccountsActionsPublishVoteArguments = ({
   publishVoteOptions,
   accountName,
   account,
@@ -131,7 +131,7 @@ export const validateAccountsActionsPublishVoteArguments = ({
   );
 };
 
-export const validateAccountsActionsPublishCommentEditArguments = ({
+const validateAccountsActionsPublishCommentEditArguments = ({
   publishCommentEditOptions,
   accountName,
   account,
@@ -175,7 +175,7 @@ export const validateAccountsActionsPublishCommentEditArguments = ({
   );
 };
 
-export const validateAccountsActionsPublishCommentModerationArguments = ({
+const validateAccountsActionsPublishCommentModerationArguments = ({
   publishCommentModerationOptions,
   accountName,
   account,
@@ -226,7 +226,7 @@ export const validateAccountsActionsPublishCommentModerationArguments = ({
   );
 };
 
-export const validateAccountsActionsPublishSubplebbitEditArguments = ({
+const validateAccountsActionsPublishSubplebbitEditArguments = ({
   subplebbitAddress,
   publishSubplebbitEditOptions,
   accountName,
@@ -273,7 +273,7 @@ export const validateAccountsActionsPublishSubplebbitEditArguments = ({
   );
 };
 
-export const validateAccountsActionsExportAccountArguments = (accountName: any) => {
+const validateAccountsActionsExportAccountArguments = (accountName: any) => {
   assert(
     typeof accountName === "string",
     `exportAccount accountName '${accountName}' not a string`,
@@ -281,7 +281,7 @@ export const validateAccountsActionsExportAccountArguments = (accountName: any) 
   assert(accountName !== "", `exportAccount accountName argument is empty string`);
 };
 
-export const validateAccountsActionsSetAccountsOrderArguments = (
+const validateAccountsActionsSetAccountsOrderArguments = (
   newOrderedAccountNames: any,
   accountNames: any,
 ) => {
@@ -291,7 +291,7 @@ export const validateAccountsActionsSetAccountsOrderArguments = (
   );
 };
 
-export const validateAccountsActionsSetAccountArguments = (account: any) => {
+const validateAccountsActionsSetAccountArguments = (account: any) => {
   assert(account && typeof account === "object", `setAccount account '${account}' not an object`);
   assert(
     typeof account.name === "string",
@@ -302,7 +302,7 @@ export const validateAccountsActionsSetAccountArguments = (account: any) => {
   assert(account.id !== "", `setAccount account.id is empty string`);
 };
 
-export const validateAccountsActionsSetActiveAccountArguments = (accountName: any) => {
+const validateAccountsActionsSetActiveAccountArguments = (accountName: any) => {
   assert(
     typeof accountName === "string",
     `setActiveAccountName accountName '${accountName}' not a string`,
@@ -310,7 +310,7 @@ export const validateAccountsActionsSetActiveAccountArguments = (accountName: an
   assert(accountName !== "", `setActiveAccountName accountName argument is empty string`);
 };
 
-export const validateAccountsDatabaseGetAccountsArguments = (accountIds: any) => {
+const validateAccountsDatabaseGetAccountsArguments = (accountIds: any) => {
   assert(
     Array.isArray(accountIds),
     `accountsDatabase.getAccounts accountIds '${accountIds}' not an array`,
@@ -328,7 +328,7 @@ export const validateAccountsDatabaseGetAccountsArguments = (accountIds: any) =>
   }
 };
 
-export const validateAccountsDatabaseAccountNames = (accountNames: any) => {
+const validateAccountsDatabaseAccountNames = (accountNames: any) => {
   assert(
     Array.isArray(accountNames),
     `accountsDatabase accountNames '${accountNames}' not an array`,
@@ -341,7 +341,7 @@ export const validateAccountsDatabaseAccountNames = (accountNames: any) => {
   }
 };
 
-export const validateAccountsDatabaseAddAccountArguments = (account: any) => {
+const validateAccountsDatabaseAddAccountArguments = (account: any) => {
   assert(
     account && typeof account === "object",
     `accountsDatabase.addAccount '${account}' not an object`,
@@ -358,7 +358,7 @@ export const validateAccountsDatabaseAddAccountArguments = (account: any) => {
   assert(account.id !== "", `accountsDatabase.addAccount account.id is empty string`);
 };
 
-export const validateUseCommentArguments = (commentCid: any, account: any) => {
+const validateUseCommentArguments = (commentCid: any, account: any) => {
   assert(typeof commentCid === "string", `useComment commentCid '${commentCid}' not a string`);
   assert(
     account?.plebbit && typeof account?.plebbit === "object",
@@ -366,7 +366,7 @@ export const validateUseCommentArguments = (commentCid: any, account: any) => {
   );
 };
 
-export const validateUseCommentsArguments = (commentCids: any, account: any) => {
+const validateUseCommentsArguments = (commentCids: any, account: any) => {
   assert(
     Array.isArray(commentCids),
     `useComment commentCids '${toString(commentCids)}' not an array`,
@@ -383,7 +383,7 @@ export const validateUseCommentsArguments = (commentCids: any, account: any) => 
   );
 };
 
-export const validateUseSubplebbitArguments = (subplebbitAddress: any, account: any) => {
+const validateUseSubplebbitArguments = (subplebbitAddress: any, account: any) => {
   assert(
     typeof subplebbitAddress === "string",
     `useSubplebbit subplebbitAddress '${subplebbitAddress}' not a string`,
@@ -394,7 +394,7 @@ export const validateUseSubplebbitArguments = (subplebbitAddress: any, account: 
   );
 };
 
-export const validateUseSubplebbitsArguments = (subplebbitAddresses: any, account: any) => {
+const validateUseSubplebbitsArguments = (subplebbitAddresses: any, account: any) => {
   assert(
     Array.isArray(subplebbitAddresses),
     `useSubplebbit subplebbitAddresses '${toString(subplebbitAddresses)}' not an array`,
@@ -428,10 +428,10 @@ const feedSortTypes = new Set([
   "controversialYear",
   "controversialAll",
 ]);
-export const validateFeedSortType = (sortType: any) => {
+const validateFeedSortType = (sortType: any) => {
   assert(feedSortTypes.has(sortType), `invalid feed sort type '${sortType}'`);
 };
-export const validateUseFeedArguments = (
+const validateUseFeedArguments = (
   subplebbitAddresses?: any,
   sortType?: any,
   accountName?: any,
@@ -489,7 +489,7 @@ export const validateUseFeedArguments = (
     );
   }
 };
-export const validateUseBufferedFeedsArguments = (feedsOptions?: any, accountName?: any) => {
+const validateUseBufferedFeedsArguments = (feedsOptions?: any, accountName?: any) => {
   assert(
     Array.isArray(feedsOptions),
     `useBufferedFeeds feedsOptions argument '${toString(feedsOptions)}' not an array`,
@@ -557,10 +557,10 @@ const repliesSortTypes = new Set([
   "old",
   "oldFlat",
 ]);
-export const validateRepliesSortType = (sortType: any) => {
+const validateRepliesSortType = (sortType: any) => {
   assert(repliesSortTypes.has(sortType), `invalid replies sort type '${sortType}'`);
 };
-export const validateUseRepliesArguments = (
+const validateUseRepliesArguments = (
   comment?: any,
   sortType?: any,
   accountName?: any,

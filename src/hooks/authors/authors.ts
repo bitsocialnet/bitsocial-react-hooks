@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { useInterval } from "../utils/use-interval";
+import useInterval from "../utils/use-interval";
 import { useAccount } from "../accounts";
 import Logger from "@plebbit/plebbit-logger";
 const log = Logger("bitsocial-react-hooks:authors:hooks");

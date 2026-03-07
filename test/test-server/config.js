@@ -15,5 +15,3 @@ export const pubsubIpfs = {
 export const plebbitRpc = {
   port: 48392,
 };
-
-export default { offlineIpfs, pubsubIpfs, plebbitRpc };

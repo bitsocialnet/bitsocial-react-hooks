@@ -16,9 +16,9 @@ const repliesPagesDatabase = localForageLru.createInstance({
 });
 
 // reset all event listeners in between tests
-export const listeners: any = [];
+const listeners: any = [];
 
-export type RepliesPagesState = {
+type RepliesPagesState = {
   repliesPages: RepliesPages;
   comments: Comments;
   addNextRepliesPageToStore: Function;

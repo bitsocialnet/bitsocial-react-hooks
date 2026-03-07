@@ -23,7 +23,7 @@ export const commentsPerPage = 25;
 // keep large buffer because fetching cids is slow
 export const commentBufferSize = 50;
 
-export type AuthorsCommentsState = {
+type AuthorsCommentsState = {
   // authorCommentsName is a string used a key to represent authorAddress + filter + accountId
   options: { [authorCommentsName: string]: AuthorCommentsOptions };
   loadedComments: { [authorCommentsName: string]: Comment[] };

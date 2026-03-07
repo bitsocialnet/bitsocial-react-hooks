@@ -3049,54 +3049,6 @@
   dependencies:
     "@types/node" "*"
 
-"@typescript/native-preview-darwin-arm64@7.0.0-dev.20260303.1":
-  version "7.0.0-dev.20260303.1"
-  resolved "https://registry.yarnpkg.com/@typescript/native-preview-darwin-arm64/-/native-preview-darwin-arm64-7.0.0-dev.20260303.1.tgz#b94e1a9b72a1dc125b2bf13ca86467f6ba369f07"
-  integrity sha512-jIIQWmFi0bJY4ML8/7eyz1EGpkI6E0R1E5l4lxJdV/orpMr91vYfAajKICs7DUiMGEJX9HpeiA6TD2piw4DKPQ==
-
-"@typescript/native-preview-darwin-x64@7.0.0-dev.20260303.1":
-  version "7.0.0-dev.20260303.1"
-  resolved "https://registry.yarnpkg.com/@typescript/native-preview-darwin-x64/-/native-preview-darwin-x64-7.0.0-dev.20260303.1.tgz#c7f5e9fc3115407232269cb1f8cafc81b6e887a3"
-  integrity sha512-UkaK+J3f185VXBiAGNG4UKHjGzn4R/nhAz5tArnCKHnIUI7rEnsIm4Xlo5YwmgIATFMU1sVwWUwRshVkMVeFAw==
-
-"@typescript/native-preview-linux-arm64@7.0.0-dev.20260303.1":
-  version "7.0.0-dev.20260303.1"
-  resolved "https://registry.yarnpkg.com/@typescript/native-preview-linux-arm64/-/native-preview-linux-arm64-7.0.0-dev.20260303.1.tgz#94017d7574cfae33a9b7c0e14099a125ec356610"
-  integrity sha512-ELJSV2Q4/mK+ampttssOl4H9s9ZBCc3k7y/u5ivJX8TdlMvZuH/JHqI6cS4Y00flt0R5wc70X+Nlcor4I4+rpw==
-
-"@typescript/native-preview-linux-arm@7.0.0-dev.20260303.1":
-  version "7.0.0-dev.20260303.1"
-  resolved "https://registry.yarnpkg.com/@typescript/native-preview-linux-arm/-/native-preview-linux-arm-7.0.0-dev.20260303.1.tgz#48894c5676ec7c04df79dc84bb9666b27f4f293f"
-  integrity sha512-H84jTRYqUfc/vhuVGQ6VKcBvJoZ4YmomWDx9U4uwYgW6eoUcRpDXqv3S3YqcNJcUmz22d/tTwIYz8ssXNLa/Qw==
-
-"@typescript/native-preview-linux-x64@7.0.0-dev.20260303.1":
-  version "7.0.0-dev.20260303.1"
-  resolved "https://registry.yarnpkg.com/@typescript/native-preview-linux-x64/-/native-preview-linux-x64-7.0.0-dev.20260303.1.tgz#1ae257c0ae482082aa29f2a93af61058acbe5638"
-  integrity sha512-HkddFrPJ0jcrohe+HnCqVTv8PunjqNs7FisRmtIAnc36+ccraDB6MVFEdPyAIL3PUID+TP/ESquqeKNnB7HdrQ==
-
-"@typescript/native-preview-win32-arm64@7.0.0-dev.20260303.1":
-  version "7.0.0-dev.20260303.1"
-  resolved "https://registry.yarnpkg.com/@typescript/native-preview-win32-arm64/-/native-preview-win32-arm64-7.0.0-dev.20260303.1.tgz#9f5b196e0730afef94eaa9baa9743a35034689f3"
-  integrity sha512-kTTMrBpWuxbHPt9hAFQSWeP//5Oa0KOdAEvceOfXUJhTS8RAA/kZSlFGE/Zw1EtrFLQx2J7uTHUZnYxH1hYXNw==
-
-"@typescript/native-preview-win32-x64@7.0.0-dev.20260303.1":
-  version "7.0.0-dev.20260303.1"
-  resolved "https://registry.yarnpkg.com/@typescript/native-preview-win32-x64/-/native-preview-win32-x64-7.0.0-dev.20260303.1.tgz#1adec5abb34f9ac8c2fa566eb5e73d238b7b2de8"
-  integrity sha512-UcVZbf4pra46Yx/eFV6m9F+awvihliPEud4Rq+A8Q3q3zI67VRaNH6R2/qeo4AqqKRahmiEdLM6Tnm+gPtLRQQ==
-
-"@typescript/native-preview@7.0.0-dev.20260303.1":
-  version "7.0.0-dev.20260303.1"
-  resolved "https://registry.yarnpkg.com/@typescript/native-preview/-/native-preview-7.0.0-dev.20260303.1.tgz#e09402e98920901f2a868b5626ae1555858b1a7c"
-  integrity sha512-BDHJjXlPldInEogbzAc7OCLvT75p3rdkmb5YIA6Je0vjg+5z1UQp3moAvcBGvZQflO/gusOd9a74EfrMVUU/4g==
-  optionalDependencies:
-    "@typescript/native-preview-darwin-arm64" "7.0.0-dev.20260303.1"
-    "@typescript/native-preview-darwin-x64" "7.0.0-dev.20260303.1"
-    "@typescript/native-preview-linux-arm" "7.0.0-dev.20260303.1"
-    "@typescript/native-preview-linux-arm64" "7.0.0-dev.20260303.1"
-    "@typescript/native-preview-linux-x64" "7.0.0-dev.20260303.1"
-    "@typescript/native-preview-win32-arm64" "7.0.0-dev.20260303.1"
-    "@typescript/native-preview-win32-x64" "7.0.0-dev.20260303.1"
-
 "@vitest/browser-playwright@4.0.18":
   version "4.0.18"
   resolved "https://registry.yarnpkg.com/@vitest/browser-playwright/-/browser-playwright-4.0.18.tgz#1a844a44cf2f1e2321ca70e405063104350e5472"
@@ -4651,11 +4603,6 @@ dot-prop@^5.1.0:
   dependencies:
     is-obj "^2.0.0"
 
-dotenv@16.6.1:
-  version "16.6.1"
-  resolved "https://registry.yarnpkg.com/dotenv/-/dotenv-16.6.1.tgz#773f0e69527a8315c7285d5ee73c4459d20a8020"
-  integrity sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==
-
 dunder-proto@^1.0.1:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/dunder-proto/-/dunder-proto-1.0.1.tgz#d7ae667e1dc83482f8b70fd0f6eefc50da30f58a"
@@ -5211,15 +5158,6 @@ fs-constants@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/fs-constants/-/fs-constants-1.0.0.tgz#6be0de9be998ce16af8afc24497b9ee9b7ccd9ad"
   integrity sha512-y6OAwoSIf7FyjMIv94u+b5rdheZEjzR63GTyZJm5qh4Bi+2YgwLCcI/fPFZkL5PSixOt6ZNKm+w+Hfp/Bciwow==
-
-fs-extra@10.1.0:
-  version "10.1.0"
-  resolved "https://registry.yarnpkg.com/fs-extra/-/fs-extra-10.1.0.tgz#02873cfbc4084dde127eaa5f9905eef2325d1abf"
-  integrity sha512-oRXApq54ETRj4eMiFzGnHWGy+zo5raudjuxN0b8H7s/RU2oW0Wvsx9O0ACRN/kRq9E8Vu/ReskGB5o3ji+FzHQ==
-  dependencies:
-    graceful-fs "^4.2.0"
-    jsonfile "^6.0.1"
-    universalify "^2.0.0"
 
 fs-extra@9.1.0:
   version "9.1.0"

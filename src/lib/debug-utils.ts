@@ -23,5 +23,4 @@ const debugUtils = {
 };
 
 export { deleteDatabases, deleteCaches };
-
 export default debugUtils;

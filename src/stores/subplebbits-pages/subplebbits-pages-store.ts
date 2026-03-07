@@ -26,9 +26,9 @@ export const getCommentFreshness = (comment: Comment | undefined): number =>
   Math.max(comment?.updatedAt ?? 0, comment?.timestamp ?? 0, 0);
 
 // reset all event listeners in between tests
-export const listeners: any = [];
+const listeners: any = [];
 
-export type SubplebbitsPagesState = {
+type SubplebbitsPagesState = {
   subplebbitsPages: SubplebbitsPages;
   comments: Comments;
   addNextSubplebbitPageToStore: Function;
