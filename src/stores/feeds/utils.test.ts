@@ -713,9 +713,18 @@ describe("feeds utils", () => {
       const loadedFeeds = {
         feed1: [{ cid: "c1", subplebbitAddress: "sub1", timestamp: 100, index: 1 }],
       };
+      const filteredSortedFeeds = {
+        feed1: [{ cid: "c1", subplebbitAddress: "sub1", timestamp: 100, index: 1 }],
+      };
       const bufferedFeeds = { feed1: [] };
       const accounts = makeMockAccounts();
-      const result = await getLoadedFeeds(feedsOptions, loadedFeeds, bufferedFeeds, accounts);
+      const result = await getLoadedFeeds(
+        feedsOptions,
+        filteredSortedFeeds,
+        loadedFeeds,
+        bufferedFeeds,
+        accounts,
+      );
       expect(result).toBe(loadedFeeds);
     });
 
@@ -737,10 +746,82 @@ describe("feeds utils", () => {
         { cid: "c4", subplebbitAddress: "sub1", timestamp: 4 },
         { cid: "c5", subplebbitAddress: "sub1", timestamp: 5 },
       ];
+      const filteredSortedFeeds = { feed1: bufferedPosts };
       const bufferedFeeds = { feed1: bufferedPosts };
       const accounts = makeMockAccounts();
-      const result = await getLoadedFeeds(feedsOptions, loadedFeeds, bufferedFeeds, accounts);
+      const result = await getLoadedFeeds(
+        feedsOptions,
+        filteredSortedFeeds,
+        loadedFeeds,
+        bufferedFeeds,
+        accounts,
+      );
       expect(result.feed1.length).toBeGreaterThanOrEqual(5);
+    });
+
+    test("modQueue prunes removed posts and refreshes remaining loaded entries", async () => {
+      const feedName = "feed1";
+      const feedsOptions = {
+        [feedName]: {
+          subplebbitAddresses: ["sub1"],
+          sortType: "new",
+          accountId: mockAccountId,
+          pageNumber: 2,
+          postsPerPage: 1,
+          modQueue: ["pendingApproval"],
+        },
+      };
+      const loadedFeeds = {
+        [feedName]: [
+          {
+            cid: "keep-cid",
+            subplebbitAddress: "sub1",
+            timestamp: 1,
+            updatedAt: 1,
+            pendingApproval: true,
+          },
+          {
+            cid: "remove-cid",
+            subplebbitAddress: "sub1",
+            timestamp: 2,
+            updatedAt: 2,
+            pendingApproval: true,
+          },
+        ],
+      };
+      const filteredSortedFeeds = {
+        [feedName]: [
+          {
+            cid: "keep-cid",
+            subplebbitAddress: "sub1",
+            timestamp: 1,
+            updatedAt: 10,
+            pendingApproval: true,
+          },
+          {
+            cid: "new-cid",
+            subplebbitAddress: "sub1",
+            timestamp: 3,
+            updatedAt: 3,
+            pendingApproval: true,
+          },
+        ],
+      };
+      const bufferedFeeds = {
+        [feedName]: [filteredSortedFeeds[feedName][1]],
+      };
+      const accounts = makeMockAccounts();
+
+      const result = await getLoadedFeeds(
+        feedsOptions,
+        filteredSortedFeeds,
+        loadedFeeds,
+        bufferedFeeds,
+        accounts,
+      );
+
+      expect(result[feedName].map((post: any) => post.cid)).toEqual(["keep-cid", "new-cid"]);
+      expect(result[feedName][0].updatedAt).toBe(10);
     });
   });
 

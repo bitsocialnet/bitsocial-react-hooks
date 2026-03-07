@@ -25,6 +25,84 @@ import { areEquivalentSubplebbitAddresses } from "../../lib/subplebbit-address";
 import Logger from "@plebbit/plebbit-logger";
 const log = Logger("bitsocial-react-hooks:feeds:stores");
 
+const getCommentFreshness = (comment: Comment | undefined) =>
+  Math.max(comment?.updatedAt ?? 0, comment?.timestamp ?? 0, 0);
+
+const commentMatchesModQueue = (comment: Comment | undefined, modQueue?: string[]) => {
+  const modQueueName = modQueue?.[0];
+  if (!modQueueName) {
+    return true;
+  }
+  if (modQueueName === "pendingApproval") {
+    return comment?.pendingApproval === true;
+  }
+  return true;
+};
+
+const getFeedPost = (
+  post: Comment,
+  subplebbitAddress: string,
+  modQueue?: string[],
+  freshestComments?: { [commentCid: string]: Comment },
+) => {
+  const freshestComment = post.cid ? freshestComments?.[post.cid] : undefined;
+  if (!areEquivalentSubplebbitAddresses(post.subplebbitAddress, subplebbitAddress)) {
+    return;
+  }
+  if (!freshestComment || getCommentFreshness(freshestComment) <= getCommentFreshness(post)) {
+    return post;
+  }
+  if (!commentMatchesModQueue(freshestComment, modQueue)) {
+    return;
+  }
+  if (!areEquivalentSubplebbitAddresses(freshestComment.subplebbitAddress, subplebbitAddress)) {
+    return;
+  }
+  return freshestComment;
+};
+
+const reconcileLoadedModQueueFeed = (
+  feedOptions: FeedOptions,
+  loadedFeed: Feed,
+  filteredSortedFeed: Feed,
+) => {
+  if (!feedOptions?.modQueue?.[0] || !loadedFeed?.length) {
+    return loadedFeed;
+  }
+
+  const filteredSortedFeedByCid = new Map<string, Comment>();
+  for (const post of filteredSortedFeed) {
+    if (post.cid) {
+      filteredSortedFeedByCid.set(post.cid, post);
+    }
+  }
+
+  let changed = false;
+  const nextLoadedFeed: Comment[] = [];
+  for (const post of loadedFeed) {
+    if (!post.cid) {
+      nextLoadedFeed.push(post);
+      continue;
+    }
+
+    const sourcePost = filteredSortedFeedByCid.get(post.cid);
+    if (!sourcePost) {
+      changed = true;
+      continue;
+    }
+
+    if (getCommentFreshness(sourcePost) > getCommentFreshness(post)) {
+      nextLoadedFeed.push(sourcePost);
+      changed = true;
+      continue;
+    }
+
+    nextLoadedFeed.push(post);
+  }
+
+  return changed ? nextLoadedFeed : loadedFeed;
+};
+
 /**
  * Calculate the feeds from all the loaded subplebbit pages, filter and sort them
  */
@@ -33,6 +111,7 @@ export const getFilteredSortedFeeds = (
   subplebbits: Subplebbits,
   subplebbitsPages: SubplebbitsPages,
   accounts: Accounts,
+  freshestComments?: { [commentCid: string]: Comment },
 ) => {
   // calculate each feed
   let feeds: Feeds = {};
@@ -71,7 +150,10 @@ export const getFilteredSortedFeeds = (
           if (!areEquivalentSubplebbitAddresses(post.subplebbitAddress, subplebbitAddress)) {
             break;
           }
-          bufferedFeedPosts.push(post);
+          const nextPost = getFeedPost(post, subplebbitAddress, modQueue, freshestComments);
+          if (nextPost) {
+            bufferedFeedPosts.push(nextPost);
+          }
         }
       }
 
@@ -89,7 +171,10 @@ export const getFilteredSortedFeeds = (
             if (!areEquivalentSubplebbitAddresses(post.subplebbitAddress, subplebbitAddress)) {
               break;
             }
-            bufferedFeedPosts.push(post);
+            const nextPost = getFeedPost(post, subplebbitAddress, modQueue, freshestComments);
+            if (nextPost) {
+              bufferedFeedPosts.push(nextPost);
+            }
           }
         }
       }
@@ -173,16 +258,26 @@ const getPreloadedPosts = (subplebbit: Subplebbit, sortType: string) => {
 
 export const getLoadedFeeds = async (
   feedsOptions: FeedsOptions,
+  filteredSortedFeeds: Feeds,
   loadedFeeds: Feeds,
   bufferedFeeds: Feeds,
   accounts: Accounts,
 ) => {
-  const loadedFeedsMissingPosts: Feeds = {};
+  const nextLoadedFeeds: Feeds = { ...loadedFeeds };
+  let loadedFeedsChanged = false;
   for (const feedName in feedsOptions) {
     const { pageNumber, postsPerPage, accountId } = feedsOptions[feedName];
     const plebbit = accounts[accountId]?.plebbit;
     const loadedFeedPostCount = pageNumber * postsPerPage;
-    const currentLoadedFeed = loadedFeeds[feedName] || [];
+    const currentLoadedFeed = reconcileLoadedModQueueFeed(
+      feedsOptions[feedName],
+      loadedFeeds[feedName] || [],
+      filteredSortedFeeds[feedName] || [],
+    );
+    if (currentLoadedFeed !== loadedFeeds[feedName]) {
+      nextLoadedFeeds[feedName] = currentLoadedFeed;
+      loadedFeedsChanged = true;
+    }
     const missingPostsCount =
       loadedFeedPostCount - currentLoadedFeed.filter((post) => post.index === undefined).length;
 
@@ -206,29 +301,27 @@ export const getLoadedFeeds = async (
     }
 
     // the current loaded feed already exist and doesn't need new posts
-    if (missingPosts.length === 0 && loadedFeeds[feedName]) {
+    if (
+      missingPosts.length === 0 &&
+      loadedFeeds[feedName] &&
+      currentLoadedFeed === loadedFeeds[feedName]
+    ) {
       continue;
     }
-    loadedFeedsMissingPosts[feedName] = missingPosts;
-  }
-
-  let newLoadedFeeds: Feeds = {};
-  for (const feedName in loadedFeedsMissingPosts) {
-    newLoadedFeeds[feedName] = [
-      ...(loadedFeeds[feedName] || []),
-      ...loadedFeedsMissingPosts[feedName],
-    ];
+    nextLoadedFeeds[feedName] = [...currentLoadedFeed, ...missingPosts];
+    if (missingPosts.length > 0) {
+      loadedFeedsChanged = true;
+    }
   }
 
   // add account comments
-  newLoadedFeeds = { ...loadedFeeds, ...newLoadedFeeds };
-  const accountCommentsChangedFeeds = addAccountsComments(feedsOptions, newLoadedFeeds);
+  const accountCommentsChangedFeeds = addAccountsComments(feedsOptions, nextLoadedFeeds);
 
   // do nothing if there are no missing posts
-  if (Object.keys(loadedFeedsMissingPosts).length === 0 && !accountCommentsChangedFeeds) {
+  if (!loadedFeedsChanged && !accountCommentsChangedFeeds) {
     return loadedFeeds;
   }
-  return newLoadedFeeds;
+  return nextLoadedFeeds;
 };
 
 export const addAccountsComments = (feedsOptions: FeedsOptions, loadedFeeds: Feeds) => {

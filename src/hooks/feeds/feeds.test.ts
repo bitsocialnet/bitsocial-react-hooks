@@ -8,6 +8,7 @@ import localForageLru from "../../lib/localforage-lru";
 import localForage from "localforage";
 import feedsStore, { defaultPostsPerPage as postsPerPage } from "../../stores/feeds";
 import subplebbitsStore from "../../stores/subplebbits";
+import subplebbitsPagesStore from "../../stores/subplebbits-pages";
 import accountsStore from "../../stores/accounts";
 import PlebbitJsMock, {
   Plebbit,
@@ -2237,6 +2238,43 @@ describe("feeds", () => {
         await scrollOnePage();
         await waitFor(() => rendered.result.current.feed.length == postsPerPage * 2);
         expect(rendered.result.current.feed.length).toBe(postsPerPage * 2);
+      });
+
+      test("modQueue drops approved posts after the page stops returning them", async () => {
+        const subplebbitAddresses = ["subplebbit address 1"];
+        rendered.rerender({ subplebbitAddresses, modQueue: ["pendingApproval"] });
+
+        await waitFor(() => rendered.result.current.feed.length > 0);
+        const removedCid = rendered.result.current.feed[0].cid;
+        const pageCid = Object.keys(subplebbitsPagesStore.getState().subplebbitsPages).find((cid) =>
+          cid.includes("pendingApproval"),
+        );
+        expect(pageCid).toBeDefined();
+
+        await act(async () => {
+          subplebbitsPagesStore.setState((state: any) => {
+            const page = state.subplebbitsPages[pageCid as string];
+            return {
+              ...state,
+              subplebbitsPages: {
+                ...state.subplebbitsPages,
+                [pageCid as string]: {
+                  ...page,
+                  comments: page.comments.filter((comment: Comment) => comment.cid !== removedCid),
+                },
+              },
+            };
+          });
+        });
+
+        await waitFor(
+          () =>
+            rendered.result.current.feed.length === postsPerPage &&
+            rendered.result.current.feed.every((comment: Comment) => comment.cid !== removedCid),
+        );
+        expect(
+          rendered.result.current.feed.some((comment: Comment) => comment.cid === removedCid),
+        ).toBe(false);
       });
 
       // TODO: test modQueue page state

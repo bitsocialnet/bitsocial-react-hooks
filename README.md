@@ -741,6 +741,8 @@ const {feed, hasMore, loadMore} = useFeed({
 />
 ```
 
+Comments automatically drop out of this feed once they are no longer returned by the pending-approval mod-queue pages.
+
 #### Approve a pending approval comment
 
 ```jsx

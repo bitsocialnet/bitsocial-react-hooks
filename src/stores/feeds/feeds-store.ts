@@ -247,6 +247,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
         subplebbits,
         subplebbitsPages,
         accounts,
+        subplebbitsPagesStore.getState().comments,
       );
       const bufferedFeedsWithoutPreviousLoadedFeeds = getBufferedFeedsWithoutLoadedFeeds(
         filteredSortedFeeds,
@@ -254,6 +255,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
       );
       const loadedFeeds = await getLoadedFeeds(
         feedsOptions,
+        filteredSortedFeeds,
         previousState.loadedFeeds,
         bufferedFeedsWithoutPreviousLoadedFeeds,
         accounts,
