@@ -124,6 +124,7 @@ src/
 
 - Keep context lean: delegate heavy/verbose tasks to subprocesses when available.
 - For complex work, parallelize independent checks.
+- Use `yarn knip` as an advisory manifest-hygiene check when changing dependencies or adding/removing imports. It is not a required verification gate.
 - When proposing or implementing meaningful code changes, include both:
   - a Conventional Commit title suggestion
   - a short GitHub issue suggestion
@@ -137,6 +138,8 @@ src/
 ```bash
 yarn install
 yarn build                # TypeScript compilation
+yarn knip                 # Advisory dependency/binary manifest audit
+yarn knip:full            # Exploratory full unused files/exports scan (non-blocking)
 yarn test                 # Vitest unit tests
 vitest run --config config/vitest.config.js --coverage.enabled --coverage.provider=istanbul --coverage.reporter=text --coverage.reporter=json-summary --coverage.reportsDirectory=./coverage
 node scripts/verify-hooks-stores-coverage.mjs # Enforce 100% lines/branches/functions/statements for src/hooks and src/stores
