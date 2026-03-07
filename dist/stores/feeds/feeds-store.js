@@ -127,9 +127,9 @@ const feedsStore = createStore((setState, getState) => ({
             const { subplebbitsPages } = subplebbitsPagesStore.getState();
             const { accounts } = accountsStore.getState();
             // calculate new feeds
-            const filteredSortedFeeds = getFilteredSortedFeeds(feedsOptions, subplebbits, subplebbitsPages, accounts);
+            const filteredSortedFeeds = getFilteredSortedFeeds(feedsOptions, subplebbits, subplebbitsPages, accounts, subplebbitsPagesStore.getState().comments);
             const bufferedFeedsWithoutPreviousLoadedFeeds = getBufferedFeedsWithoutLoadedFeeds(filteredSortedFeeds, previousState.loadedFeeds);
-            const loadedFeeds = yield getLoadedFeeds(feedsOptions, previousState.loadedFeeds, bufferedFeedsWithoutPreviousLoadedFeeds, accounts);
+            const loadedFeeds = yield getLoadedFeeds(feedsOptions, filteredSortedFeeds, previousState.loadedFeeds, bufferedFeedsWithoutPreviousLoadedFeeds, accounts);
             // after loaded feeds are caculated, remove new loaded feeds (again) from buffered feeds
             const bufferedFeeds = getBufferedFeedsWithoutLoadedFeeds(bufferedFeedsWithoutPreviousLoadedFeeds, loadedFeeds);
             const bufferedFeedsSubplebbitsPostCounts = getFeedsSubplebbitsPostCounts(feedsOptions, bufferedFeeds);
