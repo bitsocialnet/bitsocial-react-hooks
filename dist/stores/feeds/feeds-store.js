@@ -97,19 +97,40 @@ const feedsStore = createStore((setState, getState) => ({
         updateFeeds();
     },
     resetFeed(feedName) {
-        const { feedsOptions, updateFeeds } = getState();
-        assert(feedsOptions[feedName], `feedsActions.resetFeed feed name '${feedName}' does not exist in feeds store`);
-        assert(feedsOptions[feedName].pageNumber >= 1, `feedsActions.resetFeed cannot reset feed page number '${feedsOptions[feedName].pageNumber}' lower than 1`);
-        log("feedsActions.resetFeed", { feedName });
-        setState(({ feedsOptions, loadedFeeds, updatedFeeds }) => {
-            const feedOptions = Object.assign(Object.assign({}, feedsOptions[feedName]), { pageNumber: 1 });
-            return {
-                feedsOptions: Object.assign(Object.assign({}, feedsOptions), { [feedName]: feedOptions }),
-                loadedFeeds: Object.assign(Object.assign({}, loadedFeeds), { [feedName]: [] }),
-                updatedFeeds: Object.assign(Object.assign({}, updatedFeeds), { [feedName]: [] }),
-            };
+        return __awaiter(this, void 0, void 0, function* () {
+            const { feedsOptions, updateFeeds } = getState();
+            assert(feedsOptions[feedName], `feedsActions.resetFeed feed name '${feedName}' does not exist in feeds store`);
+            assert(feedsOptions[feedName].pageNumber >= 1, `feedsActions.resetFeed cannot reset feed page number '${feedsOptions[feedName].pageNumber}' lower than 1`);
+            log("feedsActions.resetFeed", { feedName });
+            const { modQueue, sortType, subplebbitAddresses, accountId } = feedsOptions[feedName];
+            const account = accountsStore.getState().accounts[accountId];
+            assert(account, `feedsActions.resetFeed account id '${accountId}' does not exist in accounts store`);
+            setState(({ feedsOptions, loadedFeeds, updatedFeeds }) => {
+                const feedOptions = Object.assign(Object.assign({}, feedsOptions[feedName]), { pageNumber: 1 });
+                return {
+                    feedsOptions: Object.assign(Object.assign({}, feedsOptions), { [feedName]: feedOptions }),
+                    loadedFeeds: Object.assign(Object.assign({}, loadedFeeds), { [feedName]: [] }),
+                    updatedFeeds: Object.assign(Object.assign({}, updatedFeeds), { [feedName]: [] }),
+                };
+            });
+            if (modQueue === null || modQueue === void 0 ? void 0 : modQueue[0]) {
+                const { subplebbits } = subplebbitsStore.getState();
+                const { invalidateSubplebbitPages } = subplebbitsPagesStore.getState();
+                const loadedSubplebbits = subplebbitAddresses
+                    .map((subplebbitAddress) => subplebbits[subplebbitAddress])
+                    .filter((subplebbit) => Boolean(subplebbit));
+                yield Promise.all(loadedSubplebbits.map((subplebbit) => invalidateSubplebbitPages(subplebbit, sortType, modQueue)));
+            }
+            yield Promise.all(subplebbitAddresses.map((subplebbitAddress) => subplebbitsStore
+                .getState()
+                .refreshSubplebbit(subplebbitAddress, account)
+                .catch((error) => log.error("feedsStore.resetFeed refreshSubplebbit error", {
+                feedName,
+                subplebbitAddress,
+                error,
+            }))));
+            updateFeeds();
         });
-        updateFeeds();
     },
     // recalculate all feeds using new subplebbits.post.pages, subplebbitsPagesStore and page numbers
     updateFeeds() {

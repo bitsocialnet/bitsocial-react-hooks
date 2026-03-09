@@ -7,6 +7,7 @@ type SubplebbitsPagesState = {
     subplebbitsPages: SubplebbitsPages;
     comments: Comments;
     addNextSubplebbitPageToStore: Function;
+    invalidateSubplebbitPages: Function;
     addSubplebbitPageCommentsToStore: Function;
 };
 declare const subplebbitsPagesStore: import("zustand").UseBoundStore<import("zustand").StoreApi<SubplebbitsPagesState>>;

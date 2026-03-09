@@ -72,7 +72,7 @@ export function useFeed(options) {
             if (!uniqueSubplebbitAddresses || !account) {
                 throw Error("useFeed cannot reset feed not initalized yet");
             }
-            resetFeed(feedName);
+            yield resetFeed(feedName);
         }
         catch (e) {
             // wait 100 ms so infinite scroll doesn't spam this function

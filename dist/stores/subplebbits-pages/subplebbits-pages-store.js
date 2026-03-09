@@ -127,6 +127,38 @@ const subplebbitsPagesStore = createStore((setState, getState) => ({
                 .catch((error) => log.error("subplebbitsPagesStore.addNextSubplebbitPageToStore addCidToAccountComment error", { comment, error }));
         }
     }),
+    invalidateSubplebbitPages: (subplebbit, sortType, modQueue) => __awaiter(void 0, void 0, void 0, function* () {
+        var _a, _b;
+        assert((subplebbit === null || subplebbit === void 0 ? void 0 : subplebbit.address) && typeof (subplebbit === null || subplebbit === void 0 ? void 0 : subplebbit.address) === "string", `subplebbitsPagesStore.invalidateSubplebbitPages subplebbit '${subplebbit}' invalid`);
+        assert(sortType && typeof sortType === "string", `subplebbitsPagesStore.invalidateSubplebbitPages sortType '${sortType}' invalid`);
+        assert(!modQueue || Array.isArray(modQueue), `subplebbitsPagesStore.invalidateSubplebbitPages modQueue '${modQueue}' invalid`);
+        let pageType = "posts";
+        if (modQueue === null || modQueue === void 0 ? void 0 : modQueue[0]) {
+            // TODO: allow multiple modQueue at once, for now only use first in array
+            // TODO: fix 'sortType' is not accurate variable name when pageType is 'modQueue'
+            sortType = modQueue[0];
+            pageType = "modQueue";
+        }
+        const firstPageCid = getSubplebbitFirstPageCid(subplebbit, sortType, pageType);
+        if (!firstPageCid) {
+            return;
+        }
+        const { subplebbitsPages } = getState();
+        const pageCidsToInvalidate = new Set([firstPageCid]);
+        let nextPageCid = (_a = subplebbitsPages[firstPageCid]) === null || _a === void 0 ? void 0 : _a.nextCid;
+        while (nextPageCid) {
+            pageCidsToInvalidate.add(nextPageCid);
+            nextPageCid = (_b = subplebbitsPages[nextPageCid]) === null || _b === void 0 ? void 0 : _b.nextCid;
+        }
+        yield Promise.all([...pageCidsToInvalidate].map((pageCid) => subplebbitsPagesDatabase.removeItem(pageCid)));
+        setState(({ subplebbitsPages }) => {
+            const nextSubplebbitsPages = Object.assign({}, subplebbitsPages);
+            for (const pageCid of pageCidsToInvalidate) {
+                delete nextSubplebbitsPages[pageCid];
+            }
+            return { subplebbitsPages: nextSubplebbitsPages };
+        });
+    }),
     // subplebbits contain preloaded pages, those page comments must be added separately
     addSubplebbitPageCommentsToStore: (subplebbit) => {
         var _a;

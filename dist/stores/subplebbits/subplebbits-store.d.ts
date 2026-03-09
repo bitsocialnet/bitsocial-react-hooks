@@ -5,6 +5,7 @@ export type SubplebbitsState = {
         [subplebbitAddress: string]: Error[];
     };
     addSubplebbitToStore: Function;
+    refreshSubplebbit: Function;
     editSubplebbit: Function;
     createSubplebbit: Function;
     deleteSubplebbit: Function;
