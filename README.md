@@ -134,6 +134,7 @@ setAuthorAvatarsWhitelistedTokenAddresses(tokenAddresses: string[])
 useFeed({subplebbitAddresses: string[], sortType?: string, postsPerPage?: number, filter?: CommentsFilter, newerThan?: number, accountComments?: {newerThan: number, append?: boolean}, modQueue: ['pendingApproval']}): {feed: Comment[], loadMore: function, hasMore: boolean, reset: function, updatedFeed: Comment[], bufferedFeed: Comment[], subplebbitAddressesWithNewerPosts: string[]}
 useBufferedFeeds({feedsOptions: UseFeedOptions[]}) // preload or buffer feeds in the background, so they load faster when you call `useFeed`
 ```
+`useFeed().reset()` clears the current feed and refreshes the latest subplebbit snapshots before rebuilding it.
 #### Actions Hooks
 ```
 useSubscribe({subplebbitAddress: string}): {subscribed: boolean | undefined, subscribe: Function, unsubscribe: Function}

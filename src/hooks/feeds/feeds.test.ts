@@ -2324,6 +2324,46 @@ describe("feeds", () => {
         ).toBe(false);
       });
 
+      test("modQueue reset refreshes the latest subplebbit snapshot before rebuilding", async () => {
+        const getSubplebbit = Plebbit.prototype.getSubplebbit;
+        let hidePendingApprovalPage = false;
+
+        Plebbit.prototype.getSubplebbit = async function (options: { address: string }) {
+          const subplebbit = await getSubplebbit.call(this, options);
+          if (hidePendingApprovalPage) {
+            subplebbit.modQueue.pageCids = {};
+          }
+          return subplebbit;
+        };
+
+        try {
+          rendered.rerender({
+            subplebbitAddresses: ["subplebbit address 1"],
+            modQueue: ["pendingApproval"],
+          });
+
+          await waitFor(() => rendered.result.current.feed.length > 0);
+          await scrollOnePage();
+          await waitFor(() => rendered.result.current.feed.length === postsPerPage * 2);
+
+          hidePendingApprovalPage = true;
+
+          await act(async () => {
+            await rendered.result.current.reset();
+          });
+
+          await waitFor(
+            () =>
+              !subplebbitsStore.getState().subplebbits["subplebbit address 1"]?.modQueue?.pageCids
+                ?.pendingApproval,
+          );
+          await waitFor(() => rendered.result.current.feed.length === 0);
+          expect(rendered.result.current.feed).toEqual([]);
+        } finally {
+          Plebbit.prototype.getSubplebbit = getSubplebbit;
+        }
+      });
+
       // TODO: test modQueue page state
     });
 

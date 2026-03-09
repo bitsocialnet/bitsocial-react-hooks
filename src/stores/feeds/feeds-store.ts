@@ -196,7 +196,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
     updateFeeds();
   },
 
-  resetFeed(feedName: string) {
+  async resetFeed(feedName: string) {
     const { feedsOptions, updateFeeds } = getState();
     assert(
       feedsOptions[feedName],
@@ -207,6 +207,13 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
       `feedsActions.resetFeed cannot reset feed page number '${feedsOptions[feedName].pageNumber}' lower than 1`,
     );
     log("feedsActions.resetFeed", { feedName });
+
+    const { modQueue, sortType, subplebbitAddresses, accountId } = feedsOptions[feedName];
+    const account = accountsStore.getState().accounts[accountId];
+    assert(
+      account,
+      `feedsActions.resetFeed account id '${accountId}' does not exist in accounts store`,
+    );
 
     setState(({ feedsOptions, loadedFeeds, updatedFeeds }: any) => {
       const feedOptions = {
@@ -219,6 +226,36 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
         updatedFeeds: { ...updatedFeeds, [feedName]: [] },
       };
     });
+
+    if (modQueue?.[0]) {
+      const { subplebbits } = subplebbitsStore.getState();
+      const { invalidateSubplebbitPages } = subplebbitsPagesStore.getState();
+      const loadedSubplebbits = subplebbitAddresses
+        .map((subplebbitAddress: string) => subplebbits[subplebbitAddress])
+        .filter((subplebbit: Subplebbit | undefined): subplebbit is Subplebbit =>
+          Boolean(subplebbit),
+        );
+      await Promise.all(
+        loadedSubplebbits.map((subplebbit: Subplebbit) =>
+          invalidateSubplebbitPages(subplebbit, sortType, modQueue),
+        ),
+      );
+    }
+
+    await Promise.all(
+      subplebbitAddresses.map((subplebbitAddress: string) =>
+        subplebbitsStore
+          .getState()
+          .refreshSubplebbit(subplebbitAddress, account)
+          .catch((error: unknown) =>
+            log.error("feedsStore.resetFeed refreshSubplebbit error", {
+              feedName,
+              subplebbitAddress,
+              error,
+            }),
+          ),
+      ),
+    );
 
     updateFeeds();
   },

@@ -119,7 +119,7 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
       if (!uniqueSubplebbitAddresses || !account) {
         throw Error("useFeed cannot reset feed not initalized yet");
       }
-      resetFeed(feedName);
+      await resetFeed(feedName);
     } catch (e: any) {
       // wait 100 ms so infinite scroll doesn't spam this function
       await new Promise((r) => setTimeout(r, 50));

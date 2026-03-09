@@ -21,6 +21,7 @@ export type SubplebbitsState = {
   subplebbits: Subplebbits;
   errors: { [subplebbitAddress: string]: Error[] };
   addSubplebbitToStore: Function;
+  refreshSubplebbit: Function;
   editSubplebbit: Function;
   createSubplebbit: Function;
   deleteSubplebbit: Function;
@@ -194,6 +195,36 @@ const subplebbitsStore = createStore<SubplebbitsState>(
       subplebbit
         .update()
         .catch((error: unknown) => log.trace("subplebbit.update error", { subplebbit, error }));
+    },
+
+    async refreshSubplebbit(subplebbitAddress: string, account: Account) {
+      assert(
+        subplebbitAddress !== "" && typeof subplebbitAddress === "string",
+        `subplebbitsStore.refreshSubplebbit invalid subplebbitAddress argument '${subplebbitAddress}'`,
+      );
+      assert(
+        typeof account?.plebbit?.getSubplebbit === "function",
+        `subplebbitsStore.refreshSubplebbit invalid account argument '${account}'`,
+      );
+
+      const refreshedSubplebbit = utils.clone(
+        await account.plebbit.getSubplebbit({ address: subplebbitAddress }),
+      );
+      refreshedSubplebbit.fetchedAt = Math.floor(Date.now() / 1000);
+
+      await subplebbitsDatabase.setItem(subplebbitAddress, refreshedSubplebbit);
+      log("subplebbitsStore.refreshSubplebbit", {
+        subplebbitAddress,
+        refreshedSubplebbit,
+        account,
+      });
+      setState((state: any) => ({
+        subplebbits: { ...state.subplebbits, [subplebbitAddress]: refreshedSubplebbit },
+      }));
+
+      subplebbitsPagesStore.getState().addSubplebbitPageCommentsToStore(refreshedSubplebbit);
+
+      return refreshedSubplebbit;
     },
 
     // user is the owner of the subplebbit and can edit it locally

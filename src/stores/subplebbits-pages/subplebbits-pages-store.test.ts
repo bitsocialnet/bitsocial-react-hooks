@@ -155,6 +155,20 @@ describe("subplebbits pages store", () => {
   test("initial store", async () => {
     expect(rendered.result.current.subplebbitsPages).toEqual({});
     expect(typeof rendered.result.current.addNextSubplebbitPageToStore).toBe("function");
+    expect(typeof rendered.result.current.invalidateSubplebbitPages).toBe("function");
+  });
+
+  test("invalidateSubplebbitPages returns early when no subplebbitFirstPageCid", async () => {
+    const subplebbitWithoutPosts = {
+      address: "no-pages-address",
+      posts: {},
+    };
+
+    await act(async () => {
+      await rendered.result.current.invalidateSubplebbitPages(subplebbitWithoutPosts, "new");
+    });
+
+    expect(rendered.result.current.subplebbitsPages).toEqual({});
   });
 
   test("resetSubplebbitsPagesDatabaseAndStore clears database and store", async () => {
@@ -217,6 +231,64 @@ describe("subplebbits pages store", () => {
     expect(state.subplebbitsPages).toEqual({});
   });
 
+  test("invalidateSubplebbitPages clears stored page chains for posts", async () => {
+    const firstPageCid = "invalidate-posts-page-1";
+    const secondPageCid = "invalidate-posts-page-2";
+    const db = localForageLru.createInstance({ name: "plebbitReactHooks-subplebbitsPages" });
+
+    await db.setItem(firstPageCid, {
+      nextCid: secondPageCid,
+      comments: [{ cid: `${firstPageCid}-comment`, subplebbitAddress: "invalidate-posts" }],
+    });
+    await db.setItem(secondPageCid, {
+      comments: [{ cid: `${secondPageCid}-comment`, subplebbitAddress: "invalidate-posts" }],
+    });
+    useSubplebbitsPagesStore.setState({
+      subplebbitsPages: {
+        [firstPageCid]: {
+          nextCid: secondPageCid,
+          comments: [{ cid: `${firstPageCid}-comment`, subplebbitAddress: "invalidate-posts" }],
+        },
+        [secondPageCid]: {
+          comments: [{ cid: `${secondPageCid}-comment`, subplebbitAddress: "invalidate-posts" }],
+        },
+      },
+    });
+
+    await rendered.result.current.invalidateSubplebbitPages(
+      {
+        address: "invalidate-posts",
+        posts: { pageCids: { new: firstPageCid } },
+      },
+      "new",
+    );
+
+    expect(useSubplebbitsPagesStore.getState().subplebbitsPages[firstPageCid]).toBeUndefined();
+    expect(useSubplebbitsPagesStore.getState().subplebbitsPages[secondPageCid]).toBeUndefined();
+    expect(await db.getItem(firstPageCid)).toBeUndefined();
+    expect(await db.getItem(secondPageCid)).toBeUndefined();
+  });
+
+  test("invalidateSubplebbitPages returns early when no first page cid", async () => {
+    useSubplebbitsPagesStore.setState({
+      subplebbitsPages: {
+        existing: {
+          comments: [{ cid: "existing-comment", subplebbitAddress: "existing-sub" }],
+        },
+      },
+    });
+
+    await rendered.result.current.invalidateSubplebbitPages(
+      {
+        address: "no-pages",
+        posts: {},
+      },
+      "new",
+    );
+
+    expect(useSubplebbitsPagesStore.getState().subplebbitsPages.existing).toBeDefined();
+  });
+
   test("getCommentFreshness returns 0 when comment undefined (branch 26)", () => {
     expect(getCommentFreshness(undefined)).toBe(0);
   });
@@ -260,6 +332,16 @@ describe("subplebbits pages store", () => {
     );
   });
 
+  test("getSubplebbitFirstPageCid defaults pageType to posts", () => {
+    const subplebbit = {
+      address: "addr",
+      posts: {
+        pageCids: { hot: "default-posts-page-cid" },
+      },
+    };
+    expect(getSubplebbitFirstPageCid(subplebbit as any, "hot")).toBe("default-posts-page-cid");
+  });
+
   test("fetchPage returns cached page when in database", async () => {
     const mockSubplebbit = await mockAccount.plebbit.createSubplebbit({
       address: "subplebbit address 1",
@@ -283,6 +365,46 @@ describe("subplebbits pages store", () => {
         firstPageCid + " - next",
     );
     expect(rendered.result.current.subplebbitsPages[firstPageCid].comments).toHaveLength(1);
+  });
+
+  test("invalidateSubplebbitPages removes loaded page chain from store and database", async () => {
+    const mockSubplebbit = await mockAccount.plebbit.createSubplebbit({
+      address: "invalidate-pages-subplebbit",
+    });
+    const sortType = "new";
+    const firstPageCid = mockSubplebbit.posts.pageCids[sortType];
+    const db = localForageLru.createInstance({ name: "plebbitReactHooks-subplebbitsPages" });
+
+    await act(async () => {
+      await rendered.result.current.addNextSubplebbitPageToStore(
+        mockSubplebbit,
+        sortType,
+        mockAccount,
+      );
+    });
+    await waitFor(() => rendered.result.current.subplebbitsPages[firstPageCid]?.nextCid);
+
+    const secondPageCid = rendered.result.current.subplebbitsPages[firstPageCid].nextCid;
+    await act(async () => {
+      await rendered.result.current.addNextSubplebbitPageToStore(
+        mockSubplebbit,
+        sortType,
+        mockAccount,
+      );
+    });
+    await waitFor(() => rendered.result.current.subplebbitsPages[secondPageCid]?.comments?.length);
+
+    expect(await db.getItem(firstPageCid)).toBeDefined();
+    expect(await db.getItem(secondPageCid)).toBeDefined();
+
+    await act(async () => {
+      await rendered.result.current.invalidateSubplebbitPages(mockSubplebbit, sortType);
+    });
+
+    expect(useSubplebbitsPagesStore.getState().subplebbitsPages[firstPageCid]).toBeUndefined();
+    expect(useSubplebbitsPagesStore.getState().subplebbitsPages[secondPageCid]).toBeUndefined();
+    expect(await db.getItem(firstPageCid)).toBeUndefined();
+    expect(await db.getItem(secondPageCid)).toBeUndefined();
   });
 
   test("fetchPage onError logs when getPage rejects", async () => {
@@ -389,6 +511,47 @@ describe("subplebbits pages store", () => {
     subplebbitsStore.setState({ subplebbits: {} });
     capturedCb!("state", "type", "sort", "url");
     expect(subplebbitsStore.getState().subplebbits).toEqual({});
+
+    utilsMod.default.pageClientsOnStateChange = origPageClients;
+  });
+
+  test("onSubplebbitPostsClientsStateChange updates client state when subplebbit exists", async () => {
+    let capturedCb: ((...args: any[]) => void) | null = null;
+    const utilsMod = await import("../../lib/utils");
+    const origPageClients = utilsMod.default.pageClientsOnStateChange;
+    utilsMod.default.pageClientsOnStateChange = (_clients: any, cb: any) => {
+      capturedCb = cb;
+    };
+
+    const mockSubplebbit = await mockAccount.plebbit.createSubplebbit({
+      address: "client-state-live-sub-addr",
+    });
+    subplebbitsStore.setState({
+      subplebbits: {
+        [mockSubplebbit.address]: {
+          address: mockSubplebbit.address,
+          posts: { clients: {} },
+        },
+      },
+    });
+
+    await act(async () => {
+      await rendered.result.current.addNextSubplebbitPageToStore(
+        mockSubplebbit,
+        "new",
+        mockAccount,
+      );
+    });
+
+    expect(capturedCb).toBeTruthy();
+    capturedCb!("fetching", "ipfs", "new", "http://client.example");
+    expect(
+      subplebbitsStore.getState().subplebbits[mockSubplebbit.address].posts.clients.ipfs.new[
+        "http://client.example"
+      ],
+    ).toEqual({
+      state: "fetching",
+    });
 
     utilsMod.default.pageClientsOnStateChange = origPageClients;
   });

@@ -465,6 +465,7 @@ describe("feeds store", () => {
     const subplebbitAddresses = ["subplebbit address reset-feed"];
     const sortType = "new";
     const feedName = JSON.stringify([mockAccount?.id, sortType, subplebbitAddresses]);
+    const getSubplebbitSpy = vi.spyOn(mockAccount.plebbit, "getSubplebbit");
 
     act(() => {
       rendered.result.current.addFeedToStore(feedName, subplebbitAddresses, sortType, mockAccount);
@@ -474,10 +475,14 @@ describe("feeds store", () => {
     act(() => rendered.result.current.incrementFeedPageNumber(feedName));
     await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length >= postsPerPage * 2);
 
-    act(() => rendered.result.current.resetFeed(feedName));
+    await act(async () => {
+      await rendered.result.current.resetFeed(feedName);
+    });
     expect(rendered.result.current.feedsOptions[feedName].pageNumber).toBe(1);
     expect(rendered.result.current.loadedFeeds[feedName]).toEqual([]);
     expect(rendered.result.current.updatedFeeds[feedName]).toEqual([]);
+    expect(getSubplebbitSpy).toHaveBeenCalledWith({ address: subplebbitAddresses[0] });
+    getSubplebbitSpy.mockRestore();
   });
 
   test("updateFeedsOnAccountsBlockedCidsChange calls updateFeeds when blocked cid is in feed", async () => {
@@ -503,6 +508,59 @@ describe("feeds store", () => {
     }));
 
     await waitFor(() => rendered.result.current.bufferedFeeds[feedName]?.length === 0);
+  });
+
+  test("updateFeedsOnAccountsBlockedAddressesChange returns when blocked address is not in feed", async () => {
+    const subplebbitAddresses = ["subplebbit address 1"];
+    const feedName = JSON.stringify([mockAccount?.id, "new", subplebbitAddresses]);
+    const originalBlockedAddresses = mockAccount.blockedAddresses;
+
+    act(() => {
+      rendered.result.current.addFeedToStore(feedName, subplebbitAddresses, "new", mockAccount);
+    });
+    await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length > 0);
+
+    mockAccount.blockedAddresses = { "unrelated-address": true };
+    accountsStore.setState(() => ({
+      accounts: { [mockAccount.id]: mockAccount },
+    }));
+
+    await new Promise((r) => setTimeout(r, 150));
+    expect(rendered.result.current.loadedFeeds[feedName]?.length).toBeGreaterThan(0);
+
+    mockAccount.blockedAddresses = originalBlockedAddresses;
+  });
+
+  test("resetFeed logs and continues when refreshSubplebbit rejects", async () => {
+    const subplebbitAddresses = ["subplebbit address refresh-fail"];
+    const sortType = "new";
+    const feedName = JSON.stringify([mockAccount?.id, sortType, subplebbitAddresses]);
+    const refreshSubplebbit = subplebbitsStore.getState().refreshSubplebbit;
+
+    act(() => {
+      rendered.result.current.addFeedToStore(feedName, subplebbitAddresses, sortType, mockAccount);
+    });
+    await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length >= postsPerPage);
+
+    const refreshSpy = vi.fn().mockRejectedValue(new Error("refresh failed"));
+    subplebbitsStore.setState((state: any) => ({
+      ...state,
+      refreshSubplebbit: refreshSpy,
+    }));
+
+    await act(async () => {
+      await rendered.result.current.resetFeed(feedName);
+    });
+
+    expect(refreshSpy).toHaveBeenCalledWith(
+      subplebbitAddresses[0],
+      expect.objectContaining({ id: mockAccount.id }),
+    );
+
+    subplebbitsStore.setState((state: any) => ({
+      ...state,
+      refreshSubplebbit,
+    }));
   });
 
   test("addFeedToStore with isBufferedFeed true sets pageNumber 0", async () => {

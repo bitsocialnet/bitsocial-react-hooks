@@ -32,6 +32,7 @@ type SubplebbitsPagesState = {
   subplebbitsPages: SubplebbitsPages;
   comments: Comments;
   addNextSubplebbitPageToStore: Function;
+  invalidateSubplebbitPages: Function;
   addSubplebbitPageCommentsToStore: Function;
 };
 
@@ -171,6 +172,58 @@ const subplebbitsPagesStore = createStore<SubplebbitsPagesState>(
             ),
           );
       }
+    },
+
+    invalidateSubplebbitPages: async (
+      subplebbit: Subplebbit,
+      sortType: string,
+      modQueue?: string[],
+    ) => {
+      assert(
+        subplebbit?.address && typeof subplebbit?.address === "string",
+        `subplebbitsPagesStore.invalidateSubplebbitPages subplebbit '${subplebbit}' invalid`,
+      );
+      assert(
+        sortType && typeof sortType === "string",
+        `subplebbitsPagesStore.invalidateSubplebbitPages sortType '${sortType}' invalid`,
+      );
+      assert(
+        !modQueue || Array.isArray(modQueue),
+        `subplebbitsPagesStore.invalidateSubplebbitPages modQueue '${modQueue}' invalid`,
+      );
+
+      let pageType = "posts";
+      if (modQueue?.[0]) {
+        // TODO: allow multiple modQueue at once, for now only use first in array
+        // TODO: fix 'sortType' is not accurate variable name when pageType is 'modQueue'
+        sortType = modQueue[0];
+        pageType = "modQueue";
+      }
+
+      const firstPageCid = getSubplebbitFirstPageCid(subplebbit, sortType, pageType);
+      if (!firstPageCid) {
+        return;
+      }
+
+      const { subplebbitsPages } = getState();
+      const pageCidsToInvalidate = new Set<string>([firstPageCid]);
+      let nextPageCid = subplebbitsPages[firstPageCid]?.nextCid;
+      while (nextPageCid) {
+        pageCidsToInvalidate.add(nextPageCid);
+        nextPageCid = subplebbitsPages[nextPageCid]?.nextCid;
+      }
+
+      await Promise.all(
+        [...pageCidsToInvalidate].map((pageCid) => subplebbitsPagesDatabase.removeItem(pageCid)),
+      );
+
+      setState(({ subplebbitsPages }: any) => {
+        const nextSubplebbitsPages = { ...subplebbitsPages };
+        for (const pageCid of pageCidsToInvalidate) {
+          delete nextSubplebbitsPages[pageCid];
+        }
+        return { subplebbitsPages: nextSubplebbitsPages };
+      });
     },
 
     // subplebbits contain preloaded pages, those page comments must be added separately
