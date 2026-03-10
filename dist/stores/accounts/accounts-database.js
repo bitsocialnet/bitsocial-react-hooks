@@ -93,7 +93,7 @@ const getAccounts = (accountIds) => __awaiter(void 0, void 0, void 0, function* 
 });
 const accountVersion = 4;
 const migrateAccount = (account) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d, _e, _f, _g, _h;
+    var _a, _b, _c, _d, _e;
     let version = account.version || 1;
     // version 2
     if (version === 1) {
@@ -117,18 +117,12 @@ const migrateAccount = (account) => __awaiter(void 0, void 0, void 0, function* 
         if (!account.author.wallets.eth) {
             account.author.wallets.eth = yield chain.getEthWalletFromPlebbitPrivateKey(account.signer.privateKey, account.address);
         }
-        if (!account.author.wallets.sol) {
-            account.author.wallets.sol = yield chain.getSolWalletFromPlebbitPrivateKey(account.signer.privateKey, account.address);
-        }
     }
     if (version === 3) {
         version++;
         // in version 3, wallets had timestamps in ms, should be seconds
         if (((_e = (_d = (_c = account.author) === null || _c === void 0 ? void 0 : _c.wallets) === null || _d === void 0 ? void 0 : _d.eth) === null || _e === void 0 ? void 0 : _e.timestamp) > 1e12) {
             account.author.wallets.eth = yield chain.getEthWalletFromPlebbitPrivateKey(account.signer.privateKey, account.address);
-        }
-        if (((_h = (_g = (_f = account.author) === null || _f === void 0 ? void 0 : _f.wallets) === null || _g === void 0 ? void 0 : _g.sol) === null || _h === void 0 ? void 0 : _h.timestamp) > 1e12) {
-            account.author.wallets.sol = yield chain.getSolWalletFromPlebbitPrivateKey(account.signer.privateKey, account.address);
         }
     }
     account.version = accountVersion;

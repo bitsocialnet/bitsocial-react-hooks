@@ -87,7 +87,6 @@ const generateDefaultAccount = () => __awaiter(void 0, void 0, void 0, function*
         address: signer.address,
         wallets: {
             eth: yield chain.getEthWalletFromPlebbitPrivateKey(signer.privateKey, signer.address),
-            sol: yield chain.getSolWalletFromPlebbitPrivateKey(signer.privateKey, signer.address),
         },
     };
     const accountName = yield getNextAvailableDefaultAccountName();

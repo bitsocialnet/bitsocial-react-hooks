@@ -161,7 +161,7 @@ export const setActiveAccount = (accountName) => __awaiter(void 0, void 0, void 
     accountsStore.setState({ activeAccountId: accountId });
 });
 export const setAccount = (account) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
+    var _a;
     const { accounts } = accountsStore.getState();
     validator.validateAccountsActionsSetAccountArguments(account);
     assert(accounts === null || accounts === void 0 ? void 0 : accounts[account.id], `cannot set account with account.id '${account.id}' id does not exist in database`);
@@ -176,13 +176,6 @@ export const setAccount = (account) => __awaiter(void 0, void 0, void 0, functio
             // wallet is using plebbit signer, redo signature with new author.address
             if (account.author.wallets.eth.address === (plebbitSignerWalletWithNewAuthorAddress === null || plebbitSignerWalletWithNewAuthorAddress === void 0 ? void 0 : plebbitSignerWalletWithNewAuthorAddress.address)) {
                 account.author.wallets = Object.assign(Object.assign({}, account.author.wallets), { eth: plebbitSignerWalletWithNewAuthorAddress });
-            }
-        }
-        if ((_b = account.author.wallets) === null || _b === void 0 ? void 0 : _b.sol) {
-            const plebbitSignerWalletWithNewAuthorAddress = yield chain.getSolWalletFromPlebbitPrivateKey(account.signer.privateKey, account.author.address);
-            // wallet is using plebbit signer, redo signature with new author.address
-            if (account.author.wallets.sol.address === (plebbitSignerWalletWithNewAuthorAddress === null || plebbitSignerWalletWithNewAuthorAddress === void 0 ? void 0 : plebbitSignerWalletWithNewAuthorAddress.address)) {
-                account.author.wallets = Object.assign(Object.assign({}, account.author.wallets), { sol: plebbitSignerWalletWithNewAuthorAddress });
             }
         }
     }

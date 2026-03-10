@@ -20,14 +20,6 @@ declare const accountGenerator: {
                         type: string;
                     };
                 } | undefined;
-                sol: {
-                    address: string;
-                    timestamp: number;
-                    signature: {
-                        signature: string;
-                        type: string;
-                    };
-                } | undefined;
             };
         };
         signer: any;
