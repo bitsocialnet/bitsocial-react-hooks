@@ -28,6 +28,7 @@ import { useComment, useComments } from "../comments";
 import { useAuthorCommentsName, usePlebbitAddress } from "./utils";
 import useAuthorsCommentsStore from "../../stores/authors-comments";
 import PlebbitJs from "../../lib/plebbit-js";
+import { normalizeEthAliasDomain } from "../../lib/subplebbit-address";
 import QuickLRU from "quick-lru";
 export { setAuthorAvatarsWhitelistedTokenAddresses } from "./author-avatars";
 
@@ -428,7 +429,11 @@ export function useResolvedAuthorAddress(
   }
 
   const isCryptoName = author?.address.includes(".");
-  const tld = isCryptoName ? author?.address?.split(".").pop() : undefined;
+  const normalizedCryptoDomain =
+    isCryptoName && author?.address
+      ? normalizeEthAliasDomain(author.address.toLowerCase())
+      : undefined;
+  const chainProviderKey = normalizedCryptoDomain?.split(".").pop();
 
   const resolveAuthorAddressNoCache = () => {
     if (Boolean(resolveAuthorAddressPromises[author?.address])) {
@@ -478,8 +483,8 @@ export function useResolvedAuthorAddress(
         return;
       }
 
-      // only support resolving '.eth/.sol' for now
-      if (tld !== "eth" && tld !== "sol") {
+      // only support resolving '.eth/.bso' aliases and '.sol' for now
+      if (chainProviderKey !== "eth" && chainProviderKey !== "sol") {
         if (state !== "failed") {
           setErrors([Error("crypto domain type unsupported")]);
           setState("failed");
@@ -523,7 +528,7 @@ export function useResolvedAuthorAddress(
 
   log("useResolvedAuthorAddress", { author, state, errors, resolvedAddress, chainProviders });
 
-  const chainProvider = chainProviders?.[tld];
+  const chainProvider = chainProviderKey ? chainProviders?.[chainProviderKey] : undefined;
 
   return useMemo(
     () => ({

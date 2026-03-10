@@ -125,7 +125,7 @@ useResolvedSubplebbitAddress({subplebbitAddress: string, cache: boolean}): {reso
 useAuthor({authorAddress: string, commentCid: string}): {author: Author | undefined}
 useAuthorAddress({comment: Comment}): {authorAddress: string | undefined, shortAuthorAddress: string | undefined, authorAddressChanged: boolean}
 useAuthorComments({authorAddress: string, commentCid: string, filter?: CommentsFilter}): {authorComments: Comment[], hasMore: boolean, loadMore: Promise<void>}
-useResolvedAuthorAddress({author?: Author, cache?: boolean}): {resolvedAddress: string | undefined} // use {cache: false} when checking the user's own author address
+useResolvedAuthorAddress({author?: Author, cache?: boolean}): {resolvedAddress: string | undefined} // supports .eth/.bso aliases and .sol; use {cache: false} when checking the user's own author address
 useAuthorAvatar({author?: Author}): {imageUrl: string | undefined}
 setAuthorAvatarsWhitelistedTokenAddresses(tokenAddresses: string[])
 ```
@@ -776,8 +776,8 @@ const editedAccount = {...account, author}
 
 await setAccount(editedAccount)
 
-// check if the user has set his ENS name properly, use {cache: false} or it won't update
-const author = {...account.author, address: 'username.eth'}
+// check if the user has set their .eth or .bso author name properly, use {cache: false} or it won't update
+const author = {...account.author, address: 'username.bso'} // or 'username.eth'
 // authorAddress should equal to account.signer.address
 const {resolvedAddress, state, error, chainProvider} = useResolvedAuthorAddress({author, cache: false}) 
 
