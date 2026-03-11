@@ -15,6 +15,12 @@ import {
   Community,
 } from "../../types";
 import utils from "../../lib/utils";
+import {
+  backfillPublicationCommunityAddress,
+  normalizeCommentCommunityAddress,
+  normalizePublicationOptionsForPlebbit,
+} from "../../lib/plebbit-compat";
+import { addShortAddressesToAccountComment } from "./utils";
 
 // TODO: we currently subscribe to updates for every single comment
 // in the user's account history. This probably does not scale, we
@@ -50,7 +56,12 @@ export const startUpdatingAccountCommentOnCommentUpdateEvents = async (
 
   // comment is not a `Comment` instance
   if (!comment.on) {
-    comment = await account.plebbit.createComment(comment);
+    comment = backfillPublicationCommunityAddress(
+      await account.plebbit.createComment(
+        normalizePublicationOptionsForPlebbit(account.plebbit, comment),
+      ),
+      comment,
+    );
   }
 
   comment.on("update", async (updatedComment: Comment) => {
@@ -77,6 +88,9 @@ export const startUpdatingAccountCommentOnCommentUpdateEvents = async (
 
     // merge should not be needed if plebbit-js is implemented properly, but no harm in fixing potential errors
     updatedComment = utils.merge(commentArgument, comment, updatedComment);
+    updatedComment = addShortAddressesToAccountComment(
+      normalizeCommentCommunityAddress(updatedComment) as Comment,
+    ) as Comment;
     await accountsDatabase.addAccountComment(account.id, updatedComment, currentIndex);
     log("startUpdatingAccountCommentOnCommentUpdateEvents comment update", {
       commentCid: comment.cid,

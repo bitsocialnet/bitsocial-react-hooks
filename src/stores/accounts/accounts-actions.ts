@@ -25,8 +25,10 @@ import {
 } from "../../types";
 import * as accountsActionsInternal from "./accounts-actions-internal";
 import {
+  backfillPublicationCommunityAddress,
   createPlebbitCommunityEdit,
   getPlebbitCommunityAddresses,
+  normalizeCommentCommunityAddress,
   normalizeCommunityEditOptionsForPlebbit,
   normalizePublicationOptionsForStore,
   normalizePublicationOptionsForPlebbit,
@@ -702,7 +704,10 @@ export const publishComment = async (
       createdAccountComment = { ...createdAccountComment, ...commentLinkDimensions };
       await saveCreatedAccountComment(createdAccountComment);
     }
-    comment = await account.plebbit.createComment(createCommentOptions);
+    comment = backfillPublicationCommunityAddress(
+      await account.plebbit.createComment(createCommentOptions),
+      createCommentOptions,
+    );
     publishAndRetryFailedChallengeVerification();
     log("accountsActions.publishComment", { createCommentOptions });
   })();
@@ -723,7 +728,10 @@ export const publishComment = async (
         createCommentOptions = { ...createCommentOptions, timestamp };
         createdAccountComment = { ...createdAccountComment, timestamp };
         await saveCreatedAccountComment(createdAccountComment);
-        comment = await account.plebbit.createComment(createCommentOptions);
+        comment = backfillPublicationCommunityAddress(
+          await account.plebbit.createComment(createCommentOptions),
+          createCommentOptions,
+        );
         lastChallenge = undefined;
         publishAndRetryFailedChallengeVerification();
       } else {
@@ -734,7 +742,9 @@ export const publishComment = async (
           const currentIndex = sessionInfo?.currentIndex ?? accountCommentIndex;
           if (!sessionInfo || abandonedPublishKeys.has(sessionInfo.sessionKey)) return;
           cleanupPublishSessionOnTerminal(account.id, sessionInfo.keyIndex);
-          const commentWithCid = comment;
+          const commentWithCid = addShortAddressesToAccountComment(
+            normalizeCommentCommunityAddress(comment) as any,
+          );
           await accountsDatabase.addAccountComment(account.id, commentWithCid, currentIndex);
           accountsStore.setState(({ accountsComments, commentCidsToAccountsComments }) => {
             const updatedAccountComments = [...accountsComments[account.id]];
@@ -757,7 +767,12 @@ export const publishComment = async (
           });
 
           // clone the comment or it bugs publishing callbacks
-          const updatingComment = await account.plebbit.createComment({ ...comment });
+          const updatingComment = backfillPublicationCommunityAddress(
+            await account.plebbit.createComment(
+              normalizePublicationOptionsForPlebbit(account.plebbit, { ...comment }),
+            ),
+            comment,
+          );
           accountsActionsInternal
             .startUpdatingAccountCommentOnCommentUpdateEvents(
               updatingComment,

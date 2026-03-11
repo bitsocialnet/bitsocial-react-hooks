@@ -9,11 +9,6 @@ export const getPlebbitGetCommunity = (plebbit: any) =>
 export const getPlebbitCreateCommunityEdit = (plebbit: any) =>
   plebbit?.createCommunityEdit || plebbit?.createSubplebbitEdit;
 
-const plebbitSupportsCommunityNaming = (plebbit: any) =>
-  typeof plebbit?.createCommunity === "function" ||
-  typeof plebbit?.getCommunity === "function" ||
-  typeof plebbit?.createCommunityEdit === "function";
-
 export const getPlebbitCommunityAddresses = (plebbit: any): string[] => {
   if (Array.isArray(plebbit?.communities)) {
     return plebbit.communities;
@@ -25,21 +20,17 @@ export const getPlebbitCommunityAddresses = (plebbit: any): string[] => {
 };
 
 export const normalizePublicationOptionsForPlebbit = <T extends Record<string, any>>(
-  plebbit: any,
+  _plebbit: any,
   options: T,
 ): T => {
   const communityAddress = options.communityAddress ?? options.subplebbitAddress;
   if (!communityAddress) {
     return options;
   }
-  const normalized: Record<string, any> = { ...options };
-  if (plebbitSupportsCommunityNaming(plebbit)) {
-    normalized.communityAddress = communityAddress;
-    delete normalized.subplebbitAddress;
-  } else {
-    normalized.subplebbitAddress = communityAddress;
-    delete normalized.communityAddress;
-  }
+  // The pinned plebbit-js dependency still documents and validates publication payloads with
+  // legacy subplebbit* field names even when some community lifecycle methods are renamed.
+  const normalized: Record<string, any> = { ...options, subplebbitAddress: communityAddress };
+  delete normalized.communityAddress;
   return normalized as T;
 };
 
@@ -64,13 +55,8 @@ export const normalizeCommunityEditOptionsForPlebbit = <T extends Record<string,
   if (!editOptions) {
     return normalized as T;
   }
-  if (plebbitSupportsCommunityNaming(plebbit)) {
-    normalized.communityEdit = editOptions;
-    delete normalized.subplebbitEdit;
-  } else {
-    normalized.subplebbitEdit = editOptions;
-    delete normalized.communityEdit;
-  }
+  normalized.subplebbitEdit = editOptions;
+  delete normalized.communityEdit;
   return normalized as T;
 };
 
@@ -84,6 +70,24 @@ export const normalizeCommentCommunityAddress = <T extends Record<string, any> |
     return comment;
   }
   return { ...comment, communityAddress: comment.subplebbitAddress } as T;
+};
+
+export const backfillPublicationCommunityAddress = <
+  T extends Record<string, any> | undefined,
+  O extends Record<string, any> | undefined,
+>(
+  publication: T,
+  options: O,
+): T => {
+  const communityAddress = options?.communityAddress ?? options?.subplebbitAddress;
+  if (!publication || publication.communityAddress || publication.subplebbitAddress) {
+    return publication;
+  }
+  if (!communityAddress) {
+    return publication;
+  }
+  publication.communityAddress = communityAddress;
+  return publication;
 };
 
 export const createPlebbitCommunity = async (plebbit: any, options: any) => {

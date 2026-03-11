@@ -71,7 +71,15 @@ describe("accounts-actions-internal", () => {
         0,
       );
 
-      expect(account.plebbit.createComment).toHaveBeenCalledWith(plainComment);
+      expect(account.plebbit.createComment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cid: "plain-cid",
+          author: expect.objectContaining({ address: account.author.address }),
+          subplebbitAddress: "sub.eth",
+          depth: 0,
+        }),
+      );
+      expect(createdComment.communityAddress).toBe("sub.eth");
 
       await act(async () => {
         createdComment.emit("update", { ...plainComment, cid: "plain-cid" });

@@ -196,6 +196,47 @@ function createLegacyOnlyPlebbitMock() {
   return createLegacyOnlyPlebbit;
 }
 
+function createLegacyPublicationSchemaPlebbitMock() {
+  class LegacyPublicationSchemaPlebbit extends BasePlebbit {
+    async createComment(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("createComment received communityAddress");
+      }
+      return super.createComment(opts);
+    }
+
+    async createVote(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("createVote received communityAddress");
+      }
+      return super.createVote(opts);
+    }
+
+    async createCommentEdit(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("createCommentEdit received communityAddress");
+      }
+      if ("communityEdit" in opts) {
+        throw new Error("createCommentEdit received communityEdit");
+      }
+      return super.createCommentEdit(opts);
+    }
+
+    async createCommentModeration(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("createCommentModeration received communityAddress");
+      }
+      return super.createCommentModeration(opts);
+    }
+  }
+
+  const createLegacyPublicationSchemaPlebbit: any = async (...args: any[]) =>
+    new LegacyPublicationSchemaPlebbit(...args);
+  createLegacyPublicationSchemaPlebbit.getShortAddress = PlebbitJsMock.getShortAddress;
+  createLegacyPublicationSchemaPlebbit.getShortCid = PlebbitJsMock.getShortCid;
+  return createLegacyPublicationSchemaPlebbit;
+}
+
 describe("accounts-actions", () => {
   beforeAll(async () => {
     setPlebbitJs(PlebbitJsMock);
@@ -869,6 +910,84 @@ describe("accounts-actions", () => {
       expect(storedVote.communityAddress).toBe("sub.eth");
       expect(storedVote.subplebbitAddress).toBeUndefined();
 
+      expect(storedEdits).toHaveLength(2);
+      for (const storedEdit of storedEdits) {
+        expect(storedEdit.communityAddress).toBe("sub.eth");
+        expect(storedEdit.subplebbitAddress).toBeUndefined();
+      }
+    });
+  });
+
+  describe("partial community rename compatibility", () => {
+    beforeEach(async () => {
+      setPlebbitJs(createLegacyPublicationSchemaPlebbitMock());
+      await testUtils.resetDatabasesAndStores();
+    });
+
+    afterEach(() => {
+      setPlebbitJs(PlebbitJsMock);
+    });
+
+    test("publication actions still use subplebbit payloads when createCommunity methods exist", async () => {
+      await act(async () => {
+        await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "mixed comment",
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+
+      await act(async () => {
+        await accountsActions.publishVote({
+          communityAddress: "sub.eth",
+          commentCid: "mixed cid",
+          vote: 1,
+          onChallenge: (ch: any, v: any) => v.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+
+      await act(async () => {
+        await accountsActions.publishCommentEdit({
+          communityAddress: "sub.eth",
+          commentCid: "mixed cid",
+          spoiler: true,
+          onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+
+      await act(async () => {
+        await accountsActions.publishCommentModeration({
+          communityAddress: "sub.eth",
+          commentCid: "mixed cid",
+          commentModeration: { locked: true },
+          onChallenge: (ch: any, m: any) => m.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+
+      await act(async () => {
+        await accountsActions.publishCommunityEdit("remote-sub.eth", {
+          title: "mixed edit",
+          onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+
+      const { accountsComments, accountsVotes, accountsEdits, activeAccountId } =
+        accountsStore.getState();
+      const accountId = activeAccountId!;
+      const storedComment = accountsComments[accountId][0];
+      const storedVote = accountsVotes[accountId]["mixed cid"];
+      const storedEdits = accountsEdits[accountId]["mixed cid"] || [];
+
+      expect(storedComment.communityAddress).toBe("sub.eth");
+      expect(storedComment.shortCommunityAddress).toBeDefined();
+      expect(storedComment.subplebbitAddress).toBeUndefined();
+      expect(storedVote.communityAddress).toBe("sub.eth");
+      expect(storedVote.subplebbitAddress).toBeUndefined();
       expect(storedEdits).toHaveLength(2);
       for (const storedEdit of storedEdits) {
         expect(storedEdit.communityAddress).toBe("sub.eth");
