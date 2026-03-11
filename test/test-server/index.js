@@ -67,7 +67,7 @@ const plebbitDataPath = getTmpFolderPath();
     const comment = await plebbit2.createComment({
       title: "comment title",
       content: "comment content",
-      communityAddress: signer.address,
+      subplebbitAddress: signer.address,
       signer,
       author: { address: signer.address },
     });
