@@ -80,7 +80,7 @@ export const backfillPublicationCommunityAddress = <
   options: O,
 ): T => {
   const communityAddress = options?.communityAddress ?? options?.subplebbitAddress;
-  if (!publication || publication.communityAddress || publication.subplebbitAddress) {
+  if (!publication || publication.communityAddress) {
     return publication;
   }
   if (!communityAddress) {

@@ -202,7 +202,9 @@ function createLegacyPublicationSchemaPlebbitMock() {
       if ("communityAddress" in opts) {
         throw new Error("createComment received communityAddress");
       }
-      return super.createComment(opts);
+      const comment: any = await super.createComment(opts);
+      comment.subplebbitAddress = opts.subplebbitAddress;
+      return comment;
     }
 
     async createVote(opts: any) {
@@ -227,6 +229,16 @@ function createLegacyPublicationSchemaPlebbitMock() {
         throw new Error("createCommentModeration received communityAddress");
       }
       return super.createCommentModeration(opts);
+    }
+
+    async createCommunityEdit(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("createCommunityEdit received communityAddress");
+      }
+      if ("communityEdit" in opts) {
+        throw new Error("createCommunityEdit received communityEdit");
+      }
+      return super.createCommunityEdit(opts);
     }
   }
 
