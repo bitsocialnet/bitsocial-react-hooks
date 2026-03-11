@@ -1316,10 +1316,11 @@ describe("accounts", () => {
       test("useEditedComment has edited comment", async () => {
         const rendered2 = renderHook<any, any>(() => {
           const comment = useComment({ commentCid: "Qm..." });
-          const editedComment = useEditedComment({ comment });
-          return editedComment;
+          return { comment, ...useEditedComment({ comment }) };
         });
-        await waitFor(() => rendered2.result.current.editedComment);
+        const waitForEditedComment = testUtils.createWaitFor(rendered2);
+        await waitForEditedComment(() => rendered2.result.current.comment.cid === "Qm...");
+        await waitForEditedComment(() => rendered2.result.current.editedComment);
         expect(rendered2.result.current.editedComment).not.toBe(undefined);
         expect(
           rendered2.result.current.pendingEdits.spoiler ||
@@ -2292,10 +2293,10 @@ describe("accounts", () => {
 
       beforeEach(async () => {
         rendered = renderHook<any, any>(() => {
-          const { accountCommunities } = useAccountCommunities();
+          const { accountCommunities, state, error, errors } = useAccountCommunities();
           const account = useAccount();
           const { setAccount } = accountsActions;
-          return { accountCommunities, setAccount, account };
+          return { accountCommunities, state, error, errors, setAccount, account };
         });
         waitFor = testUtils.createWaitFor(rendered);
 
@@ -2382,7 +2383,7 @@ describe("accounts", () => {
       test("useAccountCommunities reflects in-flight community fetches", async () => {
         await waitFor(() => rendered.result.current.accountCommunities["community address 1"]);
         const { account, setAccount } = rendered.result.current;
-        const createCommunityOrig = account.plebbit.createCommunity;
+        const createCommunityOrig = Plebbit.prototype.createCommunity;
         const slowCommunity = await createCommunityOrig.call(account.plebbit, {
           address: "slow community address",
         });
@@ -2390,11 +2391,11 @@ describe("accounts", () => {
         const slowCommunityPromise = new Promise((resolve) => {
           resolveSlowCommunity = resolve;
         });
-        account.plebbit.createCommunity = vi.fn(async (options: any) => {
+        Plebbit.prototype.createCommunity = vi.fn(async function (options: any) {
           if (options.address === "slow community address") {
             return slowCommunityPromise;
           }
-          return createCommunityOrig.call(account.plebbit, options);
+          return createCommunityOrig.call(this, options);
         });
 
         try {
@@ -2418,19 +2419,19 @@ describe("accounts", () => {
           resolveSlowCommunity?.(slowCommunity);
           await waitFor(() => rendered.result.current.state === "succeeded");
         } finally {
-          account.plebbit.createCommunity = createCommunityOrig;
+          Plebbit.prototype.createCommunity = createCommunityOrig;
         }
       });
 
       test("useAccountCommunities propagates failed community fetches", async () => {
         await waitFor(() => rendered.result.current.accountCommunities["community address 1"]);
         const { account, setAccount } = rendered.result.current;
-        const createCommunityOrig = account.plebbit.createCommunity;
-        account.plebbit.createCommunity = vi.fn(async (options: any) => {
+        const createCommunityOrig = Plebbit.prototype.createCommunity;
+        Plebbit.prototype.createCommunity = vi.fn(async function (options: any) {
           if (options.address === "failing community address") {
             throw new Error("community fetch failed");
           }
-          return createCommunityOrig.call(account.plebbit, options);
+          return createCommunityOrig.call(this, options);
         });
 
         try {
@@ -2450,7 +2451,7 @@ describe("accounts", () => {
             "community fetch failed",
           );
         } finally {
-          account.plebbit.createCommunity = createCommunityOrig;
+          Plebbit.prototype.createCommunity = createCommunityOrig;
         }
       });
     });

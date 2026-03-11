@@ -602,6 +602,7 @@ export function useEditedComment(options?: UseEditedCommentOptions): UseEditedCo
       "signer",
       "commentCid",
       "communityAddress",
+      "subplebbitAddress",
       "timestamp",
     ]);
 

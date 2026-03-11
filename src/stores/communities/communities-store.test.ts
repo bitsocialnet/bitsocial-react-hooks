@@ -137,22 +137,36 @@ describe("communities store", () => {
     const address = "owner-retry-address";
     const createOrig = mockAccount.plebbit.createCommunity;
     const communitiesOrig = mockAccount.plebbit.communities;
+    const ownCommunitiesDescriptor = Object.getOwnPropertyDescriptor(
+      mockAccount.plebbit,
+      "communities",
+    );
     const resolvedCommunity = await createOrig.call(mockAccount.plebbit, { address });
-    mockAccount.plebbit.createCommunity = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("owner create failed"))
-      .mockRejectedValueOnce(new Error("fetch create failed"))
-      .mockResolvedValueOnce(resolvedCommunity);
-    mockAccount.plebbit.communities = [...communitiesOrig, address];
+    try {
+      mockAccount.plebbit.createCommunity = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("owner create failed"))
+        .mockRejectedValueOnce(new Error("fetch create failed"))
+        .mockResolvedValueOnce(resolvedCommunity);
+      Object.defineProperty(mockAccount.plebbit, "communities", {
+        configurable: true,
+        get: () => [...communitiesOrig, address],
+      });
 
-    await expect(
-      communitiesStore.getState().addCommunityToStore(address, mockAccount),
-    ).rejects.toThrow("fetch create failed");
-    await communitiesStore.getState().addCommunityToStore(address, mockAccount);
+      await expect(
+        communitiesStore.getState().addCommunityToStore(address, mockAccount),
+      ).rejects.toThrow("fetch create failed");
+      await communitiesStore.getState().addCommunityToStore(address, mockAccount);
 
-    expect(communitiesStore.getState().communities[address]).toBeDefined();
-    mockAccount.plebbit.createCommunity = createOrig;
-    mockAccount.plebbit.communities = communitiesOrig;
+      expect(communitiesStore.getState().communities[address]).toBeDefined();
+    } finally {
+      mockAccount.plebbit.createCommunity = createOrig;
+      if (ownCommunitiesDescriptor) {
+        Object.defineProperty(mockAccount.plebbit, "communities", ownCommunitiesDescriptor);
+      } else {
+        delete (mockAccount.plebbit as any).communities;
+      }
+    }
   });
 
   test("addCommunityToStore throws generic Error when community is undefined without thrown error", async () => {
