@@ -34,6 +34,10 @@ This repo is a temporary fork of [plebbit/plebbit-react-hooks](https://github.co
 | Public API changed (`src/index.ts`, `src/types.ts`) | Ensure backward compatibility; update README if signatures changed |
 | User-facing behavior/feature added or changed | Update `README.md` usage/docs in the same task before marking work complete |
 | Tests added or changed (`src/**/*.test.ts`, `test/`) | Run `yarn test` to verify |
+| New reviewable feature/fix/docs/chore started while on `master` | Create a short-lived `feature/*`, `fix/*`, `docs/*`, or `chore/*` branch from `master` before editing; use a separate worktree only for parallel tasks |
+| User wants a tracked issue/PR for work already done | Use the `make-closed-issue` skill to create the issue, push the task branch, and open a PR that closes it on merge |
+| Open PR needs feedback triage or merge readiness check | Use the `review-and-merge-pr` skill to inspect CI/reviewer feedback, fix valid findings, and merge only after verification |
+| Repo AI workflow files changed (`.codex/**`, `.cursor/**`) | Keep the Codex and Cursor copies aligned when they represent the same workflow; update `AGENTS.md` if the default agent policy changes |
 | GitHub operation needed | Use `gh` CLI, not GitHub MCP |
 | User asks for commit/issue phrasing | Use `docs/agent-playbooks/commit-issue-format.md` |
 | Surprising/ambiguous repo behavior encountered | Alert developer and, once confirmed, document in `docs/agent-playbooks/known-surprises.md` |
@@ -82,6 +86,16 @@ src/
 - Type definitions that cross module boundaries go in `src/types.ts`.
 - Add comments for complex/non-obvious code; skip obvious comments.
 
+### Git Workflow Rules
+
+- Keep `master` reviewable. Do not treat `master` as a scratch branch.
+- If the user asks for a reviewable feature/fix/docs/chore and the current branch is `master`, create a short-lived task branch before making code changes unless the user explicitly asks to work directly on `master`.
+- Name short-lived branches by intent: `feature/*`, `fix/*`, `docs/*`, `chore/*`.
+- Open PRs from task branches into `master` so review bots and humans can inspect the actual change before merge.
+- Prefer short-lived task branches over a long-lived `develop` branch unless the user explicitly asks for a staging-branch workflow.
+- Use worktrees only when parallel tasks need isolated checkouts. One active task branch per worktree.
+- After a reviewed branch is merged, prefer deleting it to keep branch drift and merge conflicts low.
+
 ### Documentation Rules
 
 - Keep `README.md` current for all user-facing features, behavior changes, and new workflows.
@@ -115,6 +129,15 @@ src/
 - Do not use GitHub MCP.
 - Do not use browser MCP servers.
 - If many MCP tools are present in context, warn user and suggest disabling unused MCPs.
+
+### AI Tooling Rules
+
+- Treat `.codex/` and `.cursor/` as repo-managed contributor tooling, not private scratch space.
+- Keep equivalent workflow files aligned across both toolchains when both directories contain the same skill, hook, or agent.
+- When changing shared agent behavior, update the relevant files in `.codex/skills/`, `.cursor/skills/`, `.codex/agents/`, `.cursor/agents/`, `.codex/hooks/`, `.cursor/hooks/`, and their `hooks.json` or config entry points as needed.
+- If `AGENTS.md` references a skill, agent, or hook, prefer a tracked file under `.codex/` or `.cursor/` rather than an untracked local-only instruction.
+- When adding or changing repo-managed skills, agents, or hooks, commit the matching `.codex/` and `.cursor/` files in the same task so the workflow change is reviewable.
+- Review `.codex/hooks.json` and `.cursor/hooks.json` before changing agent orchestration or hook behavior, because they are the entry points contributors will actually load.
 
 ### Security and Boundaries
 
