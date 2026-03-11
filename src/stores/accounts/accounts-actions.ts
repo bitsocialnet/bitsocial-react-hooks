@@ -27,7 +27,8 @@ import * as accountsActionsInternal from "./accounts-actions-internal";
 import {
   createPlebbitCommunityEdit,
   getPlebbitCommunityAddresses,
-  withLegacySubplebbitAddress,
+  normalizeCommunityEditOptionsForPlebbit,
+  normalizePublicationOptionsForPlebbit,
 } from "../../lib/plebbit-compat";
 import {
   getAccountCommunities,
@@ -635,7 +636,7 @@ export const publishComment = async (
     author.previousCommentCid = previousCommentCid;
   }
 
-  let createCommentOptions: any = withLegacySubplebbitAddress({
+  let createCommentOptions: any = normalizePublicationOptionsForPlebbit(account.plebbit, {
     timestamp: Math.floor(Date.now() / 1000),
     author,
     signer: account.signer,
@@ -906,7 +907,7 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
     account,
   });
 
-  let createVoteOptions: any = withLegacySubplebbitAddress({
+  let createVoteOptions: any = normalizePublicationOptionsForPlebbit(account.plebbit, {
     timestamp: Math.floor(Date.now() / 1000),
     author: account.author,
     signer: account.signer,
@@ -985,7 +986,7 @@ export const publishCommentEdit = async (
     account,
   });
 
-  let createCommentEditOptions: any = withLegacySubplebbitAddress({
+  let createCommentEditOptions: any = normalizePublicationOptionsForPlebbit(account.plebbit, {
     timestamp: Math.floor(Date.now() / 1000),
     author: account.author,
     signer: account.signer,
@@ -1077,7 +1078,7 @@ export const publishCommentModeration = async (
     account,
   });
 
-  let createCommentModerationOptions: any = withLegacySubplebbitAddress({
+  let createCommentModerationOptions: any = normalizePublicationOptionsForPlebbit(account.plebbit, {
     timestamp: Math.floor(Date.now() / 1000),
     author: account.author,
     signer: account.signer,
@@ -1206,13 +1207,12 @@ export const publishCommunityEdit = async (
       publishCommunityEditOptions.address === communityAddress,
     `accountsActions.publishCommunityEdit can't edit address of a remote community`,
   );
-  let createCommunityEditOptions: any = withLegacySubplebbitAddress({
+  let createCommunityEditOptions: any = normalizeCommunityEditOptionsForPlebbit(account.plebbit, {
     timestamp: Math.floor(Date.now() / 1000),
     author: account.author,
     signer: account.signer,
     // not possible to edit community.address over pubsub, only locally
     communityAddress,
-    subplebbitAddress: communityAddress,
     communityEdit: communityEditOptions,
     subplebbitEdit: communityEditOptions,
   });

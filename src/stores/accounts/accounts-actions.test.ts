@@ -142,6 +142,60 @@ function createRetryPlebbitMock() {
   return createRetryPlebbit;
 }
 
+function createLegacyOnlyPlebbitMock() {
+  class LegacyOnlyPlebbit extends BasePlebbit {
+    constructor(...args: any[]) {
+      super(...args);
+      (this as any).createCommunity = undefined;
+      (this as any).getCommunity = undefined;
+      (this as any).createCommunityEdit = undefined;
+    }
+
+    async createComment(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("legacy createComment received communityAddress");
+      }
+      return super.createComment(opts);
+    }
+
+    async createVote(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("legacy createVote received communityAddress");
+      }
+      return super.createVote(opts);
+    }
+
+    async createCommentEdit(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("legacy createCommentEdit received communityAddress");
+      }
+      return super.createCommentEdit(opts);
+    }
+
+    async createCommentModeration(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("legacy createCommentModeration received communityAddress");
+      }
+      return super.createCommentModeration(opts);
+    }
+
+    async createSubplebbitEdit(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("legacy createSubplebbitEdit received communityAddress");
+      }
+      if ("communityEdit" in opts) {
+        throw new Error("legacy createSubplebbitEdit received communityEdit");
+      }
+      return BasePlebbit.prototype.createCommunityEdit.call(this, opts);
+    }
+  }
+
+  const createLegacyOnlyPlebbit: any = async (...args: any[]) => new LegacyOnlyPlebbit(...args);
+  createLegacyOnlyPlebbit.getShortAddress = PlebbitJsMock.getShortAddress;
+  createLegacyOnlyPlebbit.getShortCid = PlebbitJsMock.getShortCid;
+  return createLegacyOnlyPlebbit;
+}
+
 describe("accounts-actions", () => {
   beforeAll(async () => {
     setPlebbitJs(PlebbitJsMock);
@@ -740,6 +794,66 @@ describe("accounts-actions", () => {
 
       await new Promise((r) => setTimeout(r, 200));
       // no throw = success
+    });
+  });
+
+  describe("legacy plebbit-js compatibility", () => {
+    beforeEach(async () => {
+      setPlebbitJs(createLegacyOnlyPlebbitMock());
+      await testUtils.resetDatabasesAndStores();
+    });
+
+    afterEach(() => {
+      setPlebbitJs(PlebbitJsMock);
+    });
+
+    test("publication actions map community fields back to legacy subplebbit fields", async () => {
+      await act(async () => {
+        await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "legacy comment",
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+
+      await act(async () => {
+        await accountsActions.publishVote({
+          communityAddress: "sub.eth",
+          commentCid: "legacy cid",
+          vote: 1,
+          onChallenge: (ch: any, v: any) => v.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+
+      await act(async () => {
+        await accountsActions.publishCommentEdit({
+          communityAddress: "sub.eth",
+          commentCid: "legacy cid",
+          spoiler: true,
+          onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+
+      await act(async () => {
+        await accountsActions.publishCommentModeration({
+          communityAddress: "sub.eth",
+          commentCid: "legacy cid",
+          commentModeration: { locked: true },
+          onChallenge: (ch: any, m: any) => m.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+
+      await act(async () => {
+        await accountsActions.publishCommunityEdit("remote-sub.eth", {
+          title: "legacy edit",
+          onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
     });
   });
 

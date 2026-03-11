@@ -9,6 +9,11 @@ export const getPlebbitGetCommunity = (plebbit: any) =>
 export const getPlebbitCreateCommunityEdit = (plebbit: any) =>
   plebbit?.createCommunityEdit || plebbit?.createSubplebbitEdit;
 
+const plebbitSupportsCommunityNaming = (plebbit: any) =>
+  typeof plebbit?.createCommunity === "function" ||
+  typeof plebbit?.getCommunity === "function" ||
+  typeof plebbit?.createCommunityEdit === "function";
+
 export const getPlebbitCommunityAddresses = (plebbit: any): string[] => {
   if (Array.isArray(plebbit?.communities)) {
     return plebbit.communities;
@@ -19,16 +24,42 @@ export const getPlebbitCommunityAddresses = (plebbit: any): string[] => {
   return [];
 };
 
-export const withLegacySubplebbitAddress = <T extends Record<string, any>>(options: T): T => {
+export const normalizePublicationOptionsForPlebbit = <T extends Record<string, any>>(
+  plebbit: any,
+  options: T,
+): T => {
   const communityAddress = options.communityAddress ?? options.subplebbitAddress;
   if (!communityAddress) {
     return options;
   }
-  return {
-    ...options,
-    communityAddress,
-    subplebbitAddress: options.subplebbitAddress ?? communityAddress,
-  };
+  const normalized: Record<string, any> = { ...options };
+  if (plebbitSupportsCommunityNaming(plebbit)) {
+    normalized.communityAddress = communityAddress;
+    delete normalized.subplebbitAddress;
+  } else {
+    normalized.subplebbitAddress = communityAddress;
+    delete normalized.communityAddress;
+  }
+  return normalized as T;
+};
+
+export const normalizeCommunityEditOptionsForPlebbit = <T extends Record<string, any>>(
+  plebbit: any,
+  options: T,
+): T => {
+  const normalized: Record<string, any> = normalizePublicationOptionsForPlebbit(plebbit, options);
+  const editOptions = normalized.communityEdit ?? normalized.subplebbitEdit;
+  if (!editOptions) {
+    return normalized as T;
+  }
+  if (plebbitSupportsCommunityNaming(plebbit)) {
+    normalized.communityEdit = editOptions;
+    delete normalized.subplebbitEdit;
+  } else {
+    normalized.subplebbitEdit = editOptions;
+    delete normalized.communityEdit;
+  }
+  return normalized as T;
 };
 
 export const getCommentCommunityAddress = (comment: any): string | undefined =>
