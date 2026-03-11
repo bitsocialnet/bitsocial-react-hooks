@@ -57,7 +57,7 @@ const comment = {
     signature:
       "+ixn9hY2nBlzRwLEGGE5+JgbnuRAAZQxkv4Kz9wM6as3sA0tA8PuOyCHe29rcNl9gOzLtCmYCARQOqHpmA05CQ",
     signedPropertyNames: [
-      "subplebbitAddress",
+      "communityAddress",
       "author",
       "timestamp",
       "content",
@@ -67,7 +67,7 @@ const comment = {
     ],
     type: "ed25519",
   },
-  subplebbitAddress: "12D3KooWG3XbzoVyAE6Y9vHZKF64Yuuu4TjdgQKedk14iYmTEPWu",
+  communityAddress: "12D3KooWG3XbzoVyAE6Y9vHZKF64Yuuu4TjdgQKedk14iYmTEPWu",
   timestamp: 1686133292,
   title: "test",
 };
@@ -499,7 +499,7 @@ describe("authors", () => {
         author: {
           address: "author.eth",
           previousCommentCid: getAuthorPreviousCommentCid(),
-          subplebbit: {
+          community: {
             lastCommentCid: "last comment cid",
           },
         },
@@ -828,7 +828,7 @@ describe("authors", () => {
       const waitFor = testUtils.createWaitFor(rendered, { timeout });
       expect(rendered.result.current.resolvedAddress).toBe(undefined);
 
-      rendered.rerender({ address: "subplebbit.eth" });
+      rendered.rerender({ address: "community.eth" });
       await waitFor(() => typeof rendered.result.current.resolvedAddress === "string");
       expect(rendered.result.current.resolvedAddress).toBe("resolved author address");
     });
@@ -909,7 +909,7 @@ describe("authors", () => {
         useResolvedAuthorAddress({ author: opts, cache: false }),
       );
       const waitFor = testUtils.createWaitFor(rendered, { timeout: 22000 });
-      rendered.rerender({ address: "subplebbit.eth" });
+      rendered.rerender({ address: "community.eth" });
       await waitFor(() => typeof rendered.result.current.resolvedAddress === "string");
       expect(rendered.result.current.resolvedAddress).toBe("resolved author address");
     });
@@ -917,7 +917,7 @@ describe("authors", () => {
     test("useResolvedAuthorAddress resets when author/account cleared", { timeout }, async () => {
       const rendered = renderHook<any, any>((opts) => useResolvedAuthorAddress({ author: opts }));
       const waitFor = testUtils.createWaitFor(rendered, { timeout: 20000 });
-      rendered.rerender({ address: "subplebbit.eth" } as any);
+      rendered.rerender({ address: "community.eth" } as any);
       await waitFor(() => typeof rendered.result.current.resolvedAddress === "string");
       rendered.rerender(undefined);
       await waitFor(() => rendered.result.current.resolvedAddress === undefined);

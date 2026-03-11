@@ -556,7 +556,7 @@ const getAccountEdits = async (accountId: string) => {
   }
   const editsArray = await Promise.all(promises);
   for (const edit of editsArray) {
-    // TODO: must change this logic for subplebbit edits
+    // TODO: must change this logic for community edits
     if (!edits[edit?.commentCid]) {
       edits[edit?.commentCid] = [];
     }

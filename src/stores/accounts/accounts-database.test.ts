@@ -26,7 +26,7 @@ describe("accounts-database", () => {
     subscriptions: [],
     blockedAddresses: {},
     blockedCids: {},
-    subplebbits: {},
+    communities: {},
     mediaIpfsGatewayUrl: "https://ipfs.io",
     ...overrides,
   });
@@ -482,14 +482,14 @@ describe("accounts-database", () => {
       await accountsDatabase.addAccountComment(acc.id, {
         cid: "cc1",
         content: "c",
-        subplebbitAddress: "s",
+        communityAddress: "s",
         timestamp: 1,
         author: { address: "a" },
       } as any);
       await accountsDatabase.addAccountVote(acc.id, {
         commentCid: "cid1",
         vote: 1,
-        subplebbitAddress: "sub",
+        communityAddress: "sub",
       } as any);
       await accountsDatabase.removeAccount(acc);
       const accountIds = await accountsDatabase.accountsMetadataDatabase.getItem("accountIds");
@@ -510,7 +510,7 @@ describe("accounts-database", () => {
       await accountsDatabase.addAccountVote(acc.id, {
         commentCid: "cid1",
         vote: 1,
-        subplebbitAddress: "sub",
+        communityAddress: "sub",
         onChallenge: () => {},
         onChallengeVerification: () => {},
       } as any);
@@ -540,12 +540,12 @@ describe("accounts-database", () => {
       await accountsDatabase.addAccountVote(acc.id, {
         commentCid: "v1",
         vote: 1,
-        subplebbitAddress: "s",
+        communityAddress: "s",
       } as any);
       await accountsDatabase.addAccountVote(acc.id, {
         commentCid: "v2",
         vote: -1,
-        subplebbitAddress: "s",
+        communityAddress: "s",
       } as any);
       const votes = await accountsDatabase.getAccountVotes(acc.id);
       expect(votes["v1"]).toBeDefined();
@@ -558,7 +558,7 @@ describe("accounts-database", () => {
       await accountsDatabase.addAccountEdit(acc.id, {
         commentCid: "cid1",
         content: "edited",
-        subplebbitAddress: "sub",
+        communityAddress: "sub",
         onChallenge: () => {},
       } as any);
       const edits = await accountsDatabase.getAccountEdits(acc.id);
@@ -599,7 +599,7 @@ describe("accounts-database", () => {
       await accountsDatabase.addAccountComment(acc.id, {
         cid: "ec1",
         content: "hello",
-        subplebbitAddress: "s",
+        communityAddress: "s",
         timestamp: 1,
         author: { address: "a" },
       } as any);
@@ -617,14 +617,14 @@ describe("accounts-database", () => {
       await accountsDatabase.addAccountComment(acc.id, {
         cid: "cid1",
         content: "hello",
-        subplebbitAddress: "sub",
+        communityAddress: "sub",
         timestamp: 1,
         author: { address: "addr" },
       } as any);
       await accountsDatabase.addAccountComment(acc.id, {
         cid: "cid2",
         content: "world",
-        subplebbitAddress: "sub",
+        communityAddress: "sub",
         timestamp: 2,
         author: { address: "addr" },
       } as any);
@@ -640,7 +640,7 @@ describe("accounts-database", () => {
       await accountsDatabase.addAccountComment(acc.id, {
         cid: "c1",
         content: "a",
-        subplebbitAddress: "s",
+        communityAddress: "s",
         timestamp: 1,
         author: { address: "a" },
       } as any);
@@ -650,7 +650,7 @@ describe("accounts-database", () => {
           {
             cid: "c2",
             content: "b",
-            subplebbitAddress: "s",
+            communityAddress: "s",
             timestamp: 1,
             author: { address: "a" },
           } as any,
@@ -665,7 +665,7 @@ describe("accounts-database", () => {
       await accountsDatabase.addAccountComment(acc.id, {
         cid: "c1",
         content: "original",
-        subplebbitAddress: "s",
+        communityAddress: "s",
         timestamp: 1,
         author: { address: "a" },
       } as any);
@@ -674,7 +674,7 @@ describe("accounts-database", () => {
         {
           cid: "c1",
           content: "edited",
-          subplebbitAddress: "s",
+          communityAddress: "s",
           timestamp: 1,
           author: { address: "a" },
         } as any,
@@ -698,7 +698,7 @@ describe("accounts-database", () => {
       await accountsDatabase.addAccountComment(acc1.id, {
         cid: "c1",
         content: "a",
-        subplebbitAddress: "s",
+        communityAddress: "s",
         timestamp: 1,
         author: { address: "a" },
       } as any);
@@ -721,7 +721,7 @@ describe("accounts-database", () => {
       await accountsDatabase.addAccountComment(acc.id, {
         cid: "c1",
         content: "a",
-        subplebbitAddress: "s",
+        communityAddress: "s",
         timestamp: 1,
         author: { address: "a" },
       } as any);
@@ -736,14 +736,14 @@ describe("accounts-database", () => {
       await accountsDatabase.addAccountComment(acc.id, {
         cid: "c1",
         content: "a",
-        subplebbitAddress: "s",
+        communityAddress: "s",
         timestamp: 1,
         author: { address: "a" },
       } as any);
       await accountsDatabase.addAccountComment(acc.id, {
         cid: "c2",
         content: "b",
-        subplebbitAddress: "s",
+        communityAddress: "s",
         timestamp: 2,
         author: { address: "a" },
       } as any);
@@ -761,7 +761,7 @@ describe("accounts-database", () => {
       await accountsDatabase.addAccountCommentReply(acc.id, {
         cid: "reply-cid",
         commentCid: "parent",
-        subplebbitAddress: "sub",
+        communityAddress: "sub",
       } as any);
       const replies = await accountsDatabase.getAccountCommentsReplies(acc.id);
       expect(replies["reply-cid"]).toBeDefined();
@@ -775,7 +775,7 @@ describe("accounts-database", () => {
       await accountsDatabase.addAccountCommentReply(acc1.id, {
         cid: "r1",
         commentCid: "p",
-        subplebbitAddress: "s",
+        communityAddress: "s",
       } as any);
       const replies = await accountsDatabase.getAccountsCommentsReplies([acc1.id, acc2.id]);
       expect(replies[acc1.id]["r1"]).toBeDefined();
@@ -824,7 +824,7 @@ describe("accounts-database", () => {
       await accountsDatabase.addAccountVote(acc.id, {
         commentCid: "vc1",
         vote: 1,
-        subplebbitAddress: "s",
+        communityAddress: "s",
       } as any);
       const votes = await accountsDatabase.getAccountsVotes([acc.id]);
       expect(votes[acc.id]["vc1"]).toBeDefined();
@@ -836,7 +836,7 @@ describe("accounts-database", () => {
       await accountsDatabase.addAccountEdit(acc.id, {
         commentCid: "ec1",
         content: "edit",
-        subplebbitAddress: "s",
+        communityAddress: "s",
       } as any);
       const edits = await accountsDatabase.getAccountsEdits([acc.id]);
       expect(edits[acc.id]["ec1"]).toBeDefined();
@@ -849,12 +849,12 @@ describe("accounts-database", () => {
       await accountsDatabase.addAccountEdit(acc.id, {
         commentCid: "same-cid",
         content: "edit1",
-        subplebbitAddress: "s",
+        communityAddress: "s",
       } as any);
       await accountsDatabase.addAccountEdit(acc.id, {
         commentCid: "same-cid",
         content: "edit2",
-        subplebbitAddress: "s",
+        communityAddress: "s",
       } as any);
       const edits = await accountsDatabase.getAccountEdits(acc.id);
       expect(edits["same-cid"]).toHaveLength(2);

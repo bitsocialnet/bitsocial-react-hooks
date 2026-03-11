@@ -36,35 +36,35 @@ describe("accounts utils", () => {
       const accountCommentsReplies = {
         reply1: {
           cid: "reply1",
-          subplebbitAddress: "blocked.eth",
+          communityAddress: "blocked.eth",
           parentCid: "p1",
           postCid: "post1",
           timestamp: 1,
         },
         reply2: {
           cid: "blocked-cid",
-          subplebbitAddress: "ok.eth",
+          communityAddress: "ok.eth",
           parentCid: "p2",
           postCid: "post2",
           timestamp: 2,
         },
         reply3: {
           cid: "reply3",
-          subplebbitAddress: "ok.eth",
+          communityAddress: "ok.eth",
           parentCid: "blocked-cid",
           postCid: "post3",
           timestamp: 3,
         },
         reply4: {
           cid: "reply4",
-          subplebbitAddress: "ok.eth",
+          communityAddress: "ok.eth",
           parentCid: "p4",
           postCid: "blocked-cid",
           timestamp: 4,
         },
         reply5: {
           cid: "reply5",
-          subplebbitAddress: "ok.eth",
+          communityAddress: "ok.eth",
           parentCid: "p5",
           postCid: "post5",
           author: { address: "blocked.eth" },
@@ -72,7 +72,7 @@ describe("accounts utils", () => {
         },
         reply6: {
           cid: "reply6",
-          subplebbitAddress: "ok.eth",
+          communityAddress: "ok.eth",
           parentCid: "p6",
           postCid: "post6",
           timestamp: 6,
@@ -102,7 +102,7 @@ describe("accounts utils", () => {
         id1: {
           reply1: {
             cid: "reply1",
-            subplebbitAddress: "s1",
+            communityAddress: "s1",
             parentCid: "p1",
             postCid: "post1",
             timestamp: 1,

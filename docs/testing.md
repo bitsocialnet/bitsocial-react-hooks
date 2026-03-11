@@ -25,7 +25,7 @@ DEBUG=bitsocial-react-hooks:hooks:accounts DEBUG_DEPTH=6 yarn test feeds
 - Create a `.env` file and add `CHROME_BIN=/usr/bin/chromium` (replace the path with your chrome path)
 - In a new terminal run `yarn build:watch` to compile typescript
 - In a new terminal run `yarn webpack:watch` to compile the browser tests
-- In a new terminal run `yarn test:server` to start an ipfs node and the test subplebbits
+- In a new terminal run `yarn test:server` to start an ipfs node and the test communities
 
 #### E2E tests
 

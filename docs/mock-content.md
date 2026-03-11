@@ -20,7 +20,7 @@ import { useFeed } from "@bitsocialnet/bitsocial-react-hooks";
 
 function App() {
   const { feed, hasMore, loadMore } = useFeed({
-    subplebbitAddresses: ["news.eth"],
+    communityAddresses: ["news.eth"],
     sortType: "new",
   });
   console.log({ feed });
@@ -44,6 +44,6 @@ import { deleteCaches, deleteDatabases } from "@bitsocialnet/bitsocial-react-hoo
 // delete all databases, including all caches and accounts data
 await deleteDatabases();
 
-// delete the cached comments, cached subplebbits and cached pages only, no accounts data
+// delete the cached comments, cached communities and cached pages only, no accounts data
 await deleteCaches();
 ```

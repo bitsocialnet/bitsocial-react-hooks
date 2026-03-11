@@ -48,9 +48,9 @@ describe("feeds (plebbit-js mock)", () => {
       expect(typeof rendered.result.current.loadMore).to.equal("function");
     });
 
-    it("get feed page 1 with 1 subplebbit sorted by default (hot)", async () => {
+    it("get feed page 1 with 1 community sorted by default (hot)", async () => {
       // get feed with 1 sub
-      rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"] });
+      rendered.rerender({ communityAddresses: ["community address 1"] });
       // initial state
       expect(typeof rendered.result.current.hasMore).to.equal("boolean");
       expect(typeof rendered.result.current.loadMore).to.equal("function");
@@ -64,52 +64,52 @@ describe("feeds (plebbit-js mock)", () => {
       // NOTE: the 'hot' sort type uses timestamps and bugs out with timestamp '100-1' so this is why we get cid 100
       // with low upvote count first
       expect(rendered.result.current.feed[0].cid).to.equal(
-        "subplebbit address 1 page cid hot comment cid 100",
+        "community address 1 page cid hot comment cid 100",
       );
       expect(rendered.result.current.feed.length).to.equal(postsPerPage);
     });
 
-    it("change subplebbit addresses and sort type", async () => {
-      rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"], sortType: "hot" });
-      await waitFor(() => !!rendered.result.current.feed[0].cid.match(/subplebbit address 1/));
-      expect(rendered.result.current.feed[0].cid).to.match(/subplebbit address 1/);
+    it("change community addresses and sort type", async () => {
+      rendered.rerender({ communityAddresses: ["community address 1"], sortType: "hot" });
+      await waitFor(() => !!rendered.result.current.feed[0].cid.match(/community address 1/));
+      expect(rendered.result.current.feed[0].cid).to.match(/community address 1/);
       expect(rendered.result.current.feed.length).to.equal(postsPerPage);
 
-      // change subplebbit addresses
+      // change community addresses
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 2", "subplebbit address 3"],
+        communityAddresses: ["community address 2", "community address 3"],
         sortType: "hot",
       });
-      await waitFor(() => !!rendered.result.current.feed[0].cid.match(/subplebbit address (2|3)/));
-      expect(rendered.result.current.feed[0].cid).to.match(/subplebbit address (2|3)/);
+      await waitFor(() => !!rendered.result.current.feed[0].cid.match(/community address (2|3)/));
+      expect(rendered.result.current.feed[0].cid).to.match(/community address (2|3)/);
       // the 'hot' sort type should give timestamp 1 with the current mock
       expect(rendered.result.current.feed[0].timestamp).to.equal(100);
       expect(rendered.result.current.feed.length).to.equal(postsPerPage);
 
       // change sort type
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 2", "subplebbit address 3"],
+        communityAddresses: ["community address 2", "community address 3"],
         sortType: "new",
       });
-      await waitFor(() => !!rendered.result.current.feed[0].cid.match(/subplebbit address (2|3)/));
-      expect(rendered.result.current.feed[0].cid).to.match(/subplebbit address (2|3)/);
+      await waitFor(() => !!rendered.result.current.feed[0].cid.match(/community address (2|3)/));
+      expect(rendered.result.current.feed[0].cid).to.match(/community address (2|3)/);
       // the 'new' sort type should give timestamp higher than 99 with the current mock
       expect(rendered.result.current.feed[0].timestamp).to.be.greaterThan(99);
       expect(rendered.result.current.feed.length).to.equal(postsPerPage);
 
-      // change subplebbit addresses and sort type
+      // change community addresses and sort type
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 4", "subplebbit address 5"],
+        communityAddresses: ["community address 4", "community address 5"],
         sortType: "topAll",
       });
-      await waitFor(() => !!rendered.result.current.feed[0].cid.match(/subplebbit address (4|5)/));
-      expect(rendered.result.current.feed[0].cid).to.match(/subplebbit address (4|5)/);
+      await waitFor(() => !!rendered.result.current.feed[0].cid.match(/community address (4|5)/));
+      expect(rendered.result.current.feed[0].cid).to.match(/community address (4|5)/);
       expect(rendered.result.current.feed.length).to.equal(postsPerPage);
     });
 
-    it("get feed with 1 subplebbit and scroll to multiple pages", async () => {
+    it("get feed with 1 community and scroll to multiple pages", async () => {
       // get feed with 1 sub
-      rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"] });
+      rendered.rerender({ communityAddresses: ["community address 1"] });
       // wait for posts to be added, should get full first page
       await waitFor(() => rendered.result.current.feed.length > 0);
 
@@ -126,12 +126,12 @@ describe("feeds (plebbit-js mock)", () => {
     });
 
     // use this as stress test
-    it.skip("(long stress test) get feed with 25 subplebbit and scroll to 1000 pages", async () => {
-      const subplebbitAddresses = [];
-      while (subplebbitAddresses.length < 25) {
-        subplebbitAddresses.push(`subplebbit address ${subplebbitAddresses.length + 1}`);
+    it.skip("(long stress test) get feed with 25 community and scroll to 1000 pages", async () => {
+      const communityAddresses = [];
+      while (communityAddresses.length < 25) {
+        communityAddresses.push(`community address ${communityAddresses.length + 1}`);
       }
-      rendered.rerender({ subplebbitAddresses });
+      rendered.rerender({ communityAddresses });
       // wait for posts to be added, should get full first page
       await waitFor(() => rendered.result.current.feed.length > 0);
 

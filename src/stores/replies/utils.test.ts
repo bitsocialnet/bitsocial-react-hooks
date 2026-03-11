@@ -18,13 +18,13 @@ describe("replies utils", () => {
       const feedName = "feed1";
       const preloadedReply = {
         cid: "preloaded-reply-cid",
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: 100,
       };
       const comments = {
         comment1: {
           cid: "comment1",
-          subplebbitAddress: "sub1",
+          communityAddress: "sub1",
           updatedAt: 1,
           replies: {
             pages: { new: { comments: [preloadedReply] } },
@@ -53,7 +53,7 @@ describe("replies utils", () => {
       const comments = {
         comment1: {
           cid: "comment1",
-          subplebbitAddress: "sub1",
+          communityAddress: "sub1",
           depth: 0,
           updatedAt: 1,
           replies: {
@@ -74,7 +74,7 @@ describe("replies utils", () => {
         comments,
         {
           "page-cid-1": {
-            comments: [{ cid: "r1", subplebbitAddress: "sub1" }],
+            comments: [{ cid: "r1", communityAddress: "sub1" }],
             nextCid: undefined,
           },
         },
@@ -86,13 +86,13 @@ describe("replies utils", () => {
     test("uses fallback when depth > 0 and hasPageCids (no early return)", () => {
       const reply = {
         cid: "depth1-fallback",
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: 1,
       };
       const comments = {
         comment1: {
           cid: "comment1",
-          subplebbitAddress: "sub1",
+          communityAddress: "sub1",
           depth: 1,
           updatedAt: 1,
           replies: {
@@ -119,12 +119,12 @@ describe("replies utils", () => {
       expect(feeds.feed1).toContainEqual(expect.objectContaining({ cid: "depth1-fallback" }));
     });
 
-    test("breaks repliesPages loop when reply has wrong subplebbitAddress", () => {
+    test("breaks repliesPages loop when reply has wrong communityAddress", () => {
       const pageCid = "page-cid-break";
       const comments = {
         comment1: {
           cid: "comment1",
-          subplebbitAddress: "sub1",
+          communityAddress: "sub1",
           updatedAt: 1,
           replies: {
             pageCids: { new: pageCid },
@@ -135,8 +135,8 @@ describe("replies utils", () => {
       const repliesPages = {
         [pageCid]: {
           comments: [
-            { cid: "r1", subplebbitAddress: "sub1", timestamp: 1 },
-            { cid: "r2", subplebbitAddress: "wrong-sub", timestamp: 2 },
+            { cid: "r1", communityAddress: "sub1", timestamp: 1 },
+            { cid: "r2", communityAddress: "wrong-sub", timestamp: 2 },
           ],
           nextCid: undefined,
         },
@@ -155,18 +155,18 @@ describe("replies utils", () => {
       expect(feeds.feed1[0].cid).toBe("r1");
     });
 
-    test("breaks preloaded loop when reply has wrong subplebbitAddress", () => {
+    test("breaks preloaded loop when reply has wrong communityAddress", () => {
       const comments = {
         comment1: {
           cid: "comment1",
-          subplebbitAddress: "sub1",
+          communityAddress: "sub1",
           updatedAt: 1,
           replies: {
             pages: {
               new: {
                 comments: [
-                  { cid: "r1", subplebbitAddress: "sub1", timestamp: 1 },
-                  { cid: "r2", subplebbitAddress: "other-sub", timestamp: 2 },
+                  { cid: "r1", communityAddress: "sub1", timestamp: 1 },
+                  { cid: "r2", communityAddress: "other-sub", timestamp: 2 },
                 ],
               },
             },
@@ -190,18 +190,18 @@ describe("replies utils", () => {
       expect(feeds.feed1[0].cid).toBe("r1");
     });
 
-    test("keeps replies when comment and reply subplebbit addresses use .eth/.bso aliases", () => {
+    test("keeps replies when comment and reply community addresses use .eth/.bso aliases", () => {
       const comments = {
         comment1: {
           cid: "comment1",
-          subplebbitAddress: "music-posting.bso",
+          communityAddress: "music-posting.bso",
           updatedAt: 1,
           replies: {
             pages: {
               new: {
                 comments: [
-                  { cid: "r1", subplebbitAddress: "music-posting.eth", timestamp: 1 },
-                  { cid: "r2", subplebbitAddress: "music-posting.eth", timestamp: 2 },
+                  { cid: "r1", communityAddress: "music-posting.eth", timestamp: 1 },
+                  { cid: "r2", communityAddress: "music-posting.eth", timestamp: 2 },
                 ],
               },
             },
@@ -227,13 +227,13 @@ describe("replies utils", () => {
     test("fallback to any page when no pageCids, no nextCids, single preloaded page", () => {
       const reply = {
         cid: "fallback-reply",
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: 1,
       };
       const comments = {
         comment1: {
           cid: "comment1",
-          subplebbitAddress: "sub1",
+          communityAddress: "sub1",
           updatedAt: 1,
           replies: {
             pages: {
@@ -289,14 +289,14 @@ describe("replies utils", () => {
       const loadedReply = {
         cid: "same-cid",
         index: 1,
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: recentTs,
       };
       const freshAccountReply = {
         cid: "same-cid",
         index: 2,
         parentCid: "c1",
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: recentTs,
       };
       (accountsStore as any).getState = () => ({
@@ -323,14 +323,14 @@ describe("replies utils", () => {
       const existingReply = {
         cid: "existing-cid",
         parentCid: "c1",
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: recentTs - 1000,
       };
       const accountReply = {
         cid: "append-cid",
         index: 1,
         parentCid: "c1",
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: recentTs,
       };
       (accountsStore as any).getState = () => ({
@@ -360,7 +360,7 @@ describe("replies utils", () => {
         cid: "child-cid",
         index: 1,
         parentCid: "parent-cid",
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: recentTs,
       };
       (accountsStore as any).getState = () => ({
@@ -391,7 +391,7 @@ describe("replies utils", () => {
         index: 1,
         postCid: "p1",
         depth: 1,
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: recentTs,
       };
       (accountsStore as any).getState = () => ({
@@ -418,14 +418,14 @@ describe("replies utils", () => {
       const pendingReply = {
         index: 1,
         parentCid: "c1",
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: recentTs,
       };
       const accountReplyWithCid = {
         cid: "new-cid",
         index: 1,
         parentCid: "c1",
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: recentTs,
       };
       (accountsStore as any).getState = () => ({
@@ -542,7 +542,7 @@ describe("replies utils", () => {
         },
       };
       const loadedFeeds = {
-        feed1: [{ cid: "r1", subplebbitAddress: "sub1", timestamp: 100 }],
+        feed1: [{ cid: "r1", communityAddress: "sub1", timestamp: 100 }],
       };
       const bufferedFeeds = { feed1: [] };
       const accounts = { [mockAccountId]: { plebbit: {} } };
@@ -563,9 +563,9 @@ describe("replies utils", () => {
       };
       const loadedFeeds = { feed1: [] };
       const bufferedReplies = [
-        { cid: "r1", subplebbitAddress: "sub1", timestamp: 1 },
-        { cid: "r2", subplebbitAddress: "sub1", timestamp: 2 },
-        { cid: "r3", subplebbitAddress: "sub1", timestamp: 3 },
+        { cid: "r1", communityAddress: "sub1", timestamp: 1 },
+        { cid: "r2", communityAddress: "sub1", timestamp: 2 },
+        { cid: "r3", communityAddress: "sub1", timestamp: 3 },
       ];
       const bufferedFeeds = { feed1: bufferedReplies };
       const accounts = { [mockAccountId]: { plebbit: {} } };
@@ -589,7 +589,7 @@ describe("replies utils", () => {
       const feedsOptions = {
         [feedName]: { commentCid: "c1", accountId: mockAccountId },
       };
-      const loadedFeed = [{ cid: "r1", subplebbitAddress: "sub1", timestamp: 100, updatedAt: 100 }];
+      const loadedFeed = [{ cid: "r1", communityAddress: "sub1", timestamp: 100, updatedAt: 100 }];
       const loadedFeeds = { [feedName]: loadedFeed };
       const updatedFeeds: Record<string, any> = {};
       const filteredSortedFeeds = { [feedName]: loadedFeed };
@@ -612,7 +612,7 @@ describe("replies utils", () => {
       };
       const loadedReply = {
         cid: "r1",
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: 100,
         updatedAt: 100,
       };
@@ -662,7 +662,7 @@ describe("replies utils", () => {
       };
       const loadedReply = {
         cid: "r1",
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: 100,
         updatedAt: 100,
       };

@@ -22,7 +22,7 @@ import {
   useAccountEdits,
   useEditedComment,
   useNotifications,
-  useAccountSubplebbits,
+  useAccountCommunities,
   usePubsubSubscribe,
 } from "./hooks/accounts";
 
@@ -32,13 +32,14 @@ import { useComment, useComments, useValidateComment } from "./hooks/comments";
 // replies
 import { useReplies } from "./hooks/replies";
 
-// subplebbits
+// communities
 import {
-  useSubplebbit,
-  useSubplebbits,
-  useSubplebbitStats,
-  useResolvedSubplebbitAddress,
-} from "./hooks/subplebbits";
+  useCommunity,
+  useCommunities,
+  useCommunityStats,
+  useListCommunities,
+  useResolvedCommunityAddress,
+} from "./hooks/communities";
 
 // feeds
 import { useFeed, useBufferedFeeds } from "./hooks/feeds";
@@ -60,10 +61,10 @@ import {
   useBlock,
   usePublishComment,
   usePublishVote,
-  useCreateSubplebbit,
+  useCreateCommunity,
   usePublishCommentEdit,
   usePublishCommentModeration,
-  usePublishSubplebbitEdit,
+  usePublishCommunityEdit,
 } from "./hooks/actions";
 
 // actions that don't have their own hooks yet
@@ -76,11 +77,11 @@ import {
   setAccountsOrder,
   importAccount,
   exportAccount,
-  deleteSubplebbit,
+  deleteCommunity,
 } from "./stores/accounts/accounts-actions";
 
 // states
-import { useClientsStates, useSubplebbitsStates } from "./hooks/states";
+import { useClientsStates, useCommunitiesStates } from "./hooks/states";
 
 // plebbit-rpc
 import { usePlebbitRpcSettings } from "./hooks/plebbit-rpc";
@@ -112,7 +113,7 @@ export {
   useAccountVotes,
   useAccountVote,
   useAccountEdits,
-  useAccountSubplebbits,
+  useAccountCommunities,
   useNotifications,
   usePubsubSubscribe,
   // comments
@@ -122,11 +123,12 @@ export {
   useValidateComment,
   // replies
   useReplies,
-  // subplebbits
-  useSubplebbit,
-  useSubplebbits,
-  useSubplebbitStats,
-  useResolvedSubplebbitAddress,
+  // communities
+  useCommunity,
+  useCommunities,
+  useCommunityStats,
+  useListCommunities,
+  useResolvedCommunityAddress,
   // authors
   useAuthor,
   useAuthorComments,
@@ -145,8 +147,8 @@ export {
   usePublishVote,
   usePublishCommentEdit,
   usePublishCommentModeration,
-  usePublishSubplebbitEdit,
-  useCreateSubplebbit,
+  usePublishCommunityEdit,
+  useCreateCommunity,
   // actions that don't have their own hooks yet
   createAccount,
   deleteAccount,
@@ -156,10 +158,10 @@ export {
   setAccountsOrder,
   importAccount,
   exportAccount,
-  deleteSubplebbit,
+  deleteCommunity,
   // states
   useClientsStates,
-  useSubplebbitsStates,
+  useCommunitiesStates,
   // plebbit-rpc
   usePlebbitRpcSettings,
   // chain
@@ -186,7 +188,7 @@ const hooks = {
   useAccountVotes,
   useAccountVote,
   useAccountEdits,
-  useAccountSubplebbits,
+  useAccountCommunities,
   useNotifications,
   usePubsubSubscribe,
   // comments
@@ -196,11 +198,12 @@ const hooks = {
   useValidateComment,
   // replies
   useReplies,
-  // subplebbits
-  useSubplebbit,
-  useSubplebbits,
-  useSubplebbitStats,
-  useResolvedSubplebbitAddress,
+  // communities
+  useCommunity,
+  useCommunities,
+  useCommunityStats,
+  useListCommunities,
+  useResolvedCommunityAddress,
   // authors
   useAuthor,
   useAuthorComments,
@@ -219,8 +222,8 @@ const hooks = {
   usePublishVote,
   usePublishCommentEdit,
   usePublishCommentModeration,
-  usePublishSubplebbitEdit,
-  useCreateSubplebbit,
+  usePublishCommunityEdit,
+  useCreateCommunity,
   // actions that don't have their own hooks yet
   createAccount,
   deleteAccount,
@@ -230,10 +233,10 @@ const hooks = {
   setAccountsOrder,
   importAccount,
   exportAccount,
-  deleteSubplebbit,
+  deleteCommunity,
   // states
   useClientsStates,
-  useSubplebbitsStates,
+  useCommunitiesStates,
   // plebbit-rpc
   usePlebbitRpcSettings,
   // chain

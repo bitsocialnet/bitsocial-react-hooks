@@ -5,11 +5,11 @@ import {
   usePublishComment,
   usePublishCommentEdit,
   usePublishCommentModeration,
-  usePublishSubplebbitEdit,
+  usePublishCommunityEdit,
   usePublishVote,
   useBlock,
   useAccount,
-  useCreateSubplebbit,
+  useCreateCommunity,
   setPlebbitJs,
   useAccountVote,
   useAccountComments,
@@ -24,9 +24,9 @@ import PlebbitJsMock, {
   Comment,
   CommentEdit,
   CommentModeration,
-  SubplebbitEdit,
+  CommunityEdit,
   Vote,
-  Subplebbit,
+  Community,
   Pages,
   resetPlebbitJsMock,
   debugPlebbitJsMock,
@@ -122,9 +122,9 @@ describe("actions", () => {
       await testUtils.resetDatabasesAndStores();
     });
 
-    test(`subscribe and unsubscribe to subplebbit`, async () => {
-      const subplebbitAddress = "tosubscribeto.eth";
-      const subplebbitAddress2 = "tosubscribeto2.eth";
+    test(`subscribe and unsubscribe to community`, async () => {
+      const communityAddress = "tosubscribeto.eth";
+      const communityAddress2 = "tosubscribeto2.eth";
 
       expect(rendered.result.current[0].state).toBe("initializing");
       expect(rendered.result.current[0].subscribed).toBe(undefined);
@@ -132,7 +132,7 @@ describe("actions", () => {
       expect(typeof rendered.result.current[0].unsubscribe).toBe("function");
 
       // get the default value
-      rendered.rerender([{ subplebbitAddress }]);
+      rendered.rerender([{ communityAddress }]);
       await waitFor(() => typeof rendered.result.current[0].subscribed === "boolean");
       expect(rendered.result.current[0].state).toBe("ready");
       expect(rendered.result.current[0].subscribed).toBe(false);
@@ -166,7 +166,7 @@ describe("actions", () => {
       expect(rendered.result.current[0].errors.length).toBe(2);
 
       // subscribe to 2 subs
-      rendered.rerender([{ subplebbitAddress }, { subplebbitAddress: subplebbitAddress2 }]);
+      rendered.rerender([{ communityAddress }, { communityAddress: communityAddress2 }]);
       await waitFor(() => rendered.result.current[0].state === "ready");
       await waitFor(() => rendered.result.current[1].state === "ready");
       expect(rendered.result.current[0].state).toBe("ready");
@@ -196,7 +196,7 @@ describe("actions", () => {
 
       // subscribing persists in database after store reset
       const rendered2 = renderHook<any, any>(() =>
-        useSubscribe({ subplebbitAddress: subplebbitAddress2 }),
+        useSubscribe({ communityAddress: communityAddress2 }),
       );
       const waitFor2 = testUtils.createWaitFor(rendered2);
       await waitFor2(() => rendered2.result.current.state === "ready");
@@ -206,7 +206,7 @@ describe("actions", () => {
 
     test("useSubscribe onError callback when subscribe fails", async () => {
       const onError = vi.fn();
-      rendered.rerender([{ subplebbitAddress: "tosubscribeto.eth", onError }]);
+      rendered.rerender([{ communityAddress: "tosubscribeto.eth", onError }]);
       await waitFor(() => typeof rendered.result.current[0].subscribed === "boolean");
 
       await act(async () => {
@@ -223,7 +223,7 @@ describe("actions", () => {
 
     test("useSubscribe onError callback when unsubscribe fails", async () => {
       const onError = vi.fn();
-      rendered.rerender([{ subplebbitAddress: "tosubscribeto.eth", onError }]);
+      rendered.rerender([{ communityAddress: "tosubscribeto.eth", onError }]);
       await waitFor(() => typeof rendered.result.current[0].subscribed === "boolean");
       await act(async () => {
         await rendered.result.current[0].subscribe();
@@ -263,7 +263,7 @@ describe("actions", () => {
       }).toThrow(/can't useBlock with both/);
     });
 
-    test(`block and unblock two addresses (subplebbit addresses)`, async () => {
+    test(`block and unblock two addresses (community addresses)`, async () => {
       const address = "address.eth";
       const address2 = "address2.eth";
 
@@ -458,13 +458,13 @@ describe("actions", () => {
     });
   });
 
-  describe("useCreateSubplebbit", () => {
+  describe("useCreateCommunity", () => {
     let rendered: any, waitFor: Function;
 
     beforeEach(async () => {
-      rendered = renderHook<any, any>((useCreateSubplebbitOptions = []) => {
-        const result1 = useCreateSubplebbit(useCreateSubplebbitOptions[0]);
-        const result2 = useCreateSubplebbit(useCreateSubplebbitOptions[1]);
+      rendered = renderHook<any, any>((useCreateCommunityOptions = []) => {
+        const result1 = useCreateCommunity(useCreateCommunityOptions[0]);
+        const result2 = useCreateCommunity(useCreateCommunityOptions[1]);
         return [result1, result2];
       });
       waitFor = testUtils.createWaitFor(rendered);
@@ -474,10 +474,10 @@ describe("actions", () => {
       await testUtils.resetDatabasesAndStores();
     });
 
-    test(`can create subplebbit`, async () => {
+    test(`can create community`, async () => {
       expect(rendered.result.current[0].state).toBe("initializing");
-      expect(rendered.result.current[0].createdSubplebbit).toBe(undefined);
-      expect(typeof rendered.result.current[0].createSubplebbit).toBe("function");
+      expect(rendered.result.current[0].createdCommunity).toBe(undefined);
+      expect(typeof rendered.result.current[0].createCommunity).toBe("function");
 
       const options1 = {
         title: "title",
@@ -487,28 +487,28 @@ describe("actions", () => {
       rendered.rerender([options1]);
       await waitFor(() => rendered.result.current[0].state === "ready");
       expect(rendered.result.current[0].state).toBe("ready");
-      expect(rendered.result.current[0].createdSubplebbit).toBe(undefined);
+      expect(rendered.result.current[0].createdCommunity).toBe(undefined);
 
-      // create subplebbit
+      // create community
       await act(async () => {
-        await rendered.result.current[0].createSubplebbit();
+        await rendered.result.current[0].createCommunity();
       });
-      await waitFor(() => rendered.result.current[0].createdSubplebbit);
+      await waitFor(() => rendered.result.current[0].createdCommunity);
       expect(rendered.result.current[0].state).toBe("succeeded");
-      expect(rendered.result.current[0].createdSubplebbit?.title).toBe(options1.title);
+      expect(rendered.result.current[0].createdCommunity?.title).toBe(options1.title);
 
-      // useCreateSubplebbit 2 with same option not created
+      // useCreateCommunity 2 with same option not created
       rendered.rerender([options1, options1]);
       await waitFor(() => rendered.result.current[1].state === "ready");
       expect(rendered.result.current[1].state).toBe("ready");
-      expect(rendered.result.current[1].createdSubplebbit).toBe(undefined);
+      expect(rendered.result.current[1].createdCommunity).toBe(undefined);
     });
 
     test(`can error`, async () => {
       // mock the comment publish to error out
-      const createSubplebbit = Plebbit.prototype.createSubplebbit;
-      Plebbit.prototype.createSubplebbit = async () => {
-        throw Error("create subplebbit error");
+      const createCommunity = Plebbit.prototype.createCommunity;
+      Plebbit.prototype.createCommunity = async () => {
+        throw Error("create community error");
       };
 
       const options1 = {
@@ -519,27 +519,27 @@ describe("actions", () => {
       rendered.rerender([options1]);
       await waitFor(() => rendered.result.current[0].state === "ready");
       expect(rendered.result.current[0].state).toBe("ready");
-      expect(rendered.result.current[0].createdSubplebbit).toBe(undefined);
+      expect(rendered.result.current[0].createdCommunity).toBe(undefined);
 
-      // create subplebbit
+      // create community
       await act(async () => {
-        await rendered.result.current[0].createSubplebbit();
+        await rendered.result.current[0].createCommunity();
       });
       // wait for error
       await waitFor(() => rendered.result.current[0].error);
-      expect(rendered.result.current[0].error.message).toBe("create subplebbit error");
-      expect(rendered.result.current[0].createdSubplebbit).toBe(undefined);
+      expect(rendered.result.current[0].error.message).toBe("create community error");
+      expect(rendered.result.current[0].createdCommunity).toBe(undefined);
       expect(rendered.result.current[0].state).toBe("failed");
       expect(rendered.result.current[0].errors.length).toBe(1);
 
       // restore mock
-      Plebbit.prototype.createSubplebbit = createSubplebbit;
+      Plebbit.prototype.createCommunity = createCommunity;
     });
 
-    test("useCreateSubplebbit onError callback when create fails", async () => {
-      const createSubplebbit = Plebbit.prototype.createSubplebbit;
-      Plebbit.prototype.createSubplebbit = async () => {
-        throw Error("create subplebbit error");
+    test("useCreateCommunity onError callback when create fails", async () => {
+      const createCommunity = Plebbit.prototype.createCommunity;
+      Plebbit.prototype.createCommunity = async () => {
+        throw Error("create community error");
       };
 
       const onError = vi.fn();
@@ -547,12 +547,12 @@ describe("actions", () => {
       await waitFor(() => rendered.result.current[0].state === "ready");
 
       await act(async () => {
-        await rendered.result.current[0].createSubplebbit();
+        await rendered.result.current[0].createCommunity();
       });
       await waitFor(() => rendered.result.current[0].error);
       expect(onError).toHaveBeenCalledWith(expect.any(Error));
 
-      Plebbit.prototype.createSubplebbit = createSubplebbit;
+      Plebbit.prototype.createCommunity = createCommunity;
     });
   });
 
@@ -574,7 +574,7 @@ describe("actions", () => {
 
     test(`publishChallengeAnswers throws when challenge not yet received`, async () => {
       const publishCommentOptions = {
-        subplebbitAddress: "12D3KooW... acions.test",
+        communityAddress: "12D3KooW... acions.test",
         parentCid: "Qm... acions.test",
         content: "content",
       };
@@ -590,7 +590,7 @@ describe("actions", () => {
       const onChallenge = vi.fn();
       const onChallengeVerification = vi.fn();
       const publishCommentOptions = {
-        subplebbitAddress: "12D3KooW... acions.test",
+        communityAddress: "12D3KooW... acions.test",
         parentCid: "Qm... acions.test",
         content: "some content acions.test",
         onChallenge,
@@ -649,7 +649,7 @@ describe("actions", () => {
         comment.publishChallengeAnswers(),
       );
       const publishCommentOptions = {
-        subplebbitAddress: "12D3KooW... acions.test",
+        communityAddress: "12D3KooW... acions.test",
         parentCid: "Qm... acions.test",
         content: "no onChallengeVerification test",
         onChallenge,
@@ -673,7 +673,7 @@ describe("actions", () => {
 
     test(`abandon during waiting-challenge-answers removes pending local comment and returns hook state to ready`, async () => {
       const publishCommentOptions = {
-        subplebbitAddress: "12D3KooW... acions.test",
+        communityAddress: "12D3KooW... acions.test",
         parentCid: "Qm... acions.test",
         content: "abandon test content",
       };
@@ -737,7 +737,7 @@ describe("actions", () => {
       let challengeCalls = 0;
 
       const publishCommentOptions = {
-        subplebbitAddress: "12D3KooW... actions.test early abandon",
+        communityAddress: "12D3KooW... actions.test early abandon",
         parentCid: "Qm... actions.test early abandon",
         content: "abandon onChallenge test content",
         onChallenge: async () => {
@@ -789,7 +789,7 @@ describe("actions", () => {
       }));
 
       const publishCommentOptions = {
-        subplebbitAddress: "12D3KooW... actions.test",
+        communityAddress: "12D3KooW... actions.test",
         parentCid: "Qm... actions.test",
         content: "abandon before reject test",
       };
@@ -830,7 +830,7 @@ describe("actions", () => {
       }));
 
       const publishCommentOptions = {
-        subplebbitAddress: "12D3KooW... actions.test",
+        communityAddress: "12D3KooW... actions.test",
         parentCid: "Qm... actions.test",
         content: "catch test",
         onError,
@@ -866,7 +866,7 @@ describe("actions", () => {
       }));
 
       const publishCommentOptions = {
-        subplebbitAddress: "12D3KooW... actions.test",
+        communityAddress: "12D3KooW... actions.test",
         parentCid: "Qm... actions.test",
         content: "catch no onError test",
       };
@@ -890,7 +890,7 @@ describe("actions", () => {
 
     test(`abandon is idempotent-safe (second call no-ops or fails predictably, does not corrupt state)`, async () => {
       const publishCommentOptions = {
-        subplebbitAddress: "12D3KooW... acions.test",
+        communityAddress: "12D3KooW... acions.test",
         parentCid: "Qm... acions.test",
         content: "idempotent abandon test",
       };
@@ -924,7 +924,7 @@ describe("actions", () => {
       const onChallenge = vi.fn();
       const onChallengeVerification = vi.fn();
       const publishCommentOptions = {
-        subplebbitAddress: "12D3KooW... acions.test",
+        communityAddress: "12D3KooW... acions.test",
         parentCid: "Qm... acions.test",
         title: "some title acions.test",
         link: "some link acions.test",
@@ -989,7 +989,7 @@ describe("actions", () => {
 
       const onError = vi.fn();
       const publishCommentOptions = {
-        subplebbitAddress: "12D3KooW... acions.test",
+        communityAddress: "12D3KooW... acions.test",
         parentCid: "Qm... acions.test",
         content: "some content acions.test",
         onError,
@@ -1042,7 +1042,7 @@ describe("actions", () => {
       const onChallenge = vi.fn();
       const onChallengeVerification = vi.fn();
       const publishCommentEditOptions = {
-        subplebbitAddress: "12D3KooW... acions.test",
+        communityAddress: "12D3KooW... acions.test",
         commentCid: "Qm... acions.test",
         spoiler: true,
         onChallenge,
@@ -1104,7 +1104,7 @@ describe("actions", () => {
 
       const onError = vi.fn();
       const publishCommentEditOptions = {
-        subplebbitAddress: "12D3KooW... acions.test",
+        communityAddress: "12D3KooW... acions.test",
         commentCid: "Qm... acions.test",
         spoiler: true,
         onError,
@@ -1151,7 +1151,7 @@ describe("actions", () => {
 
       const onError = vi.fn();
       rendered.rerender({
-        subplebbitAddress: "12D3KooW... acions.test",
+        communityAddress: "12D3KooW... acions.test",
         commentCid: "Qm... acions.test",
         spoiler: true,
         onError,
@@ -1196,7 +1196,7 @@ describe("actions", () => {
       const onChallenge = vi.fn();
       const onChallengeVerification = vi.fn();
       const publishCommentModerationOptions = {
-        subplebbitAddress: "12D3KooW... acions.test",
+        communityAddress: "12D3KooW... acions.test",
         commentCid: "Qm... acions.test",
         commentModeration: { locked: true },
         onChallenge,
@@ -1252,7 +1252,7 @@ describe("actions", () => {
       const onChallenge = vi.fn();
       const onChallengeVerification = vi.fn();
       const publishCommentModerationOptions = {
-        subplebbitAddress: "12D3KooW... acions.test",
+        communityAddress: "12D3KooW... acions.test",
         commentCid: "Qm... acions.test",
         commentModeration: { purged: true },
         onChallenge,
@@ -1314,7 +1314,7 @@ describe("actions", () => {
 
       const onError = vi.fn();
       const publishCommentModerationOptions = {
-        subplebbitAddress: "12D3KooW... acions.test",
+        communityAddress: "12D3KooW... acions.test",
         commentCid: "Qm... acions.test",
         commentModeration: { locked: true },
         onError,
@@ -1360,7 +1360,7 @@ describe("actions", () => {
 
       const onError = vi.fn();
       rendered.rerender({
-        subplebbitAddress: "12D3KooW... acions.test",
+        communityAddress: "12D3KooW... acions.test",
         commentCid: "Qm... acions.test",
         commentModeration: { locked: true },
         onError,
@@ -1386,12 +1386,12 @@ describe("actions", () => {
   });
 
   // retry usePublish because publishing state is flaky
-  describe("usePublishSubplebbitEdit", { retry: 3 }, () => {
+  describe("usePublishCommunityEdit", { retry: 3 }, () => {
     let rendered: any, waitFor: Function;
 
     beforeEach(async () => {
       rendered = renderHook<any, any>((options) => {
-        const result = usePublishSubplebbitEdit(options);
+        const result = usePublishCommunityEdit(options);
         return result;
       });
       waitFor = testUtils.createWaitFor(rendered);
@@ -1401,16 +1401,16 @@ describe("actions", () => {
       await testUtils.resetDatabasesAndStores();
     });
 
-    test(`can publish subplebbit edit`, async () => {
+    test(`can publish community edit`, async () => {
       const onChallenge = vi.fn();
       const onChallengeVerification = vi.fn();
-      const publishSubplebbitEditOptions = {
-        subplebbitAddress: "12D3KooW... acions.test",
+      const publishCommunityEditOptions = {
+        communityAddress: "12D3KooW... acions.test",
         title: "new title",
         onChallenge,
         onChallengeVerification,
       };
-      rendered.rerender(publishSubplebbitEditOptions);
+      rendered.rerender(publishCommunityEditOptions);
 
       // wait for ready
       await waitFor(() => rendered.result.current.state === "ready");
@@ -1418,7 +1418,7 @@ describe("actions", () => {
 
       // publish
       await act(async () => {
-        await rendered.result.current.publishSubplebbitEdit();
+        await rendered.result.current.publishCommunityEdit();
       });
 
       await waitFor(() => rendered.result.current.state === "publishing-challenge-request");
@@ -1457,20 +1457,20 @@ describe("actions", () => {
     });
 
     test(`can error`, async () => {
-      // mock the subplebbit edit publish to error out
-      const subplebbitEditPublish = SubplebbitEdit.prototype.publish;
-      SubplebbitEdit.prototype.publish = async function () {
+      // mock the community edit publish to error out
+      const communityEditPublish = CommunityEdit.prototype.publish;
+      CommunityEdit.prototype.publish = async function () {
         this.emit("error", Error("emit error"));
         throw Error("publish error");
       };
 
       const onError = vi.fn();
-      const publishSubplebbitEditOptions = {
-        subplebbitAddress: "12D3KooW... acions.test",
+      const publishCommunityEditOptions = {
+        communityAddress: "12D3KooW... acions.test",
         title: "new title",
         onError,
       };
-      rendered.rerender(publishSubplebbitEditOptions);
+      rendered.rerender(publishCommunityEditOptions);
 
       // wait for ready
       await waitFor(() => rendered.result.current.state === "ready");
@@ -1479,7 +1479,7 @@ describe("actions", () => {
 
       // publish
       await act(async () => {
-        await rendered.result.current.publishSubplebbitEdit();
+        await rendered.result.current.publishCommunityEdit();
       });
 
       // wait for error
@@ -1494,31 +1494,31 @@ describe("actions", () => {
       expect(onError.mock.calls[1][0].message).toBe("publish error");
 
       // restore mock
-      SubplebbitEdit.prototype.publish = subplebbitEditPublish;
+      CommunityEdit.prototype.publish = communityEditPublish;
     });
 
-    test("usePublishSubplebbitEdit hook catch and onError when store throws", async () => {
-      const original = useAccountsStore.getState().accountsActions.publishSubplebbitEdit;
+    test("usePublishCommunityEdit hook catch and onError when store throws", async () => {
+      const original = useAccountsStore.getState().accountsActions.publishCommunityEdit;
       useAccountsStore.setState((state: any) => ({
         ...state,
         accountsActions: {
           ...state.accountsActions,
-          publishSubplebbitEdit: async () => {
-            throw Error("store publishSubplebbitEdit error");
+          publishCommunityEdit: async () => {
+            throw Error("store publishCommunityEdit error");
           },
         },
       }));
 
       const onError = vi.fn();
       rendered.rerender({
-        subplebbitAddress: "12D3KooW... acions.test",
+        communityAddress: "12D3KooW... acions.test",
         title: "new title",
         onError,
       });
       await waitFor(() => rendered.result.current.state === "ready");
 
       await act(async () => {
-        await rendered.result.current.publishSubplebbitEdit();
+        await rendered.result.current.publishCommunityEdit();
       });
 
       expect(rendered.result.current.errors.length).toBe(1);
@@ -1529,7 +1529,7 @@ describe("actions", () => {
         ...state,
         accountsActions: {
           ...state.accountsActions,
-          publishSubplebbitEdit: original,
+          publishCommunityEdit: original,
         },
       }));
     });
@@ -1554,7 +1554,7 @@ describe("actions", () => {
 
     test(`publishChallengeAnswers throws when challenge not yet received`, async () => {
       const publishVoteOptions = {
-        subplebbitAddress: "12D3KooW... acions.test",
+        communityAddress: "12D3KooW... acions.test",
         commentCid: "Qm... acions.test",
         vote: 1,
       };
@@ -1570,7 +1570,7 @@ describe("actions", () => {
       const onChallenge = vi.fn();
       const onChallengeVerification = vi.fn();
       const publishVoteOptions = {
-        subplebbitAddress: "12D3KooW... acions.test",
+        communityAddress: "12D3KooW... acions.test",
         commentCid: "Qm... acions.test",
         vote: 1,
         onChallenge,
@@ -1635,7 +1635,7 @@ describe("actions", () => {
 
       const onError = vi.fn();
       const publishVoteOptions = {
-        subplebbitAddress: "12D3KooW... acions.test",
+        communityAddress: "12D3KooW... acions.test",
         commentCid: "Qm... acions.test",
         vote: 1,
         onError,
@@ -1680,7 +1680,7 @@ describe("actions", () => {
 
       const testRendered = renderHook(() =>
         usePublishVote({
-          subplebbitAddress: "12D3KooW... acions.test",
+          communityAddress: "12D3KooW... acions.test",
           commentCid: "Qm... acions.test",
           vote: 1,
         }),
@@ -1701,7 +1701,7 @@ describe("actions", () => {
 
     test("publishVote with no onChallenge/onChallengeVerification completes successfully", async () => {
       const publishVoteOptions = {
-        subplebbitAddress: "12D3KooW... acions.test",
+        communityAddress: "12D3KooW... acions.test",
         commentCid: "Qm... acions.test",
         vote: 1,
       };

@@ -87,6 +87,7 @@ jobs:
       - run: sudo echo "255.255.255.255 cloudflare-ipfs.com" | sudo tee -a /etc/hosts
       - run: sudo echo "255.255.255.255 pubsubprovider.xyz" | sudo tee -a /etc/hosts
       - run: yarn playwright install ${{ matrix.browsers }}
+      - run: yarn build
       - run: yarn test:server & yarn test:server:wait-on
       - name: Run e2e ${{ matrix.suite }} tests
         id: run_e2e

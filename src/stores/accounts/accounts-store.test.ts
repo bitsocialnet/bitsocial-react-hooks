@@ -68,7 +68,7 @@ describe("accounts-store", () => {
       ).toBe("function");
       expect(typeof state.accountsActionsInternal?.addCidToAccountComment).toBe("function");
       expect(typeof state.accountsActionsInternal?.markNotificationsAsRead).toBe("function");
-      expect(typeof state.accountsActionsInternal?.addSubplebbitRoleToAccountsSubplebbits).toBe(
+      expect(typeof state.accountsActionsInternal?.addCommunityRoleToAccountsCommunities).toBe(
         "function",
       );
     });
@@ -78,7 +78,7 @@ describe("accounts-store", () => {
     test("initializeAccountsStore catch when startUpdatingAccountCommentOnCommentUpdateEvents rejects", async () => {
       await testUtils.resetDatabasesAndStores();
       await accountsStore.getState().accountsActions.publishComment({
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         content: "for-init-err",
         onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
         onChallengeVerification: () => {},

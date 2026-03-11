@@ -1,13 +1,13 @@
 import { render, act as tlAct } from "@testing-library/react";
 import React from "react";
 import { resetCommentsStore, resetCommentsDatabaseAndStore } from "../stores/comments";
-import { resetSubplebbitsStore, resetSubplebbitsDatabaseAndStore } from "../stores/subplebbits";
+import { resetCommunitiesStore, resetCommunitiesDatabaseAndStore } from "../stores/communities";
 import { resetAccountsStore, resetAccountsDatabaseAndStore } from "../stores/accounts";
 import { resetFeedsStore, resetFeedsDatabaseAndStore } from "../stores/feeds";
 import {
-  resetSubplebbitsPagesStore,
-  resetSubplebbitsPagesDatabaseAndStore,
-} from "../stores/subplebbits-pages";
+  resetCommunitiesPagesStore,
+  resetCommunitiesPagesDatabaseAndStore,
+} from "../stores/communities-pages";
 import {
   resetAuthorsCommentsStore,
   resetAuthorsCommentsDatabaseAndStore,
@@ -155,9 +155,9 @@ const resetStores = async () => {
   await resetRepliesPagesStore();
   await resetRepliesStore();
   await resetAuthorsCommentsStore();
-  await resetSubplebbitsPagesStore();
+  await resetCommunitiesPagesStore();
   await resetFeedsStore();
-  await resetSubplebbitsStore();
+  await resetCommunitiesStore();
   await resetCommentsStore();
   // always accounts last because it has async initialization
   await resetAccountsStore();
@@ -167,9 +167,9 @@ const resetDatabasesAndStores = async () => {
   await resetRepliesPagesDatabaseAndStore();
   await resetRepliesDatabaseAndStore();
   await resetAuthorsCommentsDatabaseAndStore();
-  await resetSubplebbitsPagesDatabaseAndStore();
+  await resetCommunitiesPagesDatabaseAndStore();
   await resetFeedsDatabaseAndStore();
-  await resetSubplebbitsDatabaseAndStore();
+  await resetCommunitiesDatabaseAndStore();
   await resetCommentsDatabaseAndStore();
   // always accounts last because it has async initialization
   await resetAccountsDatabaseAndStore();

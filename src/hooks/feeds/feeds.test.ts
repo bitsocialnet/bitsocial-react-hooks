@@ -1,23 +1,23 @@
 import { act } from "@testing-library/react";
 import testUtils, { renderHook } from "../../lib/test-utils";
 import { Comment } from "../../types";
-import { useFeed, useBufferedFeeds, useAccount, useSubplebbit, setPlebbitJs } from "../..";
+import { useFeed, useBufferedFeeds, useAccount, useCommunity, setPlebbitJs } from "../..";
 import * as accountsActions from "../../stores/accounts/accounts-actions";
 import { getCommentCidsToAccountsComments } from "../../stores/accounts/utils";
 import localForageLru from "../../lib/localforage-lru";
 import localForage from "localforage";
 import feedsStore, { defaultPostsPerPage as postsPerPage } from "../../stores/feeds";
-import subplebbitsStore from "../../stores/subplebbits";
-import subplebbitsPagesStore from "../../stores/subplebbits-pages";
+import communitiesStore from "../../stores/communities";
+import communitiesPagesStore from "../../stores/communities-pages";
 import accountsStore from "../../stores/accounts";
 import PlebbitJsMock, {
   Plebbit,
-  Subplebbit,
+  Community,
   Pages,
   simulateLoadingTime,
 } from "../../lib/plebbit-js/plebbit-js-mock";
 
-const plebbitJsMockSubplebbitPageLength = 100;
+const plebbitJsMockCommunityPageLength = 100;
 
 describe("feeds", () => {
   beforeAll(async () => {
@@ -75,7 +75,7 @@ describe("feeds", () => {
           },
         }));
 
-        rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"] });
+        rendered.rerender({ communityAddresses: ["community address 1"] });
         await new Promise((r) => setTimeout(r, 150));
 
         expect(rendered.result.current.feed).toEqual([]);
@@ -89,16 +89,16 @@ describe("feeds", () => {
       }
     });
 
-    test("useFeed hasMore false when subplebbitAddresses empty", async () => {
+    test("useFeed hasMore false when communityAddresses empty", async () => {
       rendered.rerender({});
       expect(rendered.result.current.hasMore).toBe(false);
-      rendered.rerender({ subplebbitAddresses: [] });
+      rendered.rerender({ communityAddresses: [] });
       expect(rendered.result.current.hasMore).toBe(false);
     });
 
     test("loadMore init guard throws when not initialized", async () => {
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 1"],
+        communityAddresses: ["community address 1"],
         accountName: "nonexistent-account-xyz",
       });
       await act(async () => {
@@ -110,7 +110,7 @@ describe("feeds", () => {
 
     test("reset init guard throws when not initialized", async () => {
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 1"],
+        communityAddresses: ["community address 1"],
         accountName: "nonexistent-account-xyz",
       });
       await act(async () => {
@@ -122,13 +122,13 @@ describe("feeds", () => {
 
     test("not yet loaded feed hasMore true", async () => {
       expect(rendered.result.current.hasMore).toBe(false);
-      rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"] });
+      rendered.rerender({ communityAddresses: ["community address 1"] });
       expect(rendered.result.current.hasMore).toBe(true);
     });
 
-    test("get feed page 1 with 1 subplebbit sorted by default (hot)", async () => {
+    test("get feed page 1 with 1 community sorted by default (hot)", async () => {
       // get feed with 1 sub
-      rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"] });
+      rendered.rerender({ communityAddresses: ["community address 1"] });
       // initial state
       expect(typeof rendered.result.current.hasMore).toBe("boolean");
       expect(typeof rendered.result.current.loadMore).toBe("function");
@@ -142,32 +142,32 @@ describe("feeds", () => {
       // NOTE: the 'hot' sort type uses timestamps and bugs out with timestamp '1-100' so this is why we get cid 1
       // with low upvote count first
       expect(rendered.result.current.feed[0].cid).toBe(
-        "subplebbit address 1 page cid hot comment cid 100",
+        "community address 1 page cid hot comment cid 100",
       );
       expect(rendered.result.current.feed.length).toBe(postsPerPage);
       expect(rendered.result.current.bufferedFeed.length).toBe(
-        plebbitJsMockSubplebbitPageLength - postsPerPage,
+        plebbitJsMockCommunityPageLength - postsPerPage,
       );
 
       // reset stores to force using the db
       await testUtils.resetStores();
 
-      // get feed again from database, only wait for 1 render because subplebbit is stored in db
+      // get feed again from database, only wait for 1 render because community is stored in db
       const rendered2 = renderHook<any, any>(() =>
-        useFeed({ subplebbitAddresses: ["subplebbit address 1"] }),
+        useFeed({ communityAddresses: ["community address 1"] }),
       );
       expect(rendered2.result.current.feed).toEqual([]);
 
-      // only wait for 1 render because subplebbit is stored in db
+      // only wait for 1 render because community is stored in db
       await waitFor(() => rendered2.result.current.feed[0].cid);
       expect(rendered2.result.current.feed[0].cid).toBe(
-        "subplebbit address 1 page cid hot comment cid 100",
+        "community address 1 page cid hot comment cid 100",
       );
       expect(rendered2.result.current.feed.length).toBe(postsPerPage);
     });
 
     test("useFeed mirrors moderation flags into commentModeration", async () => {
-      rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"] });
+      rendered.rerender({ communityAddresses: ["community address 1"] });
       await waitFor(() => rendered.result.current.feed.length > 0);
 
       const [feedName] = Object.keys(feedsStore.getState().loadedFeeds);
@@ -192,12 +192,12 @@ describe("feeds", () => {
       Date.now = () => now;
 
       // get feed with 1 sub
-      rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"] });
+      rendered.rerender({ communityAddresses: ["community address 1"] });
 
       // wait for posts to be added, should get full first page
       await waitFor(() => rendered.result.current.feed.length > 0);
       expect(rendered.result.current.feed[0].cid).toBe(
-        "subplebbit address 1 page cid hot comment cid 100",
+        "community address 1 page cid hot comment cid 100",
       );
       expect(rendered.result.current.feed.length).toBe(postsPerPage);
 
@@ -205,15 +205,15 @@ describe("feeds", () => {
       Date.now = () => now + 61 * 60 * 1000;
 
       // mock sub update to never update
-      const update = Subplebbit.prototype.update;
-      Subplebbit.prototype.update = async function () {};
+      const update = Community.prototype.update;
+      Community.prototype.update = async function () {};
 
       // reset stores to force using the db
       await testUtils.resetStores();
 
-      // get feed again from database, only wait for 1 render because subplebbit is stored in db
+      // get feed again from database, only wait for 1 render because community is stored in db
       const rendered2 = renderHook<any, any>(() =>
-        useFeed({ subplebbitAddresses: ["subplebbit address 1"] }),
+        useFeed({ communityAddresses: ["community address 1"] }),
       );
 
       // no way to wait other than just time since result is that there's no result
@@ -227,13 +227,13 @@ describe("feeds", () => {
 
       // restore mock
       Date.now = DateNow;
-      Subplebbit.prototype.update = update;
+      Community.prototype.update = update;
     });
 
     test("get feed with custom posts per page", async () => {
       const customPostsPerPage = 10;
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 1"],
+        communityAddresses: ["community address 1"],
         postsPerPage: customPostsPerPage,
       });
 
@@ -264,7 +264,7 @@ describe("feeds", () => {
           page.comments.push({
             timestamp: now - page.comments.length, // 1 post per second
             cid: cid + " comment cid " + (page.comments.length + 1),
-            subplebbitAddress: this.subplebbit.address,
+            communityAddress: this.community.address,
           });
         }
         return page;
@@ -272,7 +272,7 @@ describe("feeds", () => {
 
       const newerThan = 5; // newer than x seconds
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 1"],
+        communityAddresses: ["community address 1"],
         sortType: "new", // sort by new so the feed uses getPage
         newerThan,
       });
@@ -303,26 +303,26 @@ describe("feeds", () => {
               timestamp: now,
               lastReplyTimestamp: undefined,
               cid: "newer cid 1",
-              subplebbitAddress: this.subplebbit.address,
+              communityAddress: this.community.address,
             },
             {
               timestamp: 1,
               lastReplyTimestamp: now,
               cid: "newer cid 2",
-              subplebbitAddress: this.subplebbit.address,
+              communityAddress: this.community.address,
             },
             // should not be newer
             {
               timestamp: 1,
               lastReplyTimestamp: undefined,
               cid: "older cid 1",
-              subplebbitAddress: this.subplebbit.address,
+              communityAddress: this.community.address,
             },
             {
               timestamp: 1,
               lastReplyTimestamp: 1,
               cid: "older cid 2",
-              subplebbitAddress: this.subplebbit.address,
+              communityAddress: this.community.address,
             },
           ],
         };
@@ -330,7 +330,7 @@ describe("feeds", () => {
 
       const newerThan = 5; // newer than x seconds
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 1"],
+        communityAddresses: ["community address 1"],
         sortType: "active",
         newerThan,
       });
@@ -350,42 +350,42 @@ describe("feeds", () => {
 
     test("newerThan sets correct sortType", async () => {
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 1"],
+        communityAddresses: ["community address 1"],
         sortType: "topAll",
         newerThan: 60 * 60 * 24,
       });
       expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).toMatch("topDay");
 
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 1"],
+        communityAddresses: ["community address 1"],
         sortType: "topAll",
         newerThan: 60 * 60 * 24 * 7,
       });
       expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).toMatch("topWeek");
 
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 1"],
+        communityAddresses: ["community address 1"],
         sortType: "topAll",
         newerThan: 60 * 60 * 24 * 30,
       });
       expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).toMatch("topMonth");
 
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 1"],
+        communityAddresses: ["community address 1"],
         sortType: "topAll",
         newerThan: 60 * 60 * 24 * 365,
       });
       expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).toMatch("topYear");
 
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 1"],
+        communityAddresses: ["community address 1"],
         sortType: "controversialAll",
         newerThan: 60 * 60 * 24,
       });
       expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).toMatch("controversialDay");
 
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 1"],
+        communityAddresses: ["community address 1"],
         sortType: "controversialAll",
         newerThan: 60 * 60 * 24 * 7,
       });
@@ -394,7 +394,7 @@ describe("feeds", () => {
       );
 
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 1"],
+        communityAddresses: ["community address 1"],
         sortType: "controversialAll",
         newerThan: 60 * 60 * 24 * 30,
       });
@@ -403,7 +403,7 @@ describe("feeds", () => {
       );
 
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 1"],
+        communityAddresses: ["community address 1"],
         sortType: "controversialAll",
         newerThan: 60 * 60 * 24 * 365,
       });
@@ -412,69 +412,69 @@ describe("feeds", () => {
       );
 
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 1"],
+        communityAddresses: ["community address 1"],
         sortType: "topAll",
         newerThan: 60 * 60 * 24 * 400,
       });
       expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).toMatch("topAll");
     });
 
-    test("change subplebbit addresses and sort type", async () => {
-      rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"], sortType: "hot" });
-      await waitFor(() => !!rendered.result.current.feed[0].cid.match(/subplebbit address 1/));
-      expect(rendered.result.current.feed[0].cid).toMatch(/subplebbit address 1/);
+    test("change community addresses and sort type", async () => {
+      rendered.rerender({ communityAddresses: ["community address 1"], sortType: "hot" });
+      await waitFor(() => !!rendered.result.current.feed[0].cid.match(/community address 1/));
+      expect(rendered.result.current.feed[0].cid).toMatch(/community address 1/);
       expect(rendered.result.current.feed.length).toBe(postsPerPage);
 
-      // change subplebbit addresses
+      // change community addresses
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 2", "subplebbit address 3"],
+        communityAddresses: ["community address 2", "community address 3"],
         sortType: "hot",
       });
-      await waitFor(() => !!rendered.result.current.feed[0].cid.match(/subplebbit address (2|3)/));
+      await waitFor(() => !!rendered.result.current.feed[0].cid.match(/community address (2|3)/));
 
-      expect(rendered.result.current.feed[0].cid).toMatch(/subplebbit address (2|3)/);
+      expect(rendered.result.current.feed[0].cid).toMatch(/community address (2|3)/);
       // the 'hot' sort type should give timestamp 100 with the current mock
       expect(rendered.result.current.feed[0].timestamp).toBe(100);
       expect(rendered.result.current.feed.length).toBe(postsPerPage);
 
       // change sort type
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 2", "subplebbit address 3"],
+        communityAddresses: ["community address 2", "community address 3"],
         sortType: "new",
       });
-      await waitFor(() => !!rendered.result.current.feed[0].cid.match(/subplebbit address (2|3)/));
+      await waitFor(() => !!rendered.result.current.feed[0].cid.match(/community address (2|3)/));
 
-      expect(rendered.result.current.feed[0].cid).toMatch(/subplebbit address (2|3)/);
+      expect(rendered.result.current.feed[0].cid).toMatch(/community address (2|3)/);
       // the 'new' sort type should give timestamp higher than 99 with the current mock
       expect(rendered.result.current.feed[0].timestamp).toBeGreaterThan(99);
       expect(rendered.result.current.feed.length).toBe(postsPerPage);
 
-      // change subplebbit addresses and sort type
+      // change community addresses and sort type
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 4", "subplebbit address 5"],
+        communityAddresses: ["community address 4", "community address 5"],
         sortType: "topAll",
       });
-      await waitFor(() => !!rendered.result.current.feed[0].cid.match(/subplebbit address (4|5)/));
+      await waitFor(() => !!rendered.result.current.feed[0].cid.match(/community address (4|5)/));
 
-      expect(rendered.result.current.feed[0].cid).toMatch(/subplebbit address (4|5)/);
+      expect(rendered.result.current.feed[0].cid).toMatch(/community address (4|5)/);
       expect(rendered.result.current.feed.length).toBe(postsPerPage);
 
       // change sort type active
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 2", "subplebbit address 3"],
+        communityAddresses: ["community address 2", "community address 3"],
         sortType: "active",
       });
-      await waitFor(() => !!rendered.result.current.feed[0].cid.match(/subplebbit address (2|3)/));
+      await waitFor(() => !!rendered.result.current.feed[0].cid.match(/community address (2|3)/));
 
-      expect(rendered.result.current.feed[0].cid).toMatch(/subplebbit address (2|3)/);
+      expect(rendered.result.current.feed[0].cid).toMatch(/community address (2|3)/);
       // the 'new' sort type should give timestamp higher than 99 with the current mock
       expect(rendered.result.current.feed[0].timestamp).toBeGreaterThan(99);
       expect(rendered.result.current.feed.length).toBe(postsPerPage);
     });
 
-    test("get feed with 1 subplebbit and scroll to multiple pages", async () => {
+    test("get feed with 1 community and scroll to multiple pages", async () => {
       // get feed with 1 sub
-      rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"] });
+      rendered.rerender({ communityAddresses: ["community address 1"] });
       // wait for posts to be added, should get full first page
       await waitFor(() => rendered.result.current.feed.length > 0);
 
@@ -493,7 +493,7 @@ describe("feeds", () => {
       }
     });
 
-    test("get feed with 1 subplebbit sorted by new and scroll to multiple pages", async () => {
+    test("get feed with 1 community sorted by new and scroll to multiple pages", async () => {
       let getPageCalledTimes = 0;
       const getPage = Pages.prototype.getPage;
       Pages.prototype.getPage = async function (options: { cid: string }) {
@@ -501,7 +501,7 @@ describe("feeds", () => {
         // without the extra simulated load time the hooks will fetch multiple pages in advance instead of just 1
         await simulateLoadingTime();
         const page: any = {
-          nextCid: this.subplebbit.address + " next page cid " + (getPageCalledTimes + 1),
+          nextCid: this.community.address + " next page cid " + (getPageCalledTimes + 1),
           comments: [],
         };
         const postCount = 100;
@@ -511,7 +511,7 @@ describe("feeds", () => {
           page.comments.push({
             timestamp: commentStartIndex + index,
             cid: cid + " comment cid " + (commentStartIndex + index),
-            subplebbitAddress: this.subplebbit.address,
+            communityAddress: this.community.address,
           });
         }
         getPageCalledTimes++;
@@ -519,30 +519,30 @@ describe("feeds", () => {
       };
 
       // get feed with 1 sub sorted by new page 1
-      rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"], sortType: "new" });
+      rendered.rerender({ communityAddresses: ["community address 1"], sortType: "new" });
       await waitFor(() => rendered.result.current.feed?.length >= postsPerPage);
 
       expect(rendered.result.current.feed[0].timestamp).toBe(100);
       expect(rendered.result.current.feed[1].timestamp).toBe(99);
       expect(rendered.result.current.feed[2].timestamp).toBe(98);
       expect(rendered.result.current.feed[0].cid).toBe(
-        "subplebbit address 1 page cid new comment cid 100",
+        "community address 1 page cid new comment cid 100",
       );
       expect(rendered.result.current.feed[1].cid).toBe(
-        "subplebbit address 1 page cid new comment cid 99",
+        "community address 1 page cid new comment cid 99",
       );
       expect(rendered.result.current.feed[2].cid).toBe(
-        "subplebbit address 1 page cid new comment cid 98",
+        "community address 1 page cid new comment cid 98",
       );
 
-      // at this point the buffered feed has gotten 1 subplebbit page
+      // at this point the buffered feed has gotten 1 community page
       expect(getPageCalledTimes).toBe(1);
 
       // get page 2
       await scrollOnePage();
       expect(rendered.result.current.feed[postsPerPage].timestamp).toBe(75);
       expect(rendered.result.current.feed[postsPerPage].cid).toBe(
-        "subplebbit address 1 page cid new comment cid 75",
+        "community address 1 page cid new comment cid 75",
       );
 
       // ad this point the buffered feed is length 50, we can wait for getPage to be called again
@@ -558,14 +558,14 @@ describe("feeds", () => {
       ).toBe(200);
       expect(
         rendered.result.current.feed[rendered.result.current.feed.length - postsPerPage].cid,
-      ).toBe("subplebbit address 1 next page cid 1 comment cid 200");
+      ).toBe("community address 1 next page cid 1 comment cid 200");
       await scrollOnePage();
       expect(
         rendered.result.current.feed[rendered.result.current.feed.length - postsPerPage].timestamp,
       ).toBe(175);
       expect(
         rendered.result.current.feed[rendered.result.current.feed.length - postsPerPage].cid,
-      ).toBe("subplebbit address 1 next page cid 1 comment cid 175");
+      ).toBe("community address 1 next page cid 1 comment cid 175");
 
       // scroll 2 more times to get to buffered feeds length 50 and trigger a new buffer refill
       await scrollOnePage();
@@ -581,24 +581,24 @@ describe("feeds", () => {
       ).toBe(300);
       expect(
         rendered.result.current.feed[rendered.result.current.feed.length - postsPerPage].cid,
-      ).toBe("subplebbit address 1 next page cid 2 comment cid 300");
+      ).toBe("community address 1 next page cid 2 comment cid 300");
       await scrollOnePage();
       expect(
         rendered.result.current.feed[rendered.result.current.feed.length - postsPerPage].timestamp,
       ).toBe(275);
       expect(
         rendered.result.current.feed[rendered.result.current.feed.length - postsPerPage].cid,
-      ).toBe("subplebbit address 1 next page cid 2 comment cid 275");
+      ).toBe("community address 1 next page cid 2 comment cid 275");
 
       // restore mock
       Pages.prototype.getPage = getPage;
     });
 
-    test("get multiple subplebbits sorted by new and scroll to multiple pages", async () => {
+    test("get multiple communities sorted by new and scroll to multiple pages", async () => {
       const getPageCalledTimes = {
-        "subplebbit address 1": 0,
-        "subplebbit address 2": 0,
-        "subplebbit address 3": 0,
+        "community address 1": 0,
+        "community address 2": 0,
+        "community address 3": 0,
       };
       const getPage = Pages.prototype.getPage;
       Pages.prototype.getPage = async function (options: { cid: string }) {
@@ -609,34 +609,30 @@ describe("feeds", () => {
         const page: any = {
           // @ts-ignore
           nextCid:
-            this.subplebbit.address +
+            this.community.address +
             " next page cid " +
-            (getPageCalledTimes[this.subplebbit.address] + 1),
+            (getPageCalledTimes[this.community.address] + 1),
           comments: [],
         };
         const postCount = 100;
         let index = 0;
         // @ts-ignore
-        let commentStartIndex = getPageCalledTimes[this.subplebbit.address] * postCount;
+        let commentStartIndex = getPageCalledTimes[this.community.address] * postCount;
         while (index++ < postCount) {
           page.comments.push({
             timestamp: commentStartIndex + index,
             cid: cid + " comment cid " + (commentStartIndex + index),
-            subplebbitAddress: this.subplebbit.address,
+            communityAddress: this.community.address,
           });
         }
         // @ts-ignore
-        getPageCalledTimes[this.subplebbit.address]++;
+        getPageCalledTimes[this.community.address]++;
         return page;
       };
 
       // get feed with 3 sub sorted by new page 1
       rendered.rerender({
-        subplebbitAddresses: [
-          "subplebbit address 1",
-          "subplebbit address 2",
-          "subplebbit address 3",
-        ],
+        communityAddresses: ["community address 1", "community address 2", "community address 3"],
         sortType: "new",
       });
       await waitFor(() => rendered.result.current.feed?.length >= postsPerPage);
@@ -647,26 +643,26 @@ describe("feeds", () => {
       expect(rendered.result.current.feed[1].timestamp).toBe(100);
       expect(rendered.result.current.feed[2].timestamp).toBe(100);
       expect(rendered.result.current.feed[0].cid).toBe(
-        "subplebbit address 1 page cid new comment cid 100",
+        "community address 1 page cid new comment cid 100",
       );
       expect(rendered.result.current.feed[1].cid).toBe(
-        "subplebbit address 2 page cid new comment cid 100",
+        "community address 2 page cid new comment cid 100",
       );
       expect(rendered.result.current.feed[2].cid).toBe(
-        "subplebbit address 3 page cid new comment cid 100",
+        "community address 3 page cid new comment cid 100",
       );
 
       // at this point the buffered feed has gotten page 1 from all subs
       await waitFor(
         () =>
-          getPageCalledTimes["subplebbit address 1"] === 1 &&
-          getPageCalledTimes["subplebbit address 2"] === 1 &&
-          getPageCalledTimes["subplebbit address 3"] === 1,
+          getPageCalledTimes["community address 1"] === 1 &&
+          getPageCalledTimes["community address 2"] === 1 &&
+          getPageCalledTimes["community address 3"] === 1,
       );
 
-      expect(getPageCalledTimes["subplebbit address 1"]).toBe(1);
-      expect(getPageCalledTimes["subplebbit address 2"]).toBe(1);
-      expect(getPageCalledTimes["subplebbit address 3"]).toBe(1);
+      expect(getPageCalledTimes["community address 1"]).toBe(1);
+      expect(getPageCalledTimes["community address 2"]).toBe(1);
+      expect(getPageCalledTimes["community address 3"]).toBe(1);
 
       // get page 2, the first posts of page 2
       await scrollOnePage();
@@ -679,10 +675,10 @@ describe("feeds", () => {
       ).toBe(92);
       expect(
         rendered.result.current.feed[rendered.result.current.feed.length - postsPerPage].cid,
-      ).toBe("subplebbit address 2 page cid new comment cid 92");
+      ).toBe("community address 2 page cid new comment cid 92");
       expect(
         rendered.result.current.feed[rendered.result.current.feed.length - postsPerPage + 1].cid,
-      ).toBe("subplebbit address 3 page cid new comment cid 92");
+      ).toBe("community address 3 page cid new comment cid 92");
 
       // scroll until the next buffered feed that needs to be refilled
       await scrollOnePage();
@@ -693,13 +689,13 @@ describe("feeds", () => {
       // at this point the buffered feed has gotten page 2 from all subs
       await waitFor(
         () =>
-          getPageCalledTimes["subplebbit address 1"] === 2 &&
-          getPageCalledTimes["subplebbit address 2"] === 2 &&
-          getPageCalledTimes["subplebbit address 3"] === 2,
+          getPageCalledTimes["community address 1"] === 2 &&
+          getPageCalledTimes["community address 2"] === 2 &&
+          getPageCalledTimes["community address 3"] === 2,
       );
-      expect(getPageCalledTimes["subplebbit address 1"]).toBe(2);
-      expect(getPageCalledTimes["subplebbit address 2"]).toBe(2);
-      expect(getPageCalledTimes["subplebbit address 3"]).toBe(2);
+      expect(getPageCalledTimes["community address 1"]).toBe(2);
+      expect(getPageCalledTimes["community address 2"]).toBe(2);
+      expect(getPageCalledTimes["community address 3"]).toBe(2);
 
       // get next page, the first posts should all be cids 200 from the buffered feed
       await scrollOnePage();
@@ -716,19 +712,19 @@ describe("feeds", () => {
       ).toBe(200);
       expect(
         rendered.result.current.feed[rendered.result.current.feed.length - postsPerPage].cid,
-      ).toBe("subplebbit address 1 next page cid 1 comment cid 200");
+      ).toBe("community address 1 next page cid 1 comment cid 200");
       expect(
         rendered.result.current.feed[rendered.result.current.feed.length - postsPerPage + 1].cid,
-      ).toBe("subplebbit address 2 next page cid 1 comment cid 200");
+      ).toBe("community address 2 next page cid 1 comment cid 200");
       expect(
         rendered.result.current.feed[rendered.result.current.feed.length - postsPerPage + 2].cid,
-      ).toBe("subplebbit address 3 next page cid 1 comment cid 200");
+      ).toBe("community address 3 next page cid 1 comment cid 200");
 
       // restore mock
       Pages.prototype.getPage = getPage;
     });
 
-    test("get multiple subplebbits with filter and scroll to multiple pages", async () => {
+    test("get multiple communities with filter and scroll to multiple pages", async () => {
       // filter only comment cids that contain a '5'
       const cidMatch5 = (comment: Comment) => !!comment.cid.match("5");
       const filter = {
@@ -736,11 +732,7 @@ describe("feeds", () => {
         key: "cid-match-5",
       };
       rendered.rerender({
-        subplebbitAddresses: [
-          "subplebbit address 1",
-          "subplebbit address 2",
-          "subplebbit address 3",
-        ],
+        communityAddresses: ["community address 1", "community address 2", "community address 3"],
         filter,
       });
       await waitFor(() => rendered.result.current.feed?.length >= postsPerPage);
@@ -748,13 +740,13 @@ describe("feeds", () => {
       expect(rendered.result.current.feed.length).toBe(postsPerPage);
       expect(rendered.result.current.updatedFeed.length).toBe(rendered.result.current.feed.length);
       expect(rendered.result.current.feed[0].cid).toBe(
-        "subplebbit address 1 page cid hot comment cid 95",
+        "community address 1 page cid hot comment cid 95",
       );
       expect(rendered.result.current.feed[1].cid).toBe(
-        "subplebbit address 2 page cid hot comment cid 95",
+        "community address 2 page cid hot comment cid 95",
       );
       expect(rendered.result.current.feed[2].cid).toBe(
-        "subplebbit address 3 page cid hot comment cid 95",
+        "community address 3 page cid hot comment cid 95",
       );
 
       // scroll until the next buffered feed that needs to be refilled
@@ -775,11 +767,7 @@ describe("feeds", () => {
         key: "cid-match-5 (2)",
       };
       rendered.rerender({
-        subplebbitAddresses: [
-          "subplebbit address 1",
-          "subplebbit address 2",
-          "subplebbit address 3",
-        ],
+        communityAddresses: ["community address 1", "community address 2", "community address 3"],
         filter: filter2,
       });
       expect(Object.keys(feedsStore.getState().feedsOptions).length).toBe(2);
@@ -790,24 +778,20 @@ describe("feeds", () => {
         key: "cid-match-5",
       };
       rendered.rerender({
-        subplebbitAddresses: [
-          "subplebbit address 1",
-          "subplebbit address 2",
-          "subplebbit address 3",
-        ],
+        communityAddresses: ["community address 1", "community address 2", "community address 3"],
         filter: filter3,
       });
       expect(Object.keys(feedsStore.getState().feedsOptions).length).toBe(2);
 
       // still using the cached filter with key 'cid-match-5'
       expect(rendered.result.current.feed[0].cid).toBe(
-        "subplebbit address 1 page cid hot comment cid 95",
+        "community address 1 page cid hot comment cid 95",
       );
       expect(rendered.result.current.feed[1].cid).toBe(
-        "subplebbit address 2 page cid hot comment cid 95",
+        "community address 2 page cid hot comment cid 95",
       );
       expect(rendered.result.current.feed[2].cid).toBe(
-        "subplebbit address 3 page cid hot comment cid 95",
+        "community address 3 page cid hot comment cid 95",
       );
     });
 
@@ -818,11 +802,7 @@ describe("feeds", () => {
       });
 
       rendered.rerender({
-        subplebbitAddresses: [
-          "subplebbit address 1",
-          "subplebbit address 2",
-          "subplebbit address 3",
-        ],
+        communityAddresses: ["community address 1", "community address 2", "community address 3"],
         filter: createCidMatchFilter("13"),
       });
       await waitFor(() => rendered.result.current.feed?.length > 0);
@@ -832,11 +812,7 @@ describe("feeds", () => {
       expect(Object.keys(feedsStore.getState().feedsOptions).length).toBe(1);
 
       rendered.rerender({
-        subplebbitAddresses: [
-          "subplebbit address 1",
-          "subplebbit address 2",
-          "subplebbit address 3",
-        ],
+        communityAddresses: ["community address 1", "community address 2", "community address 3"],
         filter: createCidMatchFilter("14"),
       });
       await waitFor(() => rendered.result.current.feed?.length > 0);
@@ -847,7 +823,7 @@ describe("feeds", () => {
     });
 
     test("reset feed", async () => {
-      rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"] });
+      rendered.rerender({ communityAddresses: ["community address 1"] });
       await waitFor(() => rendered.result.current.feed?.length === postsPerPage);
       expect(rendered.result.current.feed.length).toBe(postsPerPage);
       expect(rendered.result.current.updatedFeed.length).toBe(rendered.result.current.feed.length);
@@ -861,13 +837,13 @@ describe("feeds", () => {
       expect(rendered.result.current.updatedFeed.length).toBe(rendered.result.current.feed.length);
     });
 
-    test("get feed page 1 and 2 with multiple subplebbits sorted by topAll", async () => {
+    test("get feed page 1 and 2 with multiple communities sorted by topAll", async () => {
       // use buffered feeds to be able to wait until the buffered feeds have updated before loading page 2
       rendered = renderHook<any, any>((props: any) => {
         const feed = useFeed(props);
         const { bufferedFeeds } = useBufferedFeeds({
           feedsOptions: [
-            { subplebbitAddresses: props?.subplebbitAddresses, sortType: props?.sortType },
+            { communityAddresses: props?.communityAddresses, sortType: props?.sortType },
           ],
           accountName: props?.accountName,
         });
@@ -876,11 +852,7 @@ describe("feeds", () => {
 
       // get feed with 1 sub
       rendered.rerender({
-        subplebbitAddresses: [
-          "subplebbit address 1",
-          "subplebbit address 2",
-          "subplebbit address 3",
-        ],
+        communityAddresses: ["community address 1", "community address 2", "community address 3"],
         sortType: "topAll",
       });
       // initial state
@@ -895,13 +867,13 @@ describe("feeds", () => {
       await waitFor(() => rendered.result.current.feed.length > 0);
       expect(rendered.result.current.feed.length).toBe(postsPerPage);
       expect(rendered.result.current.feed[0].cid).toBe(
-        "subplebbit address 1 page cid topAll comment cid 100",
+        "community address 1 page cid topAll comment cid 100",
       );
       expect(rendered.result.current.feed[1].cid).toBe(
-        "subplebbit address 2 page cid topAll comment cid 100",
+        "community address 2 page cid topAll comment cid 100",
       );
       expect(rendered.result.current.feed[2].cid).toBe(
-        "subplebbit address 3 page cid topAll comment cid 100",
+        "community address 3 page cid topAll comment cid 100",
       );
       expect(rendered.result.current.feed[0].upvoteCount).toBe(100);
       expect(rendered.result.current.feed[1].upvoteCount).toBe(100);
@@ -912,21 +884,21 @@ describe("feeds", () => {
       await waitFor(() => {
         bufferedFeedString = JSON.stringify(rendered.result.current.bufferedFeed);
         return Boolean(
-          bufferedFeedString.match("subplebbit address 2") &&
-          bufferedFeedString.match("subplebbit address 3"),
+          bufferedFeedString.match("community address 2") &&
+          bufferedFeedString.match("community address 3"),
         );
       });
 
-      expect(bufferedFeedString).toMatch("subplebbit address 2");
-      expect(bufferedFeedString).toMatch("subplebbit address 3");
+      expect(bufferedFeedString).toMatch("community address 2");
+      expect(bufferedFeedString).toMatch("community address 3");
 
       // the second page first posts should be sub 2 and 3 with the highest upvotes
       await scrollOnePage();
       expect(rendered.result.current.feed[postsPerPage].cid).toMatch(
-        /subplebbit address (2|3) page cid topAll comment cid 92/,
+        /community address (2|3) page cid topAll comment cid 92/,
       );
       expect(rendered.result.current.feed[postsPerPage + 1].cid).toMatch(
-        /subplebbit address (2|3) page cid topAll comment cid 92/,
+        /community address (2|3) page cid topAll comment cid 92/,
       );
       expect(rendered.result.current.feed[postsPerPage].upvoteCount).toBeGreaterThan(91);
       expect(rendered.result.current.feed[postsPerPage + 1].upvoteCount).toBeGreaterThan(91);
@@ -951,7 +923,7 @@ describe("feeds", () => {
 
         const rendered = renderHook<any, any>(() =>
           useBufferedFeeds({
-            feedsOptions: [{ subplebbitAddresses: ["subplebbit address 1"], sortType: "new" }],
+            feedsOptions: [{ communityAddresses: ["community address 1"], sortType: "new" }],
           }),
         );
         await new Promise((r) => setTimeout(r, 150));
@@ -972,26 +944,26 @@ describe("feeds", () => {
         useBufferedFeeds({
           feedsOptions: [
             {
-              subplebbitAddresses: [
-                "subplebbit address 1",
-                "subplebbit address 2",
-                "subplebbit address 3",
+              communityAddresses: [
+                "community address 1",
+                "community address 2",
+                "community address 3",
               ],
               sortType: "new",
             },
             {
-              subplebbitAddresses: [
-                "subplebbit address 4",
-                "subplebbit address 5",
-                "subplebbit address 6",
+              communityAddresses: [
+                "community address 4",
+                "community address 5",
+                "community address 6",
               ],
               sortType: "topAll",
             },
             {
-              subplebbitAddresses: [
-                "subplebbit address 7",
-                "subplebbit address 8",
-                "subplebbit address 9",
+              communityAddresses: [
+                "community address 7",
+                "community address 8",
+                "community address 9",
               ],
             },
           ],
@@ -1031,7 +1003,7 @@ describe("feeds", () => {
       });
 
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 1"],
+        communityAddresses: ["community address 1"],
         sortType: "new",
         accountName: "custom name",
       });
@@ -1051,7 +1023,7 @@ describe("feeds", () => {
     test("get feed and change active account", async () => {
       const newActiveAccountName = "new active account";
       rendered = renderHook<any, any>((props: any) => {
-        const feed = useFeed(props || { subplebbitAddresses: [] });
+        const feed = useFeed(props || { communityAddresses: [] });
         const account = useAccount();
         const [bufferedFeed] = useBufferedFeeds(
           props
@@ -1060,7 +1032,7 @@ describe("feeds", () => {
         ).bufferedFeeds;
         return { ...feed, ...accountsActions, account, bufferedFeed };
       });
-      rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"], sortType: "new" });
+      rendered.rerender({ communityAddresses: ["community address 1"], sortType: "new" });
 
       // wait for posts to be added, should get full first page
       await waitFor(() => rendered.result.current.feed.length > 0);
@@ -1095,11 +1067,7 @@ describe("feeds", () => {
       const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       expect(() => {
         rendered.rerender({
-          subplebbitAddresses: [
-            "subplebbit address 1",
-            "subplebbit address 2",
-            "subplebbit address 3",
-          ],
+          communityAddresses: ["community address 1", "community address 2", "community address 3"],
           sortType: `doesnt exist`,
         });
       }).toThrow(`useFeed sortType argument 'doesnt exist' invalid`);
@@ -1112,26 +1080,26 @@ describe("feeds", () => {
           useBufferedFeeds({
             feedsOptions: [
               {
-                subplebbitAddresses: [
-                  "subplebbit address 1",
-                  "subplebbit address 2",
-                  "subplebbit address 3",
+                communityAddresses: [
+                  "community address 1",
+                  "community address 2",
+                  "community address 3",
                 ],
                 sortType: "new",
               },
               {
-                subplebbitAddresses: [
-                  "subplebbit address 4",
-                  "subplebbit address 5",
-                  "subplebbit address 6",
+                communityAddresses: [
+                  "community address 4",
+                  "community address 5",
+                  "community address 6",
                 ],
                 sortType: `doesnt exist`,
               },
               {
-                subplebbitAddresses: [
-                  "subplebbit address 7",
-                  "subplebbit address 8",
-                  "subplebbit address 9",
+                communityAddresses: [
+                  "community address 7",
+                  "community address 8",
+                  "community address 9",
                 ],
               },
             ],
@@ -1158,7 +1126,7 @@ describe("feeds", () => {
             page.comments.push({
               timestamp: index,
               cid: cid + " comment cid " + index,
-              subplebbitAddress: this.subplebbit.address,
+              communityAddress: this.community.address,
             });
           }
           return page;
@@ -1169,8 +1137,8 @@ describe("feeds", () => {
         Pages.prototype.getPage = getPage;
       });
 
-      test(`1 subplebbit, scroll to end of feed, hasMore becomes false`, async () => {
-        rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"], sortType: "new" });
+      test(`1 community, scroll to end of feed, hasMore becomes false`, async () => {
+        rendered.rerender({ communityAddresses: ["community address 1"], sortType: "new" });
         // hasMore should be true before the feed is loaded
         expect(rendered.result.current.hasMore).toBe(true);
         expect(typeof rendered.result.current.loadMore).toBe("function");
@@ -1216,13 +1184,9 @@ describe("feeds", () => {
         );
       });
 
-      test(`multiple subplebbits, scroll to end of feed, hasMore becomes false`, async () => {
+      test(`multiple communities, scroll to end of feed, hasMore becomes false`, async () => {
         rendered.rerender({
-          subplebbitAddresses: [
-            "subplebbit address 1",
-            "subplebbit address 2",
-            "subplebbit address 3",
-          ],
+          communityAddresses: ["community address 1", "community address 2", "community address 3"],
           sortType: "new",
         });
         // hasMore should be true before the feed is loaded
@@ -1278,7 +1242,7 @@ describe("feeds", () => {
       });
 
       test(`don't increment page number if loaded feed hasn't increased yet`, async () => {
-        rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"] });
+        rendered.rerender({ communityAddresses: ["community address 1"] });
         await waitFor(() => rendered.result.current.feed.length > 0);
 
         // increment page manually because loadMore can't work that fast
@@ -1314,7 +1278,7 @@ describe("feeds", () => {
           // it can get called with a next cid to fetch the second page
           if (!cid.match("next")) {
             throw Error(
-              `subplebbit.getPage() was called with argument '${cid}', should not get called at all on first page of sort type 'hot'`,
+              `community.getPage() was called with argument '${cid}', should not get called at all on first page of sort type 'hot'`,
             );
           }
           return { nextCid: undefined, comments: [] };
@@ -1325,19 +1289,19 @@ describe("feeds", () => {
         Pages.prototype.getPage = getPage;
       });
 
-      test(`get feed sorted by hot, don't call subplebbit.getPage() because already included in IPNS record`, async () => {
-        rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"], sortType: "hot" });
+      test(`get feed sorted by hot, don't call community.getPage() because already included in IPNS record`, async () => {
+        rendered.rerender({ communityAddresses: ["community address 1"], sortType: "hot" });
         await waitFor(() => rendered.result.current.feed?.length >= postsPerPage);
         expect(rendered.result.current.feed?.length).toBe(postsPerPage);
       });
     });
 
-    test(`subplebbit updates while we are scrolling`, async () => {
-      const update = Subplebbit.prototype.update;
-      // mock the update method to be able to have access to the updating subplebbit instances
-      const subplebbits: any = [];
-      Subplebbit.prototype.update = function () {
-        subplebbits.push(this);
+    test(`community updates while we are scrolling`, async () => {
+      const update = Community.prototype.update;
+      // mock the update method to be able to have access to the updating community instances
+      const communities: any = [];
+      Community.prototype.update = function () {
+        communities.push(this);
         return update.bind(this)();
       };
 
@@ -1345,7 +1309,7 @@ describe("feeds", () => {
         const feed = useFeed(props);
         const { bufferedFeeds } = useBufferedFeeds({
           feedsOptions: [
-            { subplebbitAddresses: props?.subplebbitAddresses, sortType: props?.sortType },
+            { communityAddresses: props?.communityAddresses, sortType: props?.sortType },
           ],
           accountName: props?.accountName,
         });
@@ -1354,24 +1318,24 @@ describe("feeds", () => {
       waitFor = testUtils.createWaitFor(rendered);
 
       // get feed with 1 sub
-      rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"], sortType: "topAll" });
+      rendered.rerender({ communityAddresses: ["community address 1"], sortType: "topAll" });
       await waitFor(() => rendered.result.current.feed.length > 0);
 
       // the first page of loaded and buffered feeds should have laoded
       expect(rendered.result.current.feed.length).toBe(postsPerPage);
       expect(rendered.result.current.bufferedFeed.length).toBeGreaterThan(postsPerPage);
-      // at this point only one subplebbit should have updated a single time
-      expect(subplebbits.length).toBe(1);
-      const [subplebbit] = subplebbits;
+      // at this point only one community should have updated a single time
+      expect(communities.length).toBe(1);
+      const [community] = communities;
 
       act(() => {
-        // update the page cids and send a subplebbit update event and wait for buffered feeds to change
-        subplebbits[0].posts.pageCids = {
+        // update the page cids and send a community update event and wait for buffered feeds to change
+        communities[0].posts.pageCids = {
           hot: "updated page cid hot",
           topAll: "updated page cid topAll",
           new: "updated page cid new",
         };
-        subplebbit.emit("update", subplebbit);
+        community.emit("update", community);
       });
 
       // wait for the buffered feed to empty (because of the update), then to refill with updated page
@@ -1385,7 +1349,7 @@ describe("feeds", () => {
         "updated page cid topAll comment cid 100",
       );
 
-      Subplebbit.prototype.update = update;
+      Community.prototype.update = update;
     });
 
     describe("getPage only gets called once per pageCid", () => {
@@ -1396,7 +1360,7 @@ describe("feeds", () => {
         Pages.prototype.getPage = async function (options: { cid: string }) {
           const cid = options?.cid;
           if (usedPageCids[cid]) {
-            throw Error(`subplebbit.getPage() already called with argument '${cid}'`);
+            throw Error(`community.getPage() already called with argument '${cid}'`);
           }
           usedPageCids[cid] = true;
           return getPage.bind(this)(options);
@@ -1408,7 +1372,7 @@ describe("feeds", () => {
       });
 
       test(`store page pages in database`, async () => {
-        rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"], sortType: "new" });
+        rendered.rerender({ communityAddresses: ["community address 1"], sortType: "new" });
         await waitFor(() => rendered.result.current.feed?.length >= postsPerPage);
 
         expect(rendered.result.current.feed?.length).toBe(postsPerPage);
@@ -1418,7 +1382,7 @@ describe("feeds", () => {
 
         // render with a fresh empty store to test database persistance
         const rendered2 = renderHook<any, any>(() =>
-          useFeed({ subplebbitAddresses: ["subplebbit address 1"], sortType: "new" }),
+          useFeed({ communityAddresses: ["community address 1"], sortType: "new" }),
         );
         await waitFor(() => rendered2.result.current.feed?.length >= postsPerPage);
         expect(rendered2.result.current.feed?.length).toBe(postsPerPage);
@@ -1426,14 +1390,14 @@ describe("feeds", () => {
     });
 
     test(`feed doesn't contain blocked addresses`, async () => {
-      const expectFeedToHaveSubplebbitAddresses = (feed: any[], subplebbitAddresses: string[]) => {
-        for (const subplebbitAddress of subplebbitAddresses) {
-          // feed posts are missing a subplebbitAddress expected in `subplebbitAddresses` argument
-          const feedSubplebbitAddresses = feed.map((feedPost) => feedPost.subplebbitAddress);
-          expect(feedSubplebbitAddresses).toContain(subplebbitAddress);
-          // feed posts contain a subplebbitAddress not expected in `subplebbitAddresses` argument
+      const expectFeedToHaveCommunityAddresses = (feed: any[], communityAddresses: string[]) => {
+        for (const communityAddress of communityAddresses) {
+          // feed posts are missing a communityAddress expected in `communityAddresses` argument
+          const feedCommunityAddresses = feed.map((feedPost) => feedPost.communityAddress);
+          expect(feedCommunityAddresses).toContain(communityAddress);
+          // feed posts contain a communityAddress not expected in `communityAddresses` argument
           for (const feedPost of feed) {
-            expect(subplebbitAddresses).toContain(feedPost.subplebbitAddress);
+            expect(communityAddresses).toContain(feedPost.communityAddress);
           }
         }
         return true;
@@ -1451,7 +1415,7 @@ describe("feeds", () => {
 
       const rendered = renderHook<any, any>((props: any) => {
         const [bufferedFeed] = useBufferedFeeds({
-          feedsOptions: [{ subplebbitAddresses: props?.subplebbitAddresses, sortType: "new" }],
+          feedsOptions: [{ communityAddresses: props?.communityAddresses, sortType: "new" }],
         }).bufferedFeeds;
         const { blockAddress, unblockAddress } = accountsActions;
         const account = useAccount();
@@ -1460,51 +1424,51 @@ describe("feeds", () => {
       const waitFor = testUtils.createWaitFor(rendered);
       await waitFor(() => typeof rendered.result.current.blockAddress === "function");
 
-      const blockedSubplebbitAddress = "blocked.eth";
-      const unblockedSubplebbitAddress = "unblocked-address.eth";
-      const blockedAuthorAddress = `${blockedSubplebbitAddress} page cid new author address 1`;
+      const blockedCommunityAddress = "blocked.eth";
+      const unblockedCommunityAddress = "unblocked-address.eth";
+      const blockedAuthorAddress = `${blockedCommunityAddress} page cid new author address 1`;
 
       // render feed before blocking
       rendered.rerender({
-        subplebbitAddresses: [unblockedSubplebbitAddress, blockedSubplebbitAddress],
+        communityAddresses: [unblockedCommunityAddress, blockedCommunityAddress],
       });
       // wait until feed contains both blocked and unblocked addresses
       await waitFor(() => rendered.result.current.bufferedFeed.length > 0);
-      expectFeedToHaveSubplebbitAddresses(rendered.result.current.bufferedFeed, [
-        blockedSubplebbitAddress,
-        unblockedSubplebbitAddress,
+      expectFeedToHaveCommunityAddresses(rendered.result.current.bufferedFeed, [
+        blockedCommunityAddress,
+        unblockedCommunityAddress,
       ]);
 
-      // block subplebbit address
+      // block community address
       await act(async () => {
-        await rendered.result.current.blockAddress(blockedSubplebbitAddress);
+        await rendered.result.current.blockAddress(blockedCommunityAddress);
       });
       await waitFor(
         () =>
           Object.keys(rendered.result.current.account.blockedAddresses).length === 1 &&
-          expectFeedToHaveSubplebbitAddresses(rendered.result.current.bufferedFeed, [
-            unblockedSubplebbitAddress,
+          expectFeedToHaveCommunityAddresses(rendered.result.current.bufferedFeed, [
+            unblockedCommunityAddress,
           ]),
       );
-      expectFeedToHaveSubplebbitAddresses(rendered.result.current.bufferedFeed, [
-        unblockedSubplebbitAddress,
+      expectFeedToHaveCommunityAddresses(rendered.result.current.bufferedFeed, [
+        unblockedCommunityAddress,
       ]);
 
-      // unblock subplebbit address
+      // unblock community address
       await act(async () => {
-        await rendered.result.current.unblockAddress(blockedSubplebbitAddress);
+        await rendered.result.current.unblockAddress(blockedCommunityAddress);
       });
       await waitFor(
         () =>
           Object.keys(rendered.result.current.account.blockedAddresses).length === 0 &&
-          expectFeedToHaveSubplebbitAddresses(rendered.result.current.bufferedFeed, [
-            blockedSubplebbitAddress,
-            unblockedSubplebbitAddress,
+          expectFeedToHaveCommunityAddresses(rendered.result.current.bufferedFeed, [
+            blockedCommunityAddress,
+            unblockedCommunityAddress,
           ]),
       );
-      expectFeedToHaveSubplebbitAddresses(rendered.result.current.bufferedFeed, [
-        blockedSubplebbitAddress,
-        unblockedSubplebbitAddress,
+      expectFeedToHaveCommunityAddresses(rendered.result.current.bufferedFeed, [
+        blockedCommunityAddress,
+        unblockedCommunityAddress,
       ]);
 
       // feed has blocked author address before blocking
@@ -1544,7 +1508,7 @@ describe("feeds", () => {
 
       const rendered = renderHook<any, any>((props: any) => {
         const [bufferedFeed] = useBufferedFeeds({
-          feedsOptions: [{ subplebbitAddresses: props?.subplebbitAddresses, sortType: "new" }],
+          feedsOptions: [{ communityAddresses: props?.communityAddresses, sortType: "new" }],
         }).bufferedFeeds;
         const { blockCid, unblockCid } = accountsActions;
         const account = useAccount();
@@ -1554,7 +1518,7 @@ describe("feeds", () => {
       await waitFor(() => typeof rendered.result.current.blockCid === "function");
 
       // render feed before blocking
-      rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"] });
+      rendered.rerender({ communityAddresses: ["community address 1"] });
       // wait until feed contains both blocked and unblocked addresses
       await waitFor(() => rendered.result.current.bufferedFeed.length > 0);
       const blockedCid = rendered.result.current.bufferedFeed[0].cid;
@@ -1582,7 +1546,7 @@ describe("feeds", () => {
       // it seems preferable to causing unnecessary rerenders every time an unused block event occurs
 
       // cause another feed update to fix the edge case
-      rendered.rerender({ subplebbitAddresses: ["subplebbit address 1", "subplebbit address 2"] });
+      rendered.rerender({ communityAddresses: ["community address 1", "community address 2"] });
 
       await waitFor(
         () =>
@@ -1593,11 +1557,11 @@ describe("feeds", () => {
       expectFeedToHaveCid(rendered.result.current.bufferedFeed, blockedCid);
     });
 
-    test(`empty subplebbit.posts hasMore is false`, async () => {
-      const update = Subplebbit.prototype.update;
+    test(`empty community.posts hasMore is false`, async () => {
+      const update = Community.prototype.update;
       const updatedAt = Math.floor(Date.now() / 1000);
       const emptyPosts: any = { pages: {}, pageCids: {} };
-      Subplebbit.prototype.update = async function () {
+      Community.prototype.update = async function () {
         await simulateLoadingTime();
         this.updatedAt = updatedAt;
         this.posts = emptyPosts;
@@ -1606,24 +1570,24 @@ describe("feeds", () => {
 
       rendered = renderHook<any, any>((props: any) => {
         const feed = useFeed(props);
-        const subplebbit = useSubplebbit({ subplebbitAddress: props?.subplebbitAddresses?.[0] });
-        return { feed, subplebbit };
+        const community = useCommunity({ communityAddress: props?.communityAddresses?.[0] });
+        return { feed, community };
       });
       waitFor = testUtils.createWaitFor(rendered);
 
       // get feed with 1 sub with no posts
-      rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"] });
+      rendered.rerender({ communityAddresses: ["community address 1"] });
       expect(rendered.result.current.feed.hasMore).toBe(true);
 
       await waitFor(() => rendered.result.current.feed.hasMore === false);
       expect(rendered.result.current.feed.hasMore).toBe(false);
       expect(rendered.result.current.feed.feed.length).toBe(0);
 
-      Subplebbit.prototype.update = update;
+      Community.prototype.update = update;
     });
 
     test("posts.pages has 1 post with no next cid, hasMore false", async () => {
-      const update = Subplebbit.prototype.update;
+      const update = Community.prototype.update;
       const updatedAt = Math.floor(Date.now() / 1000);
       const postsWithNoNextCid: any = {
         pages: {
@@ -1632,7 +1596,7 @@ describe("feeds", () => {
               {
                 timestamp: 1,
                 cid: "comment cid 1",
-                subplebbitAddress: "subplebbit address 1",
+                communityAddress: "community address 1",
                 updatedAt: 1,
                 upvoteCount: 1,
               },
@@ -1641,7 +1605,7 @@ describe("feeds", () => {
         },
         pageCids: {},
       };
-      Subplebbit.prototype.update = async function () {
+      Community.prototype.update = async function () {
         await simulateLoadingTime();
         this.updatedAt = updatedAt;
         this.posts = postsWithNoNextCid;
@@ -1655,7 +1619,7 @@ describe("feeds", () => {
       waitFor = testUtils.createWaitFor(rendered);
 
       // get feed with 1 sub with no posts
-      rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"] });
+      rendered.rerender({ communityAddresses: ["community address 1"] });
       expect(rendered.result.current.feed.hasMore).toBe(true);
       expect(rendered.result.current.feed.feed.length).toBe(0);
 
@@ -1663,15 +1627,15 @@ describe("feeds", () => {
       expect(rendered.result.current.feed.hasMore).toBe(false);
       expect(rendered.result.current.feed.feed.length).toBe(1);
 
-      Subplebbit.prototype.update = update;
+      Community.prototype.update = update;
     });
 
-    test(`subplebbitAddressesWithNewerPosts and reset`, async () => {
-      const update = Subplebbit.prototype.update;
-      // mock the update method to be able to have access to the updating subplebbit instances
-      const subplebbits: any = [];
-      Subplebbit.prototype.update = function () {
-        subplebbits.push(this);
+    test(`communityAddressesWithNewerPosts and reset`, async () => {
+      const update = Community.prototype.update;
+      // mock the update method to be able to have access to the updating community instances
+      const communities: any = [];
+      Community.prototype.update = function () {
+        communities.push(this);
         return update.bind(this)();
       };
 
@@ -1679,7 +1643,7 @@ describe("feeds", () => {
         const feed = useFeed(props);
         const { bufferedFeeds } = useBufferedFeeds({
           feedsOptions: [
-            { subplebbitAddresses: props?.subplebbitAddresses, sortType: props?.sortType },
+            { communityAddresses: props?.communityAddresses, sortType: props?.sortType },
           ],
           accountName: props?.accountName,
         });
@@ -1689,7 +1653,7 @@ describe("feeds", () => {
 
       // get feed with 1 sub
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 1", "subplebbit address 2"],
+        communityAddresses: ["community address 1", "community address 2"],
         sortType: "new",
       });
       await waitFor(() => rendered.result.current.feed.length > 0);
@@ -1701,36 +1665,36 @@ describe("feeds", () => {
       // the first page of loaded and buffered feeds should have laoded
       expect(rendered.result.current.feed.length).toBe(postsPerPage * 2);
       expect(rendered.result.current.bufferedFeed.length).toBeGreaterThan(postsPerPage * 2);
-      expect(rendered.result.current.subplebbitAddressesWithNewerPosts).toEqual([]);
-      expect(subplebbits.length).toBe(2);
+      expect(rendered.result.current.communityAddressesWithNewerPosts).toEqual([]);
+      expect(communities.length).toBe(2);
 
       act(() => {
         // update the subs
-        subplebbits[0].posts.pageCids = {
+        communities[0].posts.pageCids = {
           new: "updated page cid new",
         };
-        subplebbits[0].emit("update", subplebbits[0]);
-        subplebbits[1].posts.pageCids = {
+        communities[0].emit("update", communities[0]);
+        communities[1].posts.pageCids = {
           new: "updated page cid new",
         };
-        subplebbits[1].emit("update", subplebbits[1]);
+        communities[1].emit("update", communities[1]);
       });
 
-      await waitFor(() => rendered.result.current.subplebbitAddressesWithNewerPosts.length === 2);
-      expect(rendered.result.current.subplebbitAddressesWithNewerPosts).toEqual([
-        "subplebbit address 1",
-        "subplebbit address 2",
+      await waitFor(() => rendered.result.current.communityAddressesWithNewerPosts.length === 2);
+      expect(rendered.result.current.communityAddressesWithNewerPosts).toEqual([
+        "community address 1",
+        "community address 2",
       ]);
 
       await act(async () => {
         await rendered.result.current.reset();
       });
 
-      await waitFor(() => rendered.result.current.subplebbitAddressesWithNewerPosts.length === 0);
+      await waitFor(() => rendered.result.current.communityAddressesWithNewerPosts.length === 0);
       expect(rendered.result.current.bufferedFeed.length).toBeGreaterThan(postsPerPage);
-      expect(rendered.result.current.subplebbitAddressesWithNewerPosts).toEqual([]);
+      expect(rendered.result.current.communityAddressesWithNewerPosts).toEqual([]);
 
-      Subplebbit.prototype.update = update;
+      Community.prototype.update = update;
     });
 
     test("updated feeds is updated, loaded feeds is not", async () => {
@@ -1739,7 +1703,7 @@ describe("feeds", () => {
           {
             timestamp: 1,
             cid: "comment cid 1",
-            subplebbitAddress: "subplebbit address 1",
+            communityAddress: "community address 1",
             updatedAt: 1,
             upvoteCount: 1,
           },
@@ -1751,7 +1715,7 @@ describe("feeds", () => {
           {
             timestamp: 1,
             cid: "comment cid 1",
-            subplebbitAddress: "subplebbit address 1",
+            communityAddress: "community address 1",
             updatedAt: 1,
             upvoteCount: 2,
           },
@@ -1762,7 +1726,7 @@ describe("feeds", () => {
           {
             timestamp: 1,
             cid: "comment cid 1",
-            subplebbitAddress: "subplebbit address 1",
+            communityAddress: "community address 1",
             updatedAt: 2,
             upvoteCount: 2,
           },
@@ -1773,14 +1737,14 @@ describe("feeds", () => {
           {
             timestamp: 100,
             cid: "comment cid 2",
-            subplebbitAddress: "subplebbit address 1",
+            communityAddress: "community address 1",
             updatedAt: 100,
             upvoteCount: 100,
           },
           {
             timestamp: 1,
             cid: "comment cid 1",
-            subplebbitAddress: "subplebbit address 1",
+            communityAddress: "community address 1",
             updatedAt: 3,
             upvoteCount: 3,
           },
@@ -1788,10 +1752,10 @@ describe("feeds", () => {
       };
       const pages = [page1, page2, page3, page4];
 
-      const simulateUpdateEvent = Subplebbit.prototype.simulateUpdateEvent;
-      let subplebbit;
-      Subplebbit.prototype.simulateUpdateEvent = async function () {
-        subplebbit = this;
+      const simulateUpdateEvent = Community.prototype.simulateUpdateEvent;
+      let community;
+      Community.prototype.simulateUpdateEvent = async function () {
+        community = this;
         this.posts.pages = { hot: pages.shift() };
         this.posts.pageCids = {};
         this.updatedAt = this.updatedAt ? this.updatedAt + 1 : 1;
@@ -1800,10 +1764,10 @@ describe("feeds", () => {
         this.emit("updatingstatechange", "succeeded");
       };
 
-      const subplebbitAddresses = ["subplebbit address 1"];
-      rendered.rerender({ subplebbitAddresses });
+      const communityAddresses = ["community address 1"];
+      rendered.rerender({ communityAddresses });
 
-      // first subplebbit update
+      // first community update
       await waitFor(() => rendered.result.current.feed.length === 1);
       expect(pages.length).toBe(3);
       expect(rendered.result.current.feed.length).toBe(1);
@@ -1816,21 +1780,21 @@ describe("feeds", () => {
       expect(rendered.result.current.updatedFeed[0].upvoteCount).toBe(1);
       expect(rendered.result.current.hasMore).toBe(false);
 
-      // second subplebbit update (updatedAt doesn't change, so shouldn't update)
-      subplebbit.simulateUpdateEvent();
+      // second community update (updatedAt doesn't change, so shouldn't update)
+      community.simulateUpdateEvent();
       await waitFor(
         () =>
-          subplebbitsStore.getState().subplebbits["subplebbit address 1"].posts.pages.hot
-            .comments[0].upvoteCount === 2,
+          communitiesStore.getState().communities["community address 1"].posts.pages.hot.comments[0]
+            .upvoteCount === 2,
       );
       expect(pages.length).toBe(2);
-      // subplebbit in store updated, but the updatedAt didn't change so no change in useFeed().updatedFeed
+      // community in store updated, but the updatedAt didn't change so no change in useFeed().updatedFeed
       expect(
-        subplebbitsStore.getState().subplebbits["subplebbit address 1"].posts.pages.hot.comments[0]
+        communitiesStore.getState().communities["community address 1"].posts.pages.hot.comments[0]
           .updatedAt,
       ).toBe(1);
       expect(
-        subplebbitsStore.getState().subplebbits["subplebbit address 1"].posts.pages.hot.comments[0]
+        communitiesStore.getState().communities["community address 1"].posts.pages.hot.comments[0]
           .upvoteCount,
       ).toBe(2);
       expect(rendered.result.current.feed.length).toBe(1);
@@ -1843,8 +1807,8 @@ describe("feeds", () => {
       expect(rendered.result.current.updatedFeed[0].upvoteCount).toBe(1);
       expect(rendered.result.current.hasMore).toBe(false);
 
-      // third subplebbit update (updatedAt doesn't change, so shouldn't update)
-      subplebbit.simulateUpdateEvent();
+      // third community update (updatedAt doesn't change, so shouldn't update)
+      community.simulateUpdateEvent();
       await waitFor(() => rendered.result.current.updatedFeed[0].updatedAt === 2);
       expect(pages.length).toBe(1);
       expect(rendered.result.current.feed.length).toBe(1);
@@ -1857,8 +1821,8 @@ describe("feeds", () => {
       expect(rendered.result.current.updatedFeed[0].upvoteCount).toBe(2);
       expect(rendered.result.current.hasMore).toBe(false);
 
-      // fourth subplebbit update
-      subplebbit.simulateUpdateEvent();
+      // fourth community update
+      community.simulateUpdateEvent();
       await waitFor(() => rendered.result.current.updatedFeed[0].updatedAt === 3);
       expect(pages.length).toBe(0);
       expect(rendered.result.current.feed.length).toBe(2);
@@ -1873,12 +1837,12 @@ describe("feeds", () => {
       expect(rendered.result.current.feed[1].cid).toBe("comment cid 2");
       expect(rendered.result.current.updatedFeed[1].cid).toBe("comment cid 2");
 
-      Subplebbit.prototype.simulateUpdateEvent = simulateUpdateEvent;
+      Community.prototype.simulateUpdateEvent = simulateUpdateEvent;
     });
 
     test("no pageCids, no page.nextCid, use any preloaded page sort", async () => {
-      const update = Subplebbit.prototype.update;
-      Subplebbit.prototype.update = async function () {
+      const update = Community.prototype.update;
+      Community.prototype.update = async function () {
         this.updatedAt = Math.floor(Date.now() / 1000);
         const hotPageCid = this.address + " page cid hot";
         this.posts.pages.hot = this.posts.pageToGet(hotPageCid);
@@ -1891,31 +1855,31 @@ describe("feeds", () => {
         this.emit("updatingstatechange", "succeeded");
       };
 
-      rendered.rerender({ subplebbitAddresses: ["subplebbit address 1"], sortType: "new" });
+      rendered.rerender({ communityAddresses: ["community address 1"], sortType: "new" });
       await waitFor(() => rendered.result.current.feed.length > 0);
       expect(rendered.result.current.feed[0].cid).toBe(
-        "subplebbit address 1 page cid hot comment cid 100",
+        "community address 1 page cid hot comment cid 100",
       );
       expect(rendered.result.current.feed.length).toBe(postsPerPage);
 
       rendered.rerender({
-        subplebbitAddresses: ["subplebbit address 1"],
+        communityAddresses: ["community address 1"],
         sortType: "controversialAll",
       });
       await waitFor(() => rendered.result.current.feed.length > 0);
       expect(rendered.result.current.feed[0].cid).toBe(
-        "subplebbit address 1 page cid hot comment cid 9",
+        "community address 1 page cid hot comment cid 9",
       );
       expect(rendered.result.current.feed.length).toBe(postsPerPage);
 
       // restore mock
-      Subplebbit.prototype.update = update;
+      Community.prototype.update = update;
     });
 
     describe("accountComments", () => {
       const sortType = "hot";
-      const subplebbitAddress = "subplebbit address 1";
-      const subplebbitAddresses = [subplebbitAddress];
+      const communityAddress = "community address 1";
+      const communityAddresses = [communityAddress];
       const accountPostCid1 = "account post cid 1";
       const authorAddress = "accountcomments.eth";
       const author = { address: authorAddress };
@@ -1932,7 +1896,7 @@ describe("feeds", () => {
                 {
                   // no cid, no updatedAt, is pending
                   timestamp: yearAgo - 2, // very old reply
-                  subplebbitAddress,
+                  communityAddress,
                   // depth: 0, test no depth
                   index: 0,
                   author,
@@ -1940,7 +1904,7 @@ describe("feeds", () => {
                 {
                   // no cid, no updatedAt, is pending
                   timestamp: yearAgo - 1, // very old reply
-                  subplebbitAddress: "wrong subplebbit address",
+                  communityAddress: "wrong community address",
                   depth: 0,
                   index: 1,
                   author,
@@ -1948,7 +1912,7 @@ describe("feeds", () => {
                 {
                   // no cid, no updatedAt, is pending
                   timestamp: yearAgo, // very old reply
-                  subplebbitAddress,
+                  communityAddress,
                   // is reply, should not appear in feed
                   parentCid: accountPostCid1,
                   postCid: accountPostCid1,
@@ -1958,7 +1922,7 @@ describe("feeds", () => {
                 },
                 {
                   timestamp: now - 2,
-                  subplebbitAddress,
+                  communityAddress,
                   cid: accountPostCid1, // cid received, not pending, but not published by sub owner yet
                   updatedAt: now,
                   depth: 0,
@@ -1967,7 +1931,7 @@ describe("feeds", () => {
                 },
                 {
                   timestamp: now - 1,
-                  subplebbitAddress: "wrong subplebbit address",
+                  communityAddress: "wrong community address",
                   cid: "account post cid 2", // cid received, not pending, but not published by sub owner yet
                   updatedAt: now,
                   depth: 0,
@@ -1976,7 +1940,7 @@ describe("feeds", () => {
                 },
                 {
                   timestamp: now,
-                  subplebbitAddress,
+                  communityAddress,
                   cid: "account reply cid 1", // cid received, not pending, but not published by sub owner yet
                   parentCid: accountPostCid1,
                   postCid: accountPostCid1,
@@ -1998,7 +1962,7 @@ describe("feeds", () => {
       test("prepend changes to append and publish", async () => {
         // default (prepend) + newerThan Infinity
         rendered.rerender({
-          subplebbitAddresses,
+          communityAddresses,
           sortType,
           accountComments: { newerThan: Infinity },
         });
@@ -2013,13 +1977,13 @@ describe("feeds", () => {
         expect(rendered.result.current.feed.length).toBe(postsPerPage + 2);
         expect(rendered.result.current.feed[0].cid).toBe(accountPostCid1);
         expect(rendered.result.current.feed[0].author.address).toBe(authorAddress);
-        expect(rendered.result.current.feed[0].subplebbitAddress).toBe(subplebbitAddress);
+        expect(rendered.result.current.feed[0].communityAddress).toBe(communityAddress);
         expect(rendered.result.current.feed[1].cid).toBe(undefined);
         expect(rendered.result.current.feed[1].author.address).toBe(authorAddress);
-        expect(rendered.result.current.feed[1].subplebbitAddress).toBe(subplebbitAddress);
+        expect(rendered.result.current.feed[1].communityAddress).toBe(communityAddress);
         expect(rendered.result.current.feed[2].cid).not.toBe(undefined);
         expect(rendered.result.current.feed[2].author.address).not.toBe(authorAddress);
-        expect(rendered.result.current.feed[2].subplebbitAddress).toBe(subplebbitAddress);
+        expect(rendered.result.current.feed[2].communityAddress).toBe(communityAddress);
         // prepend order should be newest first
         expect(rendered.result.current.feed[0].timestamp).toBeGreaterThan(
           rendered.result.current.feed[1].timestamp,
@@ -2027,7 +1991,7 @@ describe("feeds", () => {
 
         // newerThan 1h
         rendered.rerender({
-          subplebbitAddresses,
+          communityAddresses,
           sortType,
           accountComments: { newerThan: 60 * 60 },
         });
@@ -2037,14 +2001,14 @@ describe("feeds", () => {
         expect(rendered.result.current.feed.length).toBe(postsPerPage + 1);
         expect(rendered.result.current.feed[0].cid).toBe(accountPostCid1);
         expect(rendered.result.current.feed[0].author.address).toBe(authorAddress);
-        expect(rendered.result.current.feed[0].subplebbitAddress).toBe(subplebbitAddress);
+        expect(rendered.result.current.feed[0].communityAddress).toBe(communityAddress);
         expect(rendered.result.current.feed[1].cid).not.toBe(undefined);
         expect(rendered.result.current.feed[1].author.address).not.toBe(authorAddress);
-        expect(rendered.result.current.feed[1].subplebbitAddress).toBe(subplebbitAddress);
+        expect(rendered.result.current.feed[1].communityAddress).toBe(communityAddress);
 
         // append + newerThan Infinity
         rendered.rerender({
-          subplebbitAddresses,
+          communityAddresses,
           sortType,
           accountComments: { append: true, newerThan: Infinity },
         });
@@ -2060,8 +2024,8 @@ describe("feeds", () => {
           rendered.result.current.feed[rendered.result.current.feed.length - 1].author.address,
         ).toBe(authorAddress);
         expect(
-          rendered.result.current.feed[rendered.result.current.feed.length - 1].subplebbitAddress,
-        ).toBe(subplebbitAddress);
+          rendered.result.current.feed[rendered.result.current.feed.length - 1].communityAddress,
+        ).toBe(communityAddress);
         expect(rendered.result.current.feed[rendered.result.current.feed.length - 2].cid).toBe(
           undefined,
         );
@@ -2069,8 +2033,8 @@ describe("feeds", () => {
           rendered.result.current.feed[rendered.result.current.feed.length - 2].author.address,
         ).toBe(authorAddress);
         expect(
-          rendered.result.current.feed[rendered.result.current.feed.length - 2].subplebbitAddress,
-        ).toBe(subplebbitAddress);
+          rendered.result.current.feed[rendered.result.current.feed.length - 2].communityAddress,
+        ).toBe(communityAddress);
         expect(rendered.result.current.feed[rendered.result.current.feed.length - 3].cid).not.toBe(
           undefined,
         );
@@ -2078,8 +2042,8 @@ describe("feeds", () => {
           rendered.result.current.feed[rendered.result.current.feed.length - 3].author.address,
         ).not.toBe(authorAddress);
         expect(
-          rendered.result.current.feed[rendered.result.current.feed.length - 3].subplebbitAddress,
-        ).toBe(subplebbitAddress);
+          rendered.result.current.feed[rendered.result.current.feed.length - 3].communityAddress,
+        ).toBe(communityAddress);
 
         // append: true order should be newest last
         expect(
@@ -2091,7 +2055,7 @@ describe("feeds", () => {
         // publishing a post automatically adds to feed
         await act(async () => {
           await accountsActions.publishComment({
-            subplebbitAddress,
+            communityAddress,
             content: "added to feed",
             onChallenge: () => {},
             onChallengeVerification: () => {},
@@ -2121,7 +2085,7 @@ describe("feeds", () => {
         };
 
         rendered.rerender({
-          subplebbitAddresses,
+          communityAddresses,
           sortType,
           postsPerPage,
           accountComments: { newerThan: Infinity },
@@ -2141,7 +2105,7 @@ describe("feeds", () => {
         const content = "published content";
         await act(async () => {
           await accountsActions.publishComment({
-            subplebbitAddress,
+            communityAddress,
             content,
             onChallenge: () => {},
             onChallengeVerification: () => {},
@@ -2177,7 +2141,7 @@ describe("feeds", () => {
 
       test("deleted local account post/reindex disappears from feed accountComments injection immediately", async () => {
         rendered.rerender({
-          subplebbitAddresses,
+          communityAddresses,
           sortType,
           accountComments: { newerThan: Infinity },
         });
@@ -2224,12 +2188,12 @@ describe("feeds", () => {
       });
 
       test("modQueue pendingApproval", async () => {
-        const subplebbitAddresses = [
-          "subplebbit address 1",
-          "subplebbit address 2",
-          "subplebbit address 3",
+        const communityAddresses = [
+          "community address 1",
+          "community address 2",
+          "community address 3",
         ];
-        rendered.rerender({ subplebbitAddresses, modQueue: ["pendingApproval"] });
+        rendered.rerender({ communityAddresses, modQueue: ["pendingApproval"] });
 
         await waitFor(() => rendered.result.current.feed.length > 0);
         expect(rendered.result.current.feed.length).toBe(postsPerPage);
@@ -2241,23 +2205,23 @@ describe("feeds", () => {
       });
 
       test("modQueue drops approved posts after the page stops returning them", async () => {
-        const subplebbitAddresses = ["subplebbit address 1"];
-        rendered.rerender({ subplebbitAddresses, modQueue: ["pendingApproval"] });
+        const communityAddresses = ["community address 1"];
+        rendered.rerender({ communityAddresses, modQueue: ["pendingApproval"] });
 
         await waitFor(() => rendered.result.current.feed.length > 0);
         const removedCid = rendered.result.current.feed[0].cid;
-        const pageCid = Object.keys(subplebbitsPagesStore.getState().subplebbitsPages).find((cid) =>
+        const pageCid = Object.keys(communitiesPagesStore.getState().communitiesPages).find((cid) =>
           cid.includes("pendingApproval"),
         );
         expect(pageCid).toBeDefined();
 
         await act(async () => {
-          subplebbitsPagesStore.setState((state: any) => {
-            const page = state.subplebbitsPages[pageCid as string];
+          communitiesPagesStore.setState((state: any) => {
+            const page = state.communitiesPages[pageCid as string];
             return {
               ...state,
-              subplebbitsPages: {
-                ...state.subplebbitsPages,
+              communitiesPages: {
+                ...state.communitiesPages,
                 [pageCid as string]: {
                   ...page,
                   comments: page.comments.filter((comment: Comment) => comment.cid !== removedCid),
@@ -2278,19 +2242,19 @@ describe("feeds", () => {
       });
 
       test("modQueue drops posts that stay on the page but lose pendingApproval", async () => {
-        const subplebbitAddresses = ["subplebbit address 1"];
-        rendered.rerender({ subplebbitAddresses, modQueue: ["pendingApproval"] });
+        const communityAddresses = ["community address 1"];
+        rendered.rerender({ communityAddresses, modQueue: ["pendingApproval"] });
 
         await waitFor(() => rendered.result.current.feed.length > 0);
         const removedCid = rendered.result.current.feed[0].cid;
-        const pageCid = Object.keys(subplebbitsPagesStore.getState().subplebbitsPages).find((cid) =>
+        const pageCid = Object.keys(communitiesPagesStore.getState().communitiesPages).find((cid) =>
           cid.includes("pendingApproval"),
         );
         expect(pageCid).toBeDefined();
 
         await act(async () => {
-          subplebbitsPagesStore.setState((state: any) => {
-            const page = state.subplebbitsPages[pageCid as string];
+          communitiesPagesStore.setState((state: any) => {
+            const page = state.communitiesPages[pageCid as string];
             const nextComments = page.comments.map((comment: Comment) =>
               comment.cid === removedCid ? { ...comment, pendingApproval: undefined } : comment,
             );
@@ -2303,8 +2267,8 @@ describe("feeds", () => {
                   pendingApproval: undefined,
                 },
               },
-              subplebbitsPages: {
-                ...state.subplebbitsPages,
+              communitiesPages: {
+                ...state.communitiesPages,
                 [pageCid as string]: {
                   ...page,
                   comments: nextComments,
@@ -2324,21 +2288,21 @@ describe("feeds", () => {
         ).toBe(false);
       });
 
-      test("modQueue reset refreshes the latest subplebbit snapshot before rebuilding", async () => {
-        const getSubplebbit = Plebbit.prototype.getSubplebbit;
+      test("modQueue reset refreshes the latest community snapshot before rebuilding", async () => {
+        const getCommunity = Plebbit.prototype.getCommunity;
         let hidePendingApprovalPage = false;
 
-        Plebbit.prototype.getSubplebbit = async function (options: { address: string }) {
-          const subplebbit = await getSubplebbit.call(this, options);
+        Plebbit.prototype.getCommunity = async function (options: { address: string }) {
+          const community = await getCommunity.call(this, options);
           if (hidePendingApprovalPage) {
-            subplebbit.modQueue.pageCids = {};
+            community.modQueue.pageCids = {};
           }
-          return subplebbit;
+          return community;
         };
 
         try {
           rendered.rerender({
-            subplebbitAddresses: ["subplebbit address 1"],
+            communityAddresses: ["community address 1"],
             modQueue: ["pendingApproval"],
           });
 
@@ -2354,13 +2318,13 @@ describe("feeds", () => {
 
           await waitFor(
             () =>
-              !subplebbitsStore.getState().subplebbits["subplebbit address 1"]?.modQueue?.pageCids
+              !communitiesStore.getState().communities["community address 1"]?.modQueue?.pageCids
                 ?.pendingApproval,
           );
           await waitFor(() => rendered.result.current.feed.length === 0);
           expect(rendered.result.current.feed).toEqual([]);
         } finally {
-          Plebbit.prototype.getSubplebbit = getSubplebbit;
+          Plebbit.prototype.getCommunity = getCommunity;
         }
       });
 
@@ -2369,12 +2333,12 @@ describe("feeds", () => {
 
     // TODO: not implemented
     // at the moment a comment already inside a loaded feed will ignore all updates from future pages
-    // test.todo(`if an updated subplebbit page gives a comment already in a loaded feed, replace it with the newest version with updated votes/replies`)
+    // test.todo(`if an updated community page gives a comment already in a loaded feed, replace it with the newest version with updated votes/replies`)
 
     // TODO: not implemented
     // test.todo(`don't let a malicious sub owner display older posts in top hour/day/week/month/year`)
 
     // already implemented but no tests for it because difficult to test
-    // test.todo(`subplebbits finish loading with 0 posts, hasMore becomes false, but only after finished loading`)
+    // test.todo(`communities finish loading with 0 posts, hasMore becomes false, but only after finished loading`)
   });
 });

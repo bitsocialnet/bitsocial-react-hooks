@@ -89,7 +89,7 @@ describe("accounts (plebbit-js mock)", () => {
 
       it("publish comment", async () => {
         const publishCommentOptions = {
-          subplebbitAddress: "12D3KooW...",
+          communityAddress: "12D3KooW...",
           parentCid: "Qm...",
           content: "some content",
           onChallenge,
@@ -146,7 +146,7 @@ describe("accounts (plebbit-js mock)", () => {
 
       it("publish vote", async () => {
         const publishVoteOptions = {
-          subplebbitAddress: "12D3KooW...",
+          communityAddress: "12D3KooW...",
           commentCid: "Qm...",
           vote: 1,
           onChallenge,

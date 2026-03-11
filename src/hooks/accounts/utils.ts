@@ -127,7 +127,7 @@ const getReplyNotificationsFromAccountCommentsReplies = (
   for (const replyCid in accountCommentsReplies) {
     const reply = accountCommentsReplies[replyCid];
     if (
-      accountBlockedAddresses?.[reply.subplebbitAddress] ||
+      accountBlockedAddresses?.[reply.communityAddress] ||
       accountBlockedAddresses?.[reply.author?.address]
     ) {
       continue;

@@ -140,7 +140,7 @@ const repliesStore = createStore<RepliesState>((setState: Function, getState: Fu
     );
     const account = accountsStore.getState().accounts[feedOptions.accountId];
     assert(
-      typeof account?.plebbit?.getSubplebbit === "function",
+      typeof account?.plebbit?.getCommunity === "function",
       `repliesStore.addFeedToStoreOrUpdateComment feedOptions.accountId '${feedOptions.accountId}' invalid`,
     );
     assert(
@@ -432,7 +432,7 @@ const addRepliesPagesOnLowBufferedFeedsReplyCounts = (repliesStoreState: any) =>
     let sortType = feedsOptions[feedName].sortType;
     const commentCid = feedsOptions[feedName].commentCid;
 
-    // TODO: maybe skip if comment subplebbit address, comment cid or comment author is blocked?
+    // TODO: maybe skip if comment community address, comment cid or comment author is blocked?
 
     // comment hasn't loaded yet
     if (!comments[commentCid]) {

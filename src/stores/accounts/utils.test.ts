@@ -2,7 +2,7 @@ import utils from "./utils";
 import { Role } from "../../types";
 import commentsStore from "../comments";
 import repliesPagesStore from "../replies-pages";
-import subplebbitsPagesStore from "../subplebbits-pages";
+import communitiesPagesStore from "../communities-pages";
 import PlebbitJsModule, { setPlebbitJs, restorePlebbitJs } from "../../lib/plebbit-js";
 import PlebbitJsMock from "../../lib/plebbit-js/plebbit-js-mock";
 
@@ -11,123 +11,123 @@ describe("accountsStore utils", () => {
   const adminRole: Role = { role: "admin" };
   const moderatorRole: Role = { role: "moderator" };
 
-  describe("getAccountSubplebbits", () => {
+  describe("getAccountCommunities", () => {
     test("empty", async () => {
       const account = { author };
-      const subplebbits = {};
-      const accountSubplebbits = utils.getAccountSubplebbits(account, subplebbits);
-      expect(accountSubplebbits).toEqual({});
+      const communities = {};
+      const accountCommunities = utils.getAccountCommunities(account, communities);
+      expect(accountCommunities).toEqual({});
     });
 
-    test("previous account subplebbits, no new account subplebbits", async () => {
-      const previousAccountSubplebbits = {
-        subplebbitAddress1: {
+    test("previous account communities, no new account communities", async () => {
+      const previousAccountCommunities = {
+        communityAddress1: {
           role: adminRole,
         },
       };
-      const account = { author, subplebbits: previousAccountSubplebbits };
-      const subplebbits = {};
-      const accountSubplebbits = utils.getAccountSubplebbits(account, subplebbits);
-      expect(accountSubplebbits).toEqual(previousAccountSubplebbits);
+      const account = { author, communities: previousAccountCommunities };
+      const communities = {};
+      const accountCommunities = utils.getAccountCommunities(account, communities);
+      expect(accountCommunities).toEqual(previousAccountCommunities);
     });
 
-    test("subplebbit with roles for other addresses skips author (branch 22)", async () => {
+    test("community with roles for other addresses skips author (branch 22)", async () => {
       const account = { author };
-      const subplebbits = {
-        subplebbitAddress1: {
+      const communities = {
+        communityAddress1: {
           roles: {
             "other-address": moderatorRole,
           },
         },
-        subplebbitAddress2: {
+        communityAddress2: {
           roles: {},
         },
       };
-      const accountSubplebbits = utils.getAccountSubplebbits(account, subplebbits);
-      expect(accountSubplebbits).toEqual({});
+      const accountCommunities = utils.getAccountCommunities(account, communities);
+      expect(accountCommunities).toEqual({});
     });
 
-    test("no previous account subplebbits, new account subplebbits", async () => {
+    test("no previous account communities, new account communities", async () => {
       const account = { author };
-      const subplebbits = {
-        subplebbitAddress1: {
+      const communities = {
+        communityAddress1: {
           roles: {
             [author.address]: moderatorRole,
           },
         },
-        subplebbitAddress2: {
+        communityAddress2: {
           roles: {
             [author.address]: adminRole,
           },
         },
       };
-      const accountSubplebbits = utils.getAccountSubplebbits(account, subplebbits);
-      const expectedAccountSubplebbits = {
-        subplebbitAddress1: {
+      const accountCommunities = utils.getAccountCommunities(account, communities);
+      const expectedAccountCommunities = {
+        communityAddress1: {
           role: moderatorRole,
         },
-        subplebbitAddress2: {
+        communityAddress2: {
           role: adminRole,
         },
       };
-      expect(accountSubplebbits).toEqual(expectedAccountSubplebbits);
+      expect(accountCommunities).toEqual(expectedAccountCommunities);
     });
 
-    test("previous account subplebbits, new account subplebbits", async () => {
-      const previousAccountSubplebbits = {
-        subplebbitAddress1: {
+    test("previous account communities, new account communities", async () => {
+      const previousAccountCommunities = {
+        communityAddress1: {
           role: adminRole,
         },
       };
-      const account = { author, subplebbits: previousAccountSubplebbits };
-      const subplebbits = {
-        subplebbitAddress2: {
+      const account = { author, communities: previousAccountCommunities };
+      const communities = {
+        communityAddress2: {
           roles: {
             [author.address]: adminRole,
           },
         },
       };
-      const accountSubplebbits = utils.getAccountSubplebbits(account, subplebbits);
-      const expectedAccountSubplebbits = {
-        subplebbitAddress1: {
+      const accountCommunities = utils.getAccountCommunities(account, communities);
+      const expectedAccountCommunities = {
+        communityAddress1: {
           role: adminRole,
         },
-        subplebbitAddress2: {
+        communityAddress2: {
           role: adminRole,
         },
       };
-      expect(accountSubplebbits).toEqual(expectedAccountSubplebbits);
+      expect(accountCommunities).toEqual(expectedAccountCommunities);
     });
 
-    test("previous account subplebbits, new account subplebbit overwrites previous", async () => {
-      const previousAccountSubplebbits = {
-        subplebbitAddress1: {
+    test("previous account communities, new account community overwrites previous", async () => {
+      const previousAccountCommunities = {
+        communityAddress1: {
           role: adminRole,
         },
       };
-      const account = { author, subplebbits: previousAccountSubplebbits };
-      const subplebbits = {
-        subplebbitAddress1: {
+      const account = { author, communities: previousAccountCommunities };
+      const communities = {
+        communityAddress1: {
           roles: {
             [author.address]: moderatorRole,
           },
         },
-        subplebbitAddress2: {
+        communityAddress2: {
           roles: {
             [author.address]: adminRole,
           },
         },
       };
-      const accountSubplebbits = utils.getAccountSubplebbits(account, subplebbits);
-      const expectedAccountSubplebbits = {
-        subplebbitAddress1: {
+      const accountCommunities = utils.getAccountCommunities(account, communities);
+      const expectedAccountCommunities = {
+        communityAddress1: {
           role: moderatorRole,
         },
-        subplebbitAddress2: {
+        communityAddress2: {
           role: adminRole,
         },
       };
-      expect(accountSubplebbits).toEqual(expectedAccountSubplebbits);
+      expect(accountCommunities).toEqual(expectedAccountCommunities);
     });
   });
 
@@ -439,14 +439,14 @@ describe("accountsStore utils", () => {
         });
       }
     });
-    test("returns parent depth + 1 when parent in subplebbitsPagesStore", () => {
-      subplebbitsPagesStore.setState((s: any) => ({
+    test("returns parent depth + 1 when parent in communitiesPagesStore", () => {
+      communitiesPagesStore.setState((s: any) => ({
         comments: { ...s.comments, parentCid3: { cid: "parentCid3", depth: 0 } },
       }));
       try {
         expect(utils.getAccountCommentDepth({ parentCid: "parentCid3" } as any)).toBe(1);
       } finally {
-        subplebbitsPagesStore.setState((s: any) => {
+        communitiesPagesStore.setState((s: any) => {
           const { parentCid3, ...rest } = s.comments;
           return { comments: rest };
         });
@@ -455,7 +455,7 @@ describe("accountsStore utils", () => {
     test("returns undefined when parent not found (missing-parent fallback)", () => {
       commentsStore.setState((s: any) => ({ comments: s.comments }));
       repliesPagesStore.setState((s: any) => ({ comments: s.comments }));
-      subplebbitsPagesStore.setState((s: any) => ({ comments: s.comments }));
+      communitiesPagesStore.setState((s: any) => ({ comments: s.comments }));
       const result = utils.getAccountCommentDepth({ parentCid: "nonexistent" } as any);
       expect(result).toBeUndefined();
     });
@@ -465,13 +465,13 @@ describe("accountsStore utils", () => {
     beforeAll(() => setPlebbitJs(PlebbitJsMock));
     afterAll(() => restorePlebbitJs());
 
-    test("adds shortSubplebbitAddress and author.shortAddress on success", () => {
+    test("adds shortCommunityAddress and author.shortAddress on success", () => {
       const comment = {
-        subplebbitAddress: "eip155:0x1234567890abcdef",
+        communityAddress: "eip155:0x1234567890abcdef",
         author: { address: "eip155:0xfedcba0987654321" },
       };
       const result = utils.addShortAddressesToAccountComment(comment as any);
-      expect(result.shortSubplebbitAddress).toBeDefined();
+      expect(result.shortCommunityAddress).toBeDefined();
       expect(result.author.shortAddress).toBeDefined();
       expect(result).not.toBe(comment);
     });
@@ -482,13 +482,13 @@ describe("accountsStore utils", () => {
       };
       try {
         const comment = {
-          subplebbitAddress: "eip155:0x1234567890abcdef",
+          communityAddress: "eip155:0x1234567890abcdef",
           author: { address: "eip155:0xfedcba0987654321" },
         };
         const result = utils.addShortAddressesToAccountComment(comment as any);
         expect(result).toBeDefined();
-        expect(result.subplebbitAddress).toBe("eip155:0x1234567890abcdef");
-        expect(result.shortSubplebbitAddress).toBeUndefined();
+        expect(result.communityAddress).toBe("eip155:0x1234567890abcdef");
+        expect(result.shortCommunityAddress).toBeUndefined();
       } finally {
         PlebbitJsModule.Plebbit.getShortAddress = orig;
       }

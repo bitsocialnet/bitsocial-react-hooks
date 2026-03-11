@@ -11,6 +11,7 @@ import utils from "../../lib/utils";
 import createStore from "zustand";
 import accountsStore from "../accounts";
 import repliesPagesStore from "../replies-pages";
+import { normalizeCommentCommunityAddress } from "../../lib/plebbit-compat";
 
 let plebbitGetCommentPending: { [key: string]: boolean } = {};
 
@@ -49,8 +50,10 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     try {
       if (!comment) {
         comment = await account.plebbit.createComment({ cid: commentCid });
+        comment = normalizeCommentCommunityAddress(comment);
         await commentsDatabase.setItem(commentCid, utils.clone(comment));
       }
+      comment = normalizeCommentCommunityAddress(comment);
       log("commentsStore.addCommentToStore", { commentCid, comment, account });
       setState((state: CommentsState) => ({
         comments: { ...state.comments, [commentCid]: utils.clone(comment) },
@@ -68,7 +71,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
 
     // the comment is still missing up to date mutable data like upvotes, edits, replies, etc
     comment?.on("update", async (updatedComment: Comment) => {
-      updatedComment = utils.clone(updatedComment);
+      updatedComment = normalizeCommentCommunityAddress(utils.clone(updatedComment)) as Comment;
       await commentsDatabase.setItem(commentCid, updatedComment);
       log("commentsStore comment update", { commentCid, updatedComment, account });
       setState((state: CommentsState) => ({
@@ -152,7 +155,9 @@ const getCommentFromDatabase = async (commentCid: string, account: Account) => {
     return;
   }
   try {
-    const comment = await account.plebbit.createComment(commentData);
+    const comment = normalizeCommentCommunityAddress(
+      await account.plebbit.createComment(commentData),
+    );
     return comment;
   } catch (e) {
     // need to log this always or it could silently fail in production and cache never be used

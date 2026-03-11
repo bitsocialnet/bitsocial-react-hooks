@@ -3,7 +3,7 @@ import validator from "../../lib/validator";
 import chain from "../../lib/chain";
 import { v4 as uuid } from "uuid";
 import accountsDatabase from "./accounts-database";
-import { Accounts, AccountSubplebbit, ChainProviders } from "../../types";
+import { Accounts, AccountCommunity, ChainProviders } from "../../types";
 import Logger from "@plebbit/plebbit-logger";
 const log = Logger("bitsocial-react-hooks:accounts:stores");
 
@@ -102,8 +102,8 @@ const generateDefaultAccount = async () => {
 
   const accountName = await getNextAvailableDefaultAccountName();
 
-  // subplebbits where the account has a role, like moderator, admin, owner, etc.
-  const subplebbits: { [subplebbitAddress: string]: AccountSubplebbit } = {};
+  // communities where the account has a role, like moderator, admin, owner, etc.
+  const communities: { [communityAddress: string]: AccountCommunity } = {};
 
   const account = {
     id: uuid(),
@@ -116,7 +116,7 @@ const generateDefaultAccount = async () => {
     subscriptions: [],
     blockedAddresses: {},
     blockedCids: {},
-    subplebbits,
+    communities,
     mediaIpfsGatewayUrl: defaultMediaIpfsGatewayUrl,
   };
   return account;

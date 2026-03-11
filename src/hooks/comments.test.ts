@@ -4,7 +4,7 @@ import { useComment, useComments, useValidateComment, setPlebbitJs } from "..";
 import { getCommentFreshness, preferFresher } from "./comments";
 import * as accountsHooks from "./accounts";
 import commentsStore from "../stores/comments";
-import subplebbitsPagesStore from "../stores/subplebbits-pages";
+import communitiesPagesStore from "../stores/communities-pages";
 import accountsStore from "../stores/accounts";
 import PlebbitJsMock, { Plebbit, Comment, Pages } from "../lib/plebbit-js/plebbit-js-mock";
 import repliesPagesStore from "../stores/replies-pages";
@@ -260,17 +260,17 @@ describe("comments", () => {
       vi.mocked(accountsHooks.useAccount).mockRestore();
     });
 
-    test("useComment when subplebbitsPagesComment and repliesPagesComment are absent (branches 88, 94)", async () => {
+    test("useComment when communitiesPagesComment and repliesPagesComment are absent (branches 88, 94)", async () => {
       const rendered = renderHook<any, any>((commentCid) => useComment({ commentCid }));
       const waitFor = testUtils.createWaitFor(rendered);
       rendered.rerender("comment cid 1");
       await waitFor(() => typeof rendered.result.current.cid === "string");
       expect(rendered.result.current.cid).toBe("comment cid 1");
-      // No subplebbitsPagesStore or repliesPagesStore entries - uses commentFromStore only
+      // No communitiesPagesStore or repliesPagesStore entries - uses commentFromStore only
       expect(commentsStore.getState().comments["comment cid 1"]).toBeDefined();
     });
 
-    test("get comment from subplebbit pages", async () => {
+    test("get comment from community pages", async () => {
       // on first render, the account is undefined because it's not yet loaded from database
       const rendered = renderHook<any, any>((commentCid) => useComment({ commentCid }));
       const waitFor = testUtils.createWaitFor(rendered);
@@ -281,24 +281,24 @@ describe("comments", () => {
       expect(rendered.result.current.cid).toBe("comment cid 1");
       expect(rendered.result.current.replyCount).toBe(undefined);
 
-      // mock getting a subplebbit page with an updated comment
-      const subplebbitsPagesComment = {
+      // mock getting a community page with an updated comment
+      const communitiesPagesComment = {
         ...rendered.result.current,
         replyCount: 100,
         updatedAt: Math.round(Date.now() / 1000) + 60, // 1 minute in the future to make sure it's more recent
       };
       act(() => {
-        subplebbitsPagesStore.setState((_state: any) => ({
-          comments: { "comment cid 1": subplebbitsPagesComment },
+        communitiesPagesStore.setState((_state: any) => ({
+          comments: { "comment cid 1": communitiesPagesComment },
         }));
       });
 
-      // using the subplebbit page comment
+      // using the community page comment
       await waitFor(() => rendered.result.current.replyCount === 100);
       expect(rendered.result.current.replyCount).toBe(100);
     });
 
-    test("get comments from subplebbit pages", async () => {
+    test("get comments from community pages", async () => {
       const rendered = renderHook<any, any>((commentCids) => useComments({ commentCids }));
       const waitFor = testUtils.createWaitFor(rendered);
       expect(rendered.result.current.comments).toEqual([]);
@@ -316,19 +316,19 @@ describe("comments", () => {
       expect(rendered.result.current.comments[2].cid).toBe("comment cid 3");
       expect(rendered.result.current.comments[1].replyCount).toBe(undefined);
 
-      // mock getting a subplebbit page with an updated comment
-      const subplebbitsPagesComment = {
+      // mock getting a community page with an updated comment
+      const communitiesPagesComment = {
         ...rendered.result.current.comments[1],
         replyCount: 100,
         updatedAt: Math.round(Date.now() / 1000) + 60,
       };
       act(() => {
-        subplebbitsPagesStore.setState((_state: any) => ({
-          comments: { "comment cid 2": subplebbitsPagesComment },
+        communitiesPagesStore.setState((_state: any) => ({
+          comments: { "comment cid 2": communitiesPagesComment },
         }));
       });
 
-      // using the subplebbit page comment
+      // using the community page comment
       await waitFor(() => rendered.result.current.comments[1].replyCount === 100);
       expect(rendered.result.current.comments[1].replyCount).toBe(100);
     });
@@ -343,10 +343,10 @@ describe("comments", () => {
         cid: pendingCommentCid,
         timestamp: pendingTimestamp,
         replyCount: 42,
-        subplebbitAddress: "subplebbit address 1",
+        communityAddress: "community address 1",
       };
       act(() => {
-        subplebbitsPagesStore.setState((_state: any) => ({
+        communitiesPagesStore.setState((_state: any) => ({
           comments: { [pendingCommentCid]: pendingComment },
         }));
       });
@@ -366,7 +366,7 @@ describe("comments", () => {
         cid,
         timestamp: 100,
         content: "from account",
-        subplebbitAddress: "sub",
+        communityAddress: "sub",
       };
       act(() => {
         accountsStore.setState((s: any) => ({
@@ -395,7 +395,7 @@ describe("comments", () => {
       const freshComment = {
         cid: freshCid,
         timestamp: freshTimestamp,
-        subplebbitAddress: "sub",
+        communityAddress: "sub",
       };
       act(() => {
         commentsStore.setState((s: any) => ({
@@ -433,7 +433,7 @@ describe("comments", () => {
         updatedAt: undefined,
       };
       act(() => {
-        subplebbitsPagesStore.setState((_state: any) => ({
+        communitiesPagesStore.setState((_state: any) => ({
           comments: { "comment cid 1": pageStoreComment },
         }));
       });
@@ -607,8 +607,8 @@ describe("comments", () => {
           [cid2]: { cid: cid2, timestamp: 2 } as Comment,
         },
       }));
-      // Only cid1 has subplebbitsPages data; cid2 has no candidate
-      subplebbitsPagesStore.setState((s) => ({
+      // Only cid1 has communitiesPages data; cid2 has no candidate
+      communitiesPagesStore.setState((s) => ({
         comments: {
           ...s.comments,
           [cid1]: { cid: cid1, timestamp: 10 } as Comment,
@@ -622,7 +622,7 @@ describe("comments", () => {
       expect(rendered.result.current.comments[1].timestamp).toBe(2);
     });
 
-    test("preferFresher merges subplebbitsPagesComments when fresher", async () => {
+    test("preferFresher merges communitiesPagesComments when fresher", async () => {
       setPlebbitJs(PlebbitJsMock);
       await testUtils.resetDatabasesAndStores();
 
@@ -635,7 +635,7 @@ describe("comments", () => {
           [cid2]: { cid: cid2, timestamp: 2 } as Comment,
         },
       }));
-      subplebbitsPagesStore.setState((s) => ({
+      communitiesPagesStore.setState((s) => ({
         comments: {
           ...s.comments,
           [cid1]: { cid: cid1, timestamp: 10 } as Comment,
@@ -667,7 +667,7 @@ describe("comments", () => {
       expect(rendered.result.current.state).toBe("initializing");
 
       // the first render is always true, to avoid rerenders when true
-      const comment = { cid: "comment cid 1", subplebbitAddress: "subplebbit address 1" };
+      const comment = { cid: "comment cid 1", communityAddress: "community address 1" };
       rendered.rerender({ comment });
       expect(rendered.result.current.valid).toBe(true);
       expect(rendered.result.current.state).toBe("initializing"); // valid true but still initializing
@@ -730,7 +730,7 @@ describe("comments", () => {
       expect(rendered.result.current.state).toBe("initializing");
 
       // the first render is always true, to avoid rerenders when true
-      const comment = { cid: "comment cid 1", subplebbitAddress: "subplebbit address 1" };
+      const comment = { cid: "comment cid 1", communityAddress: "community address 1" };
       rendered.rerender({ comment });
       expect(rendered.result.current.valid).toBe(true);
       expect(rendered.result.current.state).toBe("initializing");

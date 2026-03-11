@@ -8,6 +8,11 @@ const config = {
 
     globals: true,
     environment: "jsdom",
+    environmentOptions: {
+      jsdom: {
+        url: "http://localhost",
+      },
+    },
     reporter: ["default", "json"],
     outputFile: "./.vitest-reports/tests.json",
     server: { deps: { inline: true } },

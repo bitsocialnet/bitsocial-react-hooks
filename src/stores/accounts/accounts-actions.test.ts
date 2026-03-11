@@ -110,8 +110,8 @@ function createRetryPlebbitMock() {
       }
       return m;
     }
-    async createSubplebbitEdit(opts: any) {
-      const e = await baseInstance.createSubplebbitEdit(opts);
+    async createCommunityEdit(opts: any) {
+      const e = await baseInstance.createCommunityEdit(opts);
       const orig = e.simulateChallengeVerificationEvent?.bind(e);
       if (orig) {
         let first = true;
@@ -303,7 +303,7 @@ describe("accounts-actions", () => {
       });
 
       const opts = {
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         content: "from named account",
         onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
         onChallengeVerification: () => {},
@@ -326,7 +326,7 @@ describe("accounts-actions", () => {
       });
 
       const opts = {
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         commentCid: "comment cid",
         vote: 1,
         onChallenge: (ch: any, v: any) => v.publishChallengeAnswers(),
@@ -349,7 +349,7 @@ describe("accounts-actions", () => {
       });
 
       const opts = {
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         commentCid: "comment cid",
         spoiler: true,
         onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(),
@@ -373,7 +373,7 @@ describe("accounts-actions", () => {
       });
 
       const opts = {
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         commentCid: "comment cid",
         commentModeration: { locked: true },
         onChallenge: (ch: any, m: any) => m.publishChallengeAnswers(),
@@ -390,7 +390,7 @@ describe("accounts-actions", () => {
       expect(mods.length).toBeGreaterThan(0);
     });
 
-    test("publishSubplebbitEdit with accountName uses named account", async () => {
+    test("publishCommunityEdit with accountName uses named account", async () => {
       await act(async () => {
         await accountsActions.createAccount();
         await accountsActions.createAccount("SubEditAccount");
@@ -403,12 +403,12 @@ describe("accounts-actions", () => {
       };
 
       await act(async () => {
-        await accountsActions.publishSubplebbitEdit("remote-sub.eth", opts, "SubEditAccount");
+        await accountsActions.publishCommunityEdit("remote-sub.eth", opts, "SubEditAccount");
       });
       // no throw = success
     });
 
-    test("createSubplebbit with accountName uses named account", async () => {
+    test("createCommunity with accountName uses named account", async () => {
       await act(async () => {
         await accountsActions.createAccount();
         await accountsActions.createAccount("CreateSubAccount");
@@ -416,7 +416,7 @@ describe("accounts-actions", () => {
 
       let sub: any;
       await act(async () => {
-        sub = await accountsActions.createSubplebbit({ title: "My sub" }, "CreateSubAccount");
+        sub = await accountsActions.createCommunity({ title: "My sub" }, "CreateSubAccount");
       });
       expect(sub?.address).toBeDefined();
     });
@@ -451,7 +451,7 @@ describe("accounts-actions", () => {
       expect(accountNamesToAccountIds["Second 2"]).toBeDefined();
     });
 
-    test("deleteSubplebbit with accountName uses named account", async () => {
+    test("deleteCommunity with accountName uses named account", async () => {
       await act(async () => {
         await accountsActions.createAccount();
         await accountsActions.createAccount("DelSubAccount");
@@ -459,10 +459,10 @@ describe("accounts-actions", () => {
 
       let sub: any;
       await act(async () => {
-        sub = await accountsActions.createSubplebbit({ title: "To delete" }, "DelSubAccount");
+        sub = await accountsActions.createCommunity({ title: "To delete" }, "DelSubAccount");
       });
       await act(async () => {
-        await accountsActions.deleteSubplebbit(sub.address, "DelSubAccount");
+        await accountsActions.deleteCommunity(sub.address, "DelSubAccount");
       });
       // no throw = success
     });
@@ -476,7 +476,7 @@ describe("accounts-actions", () => {
       await act(async () => {
         await accountsActions.publishComment(
           {
-            subplebbitAddress: "sub.eth",
+            communityAddress: "sub.eth",
             content: "to delete by name",
             onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
             onChallengeVerification: () => {},
@@ -521,7 +521,7 @@ describe("accounts-actions", () => {
       await act(async () => {
         await accountsActions.publishComment(
           {
-            subplebbitAddress: "sub.eth",
+            communityAddress: "sub.eth",
             content: "to delete by cid",
             onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
             onChallengeVerification: () => {},
@@ -547,19 +547,19 @@ describe("accounts-actions", () => {
       expect(after.length).toBe(0);
     });
 
-    test("publishSubplebbitEdit asserts when address differs from subplebbitAddress", async () => {
+    test("publishCommunityEdit asserts when address differs from communityAddress", async () => {
       await act(async () => {
         await accountsActions.createAccount();
       });
 
       await expect(
-        accountsActions.publishSubplebbitEdit("remote-sub.eth", {
+        accountsActions.publishCommunityEdit("remote-sub.eth", {
           address: "other-sub.eth",
           title: "edited",
           onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(),
           onChallengeVerification: () => {},
         }),
-      ).rejects.toThrow("can't edit address of a remote subplebbit");
+      ).rejects.toThrow("can't edit address of a remote community");
     });
 
     test("setAccount with author.address change updates only the eth wallet when using plebbit signer", async () => {
@@ -650,7 +650,7 @@ describe("accounts-actions", () => {
 
     test("publishComment retries on challenge failure", async () => {
       const opts = {
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         content: "retry test",
         onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(["4"]),
         onChallengeVerification: () => {},
@@ -670,7 +670,7 @@ describe("accounts-actions", () => {
 
     test("publishVote retries on challenge failure", async () => {
       const opts = {
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         commentCid: "cid",
         vote: 1,
         onChallenge: (ch: any, v: any) => v.publishChallengeAnswers(["4"]),
@@ -689,7 +689,7 @@ describe("accounts-actions", () => {
 
     test("publishCommentEdit retries on challenge failure", async () => {
       const opts = {
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         commentCid: "cid",
         spoiler: true,
         onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(["4"]),
@@ -709,7 +709,7 @@ describe("accounts-actions", () => {
 
     test("publishCommentModeration retries on challenge failure", async () => {
       const opts = {
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         commentCid: "cid",
         commentModeration: { locked: true },
         onChallenge: (ch: any, m: any) => m.publishChallengeAnswers(["4"]),
@@ -727,7 +727,7 @@ describe("accounts-actions", () => {
       expect(mods.length).toBeGreaterThan(0);
     });
 
-    test("publishSubplebbitEdit retries on challenge failure", async () => {
+    test("publishCommunityEdit retries on challenge failure", async () => {
       const opts = {
         title: "edited",
         onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(["4"]),
@@ -735,7 +735,7 @@ describe("accounts-actions", () => {
       };
 
       await act(async () => {
-        await accountsActions.publishSubplebbitEdit("remote-sub.eth", opts);
+        await accountsActions.publishCommunityEdit("remote-sub.eth", opts);
       });
 
       await new Promise((r) => setTimeout(r, 200));
@@ -764,7 +764,7 @@ describe("accounts-actions", () => {
       // publish a comment
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "sub.eth",
+          communityAddress: "sub.eth",
           content: "to delete",
           onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
           onChallengeVerification: () => {},
@@ -814,7 +814,7 @@ describe("accounts-actions", () => {
 
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "sub.eth",
+          communityAddress: "sub.eth",
           content: "no-stop",
           onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
           onChallengeVerification: () => {},
@@ -846,7 +846,7 @@ describe("accounts-actions", () => {
       });
 
       const publishPromise = accountsActions.publishComment({
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         content: "to-abandon",
         onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
         onChallengeVerification: () => {},
@@ -878,7 +878,7 @@ describe("accounts-actions", () => {
 
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "sub.eth",
+          communityAddress: "sub.eth",
           content: "err-test",
           onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
           onChallengeVerification: () => {},
@@ -908,7 +908,7 @@ describe("accounts-actions", () => {
 
       const onError = vi.fn();
       const publishPromise = accountsActions.publishComment({
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         content: "err-no-state",
         onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
         onChallengeVerification: () => {},
@@ -943,7 +943,7 @@ describe("accounts-actions", () => {
       const onError = vi.fn();
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "sub.eth",
+          communityAddress: "sub.eth",
           content: "err-cb",
           onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
           onChallengeVerification: () => {},
@@ -959,7 +959,7 @@ describe("accounts-actions", () => {
       const onPublishingStateChange = vi.fn();
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "sub.eth",
+          communityAddress: "sub.eth",
           content: "state-change",
           onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
           onChallengeVerification: () => {},
@@ -982,7 +982,7 @@ describe("accounts-actions", () => {
       const onPublishingStateChange = vi.fn();
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "sub.eth",
+          communityAddress: "sub.eth",
           content: "with link",
           link: "https://example.com/image.png",
           onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
@@ -1013,7 +1013,7 @@ describe("accounts-actions", () => {
 
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "sub.eth",
+          communityAddress: "sub.eth",
           content: "chain",
           onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
           onChallengeVerification: () => {},
@@ -1050,7 +1050,7 @@ describe("accounts-actions", () => {
 
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "sub.eth",
+          communityAddress: "sub.eth",
           content: "no-state-pub",
           onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
           onChallengeVerification: () => {},
@@ -1085,7 +1085,7 @@ describe("accounts-actions", () => {
 
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "sub.eth",
+          communityAddress: "sub.eth",
           content: "no-state",
           onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
           onChallengeVerification: () => {},
@@ -1111,7 +1111,7 @@ describe("accounts-actions", () => {
 
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "sub.eth",
+          communityAddress: "sub.eth",
           content: "ipfs",
           onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
           onChallengeVerification: () => {},
@@ -1136,7 +1136,7 @@ describe("accounts-actions", () => {
       const onError = vi.fn();
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "sub.eth",
+          communityAddress: "sub.eth",
           content: "fail",
           onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
           onChallengeVerification: () => {},
@@ -1156,7 +1156,7 @@ describe("accounts-actions", () => {
 
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "sub.eth",
+          communityAddress: "sub.eth",
           content: "cid",
           onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
           onChallengeVerification: () => {},
@@ -1170,7 +1170,7 @@ describe("accounts-actions", () => {
     test("importAccount startUpdatingAccountCommentOnCommentUpdateEvents error: catch runs", async () => {
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "sub.eth",
+          communityAddress: "sub.eth",
           content: "for-import",
           onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
           onChallengeVerification: () => {},
@@ -1207,7 +1207,7 @@ describe("accounts-actions", () => {
       const onError = vi.fn();
       await act(async () => {
         await accountsActions.publishCommentEdit({
-          subplebbitAddress: "sub.eth",
+          communityAddress: "sub.eth",
           commentCid: "cid",
           spoiler: true,
           onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(["4"]),
@@ -1232,7 +1232,7 @@ describe("accounts-actions", () => {
       const onError = vi.fn();
       await act(async () => {
         await accountsActions.publishCommentModeration({
-          subplebbitAddress: "sub.eth",
+          communityAddress: "sub.eth",
           commentCid: "cid",
           commentModeration: { locked: true },
           onChallenge: (ch: any, m: any) => m.publishChallengeAnswers(["4"]),
@@ -1245,10 +1245,10 @@ describe("accounts-actions", () => {
       expect(onError).toHaveBeenCalled();
     });
 
-    test("publishSubplebbitEdit publish throws: onError called", async () => {
+    test("publishCommunityEdit publish throws: onError called", async () => {
       const account = Object.values(accountsStore.getState().accounts)[0];
-      const origCreate = account.plebbit.createSubplebbitEdit.bind(account.plebbit);
-      vi.spyOn(account.plebbit, "createSubplebbitEdit").mockImplementation(async (opts: any) => {
+      const origCreate = account.plebbit.createCommunityEdit.bind(account.plebbit);
+      vi.spyOn(account.plebbit, "createCommunityEdit").mockImplementation(async (opts: any) => {
         const e = await origCreate(opts);
         vi.spyOn(e, "publish").mockRejectedValueOnce(new Error("publish failed"));
         return e;
@@ -1256,7 +1256,7 @@ describe("accounts-actions", () => {
 
       const onError = vi.fn();
       await act(async () => {
-        await accountsActions.publishSubplebbitEdit("remote-sub.eth", {
+        await accountsActions.publishCommunityEdit("remote-sub.eth", {
           title: "edited",
           onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(["4"]),
           onChallengeVerification: () => {},

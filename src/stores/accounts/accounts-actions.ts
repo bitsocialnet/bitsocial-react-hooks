@@ -1,7 +1,7 @@
 // public accounts actions that are called by the user
 
 import accountsStore, { listeners } from "./accounts-store";
-import subplebbitsStore from "../subplebbits";
+import communitiesStore from "../communities";
 import accountsDatabase from "./accounts-database";
 import accountGenerator from "./account-generator";
 import Logger from "@plebbit/plebbit-logger";
@@ -18,14 +18,19 @@ import {
   PublishVoteOptions,
   PublishCommentEditOptions,
   PublishCommentModerationOptions,
-  PublishSubplebbitEditOptions,
-  CreateSubplebbitOptions,
-  Subplebbits,
+  PublishCommunityEditOptions,
+  CreateCommunityOptions,
+  Communities,
   AccountComment,
 } from "../../types";
 import * as accountsActionsInternal from "./accounts-actions-internal";
 import {
-  getAccountSubplebbits,
+  createPlebbitCommunityEdit,
+  getPlebbitCommunityAddresses,
+  withLegacySubplebbitAddress,
+} from "../../lib/plebbit-compat";
+import {
+  getAccountCommunities,
   getCommentCidsToAccountsComments,
   fetchCommentLinkDimensions,
   getAccountCommentDepth,
@@ -209,11 +214,11 @@ export const setAccount = async (account: Account) => {
     `cannot set account with account.id '${account.id}' id does not exist in database`,
   );
 
-  // if author.address has changed, add new subplebbit roles of author.address found in subplebbits store
+  // if author.address has changed, add new community roles of author.address found in communities store
   // TODO: add test to check if roles get added
   if (account.author.address !== accounts[account.id].author.address) {
-    const subplebbits = getAccountSubplebbits(account, subplebbitsStore.getState().subplebbits);
-    account = { ...account, subplebbits };
+    const communities = getAccountCommunities(account, communitiesStore.getState().communities);
+    account = { ...account, communities };
 
     // wallet.signature changes if author.address changes
     if (account.author.wallets?.eth) {
@@ -283,11 +288,11 @@ export const importAccount = async (serializedAccount: string) => {
     `accountsActions.importAccount failed JSON.stringify json serializedAccount '${serializedAccount}'`,
   );
 
-  // add subplebbit roles already in subplebbits store to imported account
+  // add community roles already in communities store to imported account
   // TODO: add test to check if roles get added
-  const subplebbits = getAccountSubplebbits(
+  const communities = getAccountCommunities(
     imported.account,
-    subplebbitsStore.getState().subplebbits,
+    communitiesStore.getState().communities,
   );
 
   // if imported.account.name already exists, add ' 2', don't overwrite
@@ -302,7 +307,7 @@ export const importAccount = async (serializedAccount: string) => {
   const newAccount = {
     ...generatedAccount,
     ...imported.account,
-    subplebbits,
+    communities,
     id: generatedAccount.id,
   };
 
@@ -399,11 +404,11 @@ export const exportAccount = async (accountName?: string) => {
   return exportedAccountJson;
 };
 
-export const subscribe = async (subplebbitAddress: string, accountName?: string) => {
+export const subscribe = async (communityAddress: string, accountName?: string) => {
   const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
   assert(
-    subplebbitAddress && typeof subplebbitAddress === "string",
-    `accountsActions.subscribe invalid subplebbitAddress '${subplebbitAddress}'`,
+    communityAddress && typeof communityAddress === "string",
+    `accountsActions.subscribe invalid communityAddress '${communityAddress}'`,
   );
   assert(
     accounts && accountNamesToAccountIds && activeAccountId,
@@ -420,24 +425,24 @@ export const subscribe = async (subplebbitAddress: string, accountName?: string)
   );
 
   let subscriptions: string[] = account.subscriptions || [];
-  if (subscriptions.includes(subplebbitAddress)) {
-    throw Error(`account '${account.id}' already subscribed to '${subplebbitAddress}'`);
+  if (subscriptions.includes(communityAddress)) {
+    throw Error(`account '${account.id}' already subscribed to '${communityAddress}'`);
   }
-  subscriptions = [...subscriptions, subplebbitAddress];
+  subscriptions = [...subscriptions, communityAddress];
 
   const updatedAccount: Account = { ...account, subscriptions };
   // update account in db async for instant feedback speed
   accountsDatabase.addAccount(updatedAccount);
   const updatedAccounts = { ...accounts, [updatedAccount.id]: updatedAccount };
-  log("accountsActions.subscribe", { account: updatedAccount, accountName, subplebbitAddress });
+  log("accountsActions.subscribe", { account: updatedAccount, accountName, communityAddress });
   accountsStore.setState({ accounts: updatedAccounts });
 };
 
-export const unsubscribe = async (subplebbitAddress: string, accountName?: string) => {
+export const unsubscribe = async (communityAddress: string, accountName?: string) => {
   const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
   assert(
-    subplebbitAddress && typeof subplebbitAddress === "string",
-    `accountsActions.unsubscribe invalid subplebbitAddress '${subplebbitAddress}'`,
+    communityAddress && typeof communityAddress === "string",
+    `accountsActions.unsubscribe invalid communityAddress '${communityAddress}'`,
   );
   assert(
     accounts && accountNamesToAccountIds && activeAccountId,
@@ -454,17 +459,17 @@ export const unsubscribe = async (subplebbitAddress: string, accountName?: strin
   );
 
   let subscriptions: string[] = account.subscriptions || [];
-  if (!subscriptions.includes(subplebbitAddress)) {
-    throw Error(`account '${account.id}' already unsubscribed from '${subplebbitAddress}'`);
+  if (!subscriptions.includes(communityAddress)) {
+    throw Error(`account '${account.id}' already unsubscribed from '${communityAddress}'`);
   }
-  // remove subplebbitAddress
-  subscriptions = subscriptions.filter((address) => address !== subplebbitAddress);
+  // remove communityAddress
+  subscriptions = subscriptions.filter((address) => address !== communityAddress);
 
   const updatedAccount: Account = { ...account, subscriptions };
   // update account in db async for instant feedback speed
   accountsDatabase.addAccount(updatedAccount);
   const updatedAccounts = { ...accounts, [updatedAccount.id]: updatedAccount };
-  log("accountsActions.unsubscribe", { account: updatedAccount, accountName, subplebbitAddress });
+  log("accountsActions.unsubscribe", { account: updatedAccount, accountName, communityAddress });
   accountsStore.setState({ accounts: updatedAccounts });
 };
 
@@ -630,12 +635,12 @@ export const publishComment = async (
     author.previousCommentCid = previousCommentCid;
   }
 
-  let createCommentOptions: any = {
+  let createCommentOptions: any = withLegacySubplebbitAddress({
     timestamp: Math.floor(Date.now() / 1000),
     author,
     signer: account.signer,
     ...publishCommentOptions,
-  };
+  });
   delete createCommentOptions.onChallenge;
   delete createCommentOptions.onChallengeVerification;
   delete createCommentOptions.onError;
@@ -901,12 +906,12 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
     account,
   });
 
-  let createVoteOptions: any = {
+  let createVoteOptions: any = withLegacySubplebbitAddress({
     timestamp: Math.floor(Date.now() / 1000),
     author: account.author,
     signer: account.signer,
     ...publishVoteOptions,
-  };
+  });
   delete createVoteOptions.onChallenge;
   delete createVoteOptions.onChallengeVerification;
   delete createVoteOptions.onError;
@@ -980,12 +985,12 @@ export const publishCommentEdit = async (
     account,
   });
 
-  let createCommentEditOptions: any = {
+  let createCommentEditOptions: any = withLegacySubplebbitAddress({
     timestamp: Math.floor(Date.now() / 1000),
     author: account.author,
     signer: account.signer,
     ...publishCommentEditOptions,
-  };
+  });
   delete createCommentEditOptions.onChallenge;
   delete createCommentEditOptions.onChallengeVerification;
   delete createCommentEditOptions.onError;
@@ -1072,12 +1077,12 @@ export const publishCommentModeration = async (
     account,
   });
 
-  let createCommentModerationOptions: any = {
+  let createCommentModerationOptions: any = withLegacySubplebbitAddress({
     timestamp: Math.floor(Date.now() / 1000),
     author: account.author,
     signer: account.signer,
     ...publishCommentModerationOptions,
-  };
+  });
   delete createCommentModerationOptions.onChallenge;
   delete createCommentModerationOptions.onChallengeVerification;
   delete createCommentModerationOptions.onError;
@@ -1156,9 +1161,9 @@ export const publishCommentModeration = async (
   });
 };
 
-export const publishSubplebbitEdit = async (
-  subplebbitAddress: string,
-  publishSubplebbitEditOptions: PublishSubplebbitEditOptions,
+export const publishCommunityEdit = async (
+  communityAddress: string,
+  publishCommunityEditOptions: PublishCommunityEditOptions,
   accountName?: string,
 ) => {
   const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
@@ -1171,91 +1176,96 @@ export const publishSubplebbitEdit = async (
     const accountId = accountNamesToAccountIds[accountName];
     account = accounts[accountId];
   }
-  validator.validateAccountsActionsPublishSubplebbitEditArguments({
-    subplebbitAddress,
-    publishSubplebbitEditOptions,
+  validator.validateAccountsActionsPublishCommunityEditArguments({
+    communityAddress,
+    publishCommunityEditOptions,
     accountName,
     account,
   });
 
-  const subplebbitEditOptions = { ...publishSubplebbitEditOptions };
-  delete subplebbitEditOptions.onChallenge;
-  delete subplebbitEditOptions.onChallengeVerification;
-  delete subplebbitEditOptions.onError;
-  delete subplebbitEditOptions.onPublishingStateChange;
+  const communityEditOptions = { ...publishCommunityEditOptions };
+  delete communityEditOptions.onChallenge;
+  delete communityEditOptions.onChallengeVerification;
+  delete communityEditOptions.onError;
+  delete communityEditOptions.onPublishingStateChange;
 
-  // account is the owner of the subplebbit and can edit it locally, no need to publish
-  const localSubplebbitAddresses = account.plebbit.subplebbits;
-  if (localSubplebbitAddresses.includes(subplebbitAddress)) {
-    await subplebbitsStore
+  // account is the owner of the community and can edit it locally, no need to publish
+  const localCommunityAddresses = getPlebbitCommunityAddresses(account.plebbit);
+  if (localCommunityAddresses.includes(communityAddress)) {
+    await communitiesStore
       .getState()
-      .editSubplebbit(subplebbitAddress, subplebbitEditOptions, account);
-    // create fake success challenge verification for consistent behavior with remote subplebbit edit
-    publishSubplebbitEditOptions.onChallengeVerification({ challengeSuccess: true });
-    publishSubplebbitEditOptions.onPublishingStateChange?.("succeeded");
+      .editCommunity(communityAddress, communityEditOptions, account);
+    // create fake success challenge verification for consistent behavior with remote community edit
+    publishCommunityEditOptions.onChallengeVerification({ challengeSuccess: true });
+    publishCommunityEditOptions.onPublishingStateChange?.("succeeded");
     return;
   }
 
   assert(
-    !publishSubplebbitEditOptions.address ||
-      publishSubplebbitEditOptions.address === subplebbitAddress,
-    `accountsActions.publishSubplebbitEdit can't edit address of a remote subplebbit`,
+    !publishCommunityEditOptions.address ||
+      publishCommunityEditOptions.address === communityAddress,
+    `accountsActions.publishCommunityEdit can't edit address of a remote community`,
   );
-  let createSubplebbitEditOptions: any = {
+  let createCommunityEditOptions: any = withLegacySubplebbitAddress({
     timestamp: Math.floor(Date.now() / 1000),
     author: account.author,
     signer: account.signer,
-    // not possible to edit subplebbit.address over pubsub, only locally
-    subplebbitAddress,
-    subplebbitEdit: subplebbitEditOptions,
-  };
+    // not possible to edit community.address over pubsub, only locally
+    communityAddress,
+    subplebbitAddress: communityAddress,
+    communityEdit: communityEditOptions,
+    subplebbitEdit: communityEditOptions,
+  });
 
-  let subplebbitEdit = await account.plebbit.createSubplebbitEdit(createSubplebbitEditOptions);
+  let communityEdit = await createPlebbitCommunityEdit(account.plebbit, createCommunityEditOptions);
   let lastChallenge: Challenge | undefined;
   const publishAndRetryFailedChallengeVerification = async () => {
-    subplebbitEdit.once("challenge", async (challenge: Challenge) => {
+    communityEdit.once("challenge", async (challenge: Challenge) => {
       lastChallenge = challenge;
-      publishSubplebbitEditOptions.onChallenge(challenge, subplebbitEdit);
+      publishCommunityEditOptions.onChallenge(challenge, communityEdit);
     });
-    subplebbitEdit.once(
+    communityEdit.once(
       "challengeverification",
       async (challengeVerification: ChallengeVerification) => {
-        publishSubplebbitEditOptions.onChallengeVerification(challengeVerification, subplebbitEdit);
+        publishCommunityEditOptions.onChallengeVerification(challengeVerification, communityEdit);
         if (!challengeVerification.challengeSuccess && lastChallenge) {
           // publish again automatically on fail
-          createSubplebbitEditOptions = {
-            ...createSubplebbitEditOptions,
+          createCommunityEditOptions = {
+            ...createCommunityEditOptions,
             timestamp: Math.floor(Date.now() / 1000),
           };
-          subplebbitEdit = await account.plebbit.createSubplebbitEdit(createSubplebbitEditOptions);
+          communityEdit = await createPlebbitCommunityEdit(
+            account.plebbit,
+            createCommunityEditOptions,
+          );
           lastChallenge = undefined;
           publishAndRetryFailedChallengeVerification();
         }
       },
     );
-    subplebbitEdit.on("error", (error: Error) =>
-      publishSubplebbitEditOptions.onError?.(error, subplebbitEdit),
+    communityEdit.on("error", (error: Error) =>
+      publishCommunityEditOptions.onError?.(error, communityEdit),
     );
     // TODO: add publishingState to account edits
-    subplebbitEdit.on("publishingstatechange", (publishingState: string) =>
-      publishSubplebbitEditOptions.onPublishingStateChange?.(publishingState),
+    communityEdit.on("publishingstatechange", (publishingState: string) =>
+      publishCommunityEditOptions.onPublishingStateChange?.(publishingState),
     );
-    listeners.push(subplebbitEdit);
+    listeners.push(communityEdit);
     try {
       // publish will resolve after the challenge request
       // if it fails before, like failing to resolve ENS, we can emit the error
-      await subplebbitEdit.publish();
+      await communityEdit.publish();
     } catch (error) {
-      publishSubplebbitEditOptions.onError?.(error, subplebbitEdit);
+      publishCommunityEditOptions.onError?.(error, communityEdit);
     }
   };
 
   publishAndRetryFailedChallengeVerification();
-  log("accountsActions.publishSubplebbitEdit", { createSubplebbitEditOptions });
+  log("accountsActions.publishCommunityEdit", { createCommunityEditOptions });
 };
 
-export const createSubplebbit = async (
-  createSubplebbitOptions: CreateSubplebbitOptions,
+export const createCommunity = async (
+  createCommunityOptions: CreateCommunityOptions,
   accountName?: string,
 ) => {
   const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
@@ -1269,14 +1279,14 @@ export const createSubplebbit = async (
     account = accounts[accountId];
   }
 
-  const subplebbit = await subplebbitsStore
+  const community = await communitiesStore
     .getState()
-    .createSubplebbit(createSubplebbitOptions, account);
-  log("accountsActions.createSubplebbit", { createSubplebbitOptions, subplebbit });
-  return subplebbit;
+    .createCommunity(createCommunityOptions, account);
+  log("accountsActions.createCommunity", { createCommunityOptions, community });
+  return community;
 };
 
-export const deleteSubplebbit = async (subplebbitAddress: string, accountName?: string) => {
+export const deleteCommunity = async (communityAddress: string, accountName?: string) => {
   const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
   assert(
     accounts && accountNamesToAccountIds && activeAccountId,
@@ -1288,6 +1298,6 @@ export const deleteSubplebbit = async (subplebbitAddress: string, accountName?: 
     account = accounts[accountId];
   }
 
-  await subplebbitsStore.getState().deleteSubplebbit(subplebbitAddress, account);
-  log("accountsActions.deleteSubplebbit", { subplebbitAddress });
+  await communitiesStore.getState().deleteCommunity(communityAddress, account);
+  log("accountsActions.deleteCommunity", { communityAddress });
 };

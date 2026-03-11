@@ -41,7 +41,7 @@ const repliesPagesStore = createStore<RepliesPagesState>(
         `repliesPagesStore.addNextRepliesPageToStore sortType '${sortType}' invalid`,
       );
       assert(
-        typeof account?.plebbit?.createSubplebbit === "function",
+        typeof account?.plebbit?.createCommunity === "function",
         `repliesPagesStore.addNextRepliesPageToStore account '${account}' invalid`,
       );
 
@@ -94,7 +94,7 @@ const repliesPagesStore = createStore<RepliesPagesState>(
           pageCid: pageCidToAdd,
           page,
           commentCid: comment.cid,
-          subplebbitAddress: comment.subplebbitAddress,
+          communityAddress: comment.communityAddress,
           account,
         });
       } catch (e) {
@@ -227,12 +227,12 @@ const fetchPage = async (pageCid: string, comment: Comment, account: Account) =>
     fetchPageComments[comment.cid] = await account.plebbit.createComment({
       cid: comment.cid,
       postCid: comment.postCid,
-      subplebbitAddress: comment.subplebbitAddress,
+      communityAddress: comment.communityAddress,
       depth: comment.depth,
     });
     listeners.push(fetchPageComments[comment.cid]);
 
-    // set clients states on subplebbits store so the frontend can display it
+    // set clients states on communities store so the frontend can display it
     utils.pageClientsOnStateChange(
       fetchPageComments[comment.cid].replies?.clients,
       onCommentRepliesClientsStateChange(comment.cid),

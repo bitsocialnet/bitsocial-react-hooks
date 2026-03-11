@@ -182,7 +182,7 @@ setAuthorAvatarsWhitelistedTokenAddresses(defaultWhitelistedTokenAddresses); // 
 
 export function useAuthorAvatarIsWhitelisted(nft?: Nft) {
   // TODO: make a list that a dao can vote it, get the list from plebbit.getDefaults()
-  // TODO: make subplebbit owners able to whitelist their own nfts in their subplebbits
+  // TODO: make community owners able to whitelist their own nfts in their communities
   // TODO: make each user able to whitelist/blacklist any nft they want for their own client
   // TODO: make hook to list which default nfts are whitelisted to display to the user
 

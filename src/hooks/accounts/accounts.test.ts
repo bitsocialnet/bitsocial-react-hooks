@@ -10,12 +10,12 @@ import {
   useAccountVote,
   useAccountEdits,
   useEditedComment,
-  useAccountSubplebbits,
+  useAccountCommunities,
   UseAccountCommentsOptions,
   useComment,
   useNotifications,
   useFeed,
-  useSubplebbit,
+  useCommunity,
   usePubsubSubscribe,
   setPlebbitJs,
 } from "../..";
@@ -24,7 +24,7 @@ import * as accountsActions from "../../stores/accounts/accounts-actions";
 import PlebbitJsMock, {
   Plebbit,
   Comment,
-  Subplebbit,
+  Community,
   Pages,
   resetPlebbitJsMock,
   debugPlebbitJsMock,
@@ -197,20 +197,20 @@ describe("accounts", () => {
       const rendered = renderHook(() =>
         usePubsubSubscribe({
           accountName: "NonExistentAccount",
-          subplebbitAddress: "sub.eth",
+          communityAddress: "sub.eth",
         }),
       );
       expect(rendered.result.current.state).toBe("initializing");
     });
 
     test("usePubsubSubscribe", async () => {
-      const rendered = renderHook<any, any>((subplebbitAddress) => {
-        const result = usePubsubSubscribe({ subplebbitAddress });
+      const rendered = renderHook<any, any>((communityAddress) => {
+        const result = usePubsubSubscribe({ communityAddress });
         return { result };
       });
       const waitFor = testUtils.createWaitFor(rendered);
 
-      rendered.rerender("subplebbit-address.eth");
+      rendered.rerender("community-address.eth");
       await waitFor(() => rendered.result.current.result.state === "succeeded");
       expect(rendered.result.current.result.state).toBe("succeeded");
     });
@@ -222,7 +222,7 @@ describe("accounts", () => {
       };
       try {
         const rendered = renderHook<any, any>(() =>
-          usePubsubSubscribe({ subplebbitAddress: "error-sub.eth" }),
+          usePubsubSubscribe({ communityAddress: "error-sub.eth" }),
         );
         const waitFor = testUtils.createWaitFor(rendered);
 
@@ -241,7 +241,7 @@ describe("accounts", () => {
       };
       try {
         const rendered = renderHook<any, any>(() =>
-          usePubsubSubscribe({ subplebbitAddress: "unsub-error.eth" }),
+          usePubsubSubscribe({ communityAddress: "unsub-error.eth" }),
         );
         const waitFor = testUtils.createWaitFor(rendered);
 
@@ -435,23 +435,23 @@ describe("accounts", () => {
     // test.todo(`fail to edit account.signer.address that doesn't match signer private key`)
 
     describe("account comments, account votes, account edits in database", () => {
-      const subplebbitAddress = "subplebbit address";
+      const communityAddress = "community address";
 
       beforeEach(async () => {
         let challengeVerificationCount = 0;
         const publishCommentEditOptions = {
-          subplebbitAddress,
+          communityAddress,
           spoiler: true,
           onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
           onChallengeVerification: () => challengeVerificationCount++,
         };
         const publishCommentOptions = {
-          subplebbitAddress,
+          communityAddress,
           onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
           onChallengeVerification: () => challengeVerificationCount++,
         };
         const publishVoteOptions = {
-          subplebbitAddress,
+          communityAddress,
           vote: 1,
           onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
           onChallengeVerification: () => challengeVerificationCount++,
@@ -552,7 +552,7 @@ describe("accounts", () => {
         expect(typeof rendered.result.current.account?.id).toBe("string");
         expect(rendered.result.current.account?.id).not.toBe(exported?.account.id);
         // account.plebbit has been initialized
-        expect(typeof rendered.result.current.account?.plebbit?.getSubplebbit).toBe("function");
+        expect(typeof rendered.result.current.account?.plebbit?.getCommunity).toBe("function");
 
         // has account comments, votes, edits
         await waitFor(() => rendered.result.current.accountComments?.[0]?.content === "content 1");
@@ -588,7 +588,7 @@ describe("accounts", () => {
         expect(typeof rendered2.result.current.account.id).toBe("string");
         expect(rendered2.result.current.account.id).not.toBe(exported?.account.id);
         // account.plebbit has been initialized
-        expect(typeof rendered2.result.current.account.plebbit?.getSubplebbit).toBe("function");
+        expect(typeof rendered2.result.current.account.plebbit?.getCommunity).toBe("function");
 
         // has account comments, votes, edits
         await waitFor2(
@@ -655,7 +655,7 @@ describe("accounts", () => {
     });
 
     describe("deleteComment", () => {
-      const subplebbitAddress = "12D3KooW... deleteComment.test";
+      const communityAddress = "12D3KooW... deleteComment.test";
 
       test("useAccountComments with filter logs when accountComments and options present", async () => {
         const filter = (c: AccountComment) => !!c.content;
@@ -679,7 +679,7 @@ describe("accounts", () => {
                 ...existing,
                 {
                   timestamp: recentTimestamp,
-                  subplebbitAddress: "test.eth",
+                  communityAddress: "test.eth",
                   content: "pending",
                   index: existing.length,
                 },
@@ -710,7 +710,7 @@ describe("accounts", () => {
 
       test(`deleteComment(index) removes pending comment, reindexes list, and persists after store reset`, async () => {
         const publishCommentOptions = {
-          subplebbitAddress,
+          communityAddress,
           parentCid: "Qm...",
           content: "pending to delete",
           onChallenge: () => {},
@@ -739,7 +739,7 @@ describe("accounts", () => {
 
       test(`deleteComment(cid) removes succeeded comment and reindexes/mapping remains correct`, async () => {
         const publishCommentOptions = {
-          subplebbitAddress,
+          communityAddress,
           onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
         };
         let cvCount = 0;
@@ -780,7 +780,7 @@ describe("accounts", () => {
       test(`deleting one entry while another pending publish exists does not cause wrong comment mutation from later publish callbacks`, async () => {
         let cvCount = 0;
         const publishCommentOptions = {
-          subplebbitAddress,
+          communityAddress,
           onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
           onChallengeVerification: () => cvCount++,
         };
@@ -946,53 +946,51 @@ describe("accounts", () => {
       expect(rendered.result.current.account.name).toBe("Account 1");
     });
 
-    test(`subscribe and unsubscribe to subplebbit`, async () => {
-      const subplebbitAddress = "tosubscribeto.eth";
-      const subplebbitAddress2 = "tosubscribeto2.eth";
+    test(`subscribe and unsubscribe to community`, async () => {
+      const communityAddress = "tosubscribeto.eth";
+      const communityAddress2 = "tosubscribeto2.eth";
 
       // subscribe to 1 sub
       await act(async () => {
-        await rendered.result.current.subscribe(subplebbitAddress);
+        await rendered.result.current.subscribe(communityAddress);
       });
       await waitFor(() => rendered.result.current.account.subscriptions.length === 1);
-      expect(rendered.result.current.account.subscriptions).toEqual([subplebbitAddress]);
+      expect(rendered.result.current.account.subscriptions).toEqual([communityAddress]);
 
       // fail subscribing twice
       await act(async () => {
-        await expect(() => rendered.result.current.subscribe(subplebbitAddress)).rejects.toThrow();
+        await expect(() => rendered.result.current.subscribe(communityAddress)).rejects.toThrow();
       });
 
       // unsubscribe
       await act(async () => {
-        await rendered.result.current.unsubscribe(subplebbitAddress);
+        await rendered.result.current.unsubscribe(communityAddress);
       });
       await waitFor(() => rendered.result.current.account.subscriptions.length === 0);
       expect(rendered.result.current.account.subscriptions).toEqual([]);
 
       // fail unsubscribing twice
       await act(async () => {
-        await expect(() =>
-          rendered.result.current.unsubscribe(subplebbitAddress),
-        ).rejects.toThrow();
+        await expect(() => rendered.result.current.unsubscribe(communityAddress)).rejects.toThrow();
       });
 
       // subscribe to 2 subs
       await act(async () => {
-        await rendered.result.current.subscribe(subplebbitAddress);
-        await rendered.result.current.subscribe(subplebbitAddress2);
+        await rendered.result.current.subscribe(communityAddress);
+        await rendered.result.current.subscribe(communityAddress2);
       });
       await waitFor(() => rendered.result.current.account.subscriptions.length === 2);
       expect(rendered.result.current.account.subscriptions).toEqual([
-        subplebbitAddress,
-        subplebbitAddress2,
+        communityAddress,
+        communityAddress2,
       ]);
 
       // unsubscribe with 2 subs
       await act(async () => {
-        await rendered.result.current.unsubscribe(subplebbitAddress);
+        await rendered.result.current.unsubscribe(communityAddress);
       });
       await waitFor(() => rendered.result.current.account.subscriptions.length === 1);
-      expect(rendered.result.current.account.subscriptions).toEqual([subplebbitAddress2]);
+      expect(rendered.result.current.account.subscriptions).toEqual([communityAddress2]);
 
       // reset stores to force using the db
       await testUtils.resetStores();
@@ -1001,11 +999,11 @@ describe("accounts", () => {
       const rendered2 = renderHook<any, any>(() => useAccount());
       const waitFor2 = testUtils.createWaitFor(rendered2);
       await waitFor2(() => rendered2.result.current.subscriptions.length === 1);
-      expect(rendered2.result.current.subscriptions).toEqual([subplebbitAddress2]);
+      expect(rendered2.result.current.subscriptions).toEqual([communityAddress2]);
     });
 
     test(`block and unblock to address`, async () => {
-      const address1 = "subplebbit.eth";
+      const address1 = "community.eth";
       const address2 = "author.eth";
 
       // block address 1
@@ -1106,7 +1104,7 @@ describe("accounts", () => {
 
       test("publish comment", async () => {
         const publishCommentOptions = {
-          subplebbitAddress: "12D3KooW...",
+          communityAddress: "12D3KooW...",
           parentCid: "Qm...",
           content: "some content",
           onChallenge,
@@ -1199,7 +1197,7 @@ describe("accounts", () => {
 
       test("publish vote", async () => {
         const publishVoteOptions = {
-          subplebbitAddress: "12D3KooW...",
+          communityAddress: "12D3KooW...",
           commentCid: "Qm...",
           vote: 1,
           onChallenge,
@@ -1251,7 +1249,7 @@ describe("accounts", () => {
 
       test("publish comment edit", async () => {
         const commentEditOptions = {
-          subplebbitAddress: "12D3KooW...",
+          communityAddress: "12D3KooW...",
           commentCid: "Qm...",
           spoiler: true,
           onChallenge,
@@ -1331,7 +1329,7 @@ describe("accounts", () => {
       });
     });
 
-    describe(`create subplebbit edit`, () => {
+    describe(`create community edit`, () => {
       beforeAll(async () => {
         await render();
       });
@@ -1342,22 +1340,22 @@ describe("accounts", () => {
       const onChallenge = vi.fn();
       const onChallengeVerification = vi.fn();
 
-      test("publish subplebbit edit", async () => {
-        const subplebbitAddress = "12D3KooW...";
-        const publishSubplebbitEditOptions = {
+      test("publish community edit", async () => {
+        const communityAddress = "12D3KooW...";
+        const publishCommunityEditOptions = {
           title: "edited title",
           onChallenge,
           onChallengeVerification,
         };
         await act(async () => {
-          await rendered.result.current.publishSubplebbitEdit(
-            subplebbitAddress,
-            publishSubplebbitEditOptions,
+          await rendered.result.current.publishCommunityEdit(
+            communityAddress,
+            publishCommunityEditOptions,
           );
         });
       });
 
-      let subplebbitEdit: any;
+      let communityEdit: any;
 
       test("onChallenge gets called", async () => {
         // onChallenge gets call backed once
@@ -1366,22 +1364,22 @@ describe("accounts", () => {
 
         // onChallenge arguments are [challenge, comment]
         const challenge = onChallenge.mock.calls[0][0];
-        subplebbitEdit = onChallenge.mock.calls[0][1];
+        communityEdit = onChallenge.mock.calls[0][1];
         expect(challenge.type).toBe("CHALLENGE");
         expect(challenge.challenges[0]).toEqual({ challenge: "2+2=?", type: "text" });
-        expect(typeof subplebbitEdit.publishChallengeAnswers).toBe("function");
+        expect(typeof communityEdit.publishChallengeAnswers).toBe("function");
       });
 
       test("onChallengeVerification gets called", async () => {
         // publish challenge answer and wait for verification
-        subplebbitEdit.publishChallengeAnswers(["4"]);
+        communityEdit.publishChallengeAnswers(["4"]);
         await waitFor(() => onChallengeVerification.mock.calls.length === 1);
 
         expect(onChallengeVerification.mock.calls.length).toBe(1);
         const challengeVerification = onChallengeVerification.mock.calls[0][0];
-        const subplebbitEditVerified = onChallengeVerification.mock.calls[0][1];
+        const communityEditVerified = onChallengeVerification.mock.calls[0][1];
         expect(challengeVerification.type).toBe("CHALLENGEVERIFICATION");
-        expect(subplebbitEditVerified.constructor.name).toBe("SubplebbitEdit");
+        expect(communityEditVerified.constructor.name).toBe("CommunityEdit");
       });
     });
   });
@@ -1427,37 +1425,37 @@ describe("accounts", () => {
           content: "content 1",
           parentCid: "parent comment cid 1",
           postCid: "post cid 1",
-          subplebbitAddress: "subplebbit address 1",
+          communityAddress: "community address 1",
         });
         await rendered.result.current.publishComment({
           ...publishOptions,
           title: "title 2",
           content: "content 2",
-          subplebbitAddress: "subplebbit address 1",
+          communityAddress: "community address 1",
         });
         await rendered.result.current.publishComment({
           ...publishOptions,
           title: "title 3",
           content: "content 3",
-          subplebbitAddress: "subplebbit address 2",
+          communityAddress: "community address 2",
         });
         await rendered.result.current.publishVote({
           ...publishOptions,
           vote: 1,
           commentCid: "comment cid 1",
-          subplebbitAddress: "subplebbit address 1",
+          communityAddress: "community address 1",
         });
         await rendered.result.current.publishVote({
           ...publishOptions,
           vote: 1,
           commentCid: "comment cid 2",
-          subplebbitAddress: "subplebbit address 1",
+          communityAddress: "community address 1",
         });
         await rendered.result.current.publishVote({
           ...publishOptions,
           vote: 1,
           commentCid: "comment cid 3",
-          subplebbitAddress: "subplebbit address 2",
+          communityAddress: "community address 2",
         });
       });
     });
@@ -1493,7 +1491,7 @@ describe("accounts", () => {
             ...(s.accountsComments?.[accountId] || []),
             {
               timestamp: Math.floor(Date.now() / 1000),
-              subplebbitAddress: "test.eth",
+              communityAddress: "test.eth",
               content: "failed",
               index: failedIndex,
               error: Error("publish failed"),
@@ -1561,9 +1559,9 @@ describe("accounts", () => {
       expect(rendered.result.current.accountComments.length).toBe(3);
       expect(rendered.result.current.accountComments[1].depth).toBe(0);
       expect(rendered.result.current.accountComments[2].depth).toBe(0);
-      expect(rendered.result.current.accountComments[0].shortSubplebbitAddress).not.toBe(undefined);
-      expect(rendered.result.current.accountComments[1].shortSubplebbitAddress).not.toBe(undefined);
-      expect(rendered.result.current.accountComments[2].shortSubplebbitAddress).not.toBe(undefined);
+      expect(rendered.result.current.accountComments[0].shortCommunityAddress).not.toBe(undefined);
+      expect(rendered.result.current.accountComments[1].shortCommunityAddress).not.toBe(undefined);
+      expect(rendered.result.current.accountComments[2].shortCommunityAddress).not.toBe(undefined);
       expect(rendered.result.current.accountComments[0].author.shortAddress).not.toBe(undefined);
       expect(rendered.result.current.accountComments[1].author.shortAddress).not.toBe(undefined);
       expect(rendered.result.current.accountComments[2].author.shortAddress).not.toBe(undefined);
@@ -1734,7 +1732,7 @@ describe("accounts", () => {
 
       const rendered = renderHook<any, any>((props?) => {
         const { feed } = useFeed({
-          subplebbitAddresses: props?.subplebbitAddresses,
+          communityAddresses: props?.communityAddresses,
           sortType: "new",
         });
         const { accountComments } = useAccountComments();
@@ -1748,20 +1746,20 @@ describe("accounts", () => {
       // get feed page with our timestamp and author address in it
       const accountCommentTimestamp = rendered.result.current.accountComments[0].timestamp;
       const accountCommentAuthor = rendered.result.current.accountComments[0].author;
-      const accountCommentSubplebbitAddress =
-        rendered.result.current.accountComments[0].subplebbitAddress;
+      const accountCommentCommunityAddress =
+        rendered.result.current.accountComments[0].communityAddress;
       Pages.prototype.getPage = async () => ({
         comments: [
           {
             cid: "cid from feed",
             timestamp: accountCommentTimestamp,
             author: accountCommentAuthor,
-            subplebbitAddress: accountCommentSubplebbitAddress,
+            communityAddress: accountCommentCommunityAddress,
           },
         ],
         nextCid: undefined,
       });
-      rendered.rerender({ subplebbitAddresses: [accountCommentSubplebbitAddress] });
+      rendered.rerender({ communityAddresses: [accountCommentCommunityAddress] });
 
       // wait for feed to load
       await waitFor(() => rendered.result.current.feed?.length > 0);
@@ -1882,13 +1880,13 @@ describe("accounts", () => {
           ...publishOptions,
           title: "account 2 title 1",
           content: "account 2 content 1",
-          subplebbitAddress: "account 2 subplebbit address 1",
+          communityAddress: "account 2 community address 1",
         });
         await rendered.result.current.publishVote({
           ...publishOptions,
           vote: 1,
           commentCid: "account 2 comment cid 1",
-          subplebbitAddress: "account 2 subplebbit address 1",
+          communityAddress: "account 2 community address 1",
         });
       });
       expect(rendered.result.current.accountComments.length).toBe(1);
@@ -1937,19 +1935,19 @@ describe("accounts", () => {
       expect(rendered.result.current.accountComments[0].parentCid).toBe("parent comment cid 1");
     });
 
-    test(`get account posts in a subplebbit`, () => {
+    test(`get account posts in a community`, () => {
       rendered.rerender({
         filter: (comment: AccountComment) =>
-          comment.subplebbitAddress === "subplebbit address 1" && !comment.parentCid,
+          comment.communityAddress === "community address 1" && !comment.parentCid,
       });
       expect(rendered.result.current.accountComments.length).toBe(1);
       expect(rendered.result.current.accountVotes.length).toBe(2);
       expect(rendered.result.current.accountComments[0].parentCid).toBe(undefined);
     });
 
-    test(`get account posts and comments in a subplebbit`, () => {
+    test(`get account posts and comments in a community`, () => {
       rendered.rerender({
-        filter: (comment: AccountComment) => comment.subplebbitAddress === "subplebbit address 1",
+        filter: (comment: AccountComment) => comment.communityAddress === "community address 1",
       });
       expect(rendered.result.current.accountComments.length).toBe(2);
       expect(rendered.result.current.accountVotes.length).toBe(2);
@@ -2015,7 +2013,7 @@ describe("accounts", () => {
           content: "content 1",
           parentCid: "parent comment cid 1",
           postCid: "post cid 1",
-          subplebbitAddress: "subplebbit address 1",
+          communityAddress: "community address 1",
           // @ts-ignore
           onChallenge: (challenge, comment) => comment.publishChallengeAnswers(),
           onChallengeVerification: () => {},
@@ -2041,16 +2039,16 @@ describe("accounts", () => {
         // update the comment with replies to see get notifications
         comment.depth = 0;
         const depth = comment.depth + 1;
-        const subplebbitAddress = comment.subplebbitAddress;
+        const communityAddress = comment.communityAddress;
         const parentCid = comment.cid;
         comment.replies = {
           pages: {
             topAll: {
               nextCid: undefined,
               comments: [
-                { cid: "reply cid 1", timestamp: 1, depth, subplebbitAddress, parentCid },
-                { cid: "reply cid 2", timestamp: 2, depth, subplebbitAddress, parentCid },
-                { cid: "reply cid 3", timestamp: 3, depth, subplebbitAddress, parentCid },
+                { cid: "reply cid 1", timestamp: 1, depth, communityAddress, parentCid },
+                { cid: "reply cid 2", timestamp: 2, depth, communityAddress, parentCid },
+                { cid: "reply cid 3", timestamp: 3, depth, communityAddress, parentCid },
               ],
             },
           },
@@ -2093,8 +2091,8 @@ describe("accounts", () => {
         // update the comment with one unread reply and one read reply
         comment.depth = 0;
         const depth = comment.depth + 1;
-        comment.subplebbitAddress = "blocked subplebbit address";
-        const subplebbitAddress = comment.subplebbitAddress;
+        comment.communityAddress = "blocked community address";
+        const communityAddress = comment.communityAddress;
         const parentCid = comment.cid;
         comment.replies = {
           pages: {
@@ -2105,7 +2103,7 @@ describe("accounts", () => {
                   cid: "reply cid 3",
                   timestamp: 3,
                   depth,
-                  subplebbitAddress,
+                  communityAddress,
                   parentCid,
                   postCid: "blocked post cid",
                 },
@@ -2113,7 +2111,7 @@ describe("accounts", () => {
                   cid: "reply cid 4",
                   timestamp: 4,
                   depth,
-                  subplebbitAddress,
+                  communityAddress,
                   parentCid,
                   author: { address: "blocked author address" },
                 },
@@ -2141,7 +2139,7 @@ describe("accounts", () => {
 
       // block addresses
       await act(async () => {
-        await accountsActions.blockAddress("blocked subplebbit address");
+        await accountsActions.blockAddress("blocked community address");
         await accountsActions.blockAddress("blocked author address");
       });
       await waitFor(() => rendered.result.current.notifications.length === 2);
@@ -2152,7 +2150,7 @@ describe("accounts", () => {
 
       // unblock addresses
       await act(async () => {
-        await accountsActions.unblockAddress("blocked subplebbit address");
+        await accountsActions.unblockAddress("blocked community address");
         await accountsActions.unblockAddress("blocked author address");
       });
       await waitFor(() => rendered.result.current.notifications.length === 4);
@@ -2211,29 +2209,71 @@ describe("accounts", () => {
   // roles tests depend on race conditions as part of the test
   // so not possible to make them deterministic, add a retry
   // the hooks don't have the race condition, only the tests do
-  describe("useAccountSubplebbits", { retry: 20 }, () => {
-    test("useAccountSubplebbits returns initializing when no account", () => {
+  describe("useAccountCommunities", { retry: 20 }, () => {
+    test("useAccountCommunities returns initializing when no account", () => {
       const rendered = renderHook(() =>
-        useAccountSubplebbits({ accountName: "NonExistentAccount" }),
+        useAccountCommunities({ accountName: "NonExistentAccount" }),
       );
       expect(rendered.result.current.state).toBe("initializing");
     });
 
-    test("useAccountSubplebbits with account that has no subplebbits", async () => {
+    test("useAccountCommunities with account that has no communities", async () => {
       const rendered = renderHook(() => {
         const account = useAccount();
         const { setAccount } = accountsActions;
-        const { accountSubplebbits, state } = useAccountSubplebbits();
-        return { account, setAccount, accountSubplebbits, state };
+        const { accountCommunities, state } = useAccountCommunities();
+        return { account, setAccount, accountCommunities, state };
       });
       const waitFor = testUtils.createWaitFor(rendered);
       await waitFor(() => rendered.result.current.account.name);
       const { account, setAccount } = rendered.result.current;
       await act(async () => {
-        await setAccount({ ...account, subplebbits: {} });
+        await setAccount({ ...account, communities: {} });
       });
-      await waitFor(() => rendered.result.current.accountSubplebbits !== undefined);
+      await waitFor(() => rendered.result.current.accountCommunities !== undefined);
       expect(rendered.result.current.state).toBe("succeeded");
+    });
+
+    test("useAccountCommunities keeps owner communities scoped to the requested account", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("Account 2");
+        await accountsActions.setActiveAccount("Account 1");
+      });
+
+      const state = accountsStore.getState();
+      const activeAccount = state.accounts[state.activeAccountId];
+      const account2 = state.accounts[state.accountNamesToAccountIds["Account 2"]];
+
+      Object.defineProperty(activeAccount.plebbit, "communities", {
+        configurable: true,
+        get: () => ["active owner community"],
+      });
+      Object.defineProperty(account2.plebbit, "communities", {
+        configurable: true,
+        get: () => ["account 2 owner community"],
+      });
+
+      try {
+        const rendered = renderHook<any, any>(() =>
+          useAccountCommunities({ accountName: "Account 2" }),
+        );
+        const waitFor = testUtils.createWaitFor(rendered, { timeout: 4000 });
+
+        await waitFor(
+          () =>
+            rendered.result.current.accountCommunities["account 2 owner community"]?.role?.role ===
+            "owner",
+        );
+        expect(
+          rendered.result.current.accountCommunities["account 2 owner community"]?.role?.role,
+        ).toBe("owner");
+        expect(
+          rendered.result.current.accountCommunities["active owner community"],
+        ).toBeUndefined();
+      } finally {
+        delete (activeAccount.plebbit as any).communities;
+        delete (account2.plebbit as any).communities;
+      }
     });
 
     describe("with setup", () => {
@@ -2252,117 +2292,186 @@ describe("accounts", () => {
 
       beforeEach(async () => {
         rendered = renderHook<any, any>(() => {
-          const { accountSubplebbits } = useAccountSubplebbits();
+          const { accountCommunities } = useAccountCommunities();
           const account = useAccount();
           const { setAccount } = accountsActions;
-          return { accountSubplebbits, setAccount, account };
+          return { accountCommunities, setAccount, account };
         });
         waitFor = testUtils.createWaitFor(rendered);
 
         await waitFor(() => rendered.result.current.account.name);
         const { account, setAccount } = rendered.result.current;
         const role = { role: "moderator" };
-        const subplebbits = { "subplebbit address 1": { role } };
+        const communities = { "community address 1": { role } };
         await act(async () => {
-          await setAccount({ ...account, subplebbits });
+          await setAccount({ ...account, communities });
         });
       });
 
-      test("returns owner subplebbits", async () => {
-        await waitFor(
-          () => rendered.result.current.accountSubplebbits["list subplebbit address 1"],
-        );
+      test("returns owner communities", async () => {
+        await waitFor(() => rendered.result.current.accountCommunities["list community address 1"]);
         expect(
-          rendered.result.current.accountSubplebbits["list subplebbit address 1"].role.role,
+          rendered.result.current.accountCommunities["list community address 1"].role.role,
         ).toBe("owner");
         expect(
-          rendered.result.current.accountSubplebbits["list subplebbit address 2"].role.role,
+          rendered.result.current.accountCommunities["list community address 2"].role.role,
         ).toBe("owner");
       });
 
-      test("not yet fetched accounts subplebbits have address", async () => {
-        await waitFor(
-          () => rendered.result.current.accountSubplebbits["list subplebbit address 1"],
+      test("not yet fetched accounts communities have address", async () => {
+        await waitFor(() => rendered.result.current.accountCommunities["list community address 1"]);
+        expect(rendered.result.current.accountCommunities["list community address 1"].address).toBe(
+          "list community address 1",
         );
-        expect(
-          rendered.result.current.accountSubplebbits["list subplebbit address 1"].address,
-        ).toBe("list subplebbit address 1");
-        expect(
-          rendered.result.current.accountSubplebbits["list subplebbit address 2"].address,
-        ).toBe("list subplebbit address 2");
+        expect(rendered.result.current.accountCommunities["list community address 2"].address).toBe(
+          "list community address 2",
+        );
       });
 
-      test("returns moderator subplebbits after setting them", async () => {
+      test("returns moderator communities after setting them", async () => {
         await waitFor(
           () =>
-            rendered.result.current.accountSubplebbits["subplebbit address 1"].role.role ===
+            rendered.result.current.accountCommunities["community address 1"].role.role ===
             "moderator",
         );
-        expect(rendered.result.current.accountSubplebbits["subplebbit address 1"].role.role).toBe(
+        expect(rendered.result.current.accountCommunities["community address 1"].role.role).toBe(
           "moderator",
         );
-        await waitFor(
-          () => rendered.result.current.accountSubplebbits["list subplebbit address 1"],
-        );
+        await waitFor(() => rendered.result.current.accountCommunities["list community address 1"]);
         expect(
-          rendered.result.current.accountSubplebbits["list subplebbit address 1"].role.role,
+          rendered.result.current.accountCommunities["list community address 1"].role.role,
         ).toBe("owner");
         expect(
-          rendered.result.current.accountSubplebbits["list subplebbit address 2"].role.role,
+          rendered.result.current.accountCommunities["list community address 2"].role.role,
         ).toBe("owner");
       });
 
-      test("dedupes equivalent .eth and .bso account subplebbits under the canonical .bso key", async () => {
+      test("dedupes equivalent .eth and .bso account communities under the canonical .bso key", async () => {
         const { account, setAccount } = rendered.result.current;
         const role = { role: "moderator" };
         await act(async () => {
           await setAccount({
             ...account,
-            subplebbits: {
+            communities: {
               "music-posting.eth": { role },
               "music-posting.bso": { role },
             },
           });
         });
 
-        await waitFor(() => rendered.result.current.accountSubplebbits["music-posting.bso"]);
-        const accountSubplebbitKeys = Object.keys(rendered.result.current.accountSubplebbits);
-        expect(accountSubplebbitKeys).toContain("music-posting.bso");
-        expect(accountSubplebbitKeys).not.toContain("music-posting.eth");
-        expect(rendered.result.current.accountSubplebbits["music-posting.bso"].address).toBe(
+        await waitFor(() => rendered.result.current.accountCommunities["music-posting.bso"]);
+        const accountCommunityKeys = Object.keys(rendered.result.current.accountCommunities);
+        expect(accountCommunityKeys).toContain("music-posting.bso");
+        expect(accountCommunityKeys).not.toContain("music-posting.eth");
+        expect(rendered.result.current.accountCommunities["music-posting.bso"].address).toBe(
           "music-posting.bso",
         );
       });
 
-      test("remove subplebbit role to account.subplebbits[subplebbitAddress].role after encountering it removed a subplebbit", async () => {
-        await waitFor(() => rendered.result.current.accountSubplebbits["subplebbit address 1"]);
-        expect(rendered.result.current.accountSubplebbits["subplebbit address 1"].role.role).toBe(
+      test("remove community role to account.communities[communityAddress].role after encountering it removed a community", async () => {
+        await waitFor(() => rendered.result.current.accountCommunities["community address 1"]);
+        expect(rendered.result.current.accountCommunities["community address 1"].role.role).toBe(
           "moderator",
         );
-        // subplebbit address 1 doesn't have account.author.address as role, so it gets removed from accountSubplebbits
+        // community address 1 doesn't have account.author.address as role, so it gets removed from accountCommunities
         // after a render
-        await waitFor(() => !rendered.result.current.accountSubplebbits["subplebbit address 1"]);
-        expect(rendered.result.current.accountSubplebbits["subplebbit address 1"]).toBe(undefined);
+        await waitFor(() => !rendered.result.current.accountCommunities["community address 1"]);
+        expect(rendered.result.current.accountCommunities["community address 1"]).toBe(undefined);
+      });
+
+      test("useAccountCommunities reflects in-flight community fetches", async () => {
+        await waitFor(() => rendered.result.current.accountCommunities["community address 1"]);
+        const { account, setAccount } = rendered.result.current;
+        const createCommunityOrig = account.plebbit.createCommunity;
+        const slowCommunity = await createCommunityOrig.call(account.plebbit, {
+          address: "slow community address",
+        });
+        let resolveSlowCommunity: ((community: any) => void) | undefined;
+        const slowCommunityPromise = new Promise((resolve) => {
+          resolveSlowCommunity = resolve;
+        });
+        account.plebbit.createCommunity = vi.fn(async (options: any) => {
+          if (options.address === "slow community address") {
+            return slowCommunityPromise;
+          }
+          return createCommunityOrig.call(account.plebbit, options);
+        });
+
+        try {
+          await act(async () => {
+            await setAccount({
+              ...account,
+              communities: {
+                ...account.communities,
+                "slow community address": { role: { role: "moderator" } },
+              },
+            });
+          });
+
+          await waitFor(
+            () =>
+              rendered.result.current.accountCommunities["slow community address"] &&
+              rendered.result.current.state === "fetching-ipns",
+          );
+          expect(rendered.result.current.state).toBe("fetching-ipns");
+
+          resolveSlowCommunity?.(slowCommunity);
+          await waitFor(() => rendered.result.current.state === "succeeded");
+        } finally {
+          account.plebbit.createCommunity = createCommunityOrig;
+        }
+      });
+
+      test("useAccountCommunities propagates failed community fetches", async () => {
+        await waitFor(() => rendered.result.current.accountCommunities["community address 1"]);
+        const { account, setAccount } = rendered.result.current;
+        const createCommunityOrig = account.plebbit.createCommunity;
+        account.plebbit.createCommunity = vi.fn(async (options: any) => {
+          if (options.address === "failing community address") {
+            throw new Error("community fetch failed");
+          }
+          return createCommunityOrig.call(account.plebbit, options);
+        });
+
+        try {
+          await act(async () => {
+            await setAccount({
+              ...account,
+              communities: {
+                ...account.communities,
+                "failing community address": { role: { role: "moderator" } },
+              },
+            });
+          });
+
+          await waitFor(() => rendered.result.current.state === "failed");
+          expect(rendered.result.current.error?.message).toBe("community fetch failed");
+          expect(rendered.result.current.errors.map((error: Error) => error.message)).toContain(
+            "community fetch failed",
+          );
+        } finally {
+          account.plebbit.createCommunity = createCommunityOrig;
+        }
       });
     });
 
-    test("add subplebbit role to account.subplebbits[subplebbitAddress].role after encountering it in a subplebbit", async () => {
+    test("add community role to account.communities[communityAddress].role after encountering it in a community", async () => {
       // don't use the same setup or test doesnt work
 
-      // mock the roles on a new subplebbit
+      // mock the roles on a new community
       const moderatorAuthorAddress = "author address";
-      const moderatingSubplebbitAddress = "moderating subplebbit address";
-      const rolesToGet = Subplebbit.prototype.rolesToGet;
-      Subplebbit.prototype.rolesToGet = () => ({
+      const moderatingCommunityAddress = "moderating community address";
+      const rolesToGet = Community.prototype.rolesToGet;
+      Community.prototype.rolesToGet = () => ({
         [moderatorAuthorAddress]: { role: "moderator" },
       });
 
-      const rendered = renderHook<any, any>((subplebbitAddress) => {
-        const { accountSubplebbits } = useAccountSubplebbits();
+      const rendered = renderHook<any, any>((communityAddress) => {
+        const { accountCommunities } = useAccountCommunities();
         const account = useAccount();
         const { setAccount } = accountsActions;
-        const subplebbit = useSubplebbit({ subplebbitAddress });
-        return { accountSubplebbits, setAccount, account };
+        const community = useCommunity({ communityAddress });
+        return { accountCommunities, setAccount, account };
       });
       const waitFor = testUtils.createWaitFor(rendered);
       await waitFor(() => rendered.result.current.account);
@@ -2377,31 +2486,31 @@ describe("accounts", () => {
       await waitFor(
         () => rendered.result.current.account.author.address === moderatorAuthorAddress,
       );
-      // account subplebbits are not yet added, will be added after we fetch the sub
-      expect(rendered.result.current.accountSubplebbits[moderatingSubplebbitAddress]).toBe(
+      // account communities are not yet added, will be added after we fetch the sub
+      expect(rendered.result.current.accountCommunities[moderatingCommunityAddress]).toBe(
         undefined,
       );
-      expect(rendered.result.current.account.subplebbits[moderatingSubplebbitAddress]).toBe(
+      expect(rendered.result.current.account.communities[moderatingCommunityAddress]).toBe(
         undefined,
       );
 
-      // fetch the moderating subplebbit from the moderator account
-      rendered.rerender(moderatingSubplebbitAddress);
-      await waitFor(() => rendered.result.current.accountSubplebbits[moderatingSubplebbitAddress]);
+      // fetch the moderating community from the moderator account
+      rendered.rerender(moderatingCommunityAddress);
+      await waitFor(() => rendered.result.current.accountCommunities[moderatingCommunityAddress]);
+      expect(rendered.result.current.accountCommunities[moderatingCommunityAddress].role.role).toBe(
+        "moderator",
+      );
+      await waitFor(() => rendered.result.current.account.communities[moderatingCommunityAddress]);
       expect(
-        rendered.result.current.accountSubplebbits[moderatingSubplebbitAddress].role.role,
-      ).toBe("moderator");
-      await waitFor(() => rendered.result.current.account.subplebbits[moderatingSubplebbitAddress]);
-      expect(
-        rendered.result.current.account.subplebbits[moderatingSubplebbitAddress].role.role,
+        rendered.result.current.account.communities[moderatingCommunityAddress].role.role,
       ).toBe("moderator");
 
       // unmock the roles
-      Subplebbit.prototype.rolesToGet = rolesToGet;
+      Community.prototype.rolesToGet = rolesToGet;
     });
   });
 
-  describe("create owner subplebbit", () => {
+  describe("create owner community", () => {
     let rendered: any;
     let waitFor: Function;
 
@@ -2410,11 +2519,11 @@ describe("accounts", () => {
     });
 
     beforeEach(async () => {
-      rendered = renderHook<any, any>((subplebbitAddress?: string) => {
+      rendered = renderHook<any, any>((communityAddress?: string) => {
         const account = useAccount();
-        const { accountSubplebbits } = useAccountSubplebbits();
-        const subplebbit = useSubplebbit({ subplebbitAddress });
-        return { account, subplebbit, accountSubplebbits, ...accountsActions };
+        const { accountCommunities } = useAccountCommunities();
+        const community = useCommunity({ communityAddress });
+        return { account, community, accountCommunities, ...accountsActions };
       });
       waitFor = testUtils.createWaitFor(rendered);
       await waitFor(() => rendered.result.current.account);
@@ -2424,38 +2533,38 @@ describe("accounts", () => {
       resetPlebbitJsMock();
     });
 
-    test("create owner subplebbit and edit it", async () => {
-      const createdSubplebbitAddress = "created subplebbit address";
-      let subplebbit: any;
+    test("create owner community and edit it", async () => {
+      const createdCommunityAddress = "created community address";
+      let community: any;
       await act(async () => {
-        subplebbit = await rendered.result.current.createSubplebbit();
+        community = await rendered.result.current.createCommunity();
       });
-      expect(subplebbit?.address).toBe(createdSubplebbitAddress);
+      expect(community?.address).toBe(createdCommunityAddress);
 
-      // wait for subplebbit to be added to account subplebbits (optional chaining for React 19 batching)
+      // wait for community to be added to account communities (optional chaining for React 19 batching)
       await waitFor(
         () =>
-          rendered.result.current.accountSubplebbits[createdSubplebbitAddress]?.role?.role ===
+          rendered.result.current.accountCommunities[createdCommunityAddress]?.role?.role ===
           "owner",
       );
       await act(async () => {});
-      expect(rendered.result.current.accountSubplebbits[createdSubplebbitAddress]?.role?.role).toBe(
+      expect(rendered.result.current.accountCommunities[createdCommunityAddress]?.role?.role).toBe(
         "owner",
       );
 
-      // can useSubplebbit
-      rendered.rerender(createdSubplebbitAddress);
-      await waitFor(() => rendered.result.current.subplebbit);
-      expect(rendered.result.current.subplebbit.address).toBe(createdSubplebbitAddress);
+      // can useCommunity
+      rendered.rerender(createdCommunityAddress);
+      await waitFor(() => rendered.result.current.community);
+      expect(rendered.result.current.community.address).toBe(createdCommunityAddress);
       // TODO: figure out why next line unreliable in CI
-      // expect(rendered.result.current.subplebbit.title).toBe(undefined)
+      // expect(rendered.result.current.community.title).toBe(undefined)
 
-      // publishSubplebbitEdit
+      // publishCommunityEdit
       const editedTitle = "edited title";
       const onChallenge = vi.fn();
       const onChallengeVerification = vi.fn();
       await act(async () => {
-        await rendered.result.current.publishSubplebbitEdit(createdSubplebbitAddress, {
+        await rendered.result.current.publishCommunityEdit(createdCommunityAddress, {
           title: editedTitle,
           onChallenge,
           onChallengeVerification,
@@ -2467,15 +2576,15 @@ describe("accounts", () => {
       expect(onChallengeVerification).toBeCalledTimes(1);
       expect(onChallengeVerification.mock.calls[0][0].challengeSuccess).toBe(true);
 
-      // useSubplebbit is edited
-      await waitFor(() => rendered.result.current.subplebbit.title === editedTitle);
-      expect(rendered.result.current.subplebbit.address).toBe(createdSubplebbitAddress);
-      expect(rendered.result.current.subplebbit.title).toBe(editedTitle);
+      // useCommunity is edited
+      await waitFor(() => rendered.result.current.community.title === editedTitle);
+      expect(rendered.result.current.community.address).toBe(createdCommunityAddress);
+      expect(rendered.result.current.community.title).toBe(editedTitle);
 
       // edit address
       const editedAddress = "edited.eth";
       await act(async () => {
-        await rendered.result.current.publishSubplebbitEdit(createdSubplebbitAddress, {
+        await rendered.result.current.publishCommunityEdit(createdCommunityAddress, {
           address: editedAddress,
           title: editedTitle,
           onChallenge,
@@ -2483,111 +2592,111 @@ describe("accounts", () => {
         });
       });
 
-      // useSubplebbit(previousAddress) address is edited
-      await waitFor(() => rendered.result.current.subplebbit.address === editedAddress);
-      expect(rendered.result.current.subplebbit.address).toBe(editedAddress);
-      expect(rendered.result.current.subplebbit.title).toBe(editedTitle);
+      // useCommunity(previousAddress) address is edited
+      await waitFor(() => rendered.result.current.community.address === editedAddress);
+      expect(rendered.result.current.community.address).toBe(editedAddress);
+      expect(rendered.result.current.community.title).toBe(editedTitle);
 
-      // useSubplebbit(currentAddress) address is edited
+      // useCommunity(currentAddress) address is edited
       rendered.rerender("doesnt exist");
-      await waitFor(() => rendered.result.current.subplebbit.address === "doesnt exist");
-      expect(rendered.result.current.subplebbit.address).toBe("doesnt exist");
+      await waitFor(() => rendered.result.current.community.address === "doesnt exist");
+      expect(rendered.result.current.community.address).toBe("doesnt exist");
       rendered.rerender(editedAddress);
-      await waitFor(() => rendered.result.current.subplebbit.address === editedAddress);
-      expect(rendered.result.current.subplebbit.address).toBe(editedAddress);
-      expect(rendered.result.current.subplebbit.title).toBe(editedTitle);
+      await waitFor(() => rendered.result.current.community.address === editedAddress);
+      expect(rendered.result.current.community.address).toBe(editedAddress);
+      expect(rendered.result.current.community.title).toBe(editedTitle);
     });
 
-    test("create owner subplebbit and delete it", async () => {
-      const createdSubplebbitAddress = "created subplebbit address";
-      let subplebbit: any;
+    test("create owner community and delete it", async () => {
+      const createdCommunityAddress = "created community address";
+      let community: any;
       await act(async () => {
-        subplebbit = await rendered.result.current.createSubplebbit();
+        community = await rendered.result.current.createCommunity();
       });
-      expect(subplebbit?.address).toBe(createdSubplebbitAddress);
+      expect(community?.address).toBe(createdCommunityAddress);
 
-      // can useSubplebbit
-      rendered.rerender(createdSubplebbitAddress);
-      await waitFor(() => rendered.result.current.subplebbit);
-      expect(rendered.result.current.subplebbit.address).toBe(createdSubplebbitAddress);
-      expect(rendered.result.current.subplebbit.title).toBe(undefined);
+      // can useCommunity
+      rendered.rerender(createdCommunityAddress);
+      await waitFor(() => rendered.result.current.community);
+      expect(rendered.result.current.community.address).toBe(createdCommunityAddress);
+      expect(rendered.result.current.community.title).toBe(undefined);
 
       // delete it
       await act(async () => {
-        await rendered.result.current.deleteSubplebbit(createdSubplebbitAddress);
+        await rendered.result.current.deleteCommunity(createdCommunityAddress);
       });
 
-      // useSubplebbit is edited
-      await waitFor(() => rendered.result.current.subplebbit.address === undefined);
-      expect(rendered.result.current.subplebbit.address).toBe(undefined);
+      // useCommunity is edited
+      await waitFor(() => rendered.result.current.community.address === undefined);
+      expect(rendered.result.current.community.address).toBe(undefined);
     });
 
-    test("create and edit owner subplebbit useSubplebbit persists after reload", async () => {
-      const createdSubplebbitAddress = "created subplebbit address";
-      const createdSubplebbitTitle = "created subplebbit title";
-      let subplebbit: any;
+    test("create and edit owner community useCommunity persists after reload", async () => {
+      const createdCommunityAddress = "created community address";
+      const createdCommunityTitle = "created community title";
+      let community: any;
       await act(async () => {
-        subplebbit = await rendered.result.current.createSubplebbit({
-          title: createdSubplebbitTitle,
+        community = await rendered.result.current.createCommunity({
+          title: createdCommunityTitle,
         });
       });
-      expect(subplebbit?.address).toBe(createdSubplebbitAddress);
+      expect(community?.address).toBe(createdCommunityAddress);
 
-      // can useSubplebbit
-      rendered.rerender(createdSubplebbitAddress);
-      await waitFor(() => rendered.result.current.subplebbit);
-      expect(rendered.result.current.subplebbit.address).toBe(createdSubplebbitAddress);
-      expect(rendered.result.current.subplebbit.title).toBe(createdSubplebbitTitle);
+      // can useCommunity
+      rendered.rerender(createdCommunityAddress);
+      await waitFor(() => rendered.result.current.community);
+      expect(rendered.result.current.community.address).toBe(createdCommunityAddress);
+      expect(rendered.result.current.community.title).toBe(createdCommunityTitle);
 
       // render again with new context and store
       await testUtils.resetStores();
-      rendered = renderHook<any, any>((subplebbitAddress?: string) => {
-        const subplebbit = useSubplebbit({ subplebbitAddress });
-        return { subplebbit, ...accountsActions };
+      rendered = renderHook<any, any>((communityAddress?: string) => {
+        const community = useCommunity({ communityAddress });
+        return { community, ...accountsActions };
       });
-      expect(rendered.result.current.subplebbit.address).toBe(undefined);
+      expect(rendered.result.current.community.address).toBe(undefined);
 
-      // can useSubplebbit after reload
-      rendered.rerender(createdSubplebbitAddress);
-      await waitFor(() => rendered.result.current.subplebbit.address);
-      expect(rendered.result.current.subplebbit.address).toBe(createdSubplebbitAddress);
-      expect(rendered.result.current.subplebbit.title).toBe(createdSubplebbitTitle);
+      // can useCommunity after reload
+      rendered.rerender(createdCommunityAddress);
+      await waitFor(() => rendered.result.current.community.address);
+      expect(rendered.result.current.community.address).toBe(createdCommunityAddress);
+      expect(rendered.result.current.community.title).toBe(createdCommunityTitle);
 
-      // publishSubplebbitEdit
+      // publishCommunityEdit
       const editedTitle = "edited title";
       const onChallenge = vi.fn();
       const onChallengeVerification = vi.fn();
       await act(async () => {
-        await rendered.result.current.publishSubplebbitEdit(createdSubplebbitAddress, {
+        await rendered.result.current.publishCommunityEdit(createdCommunityAddress, {
           title: editedTitle,
           onChallenge,
           onChallengeVerification,
         });
       });
 
-      // useSubplebbit is edited
-      await waitFor(() => rendered.result.current.subplebbit.title === editedTitle);
-      expect(rendered.result.current.subplebbit.address).toBe(createdSubplebbitAddress);
-      expect(rendered.result.current.subplebbit.title).toBe(editedTitle);
+      // useCommunity is edited
+      await waitFor(() => rendered.result.current.community.title === editedTitle);
+      expect(rendered.result.current.community.address).toBe(createdCommunityAddress);
+      expect(rendered.result.current.community.title).toBe(editedTitle);
 
       // render again with new context and store
       await testUtils.resetStores();
-      rendered = renderHook<any, any>((subplebbitAddress?: string) => {
-        const subplebbit = useSubplebbit({ subplebbitAddress });
-        return { subplebbit, ...accountsActions };
+      rendered = renderHook<any, any>((communityAddress?: string) => {
+        const community = useCommunity({ communityAddress });
+        return { community, ...accountsActions };
       });
-      expect(rendered.result.current.subplebbit.address).toBe(undefined);
+      expect(rendered.result.current.community.address).toBe(undefined);
 
-      // can useSubplebbit after reload
-      rendered.rerender(createdSubplebbitAddress);
-      await waitFor(() => rendered.result.current.subplebbit.title === editedTitle);
-      expect(rendered.result.current.subplebbit.address).toBe(createdSubplebbitAddress);
-      expect(rendered.result.current.subplebbit.title).toBe(editedTitle);
+      // can useCommunity after reload
+      rendered.rerender(createdCommunityAddress);
+      await waitFor(() => rendered.result.current.community.title === editedTitle);
+      expect(rendered.result.current.community.address).toBe(createdCommunityAddress);
+      expect(rendered.result.current.community.title).toBe(editedTitle);
 
       // edit address
       const editedAddress = "edited.eth";
       await act(async () => {
-        await rendered.result.current.publishSubplebbitEdit(createdSubplebbitAddress, {
+        await rendered.result.current.publishCommunityEdit(createdCommunityAddress, {
           address: editedAddress,
           title: editedTitle,
           onChallenge,
@@ -2597,31 +2706,31 @@ describe("accounts", () => {
 
       // render again with new context and store
       await testUtils.resetStores();
-      rendered = renderHook<any, any>((subplebbitAddress?: string) => {
-        const subplebbit = useSubplebbit({ subplebbitAddress });
-        return { subplebbit, ...accountsActions };
+      rendered = renderHook<any, any>((communityAddress?: string) => {
+        const community = useCommunity({ communityAddress });
+        return { community, ...accountsActions };
       });
-      expect(rendered.result.current.subplebbit.address).toBe(undefined);
+      expect(rendered.result.current.community.address).toBe(undefined);
 
-      // useSubplebbit(previousAddress) address is edited
-      rendered.rerender(createdSubplebbitAddress);
-      await waitFor(() => rendered.result.current.subplebbit.address === editedAddress);
-      expect(rendered.result.current.subplebbit.address).toBe(editedAddress);
-      expect(rendered.result.current.subplebbit.title).toBe(editedTitle);
+      // useCommunity(previousAddress) address is edited
+      rendered.rerender(createdCommunityAddress);
+      await waitFor(() => rendered.result.current.community.address === editedAddress);
+      expect(rendered.result.current.community.address).toBe(editedAddress);
+      expect(rendered.result.current.community.title).toBe(editedTitle);
 
-      // useSubplebbit(currentAddress) address is edited
+      // useCommunity(currentAddress) address is edited
       rendered.rerender(`doesnt exist`);
       await waitFor(
         () =>
-          rendered.result.current.subplebbit.address === undefined ||
-          rendered.result.current.subplebbit.address === "doesnt exist",
+          rendered.result.current.community.address === undefined ||
+          rendered.result.current.community.address === "doesnt exist",
       );
-      expect([undefined, "doesnt exist"]).toContain(rendered.result.current.subplebbit.address);
+      expect([undefined, "doesnt exist"]).toContain(rendered.result.current.community.address);
 
       rendered.rerender(editedAddress);
-      await waitFor(() => rendered.result.current.subplebbit.address === editedAddress);
-      expect(rendered.result.current.subplebbit.address).toBe(editedAddress);
-      expect(rendered.result.current.subplebbit.title).toBe(editedTitle);
+      await waitFor(() => rendered.result.current.community.address === editedAddress);
+      expect(rendered.result.current.community.address).toBe(editedAddress);
+      expect(rendered.result.current.community.title).toBe(editedTitle);
     });
   });
 
@@ -2645,7 +2754,7 @@ describe("accounts", () => {
         title: "title " + String(number),
         content: "content " + String(number),
         parentCid: "parent comment cid " + String(number),
-        subplebbitAddress: "subplebbit address",
+        communityAddress: "community address",
         // @ts-ignore
         onChallenge: (challenge, comment) => {
           publishedComments.push(comment);
@@ -2691,8 +2800,8 @@ describe("accounts", () => {
     test("edited comment succeeded", async () => {
       const commentCid = rendered.result.current.accountComments[0].cid;
       expect(commentCid).not.toBe(undefined);
-      const subplebbitAddress = rendered.result.current.accountComments[0].subplebbitAddress;
-      expect(subplebbitAddress).not.toBe(undefined);
+      const communityAddress = rendered.result.current.accountComments[0].communityAddress;
+      expect(communityAddress).not.toBe(undefined);
 
       rendered.rerender(commentCid);
 
@@ -2712,7 +2821,7 @@ describe("accounts", () => {
       const publishCommentEditOptions = {
         timestamp: commentEditTimestamp,
         commentCid,
-        subplebbitAddress,
+        communityAddress,
         spoiler: true,
         onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
         onChallengeVerification: () => challengeVerificationCount++,
@@ -2773,7 +2882,7 @@ describe("accounts", () => {
 
     test("useEditedComment pending when propertyNameEdit is too recent to evaluate", async () => {
       const commentCid = rendered.result.current.accountComments[0].cid;
-      const subplebbitAddress = rendered.result.current.accountComments[0].subplebbitAddress;
+      const communityAddress = rendered.result.current.accountComments[0].communityAddress;
       const now = Math.round(Date.now() / 1000);
       const editTimestamp = now - 60 * 10;
 
@@ -2785,7 +2894,7 @@ describe("accounts", () => {
             cid: commentCid,
             spoiler: undefined,
             updatedAt: now - 60 * 5,
-            subplebbitAddress,
+            communityAddress,
           },
         },
       }));
@@ -2814,8 +2923,8 @@ describe("accounts", () => {
     test("comment moderation succeeded", async () => {
       const commentCid = rendered.result.current.accountComments[0].cid;
       expect(commentCid).not.toBe(undefined);
-      const subplebbitAddress = rendered.result.current.accountComments[0].subplebbitAddress;
-      expect(subplebbitAddress).not.toBe(undefined);
+      const communityAddress = rendered.result.current.accountComments[0].communityAddress;
+      expect(communityAddress).not.toBe(undefined);
 
       rendered.rerender(commentCid);
 
@@ -2835,7 +2944,7 @@ describe("accounts", () => {
       const publishCommentModerationOptions = {
         timestamp: commentModerationTimestamp,
         commentCid,
-        subplebbitAddress,
+        communityAddress,
         commentModeration: { locked: true },
         onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
         onChallengeVerification: () => challengeVerificationCount++,
@@ -2892,8 +3001,8 @@ describe("accounts", () => {
     test("edited comment failed", async () => {
       const commentCid = rendered.result.current.accountComments[0].cid;
       expect(commentCid).not.toBe(undefined);
-      const subplebbitAddress = rendered.result.current.accountComments[0].subplebbitAddress;
-      expect(subplebbitAddress).not.toBe(undefined);
+      const communityAddress = rendered.result.current.accountComments[0].communityAddress;
+      expect(communityAddress).not.toBe(undefined);
 
       rendered.rerender(commentCid);
 
@@ -2913,7 +3022,7 @@ describe("accounts", () => {
       const publishCommentEditOptions = {
         timestamp: commentEditTimestamp,
         commentCid,
-        subplebbitAddress,
+        communityAddress,
         spoiler: true,
         onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
         onChallengeVerification: () => challengeVerificationCount++,
@@ -2983,8 +3092,8 @@ describe("accounts", () => {
     test("comment moderation failed", async () => {
       const commentCid = rendered.result.current.accountComments[0].cid;
       expect(commentCid).not.toBe(undefined);
-      const subplebbitAddress = rendered.result.current.accountComments[0].subplebbitAddress;
-      expect(subplebbitAddress).not.toBe(undefined);
+      const communityAddress = rendered.result.current.accountComments[0].communityAddress;
+      expect(communityAddress).not.toBe(undefined);
 
       rendered.rerender(commentCid);
 
@@ -3004,7 +3113,7 @@ describe("accounts", () => {
       const publishCommentModerationOptions = {
         timestamp: commentModerationTimestamp,
         commentCid,
-        subplebbitAddress,
+        communityAddress,
         commentModeration: { locked: true },
         onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
         onChallengeVerification: () => challengeVerificationCount++,
@@ -3074,8 +3183,8 @@ describe("accounts", () => {
     test("purge comment moderation succeeded", async () => {
       const commentCid = rendered.result.current.accountComments[0].cid;
       expect(commentCid).not.toBe(undefined);
-      const subplebbitAddress = rendered.result.current.accountComments[0].subplebbitAddress;
-      expect(subplebbitAddress).not.toBe(undefined);
+      const communityAddress = rendered.result.current.accountComments[0].communityAddress;
+      expect(communityAddress).not.toBe(undefined);
 
       rendered.rerender(commentCid);
 
@@ -3094,7 +3203,7 @@ describe("accounts", () => {
       const publishCommentModerationOptions = {
         timestamp: commentModerationTimestamp,
         commentCid,
-        subplebbitAddress,
+        communityAddress,
         commentModeration: { purged: true },
         onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
         onChallengeVerification: () => challengeVerificationCount++,
@@ -3156,8 +3265,8 @@ describe("accounts", () => {
     test("purge comment moderation failed", async () => {
       const commentCid = rendered.result.current.accountComments[0].cid;
       expect(commentCid).not.toBe(undefined);
-      const subplebbitAddress = rendered.result.current.accountComments[0].subplebbitAddress;
-      expect(subplebbitAddress).not.toBe(undefined);
+      const communityAddress = rendered.result.current.accountComments[0].communityAddress;
+      expect(communityAddress).not.toBe(undefined);
 
       rendered.rerender(commentCid);
 
@@ -3176,7 +3285,7 @@ describe("accounts", () => {
       const publishCommentModerationOptions = {
         timestamp: commentModerationTimestamp,
         commentCid,
-        subplebbitAddress,
+        communityAddress,
         commentModeration: { purged: true },
         onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
         onChallengeVerification: () => challengeVerificationCount++,
@@ -3268,7 +3377,7 @@ describe("accounts", () => {
           ...state,
           accountsComments: {
             ...state.accountsComments,
-            [accountId]: [{ content: "x", subplebbitAddress: "s.eth", timestamp: 1, index: 0 }],
+            [accountId]: [{ content: "x", communityAddress: "s.eth", timestamp: 1, index: 0 }],
           },
         };
       });
@@ -3336,7 +3445,7 @@ describe("accounts", () => {
           title: "t",
           content: "c",
           parentCid: "p",
-          subplebbitAddress: "sub.eth",
+          communityAddress: "sub.eth",
           onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
           onChallengeVerification: () => {},
         });

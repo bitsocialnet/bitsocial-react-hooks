@@ -1,12 +1,17 @@
 import utils from "./utils";
 
 describe("utils", () => {
+  test("communityPostsCacheExpired returns false when fetchedAt is missing", () => {
+    expect(utils.communityPostsCacheExpired(undefined)).toBe(false);
+    expect(utils.communityPostsCacheExpired({})).toBe(false);
+  });
+
   describe("repliesAreValid", () => {
-    test("accepts reply pages when comment and reply subplebbit addresses are .eth/.bso aliases", async () => {
+    test("accepts reply pages when comment and reply community addresses are .eth/.bso aliases", async () => {
       const comment = {
         cid: "comment-1",
         depth: 0,
-        subplebbitAddress: "music-posting.bso",
+        communityAddress: "music-posting.bso",
         replies: {
           pages: {
             new: {
@@ -15,7 +20,7 @@ describe("utils", () => {
                   cid: "reply-1",
                   depth: 1,
                   parentCid: "comment-1",
-                  subplebbitAddress: "music-posting.eth",
+                  communityAddress: "music-posting.eth",
                 },
               ],
             },

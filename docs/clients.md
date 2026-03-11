@@ -16,8 +16,8 @@ const getClientHost = (clientUrl) => {
   return clientHosts[clientUrl];
 };
 
-const useStateString = (commentOrSubplebbit) => {
-  const { states } = useClientsStates({ comment: commentOrSubplebbit });
+const useStateString = (commentOrCommunity) => {
+  const { states } = useClientsStates({ comment: commentOrCommunity });
   return useMemo(() => {
     let stateString = "";
     for (const state in states) {
@@ -42,19 +42,19 @@ const useStateString = (commentOrSubplebbit) => {
       stateString += `${formattedState} from ${clientHosts.join(", ")}`;
     }
 
-    // fallback to comment or subplebbit state when possible
-    if (!stateString && commentOrSubplebbit?.state !== "succeeded") {
+    // fallback to comment or community state when possible
+    if (!stateString && commentOrCommunity?.state !== "succeeded") {
       if (
-        commentOrSubplebbit?.publishingState &&
-        commentOrSubplebbit?.publishingState !== "stopped" &&
-        commentOrSubplebbit?.publishingState !== "succeeded"
+        commentOrCommunity?.publishingState &&
+        commentOrCommunity?.publishingState !== "stopped" &&
+        commentOrCommunity?.publishingState !== "succeeded"
       ) {
-        stateString = commentOrSubplebbit.publishingState;
+        stateString = commentOrCommunity.publishingState;
       } else if (
-        commentOrSubplebbit?.updatingState !== "stopped" &&
-        commentOrSubplebbit?.updatingState !== "succeeded"
+        commentOrCommunity?.updatingState !== "stopped" &&
+        commentOrCommunity?.updatingState !== "succeeded"
       ) {
-        stateString = commentOrSubplebbit.updatingState;
+        stateString = commentOrCommunity.updatingState;
       }
       if (stateString) {
         stateString = stateString
@@ -71,26 +71,26 @@ const useStateString = (commentOrSubplebbit) => {
 
     // if string is empty, return undefined instead
     return stateString === "" ? undefined : stateString;
-  }, [states, commentOrSubplebbit]);
+  }, [states, commentOrCommunity]);
 };
 
 export default useStateString;
 ```
 
-#### Get subplebbit with state string
+#### Get community with state string
 
 ```js
-const subplebbit = useSubplebbit({ subplebbitAddress });
-const stateString = useStateString(subplebbit);
+const community = useCommunity({ communityAddress });
+const stateString = useStateString(community);
 const errorString = useMemo(() => {
-  if (subplebbit?.state === "failed") {
-    let errorString = "Failed fetching subplebbit";
-    if (subplebbit.error) {
-      errorString += `: ${subplebbit.error.toString().slice(0, 300)}`;
+  if (community?.state === "failed") {
+    let errorString = "Failed fetching community";
+    if (community.error) {
+      errorString += `: ${community.error.toString().slice(0, 300)}`;
     }
     return errorString;
   }
-}, [subplebbit?.state]);
+}, [community?.state]);
 
 if (stateString) {
   console.log(stateString);
@@ -129,7 +129,7 @@ if (errorString) {
 
 ```js
 import { useMemo } from "react";
-import { useSubplebbit, useSubplebbitsStates } from "@bitsocialnet/bitsocial-react-hooks";
+import { useCommunity, useCommunitiesStates } from "@bitsocialnet/bitsocial-react-hooks";
 
 const clientHosts = {};
 const getClientHost = (clientUrl) => {
@@ -143,17 +143,17 @@ const getClientHost = (clientUrl) => {
   return clientHosts[clientUrl];
 };
 
-const useFeedStateString = (subplebbitAddresses) => {
-  // single subplebbit feed state string
-  const subplebbitAddress = subplebbitAddresses?.length === 1 ? subplebbitAddresses[0] : undefined;
-  const subplebbit = useSubplebbit({ subplebbitAddress });
-  const singleSubplebbitFeedStateString = useStateString(subplebbit);
+const useFeedStateString = (communityAddresses) => {
+  // single community feed state string
+  const communityAddress = communityAddresses?.length === 1 ? communityAddresses[0] : undefined;
+  const community = useCommunity({ communityAddress });
+  const singleCommunityFeedStateString = useStateString(community);
 
-  // multiple subplebbit feed state string
-  const { states } = useSubplebbitsStates({ subplebbitAddresses });
+  // multiple community feed state string
+  const { states } = useCommunitiesStates({ communityAddresses });
 
-  const multipleSubplebbitsFeedStateString = useMemo(() => {
-    if (subplebbitAddress) {
+  const multipleCommunitiesFeedStateString = useMemo(() => {
+    if (communityAddress) {
       return;
     }
 
@@ -161,9 +161,9 @@ const useFeedStateString = (subplebbitAddresses) => {
     let stateString = "";
 
     if (states["resolving-address"]) {
-      const { subplebbitAddresses, clientUrls } = states["resolving-address"];
-      if (subplebbitAddresses.length && clientUrls.length) {
-        stateString += `resolving ${subplebbitAddresses.length} ${subplebbitAddresses.length === 1 ? "address" : "addresses"} from ${clientUrls
+      const { communityAddresses, clientUrls } = states["resolving-address"];
+      if (communityAddresses.length && clientUrls.length) {
+        stateString += `resolving ${communityAddresses.length} ${communityAddresses.length === 1 ? "address" : "addresses"} from ${clientUrls
           .map(getClientHost)
           .join(", ")}`;
       }
@@ -171,19 +171,19 @@ const useFeedStateString = (subplebbitAddresses) => {
 
     // find all page client and sub addresses
     const pagesStatesClientHosts = new Set();
-    const pagesStatesSubplebbitAddresses = new Set();
+    const pagesStatesCommunityAddresses = new Set();
     for (const state in states) {
       if (state.match("page")) {
         states[state].clientUrls.forEach((clientUrl) =>
           pagesStatesClientHosts.add(getClientHost(clientUrl)),
         );
-        states[state].subplebbitAddresses.forEach((subplebbitAddress) =>
-          pagesStatesSubplebbitAddresses.add(subplebbitAddress),
+        states[state].communityAddresses.forEach((communityAddress) =>
+          pagesStatesCommunityAddresses.add(communityAddress),
         );
       }
     }
 
-    if (states["fetching-ipns"] || states["fetching-ipfs"] || pagesStatesSubplebbitAddresses.size) {
+    if (states["fetching-ipns"] || states["fetching-ipfs"] || pagesStatesCommunityAddresses.size) {
       // separate 2 different states using ', '
       if (stateString) {
         stateString += ", ";
@@ -201,19 +201,19 @@ const useFeedStateString = (subplebbitAddresses) => {
       if (clientHosts.size) {
         stateString += "fetching ";
         if (states["fetching-ipns"]) {
-          stateString += `${states["fetching-ipns"].subplebbitAddresses.length} IPNS`;
+          stateString += `${states["fetching-ipns"].communityAddresses.length} IPNS`;
         }
         if (states["fetching-ipfs"]) {
           if (states["fetching-ipns"]) {
             stateString += ", ";
           }
-          stateString += `${states["fetching-ipfs"].subplebbitAddresses.length} IPFS`;
+          stateString += `${states["fetching-ipfs"].communityAddresses.length} IPFS`;
         }
-        if (pagesStatesSubplebbitAddresses.size) {
+        if (pagesStatesCommunityAddresses.size) {
           if (states["fetching-ipns"] || states["fetching-ipfs"]) {
             stateString += ", ";
           }
-          stateString += `${pagesStatesSubplebbitAddresses.size} ${pagesStatesSubplebbitAddresses.size === 1 ? "page" : "pages"}`;
+          stateString += `${pagesStatesCommunityAddresses.size} ${pagesStatesCommunityAddresses.size === 1 ? "page" : "pages"}`;
         }
         stateString += ` from ${[...clientHosts].join(", ")}`;
       }
@@ -224,12 +224,12 @@ const useFeedStateString = (subplebbitAddresses) => {
 
     // if string is empty, return undefined instead
     return stateString === "" ? undefined : stateString;
-  }, [states, subplebbitAddress]);
+  }, [states, communityAddress]);
 
-  if (singleSubplebbitFeedStateString) {
-    return singleSubplebbitFeedStateString;
+  if (singleCommunityFeedStateString) {
+    return singleCommunityFeedStateString;
   }
-  return multipleSubplebbitsFeedStateString;
+  return multipleCommunitiesFeedStateString;
 };
 
 export default useFeedStateString;
@@ -238,22 +238,22 @@ export default useFeedStateString;
 #### Get feed with single sub with state string
 
 ```js
-const subplebbitAddress = "memes.eth";
+const communityAddress = "memes.eth";
 const { feed, hasMore, loadMore } = useFeed({
-  subplebbitAddresses: [subplebbitAddress],
+  communityAddresses: [communityAddress],
   sortType: "topAll",
 });
-const subplebbit = useSubplebbit({ subplebbitAddress });
-const stateString = useFeedStateString(subplebbitAddresses);
+const community = useCommunity({ communityAddress });
+const stateString = useFeedStateString([communityAddress]);
 const errorString = useMemo(() => {
-  if (subplebbit?.state === "failed") {
-    let errorString = "Failed fetching subplebbit";
-    if (subplebbit.error) {
-      errorString += `: ${subplebbit.error.toString().slice(0, 300)}`;
+  if (community?.state === "failed") {
+    let errorString = "Failed fetching community";
+    if (community.error) {
+      errorString += `: ${community.error.toString().slice(0, 300)}`;
     }
     return errorString;
   }
-}, [subplebbit?.state]);
+}, [community?.state]);
 
 if (stateString) {
   console.log(stateString);
@@ -266,25 +266,25 @@ if (errorString) {
 #### Get feed with multiple subs with state string
 
 ```js
-const subplebbitAddresses = ["memes.eth", "12D3KooW...", "12D3KooW..."];
-const { feed, hasMore, loadMore } = useFeed({ subplebbitAddresses, sortType: "topAll" });
-const { subplebbits } = useSubplebbits({ subplebbitAddresses });
-const stateString = useFeedStateString(subplebbitAddresses);
+const communityAddresses = ["memes.eth", "12D3KooW...", "12D3KooW..."];
+const { feed, hasMore, loadMore } = useFeed({ communityAddresses, sortType: "topAll" });
+const { communities } = useCommunities({ communityAddresses });
+const stateString = useFeedStateString(communityAddresses);
 
 const errorString = useMemo(() => {
-  // only show error string if all subplebbits updating state are failed
-  for (const subplebbit of subplebbits) {
-    if (subplebbit.updatingState !== "failed") {
+  // only show error string if all communities updating state are failed
+  for (const community of communities) {
+    if (community.updatingState !== "failed") {
       return;
     }
   }
   // only show the first error found because not possible to show all of them
-  for (const subplebbit of subplebbits) {
-    if (subplebbit.error) {
-      return `Failed fetching subplebbit: ${subplebbit.error.toString().slice(0, 300)}`;
+  for (const community of communities) {
+    if (community.error) {
+      return `Failed fetching community: ${community.error.toString().slice(0, 300)}`;
     }
   }
-}, [subplebbits]);
+}, [communities]);
 
 if (stateString) {
   console.log(stateString);
@@ -328,22 +328,22 @@ for (const ipfsClientUrl in comment.clients.ipfsClients) {
 }
 ```
 
-#### Get a subplebbit clients states
+#### Get a community clients states
 
 ```js
-const subplebbit = useSubplebbit({ subplebbitAddress });
+const community = useCommunity({ communityAddress });
 
-// resolving subplebbit address from chain providers
-for (const chainProviderUrl in subplebbit.clients.chainProviders) {
-  const chainProvider = subplebbit.clients.chainProviders[chainProviderUrl];
+// resolving community address from chain providers
+for (const chainProviderUrl in community.clients.chainProviders) {
+  const chainProvider = community.clients.chainProviders[chainProviderUrl];
   if (chainProvider.state === "resolving-address") {
-    console.log(`Resolving subplebbit address from ${chainProviderUrl}`);
+    console.log(`Resolving community address from ${chainProviderUrl}`);
   }
 }
 
 // fetching from gateways
-for (const ipfsGatewayUrl in subplebbit.clients.ipfsGateways) {
-  const ipfsGateway = subplebbit.clients.ipfsGateways[ipfsGatewayUrl];
+for (const ipfsGatewayUrl in community.clients.ipfsGateways) {
+  const ipfsGateway = community.clients.ipfsGateways[ipfsGatewayUrl];
   if (ipfsGateway.state === "fetching-ipns") {
     console.log(`Fetching IPNS from ${ipfsGatewayUrl}`);
   }
@@ -351,13 +351,13 @@ for (const ipfsGatewayUrl in subplebbit.clients.ipfsGateways) {
     console.log(`Fetching page IPFS from ${ipfsGatewayUrl}`);
   }
   if (ipfsGateway.state === "succeeded") {
-    console.log(`Fetched subplebbit from ${ipfsGatewayUrl}`);
+    console.log(`Fetched community from ${ipfsGatewayUrl}`);
   }
 }
 
 // fetching from ipfs clients
-for (const ipfsClientUrl in subplebbit.clients.ipfsClients) {
-  const ipfsClient = subplebbit.clients.ipfsClients[ipfsClientUrl];
+for (const ipfsClientUrl in community.clients.ipfsClients) {
+  const ipfsClient = community.clients.ipfsClients[ipfsClientUrl];
   if (ipfsClient.state === "fetching-ipns") {
     console.log(`Fetching IPNS from ${ipfsClient.peers.length} peers`);
   }
@@ -368,7 +368,7 @@ for (const ipfsClientUrl in subplebbit.clients.ipfsClients) {
     console.log(`Fetching page IPFS from ${ipfsClient.peers.length} peers`);
   }
   if (ipfsClient.state === "succeeded") {
-    console.log(`Fetched subplebbit from ${ipfsClient.peers.length} peers`);
+    console.log(`Fetched community from ${ipfsClient.peers.length} peers`);
   }
 }
 ```
@@ -379,7 +379,7 @@ for (const ipfsClientUrl in subplebbit.clients.ipfsClients) {
 const publishCommentOptions = {
   content: "hello",
   title: "hello",
-  subplebbitAddress: "12D3KooW...",
+  communityAddress: "12D3KooW...",
   onChallenge,
   onChallengeVerification,
   onError,
@@ -390,19 +390,19 @@ const { clients, publishComment } = usePublishComment(publishCommentOptions);
 // start publishing
 await publishComment();
 
-// resolving subplebbit address from chain providers
+// resolving community address from chain providers
 for (const chainProviderUrl in clients.chainProviders) {
   const chainProvider = clients.chainProviders[chainProviderUrl];
   if (chainProvider.state === "resolving-address") {
-    console.log(`Resolving subplebbit address from ${chainProviderUrl}`);
+    console.log(`Resolving community address from ${chainProviderUrl}`);
   }
 }
 
 // fetching from gateways
 for (const ipfsGatewayUrl in clients.ipfsGateways) {
   const ipfsGateway = clients.ipfsGateways[ipfsGatewayUrl];
-  if (ipfsGateway.state === "fetching-subplebbit-ipns") {
-    console.log(`Fetching subplebbit IPNS from ${ipfsGatewayUrl}`);
+  if (ipfsGateway.state === "fetching-community-ipns") {
+    console.log(`Fetching community IPNS from ${ipfsGatewayUrl}`);
   }
 }
 
@@ -429,11 +429,11 @@ for (const pubsubClientUrl in clients.pubsubClients) {
 // fetching and publishing from ipfs client
 for (const ipfsClientUrl in clients.ipfsClients) {
   const ipfsClient = clients.ipfsClients[ipfsClientUrl];
-  if (ipfsClient.state === "fetching-subplebbit-ipns") {
-    console.log(`Fetching subplebbit IPNS from ${ipfsClient.peers.length} peers`);
+  if (ipfsClient.state === "fetching-community-ipns") {
+    console.log(`Fetching community IPNS from ${ipfsClient.peers.length} peers`);
   }
-  if (ipfsClient.state === "fetching-subplebbit-ipfs") {
-    console.log(`Fetching subplebbit IPFS from ${ipfsClient.peers.length} peers`);
+  if (ipfsClient.state === "fetching-community-ipfs") {
+    console.log(`Fetching community IPFS from ${ipfsClient.peers.length} peers`);
   }
   if (ipfsClient.state === "publishing-challenge-request") {
     console.log(`Publishing challenge request to ${ipfsClient.peers.length} peers`);
@@ -487,102 +487,93 @@ for (const ipfsGatewayUrl in ipfsGateways) {
   console.log("Session succeeded IPNS averate time:", ipfsGateway.sessionSucceededIpnsAverageTime);
   console.log("Session succeeded IPNS median time:", ipfsGateway.sessionSucceededIpnsMedianTime);
 
-  for (const subplebbitAddress in ipfsGateway.subplebbits) {
-    const subplebbit = ipfsGateway.subplebbits[subplebbitAddress];
-    console.log("Subplebbit:", subplebbitAddress);
+  for (const communityAddress in ipfsGateway.communities) {
+    const community = ipfsGateway.communities[communityAddress];
+    console.log("Community:", communityAddress);
 
-    console.log("Succeeded subplebbit updates:", subplebbit.succeededSubplebbitUpdateCount);
-    console.log("Failed subplebbit updates:", subplebbit.failedSubplebbitUpdateCount);
+    console.log("Succeeded community updates:", community.succeededCommunityUpdateCount);
+    console.log("Failed community updates:", community.failedCommunityUpdateCount);
     console.log(
-      "Succeeded subplebbit updates average time:",
-      subplebbit.succeededSubplebbitUpdateAverageTime,
+      "Succeeded community updates average time:",
+      community.succeededCommunityUpdateAverageTime,
     );
     console.log(
-      "Succeeded subplebbit updates median time:",
-      subplebbit.succeededSubplebbitUpdateMedianTime,
-    );
-
-    console.log(
-      "Session succeeded subplebbit updates:",
-      subplebbit.sessionSucceededSubplebbitUpdateCount,
-    );
-    console.log(
-      "Session failed subplebbit updates:",
-      subplebbit.sessionFailedSubplebbitUpdateCount,
-    );
-    console.log(
-      "Session succeeded subplebbit updates average time:",
-      subplebbit.sessionSucceededSubplebbitUpdateAverageTime,
-    );
-    console.log(
-      "Session succeeded subplebbit updates median time:",
-      subplebbit.sessionSucceededSubplebbitUpdateMedianTime,
-    );
-
-    console.log("Succeeded subplebbit pages:", subplebbit.succeededSubplebbitPageCount);
-    console.log("Failed subplebbit pages:", subplebbit.failedSubplebbitPageCount);
-    console.log(
-      "Succeeded subplebbit pages average time:",
-      subplebbit.succeededSubplebbitPageAverageTime,
-    );
-    console.log(
-      "Succeeded subplebbit pages median time:",
-      subplebbit.succeededSubplebbitPageMedianTime,
+      "Succeeded community updates median time:",
+      community.succeededCommunityUpdateMedianTime,
     );
 
     console.log(
-      "Session succeeded subplebbit pages:",
-      subplebbit.sessionSucceededSubplebbitPageCount,
+      "Session succeeded community updates:",
+      community.sessionSucceededCommunityUpdateCount,
     );
-    console.log("Session failed subplebbit pages:", subplebbit.sessionFailedSubplebbitPageCount);
+    console.log("Session failed community updates:", community.sessionFailedCommunityUpdateCount);
     console.log(
-      "Session succeeded subplebbit pages average time:",
-      subplebbit.sessionSucceededSubplebbitPageAverageTime,
+      "Session succeeded community updates average time:",
+      community.sessionSucceededCommunityUpdateAverageTime,
     );
     console.log(
-      "Session succeeded subplebbit pages median time:",
-      subplebbit.sessionSucceededSubplebbitPageMedianTime,
+      "Session succeeded community updates median time:",
+      community.sessionSucceededCommunityUpdateMedianTime,
     );
 
-    console.log("Succeeded comments:", subplebbit.succeededCommentCount);
-    console.log("Failed comments:", subplebbit.failedCommentCount);
-    console.log("Succeeded comments average time:", subplebbit.succeededCommentAverageTime);
-    console.log("Succeeded comments median time:", subplebbit.succeededCommentMedianTime);
+    console.log("Succeeded community pages:", community.succeededCommunityPageCount);
+    console.log("Failed community pages:", community.failedCommunityPageCount);
+    console.log(
+      "Succeeded community pages average time:",
+      community.succeededCommunityPageAverageTime,
+    );
+    console.log(
+      "Succeeded community pages median time:",
+      community.succeededCommunityPageMedianTime,
+    );
 
-    console.log("Session succeeded comments:", subplebbit.sessionSucceededCommentCount);
-    console.log("Session failed comments:", subplebbit.sessionFailedCommentCount);
+    console.log("Session succeeded community pages:", community.sessionSucceededCommunityPageCount);
+    console.log("Session failed community pages:", community.sessionFailedCommunityPageCount);
+    console.log(
+      "Session succeeded community pages average time:",
+      community.sessionSucceededCommunityPageAverageTime,
+    );
+    console.log(
+      "Session succeeded community pages median time:",
+      community.sessionSucceededCommunityPageMedianTime,
+    );
+
+    console.log("Succeeded comments:", community.succeededCommentCount);
+    console.log("Failed comments:", community.failedCommentCount);
+    console.log("Succeeded comments average time:", community.succeededCommentAverageTime);
+    console.log("Succeeded comments median time:", community.succeededCommentMedianTime);
+
+    console.log("Session succeeded comments:", community.sessionSucceededCommentCount);
+    console.log("Session failed comments:", community.sessionFailedCommentCount);
     console.log(
       "Session succeeded comments average time:",
-      subplebbit.sessionSucceededCommentAverageTime,
+      community.sessionSucceededCommentAverageTime,
     );
     console.log(
       "Session succeeded comments median time:",
-      subplebbit.sessionSucceededCommentMedianTime,
+      community.sessionSucceededCommentMedianTime,
     );
 
-    console.log("Succeeded comment updates:", subplebbit.succeededCommentUpdateCount);
-    console.log("Failed comment updates:", subplebbit.failedCommentUpdateCount);
+    console.log("Succeeded comment updates:", community.succeededCommentUpdateCount);
+    console.log("Failed comment updates:", community.failedCommentUpdateCount);
     console.log(
       "Succeeded comment updates average time:",
-      subplebbit.succeededCommentUpdateAverageTime,
+      community.succeededCommentUpdateAverageTime,
     );
     console.log(
       "Succeeded comment updates median time:",
-      subplebbit.succeededCommentUpdateMedianTime,
+      community.succeededCommentUpdateMedianTime,
     );
 
-    console.log(
-      "Session succeeded comment updates:",
-      subplebbit.sessionSucceededCommentUpdateCount,
-    );
-    console.log("Session failed comment updates:", subplebbit.sessionFailedCommentUpdateCount);
+    console.log("Session succeeded comment updates:", community.sessionSucceededCommentUpdateCount);
+    console.log("Session failed comment updates:", community.sessionFailedCommentUpdateCount);
     console.log(
       "Session succeeded comment updates average time:",
-      subplebbit.sessionSucceededCommentUpdateAverageTime,
+      community.sessionSucceededCommentUpdateAverageTime,
     );
     console.log(
       "Session succeeded comment updates median time:",
-      subplebbit.sessionSucceededCommentUpdateMedianTime,
+      community.sessionSucceededCommentUpdateMedianTime,
     );
   }
 }
@@ -622,102 +613,93 @@ for (const ipfsClientUrl in ipfsClients) {
   console.log("Session succeeded IPNS averate time:", ipfsClient.sessionSucceededIpnsAverageTime);
   console.log("Session succeeded IPNS median time:", ipfsClient.sessionSucceededIpnsMedianTime);
 
-  for (const subplebbitAddress in ipfsClient.subplebbits) {
-    const subplebbit = ipfsClient.subplebbits[subplebbitAddress];
-    console.log("Subplebbit:", subplebbitAddress);
+  for (const communityAddress in ipfsClient.communities) {
+    const community = ipfsClient.communities[communityAddress];
+    console.log("Community:", communityAddress);
 
-    console.log("Succeeded subplebbit updates:", subplebbit.succeededSubplebbitUpdateCount);
-    console.log("Failed subplebbit updates:", subplebbit.failedSubplebbitUpdateCount);
+    console.log("Succeeded community updates:", community.succeededCommunityUpdateCount);
+    console.log("Failed community updates:", community.failedCommunityUpdateCount);
     console.log(
-      "Succeeded subplebbit updates average time:",
-      subplebbit.succeededSubplebbitUpdateAverageTime,
+      "Succeeded community updates average time:",
+      community.succeededCommunityUpdateAverageTime,
     );
     console.log(
-      "Succeeded subplebbit updates median time:",
-      subplebbit.succeededSubplebbitUpdateMedianTime,
-    );
-
-    console.log(
-      "Session succeeded subplebbit updates:",
-      subplebbit.sessionSucceededSubplebbitUpdateCount,
-    );
-    console.log(
-      "Session failed subplebbit updates:",
-      subplebbit.sessionFailedSubplebbitUpdateCount,
-    );
-    console.log(
-      "Session succeeded subplebbit updates average time:",
-      subplebbit.sessionSucceededSubplebbitUpdateAverageTime,
-    );
-    console.log(
-      "Session succeeded subplebbit updates median time:",
-      subplebbit.sessionSucceededSubplebbitUpdateMedianTime,
-    );
-
-    console.log("Succeeded subplebbit pages:", subplebbit.succeededSubplebbitPageCount);
-    console.log("Failed subplebbit pages:", subplebbit.failedSubplebbitPageCount);
-    console.log(
-      "Succeeded subplebbit pages average time:",
-      subplebbit.succeededSubplebbitPageAverageTime,
-    );
-    console.log(
-      "Succeeded subplebbit pages median time:",
-      subplebbit.succeededSubplebbitPageMedianTime,
+      "Succeeded community updates median time:",
+      community.succeededCommunityUpdateMedianTime,
     );
 
     console.log(
-      "Session succeeded subplebbit pages:",
-      subplebbit.sessionSucceededSubplebbitPageCount,
+      "Session succeeded community updates:",
+      community.sessionSucceededCommunityUpdateCount,
     );
-    console.log("Session failed subplebbit pages:", subplebbit.sessionFailedSubplebbitPageCount);
+    console.log("Session failed community updates:", community.sessionFailedCommunityUpdateCount);
     console.log(
-      "Session succeeded subplebbit pages average time:",
-      subplebbit.sessionSucceededSubplebbitPageAverageTime,
+      "Session succeeded community updates average time:",
+      community.sessionSucceededCommunityUpdateAverageTime,
     );
     console.log(
-      "Session succeeded subplebbit pages median time:",
-      subplebbit.sessionSucceededSubplebbitPageMedianTime,
+      "Session succeeded community updates median time:",
+      community.sessionSucceededCommunityUpdateMedianTime,
     );
 
-    console.log("Succeeded comments:", subplebbit.succeededCommentCount);
-    console.log("Failed comments:", subplebbit.failedCommentCount);
-    console.log("Succeeded comments average time:", subplebbit.succeededCommentAverageTime);
-    console.log("Succeeded comments median time:", subplebbit.succeededCommentMedianTime);
+    console.log("Succeeded community pages:", community.succeededCommunityPageCount);
+    console.log("Failed community pages:", community.failedCommunityPageCount);
+    console.log(
+      "Succeeded community pages average time:",
+      community.succeededCommunityPageAverageTime,
+    );
+    console.log(
+      "Succeeded community pages median time:",
+      community.succeededCommunityPageMedianTime,
+    );
 
-    console.log("Session succeeded comments:", subplebbit.sessionSucceededCommentCount);
-    console.log("Session failed comments:", subplebbit.sessionFailedCommentCount);
+    console.log("Session succeeded community pages:", community.sessionSucceededCommunityPageCount);
+    console.log("Session failed community pages:", community.sessionFailedCommunityPageCount);
+    console.log(
+      "Session succeeded community pages average time:",
+      community.sessionSucceededCommunityPageAverageTime,
+    );
+    console.log(
+      "Session succeeded community pages median time:",
+      community.sessionSucceededCommunityPageMedianTime,
+    );
+
+    console.log("Succeeded comments:", community.succeededCommentCount);
+    console.log("Failed comments:", community.failedCommentCount);
+    console.log("Succeeded comments average time:", community.succeededCommentAverageTime);
+    console.log("Succeeded comments median time:", community.succeededCommentMedianTime);
+
+    console.log("Session succeeded comments:", community.sessionSucceededCommentCount);
+    console.log("Session failed comments:", community.sessionFailedCommentCount);
     console.log(
       "Session succeeded comments average time:",
-      subplebbit.sessionSucceededCommentAverageTime,
+      community.sessionSucceededCommentAverageTime,
     );
     console.log(
       "Session succeeded comments median time:",
-      subplebbit.sessionSucceededCommentMedianTime,
+      community.sessionSucceededCommentMedianTime,
     );
 
-    console.log("Succeeded comment updates:", subplebbit.succeededCommentUpdateCount);
-    console.log("Failed comment updates:", subplebbit.failedCommentUpdateCount);
+    console.log("Succeeded comment updates:", community.succeededCommentUpdateCount);
+    console.log("Failed comment updates:", community.failedCommentUpdateCount);
     console.log(
       "Succeeded comment updates average time:",
-      subplebbit.succeededCommentUpdateAverageTime,
+      community.succeededCommentUpdateAverageTime,
     );
     console.log(
       "Succeeded comment updates median time:",
-      subplebbit.succeededCommentUpdateMedianTime,
+      community.succeededCommentUpdateMedianTime,
     );
 
-    console.log(
-      "Session succeeded comment updates:",
-      subplebbit.sessionSucceededCommentUpdateCount,
-    );
-    console.log("Session failed comment updates:", subplebbit.sessionFailedCommentUpdateCount);
+    console.log("Session succeeded comment updates:", community.sessionSucceededCommentUpdateCount);
+    console.log("Session failed comment updates:", community.sessionFailedCommentUpdateCount);
     console.log(
       "Session succeeded comment updates average time:",
-      subplebbit.sessionSucceededCommentUpdateAverageTime,
+      community.sessionSucceededCommentUpdateAverageTime,
     );
     console.log(
       "Session succeeded comment updates median time:",
-      subplebbit.sessionSucceededCommentUpdateMedianTime,
+      community.sessionSucceededCommentUpdateMedianTime,
     );
   }
 }
@@ -802,73 +784,70 @@ for (const pubsubClientUrl in pubsubClients) {
     pubsubClient.sessionSucceededChallengeAnswerMessageMedianTime,
   );
 
-  for (const subplebbitAddress in pubsubClient.subplebbits) {
-    const subplebbit = pubsubClient.subplebbits[subplebbitAddress];
-    console.log("Subplebbit:", subplebbitAddress);
+  for (const communityAddress in pubsubClient.communities) {
+    const community = pubsubClient.communities[communityAddress];
+    console.log("Community:", communityAddress);
 
     console.log(
       "Succeeded challenge request messages:",
-      subplebbit.succeededChallengeRequestMessageCount,
+      community.succeededChallengeRequestMessageCount,
     );
-    console.log(
-      "Failed challenge request messages:",
-      subplebbit.failedChallengeRequestMessageCount,
-    );
+    console.log("Failed challenge request messages:", community.failedChallengeRequestMessageCount);
     console.log(
       "Succeeded challenge request messages average time:",
-      subplebbit.succeededChallengeRequestMessageAverageTime,
+      community.succeededChallengeRequestMessageAverageTime,
     );
     console.log(
       "Succeeded challenge request messages median time:",
-      subplebbit.succeededChallengeRequestMessageMedianTime,
+      community.succeededChallengeRequestMessageMedianTime,
     );
 
     console.log(
       "Succeeded challenge answer messages:",
-      subplebbit.succeededChallengeAnswerMessageCount,
+      community.succeededChallengeAnswerMessageCount,
     );
-    console.log("Failed challenge answer messages:", subplebbit.failedChallengeAnswerMessageCount);
+    console.log("Failed challenge answer messages:", community.failedChallengeAnswerMessageCount);
     console.log(
       "Succeeded challenge answer messages average time:",
-      subplebbit.succeededChallengeAnswerMessageAverageTime,
+      community.succeededChallengeAnswerMessageAverageTime,
     );
     console.log(
       "Succeeded challenge answer messages median time:",
-      subplebbit.succeededChallengeAnswerMessageMedianTime,
+      community.succeededChallengeAnswerMessageMedianTime,
     );
 
     console.log(
       "Session succeeded challenge request messages:",
-      subplebbit.sessionSucceededChallengeRequestMessageCount,
+      community.sessionSucceededChallengeRequestMessageCount,
     );
     console.log(
       "Session failed challenge request messages:",
-      subplebbit.sessionFailedChallengeRequestMessageCount,
+      community.sessionFailedChallengeRequestMessageCount,
     );
     console.log(
       "Session succeeded challenge request messages average time:",
-      subplebbit.sessionSucceededChallengeRequestMessageAverageTime,
+      community.sessionSucceededChallengeRequestMessageAverageTime,
     );
     console.log(
       "Session succeeded challenge request messages median time:",
-      subplebbit.sessionSucceededChallengeRequestMessageMedianTime,
+      community.sessionSucceededChallengeRequestMessageMedianTime,
     );
 
     console.log(
       "Session succeeded challenge answer messages:",
-      subplebbit.sessionSucceededChallengeAnswerMessageCount,
+      community.sessionSucceededChallengeAnswerMessageCount,
     );
     console.log(
       "Session failed challenge answer messages:",
-      subplebbit.sessionFailedChallengeAnswerMessageCount,
+      community.sessionFailedChallengeAnswerMessageCount,
     );
     console.log(
       "Session succeeded challenge answer messages average time:",
-      subplebbit.sessionSucceededChallengeAnswerMessageAverageTime,
+      community.sessionSucceededChallengeAnswerMessageAverageTime,
     );
     console.log(
       "Session succeeded challenge answer messages median time:",
-      subplebbit.sessionSucceededChallengeAnswerMessageMedianTime,
+      community.sessionSucceededChallengeAnswerMessageMedianTime,
     );
   }
 }

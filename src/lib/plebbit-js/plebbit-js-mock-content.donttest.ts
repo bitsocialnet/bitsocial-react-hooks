@@ -13,9 +13,9 @@ import { act } from "@testing-library/react";
 import testUtils, { renderHook } from "../../lib/test-utils";
 import {
   useComment,
-  useSubplebbit,
+  useCommunity,
   useFeed,
-  useAccountSubplebbits,
+  useAccountCommunities,
   useAccount,
   useReplies,
   setPlebbitJs,
@@ -67,16 +67,16 @@ describe.skip("PlebbitJsMockContent", () => {
     async () => {
       const plebbit = await PlebbitJsMockContent();
       const address = "news.eth";
-      const subplebbit: any = await plebbit.createSubplebbit({ address });
-      console.log(subplebbit);
-      subplebbit.update().catch(console.error);
+      const community: any = await plebbit.createCommunity({ address });
+      console.log(community);
+      community.update().catch(console.error);
       await new Promise((r) =>
-        subplebbit.on("update", async () => {
-          console.log(subplebbit);
-          console.log(subplebbit.posts.pages);
-          // subplebbit.removeAllListeners()
+        community.on("update", async () => {
+          console.log(community);
+          console.log(community.posts.pages);
+          // community.removeAllListeners()
           try {
-            // const page = await subplebbit.posts.getPage({cid: subplebbit.posts.pageCids.new})
+            // const page = await community.posts.getPage({cid: community.posts.pageCids.new})
             // console.log(page)
             // const comment = page.comments[0]
             // console.log({comment})
@@ -237,10 +237,8 @@ describe("mock content", () => {
     expect(typeof rendered2.result.current.upvoteCount).toBe("number");
   });
 
-  test("use subplebbits", async () => {
-    const rendered = renderHook<any, any>((subplebbitAddress) =>
-      useSubplebbit({ subplebbitAddress }),
-    );
+  test("use communities", async () => {
+    const rendered = renderHook<any, any>((communityAddress) => useCommunity({ communityAddress }));
     const waitFor = testUtils.createWaitFor(rendered, { timeout });
 
     rendered.rerender("anything2.eth");
@@ -279,8 +277,8 @@ describe("mock content", () => {
 
     // test getting from db
     await testUtils.resetStores();
-    const rendered2 = renderHook<any, any>((subplebbitAddress) =>
-      useSubplebbit({ subplebbitAddress }),
+    const rendered2 = renderHook<any, any>((communityAddress) =>
+      useCommunity({ communityAddress }),
     );
 
     rendered2.rerender("anything2.eth");
@@ -293,8 +291,8 @@ describe("mock content", () => {
   });
 
   test("use feed new", async () => {
-    const rendered = renderHook<any, any>((subplebbitAddresses) =>
-      useFeed({ subplebbitAddresses, sortType: "new" }),
+    const rendered = renderHook<any, any>((communityAddresses) =>
+      useFeed({ communityAddresses, sortType: "new" }),
     );
     const waitFor = testUtils.createWaitFor(rendered, { timeout });
 
@@ -325,9 +323,7 @@ describe("mock content", () => {
   });
 
   test("use feed hot", async () => {
-    const rendered = renderHook<any, any>((subplebbitAddresses) =>
-      useFeed({ subplebbitAddresses }),
-    );
+    const rendered = renderHook<any, any>((communityAddresses) => useFeed({ communityAddresses }));
     const waitFor = testUtils.createWaitFor(rendered, { timeout });
 
     const scrollOnePage = async () => {
@@ -374,7 +370,7 @@ describe("mock content", () => {
       onChallengeVerificationCalled = true;
     };
     await accountsActions.publishComment({
-      subplebbitAddress: "news.eth",
+      communityAddress: "news.eth",
       content: "content",
       title: "title",
       onChallenge,
@@ -387,7 +383,7 @@ describe("mock content", () => {
     console.log("publishing vote");
     onChallengeVerificationCalled = false;
     await accountsActions.publishVote({
-      subplebbitAddress: "news.eth",
+      communityAddress: "news.eth",
       vote: 1,
       commentCid: "some cid...",
       onChallenge,
@@ -398,44 +394,44 @@ describe("mock content", () => {
     expect(onChallengeVerificationCalled).toBe(true);
   });
 
-  test("use account subplebbits", async () => {
+  test("use account communities", async () => {
     const rendered = renderHook<any, any>(() => {
       const account = useAccount();
-      const { createSubplebbit } = accountsActions;
-      const accountSubplebbits = useAccountSubplebbits();
-      return { createSubplebbit, accountSubplebbits, account };
+      const { createCommunity } = accountsActions;
+      const accountCommunities = useAccountCommunities();
+      return { createCommunity, accountCommunities, account };
     });
     const waitFor = testUtils.createWaitFor(rendered, { timeout });
     await waitFor(
-      () => typeof rendered.result.current.account?.plebbit?.createSubplebbit === "function",
+      () => typeof rendered.result.current.account?.plebbit?.createCommunity === "function",
     );
-    expect(typeof rendered.result.current.account?.plebbit?.createSubplebbit).toBe("function");
+    expect(typeof rendered.result.current.account?.plebbit?.createCommunity).toBe("function");
 
-    console.log("creating subplebbit");
-    const subplebbit = await rendered.result.current.createSubplebbit({
+    console.log("creating community");
+    const community = await rendered.result.current.createCommunity({
       title: "title",
       description: "description",
     });
-    console.log({ subplebbit });
-    expect(subplebbit.title).toBe("title");
+    console.log({ community });
+    expect(community.title).toBe("title");
 
-    // wait for account subplebbits
+    // wait for account communities
     await waitFor(
       () =>
-        JSON.stringify(rendered.result.current?.accountSubplebbits?.accountSubplebbits) !== "{}",
+        JSON.stringify(rendered.result.current?.accountCommunities?.accountCommunities) !== "{}",
     );
     expect(
-      JSON.stringify(rendered.result.current?.accountSubplebbits?.accountSubplebbits),
+      JSON.stringify(rendered.result.current?.accountCommunities?.accountCommunities),
     ).not.toBe("{}");
-    console.log(rendered.result.current?.accountSubplebbits);
+    console.log(rendered.result.current?.accountCommunities);
 
-    // NOTE: this test won't change accountSubplebbits state, need to use publishSubplebbitEdit for that
-    console.log("editing subplebbit");
-    await subplebbit.edit({
+    // NOTE: this test won't change accountCommunities state, need to use publishCommunityEdit for that
+    console.log("editing community");
+    await community.edit({
       address: "name.eth",
     });
-    console.log({ subplebbit });
-    expect(subplebbit.address).toBe("name.eth");
+    console.log({ community });
+    expect(community.address).toBe("name.eth");
   });
 
   test("use comment replies", async () => {

@@ -8,18 +8,18 @@ import {
   useNotifications,
   useComment,
   useReplies,
-  useAccountSubplebbits,
-  useSubplebbit,
+  useAccountCommunities,
+  useCommunity,
   useFeed,
 } from "../../dist";
 import debugUtils from "../../dist/lib/debug-utils";
 
 import * as accountsActions from "../../dist/stores/accounts/accounts-actions";
-import subplebbitsStore from "../../dist/stores/subplebbits";
+import communitiesStore from "../../dist/stores/communities";
 import testUtils from "../../dist/lib/test-utils";
 import { offlineIpfs, pubsubIpfs, plebbitRpc } from "../test-server/config";
 import signers from "../fixtures/signers";
-const subplebbitAddress = signers[0].address;
+const communityAddress = signers[0].address;
 const adminRoleSigner = signers[1];
 
 const isBase64 = (testString) =>
@@ -107,20 +107,20 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
     });
 
     if (plebbitOptionsType !== "plebbit rpc client") {
-      console.log(`${plebbitOptionsType} can't create subplebbit, skipping`);
+      console.log(`${plebbitOptionsType} can't create community, skipping`);
     } else {
-      describe(`create subplebbit (${plebbitOptionsType})`, () => {
+      describe(`create community (${plebbitOptionsType})`, () => {
         let rendered, waitFor;
 
         beforeAll(async () => {
-          rendered = renderHook((subplebbitAddress) => {
+          rendered = renderHook((communityAddress) => {
             const account = useAccount();
-            const { accountSubplebbits } = useAccountSubplebbits();
-            const subplebbit = useSubplebbit({ subplebbitAddress });
-            const subplebbitAddresses = subplebbitAddress ? [subplebbitAddress] : undefined;
-            const modQueue = useFeed({ subplebbitAddresses, modQueue: ["pendingApproval"] });
-            const feed = useFeed({ subplebbitAddresses });
-            return { account, accountSubplebbits, subplebbit, modQueue, feed, ...accountsActions };
+            const { accountCommunities } = useAccountCommunities();
+            const community = useCommunity({ communityAddress });
+            const communityAddresses = communityAddress ? [communityAddress] : undefined;
+            const modQueue = useFeed({ communityAddresses, modQueue: ["pendingApproval"] });
+            const feed = useFeed({ communityAddresses });
+            return { account, accountCommunities, community, modQueue, feed, ...accountsActions };
           });
           rendered.detach();
           waitFor = testUtils.createWaitFor(rendered, { timeout });
@@ -145,65 +145,63 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
           console.log("after set account");
         });
 
-        it("create and edit a subplebbit", async () => {
-          console.log("before create subplebbit");
-          const createdSubplebbitTitle = "my title";
-          let subplebbit;
+        it("create and edit a community", async () => {
+          console.log("before create community");
+          const createdCommunityTitle = "my title";
+          let community;
           await act(async () => {
-            subplebbit = await rendered.result.current.createSubplebbit({
-              title: createdSubplebbitTitle,
+            community = await rendered.result.current.createCommunity({
+              title: createdCommunityTitle,
             });
           });
-          console.log("after create subplebbit", subplebbit.address);
-          const createdSubplebbitAddress = subplebbit?.address;
-          expect(typeof createdSubplebbitAddress).to.equal("string");
-          expect(subplebbit.title).to.equal(createdSubplebbitTitle);
+          console.log("after create community", community.address);
+          const createdCommunityAddress = community?.address;
+          expect(typeof createdCommunityAddress).to.equal("string");
+          expect(community.title).to.equal(createdCommunityTitle);
 
-          console.log("before used subplebbit");
-          // can useSubplebbit
-          rendered.rerender(createdSubplebbitAddress);
-          await waitFor(() => rendered.result.current.subplebbit.title === createdSubplebbitTitle);
-          expect(rendered.result.current.subplebbit.address).to.equal(createdSubplebbitAddress);
-          expect(rendered.result.current.subplebbit.title).to.equal(createdSubplebbitTitle);
-          console.log("after used subplebbit");
+          console.log("before used community");
+          // can useCommunity
+          rendered.rerender(createdCommunityAddress);
+          await waitFor(() => rendered.result.current.community.title === createdCommunityTitle);
+          expect(rendered.result.current.community.address).to.equal(createdCommunityAddress);
+          expect(rendered.result.current.community.title).to.equal(createdCommunityTitle);
+          console.log("after used community");
 
-          // wait for subplebbit to be added to account subplebbits
-          console.log("before subplebbit added to account subplebbits");
+          // wait for community to be added to account communities
+          console.log("before community added to account communities");
           await waitFor(
             () =>
-              rendered.result.current.accountSubplebbits[createdSubplebbitAddress].role.role ===
+              rendered.result.current.accountCommunities[createdCommunityAddress].role.role ===
               "owner",
           );
           expect(
-            rendered.result.current.accountSubplebbits[createdSubplebbitAddress].role.role,
+            rendered.result.current.accountCommunities[createdCommunityAddress].role.role,
           ).to.equal("owner");
-          console.log("after subplebbit added to account subplebbits");
+          console.log("after community added to account communities");
 
-          console.log("before edit subplebbit address");
-          // publishSubplebbitEdit address
-          const editedSubplebbitAddress = "my-sub.eth";
+          console.log("before edit community address");
+          // publishCommunityEdit address
+          const editedCommunityAddress = "my-sub.eth";
           let onChallenge = () => {};
           const onChallengeVerificationCalls = [];
           let onChallengeVerification = (...args) => onChallengeVerificationCalls.push([...args]);
 
           await act(async () => {
-            await rendered.result.current.publishSubplebbitEdit(createdSubplebbitAddress, {
-              address: editedSubplebbitAddress,
+            await rendered.result.current.publishCommunityEdit(createdCommunityAddress, {
+              address: editedCommunityAddress,
               onChallenge,
               onChallengeVerification,
             });
           });
-          console.log("after edit subplebbit address");
+          console.log("after edit community address");
 
-          console.log("before use subplebbit");
-          // change useSubplebbit address
-          rendered.rerender(editedSubplebbitAddress);
-          await waitFor(
-            () => rendered.result.current.subplebbit.address === editedSubplebbitAddress,
-          );
-          expect(rendered.result.current.subplebbit.address).to.equal(editedSubplebbitAddress);
-          expect(rendered.result.current.subplebbit.title).to.equal(createdSubplebbitTitle);
-          console.log("after use subplebbit");
+          console.log("before use community");
+          // change useCommunity address
+          rendered.rerender(editedCommunityAddress);
+          await waitFor(() => rendered.result.current.community.address === editedCommunityAddress);
+          expect(rendered.result.current.community.address).to.equal(editedCommunityAddress);
+          expect(rendered.result.current.community.title).to.equal(createdCommunityTitle);
+          console.log("after use community");
 
           console.log("before onChallengeVerification");
           // onChallengeVerification should be called with success even if the sub is edited locally
@@ -212,27 +210,25 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
           expect(onChallengeVerificationCalls[0][0].challengeSuccess).to.equal(true);
           console.log("after onChallengeVerification");
 
-          console.log("before edit subplebbit title");
-          // publishSubplebbitEdit title and description
-          const editedSubplebbitTitle = "edited title";
-          const editedSubplebbitDescription = "edited description";
+          console.log("before edit community title");
+          // publishCommunityEdit title and description
+          const editedCommunityTitle = "edited title";
+          const editedCommunityDescription = "edited description";
           await act(async () => {
-            await rendered.result.current.publishSubplebbitEdit(editedSubplebbitAddress, {
-              title: editedSubplebbitTitle,
-              description: editedSubplebbitDescription,
+            await rendered.result.current.publishCommunityEdit(editedCommunityAddress, {
+              title: editedCommunityTitle,
+              description: editedCommunityDescription,
               onChallenge,
               onChallengeVerification,
             });
           });
-          console.log("after edit subplebbit title");
+          console.log("after edit community title");
 
-          console.log("before subplebbit change");
+          console.log("before community change");
           // wait for change
-          await waitFor(
-            () => rendered.result.current.subplebbit.address === editedSubplebbitAddress,
-          );
-          expect(rendered.result.current.subplebbit.address).to.equal(editedSubplebbitAddress);
-          console.log("after subplebbit change");
+          await waitFor(() => rendered.result.current.community.address === editedCommunityAddress);
+          expect(rendered.result.current.community.address).to.equal(editedCommunityAddress);
+          console.log("after community change");
 
           console.log("before onChallengeVerification");
           // onChallengeVerification should be called with success even if the sub is edited locally
@@ -241,27 +237,27 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
           expect(onChallengeVerificationCalls[1][0].challengeSuccess).to.equal(true);
           console.log("after onChallengeVerification");
 
-          // delete subplebbit
-          console.log("before deleteSubplebbit");
+          // delete community
+          console.log("before deleteCommunity");
           await act(async () => {
-            await rendered.result.current.deleteSubplebbit(editedSubplebbitAddress);
+            await rendered.result.current.deleteCommunity(editedCommunityAddress);
           });
-          await waitFor(() => rendered.result.current.subplebbit?.updatedAt === undefined);
-          expect(rendered.result.current.subplebbit?.updatedAt).to.equal(undefined);
+          await waitFor(() => rendered.result.current.community?.updatedAt === undefined);
+          expect(rendered.result.current.community?.updatedAt).to.equal(undefined);
           await waitFor(
             () =>
-              rendered.result.current.accountSubplebbits[editedSubplebbitAddress]?.updatedAt ===
+              rendered.result.current.accountCommunities[editedCommunityAddress]?.updatedAt ===
               undefined,
           );
-          console.log("after deleteSubplebbit");
+          console.log("after deleteCommunity");
         });
 
-        it("create pending approval subplebbit, publish and approve", async () => {
-          const title = "pending approval subplebbit";
-          console.log("before create subplebbit");
-          let subplebbit;
+        it("create pending approval community, publish and approve", async () => {
+          const title = "pending approval community";
+          console.log("before create community");
+          let community;
           await act(async () => {
-            subplebbit = await rendered.result.current.createSubplebbit({
+            community = await rendered.result.current.createCommunity({
               title,
               settings: {
                 challenges: [
@@ -273,27 +269,27 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
                 ],
               },
             });
-            await subplebbit.start();
+            await community.start();
 
-            // flaky if not waiting after subplebbit.start()
+            // flaky if not waiting after community.start()
             await new Promise((r) => setTimeout(r, 1000));
           });
-          console.log("after create subplebbit", subplebbit.address);
-          expect(typeof subplebbit.address).to.equal("string");
-          expect(subplebbit.title).to.equal(title);
-          expect(subplebbit.challenges[0].description.includes("math")).to.equal(true);
-          expect(subplebbit.challenges[0].pendingApproval).to.equal(true);
+          console.log("after create community", community.address);
+          expect(typeof community.address).to.equal("string");
+          expect(community.title).to.equal(title);
+          expect(community.challenges[0].description.includes("math")).to.equal(true);
+          expect(community.challenges[0].pendingApproval).to.equal(true);
 
-          console.log("before used subplebbit");
-          // can useSubplebbit
-          rendered.rerender(subplebbit.address);
-          await waitFor(() => rendered.result.current.subplebbit.title === title);
-          expect(rendered.result.current.subplebbit.title).to.equal(title);
+          console.log("before used community");
+          // can useCommunity
+          rendered.rerender(community.address);
+          await waitFor(() => rendered.result.current.community.title === title);
+          expect(rendered.result.current.community.title).to.equal(title);
           expect(
-            rendered.result.current.subplebbit.challenges[0].description.includes("math"),
+            rendered.result.current.community.challenges[0].description.includes("math"),
           ).to.equal(true);
-          expect(rendered.result.current.subplebbit.challenges[0].pendingApproval).to.equal(true);
-          console.log("after used subplebbit");
+          expect(rendered.result.current.community.challenges[0].pendingApproval).to.equal(true);
+          console.log("after used community");
 
           let challenge, comment, challengeVerification;
           const logChallenge = (str, obj) => {
@@ -315,7 +311,7 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
 
           // publish wrong challenge answer, verification should be success false
           let publishCommentOptions = {
-            subplebbitAddress: subplebbit.address,
+            communityAddress: community.address,
             title: "some title",
             content: "some content",
             onChallenge,
@@ -388,17 +384,17 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
           // approve pending approval comment
           expect(rendered.result.current.feed.feed.length).to.equal(0);
           expect(typeof rendered.result.current.account.author.address).to.equal("string");
-          await subplebbit.edit({
+          await community.edit({
             roles: { [rendered.result.current.account.author.address]: { role: "moderator" } },
           });
-          expect(subplebbit.roles[rendered.result.current.account.author.address].role).to.equal(
+          expect(community.roles[rendered.result.current.account.author.address].role).to.equal(
             "moderator",
           );
 
           await act(async () => {
             console.log("before publishCommentModeration");
             await rendered.result.current.publishCommentModeration({
-              subplebbitAddress: subplebbit.address,
+              communityAddress: community.address,
               commentCid: pendingApprovalCommentCid,
               commentModeration: { approved: true },
               onChallenge,
@@ -419,14 +415,14 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
       });
     }
 
-    describe(`publish subplebbit edit (${plebbitOptionsType})`, () => {
+    describe(`publish community edit (${plebbitOptionsType})`, () => {
       let rendered, waitFor;
 
       beforeAll(async () => {
-        rendered = renderHook((subplebbitAddress) => {
+        rendered = renderHook((communityAddress) => {
           const account = useAccount();
-          const subplebbit = useSubplebbit({ subplebbitAddress });
-          return { account, subplebbit, ...accountsActions };
+          const community = useCommunity({ communityAddress });
+          return { account, community, ...accountsActions };
         });
         rendered.detach();
         waitFor = testUtils.createWaitFor(rendered, { timeout });
@@ -447,7 +443,7 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
           const account = {
             ...rendered.result.current.account,
             plebbitOptions,
-            // the 'admin' role signer of subplebbitAddress
+            // the 'admin' role signer of communityAddress
             signer: {
               type: "ed25519",
               privateKey: adminRoleSigner.privateKey,
@@ -464,34 +460,34 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
         console.log("after set account");
       });
 
-      it("publish subplebbit edit", async () => {
-        console.log("before used subplebbit");
-        rendered.rerender(subplebbitAddress);
-        await waitFor(() => rendered.result.current.subplebbit.address === subplebbitAddress);
+      it("publish community edit", async () => {
+        console.log("before used community");
+        rendered.rerender(communityAddress);
+        await waitFor(() => rendered.result.current.community.address === communityAddress);
         await waitFor(
-          () => rendered.result.current.subplebbit.roles[adminRoleSigner.address].role === "admin",
+          () => rendered.result.current.community.roles[adminRoleSigner.address].role === "admin",
         );
-        expect(rendered.result.current.subplebbit.address).to.equal(subplebbitAddress);
-        expect(rendered.result.current.subplebbit.roles[adminRoleSigner.address].role).to.equal(
+        expect(rendered.result.current.community.address).to.equal(communityAddress);
+        expect(rendered.result.current.community.roles[adminRoleSigner.address].role).to.equal(
           "admin",
         );
-        console.log("after used subplebbit");
+        console.log("after used community");
 
-        // publish subplebbit edit
-        const onChallenge = (challenge, subplebbitEdit) =>
-          subplebbitEdit.publishChallengeAnswers(["2"]);
+        // publish community edit
+        const onChallenge = (challenge, communityEdit) =>
+          communityEdit.publishChallengeAnswers(["2"]);
         const onChallengeVerificationCalls = [];
         const onChallengeVerification = (...args) => onChallengeVerificationCalls.push([...args]);
         const editedTitle = `edited title ${Math.random()}`;
-        console.log("before plebbit.publishSubplebbitEdit()");
+        console.log("before plebbit.publishCommunityEdit()");
         await act(async () => {
-          await rendered.result.current.publishSubplebbitEdit(subplebbitAddress, {
+          await rendered.result.current.publishCommunityEdit(communityAddress, {
             title: editedTitle,
             onChallenge,
             onChallengeVerification,
           });
         });
-        console.log("after plebbit.publishSubplebbitEdit()");
+        console.log("after plebbit.publishCommunityEdit()");
 
         console.log("before onChallengeVerification");
         await waitFor(() => onChallengeVerificationCalls.length >= 1);
@@ -500,9 +496,9 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
         console.log(onChallengeVerificationCalls[0][0]);
         console.log("after onChallengeVerification");
 
-        await waitFor(() => rendered.result.current.subplebbit.title === editedTitle);
-        expect(rendered.result.current.subplebbit.title).to.equal(editedTitle);
-        console.log(rendered.result.current.subplebbit.title);
+        await waitFor(() => rendered.result.current.community.title === editedTitle);
+        expect(rendered.result.current.community.title).to.equal(editedTitle);
+        console.log(rendered.result.current.community.title);
       });
     });
 
@@ -573,7 +569,7 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
 
         it(`publish comment (${plebbitOptionsType})`, async () => {
           const publishCommentOptions = {
-            subplebbitAddress,
+            communityAddress,
             title: "some title",
             content: "some content",
             onChallenge,
@@ -645,7 +641,7 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
             }
             replyChallengeVerification = challengeVerification;
           };
-          // wait for the parent comment to be indexed by the subplebbit before publishing a reply
+          // wait for the parent comment to be indexed by the community before publishing a reply
           console.log(`publish reply: publishedCid=${publishedCid}, typeof=${typeof publishedCid}`);
           rendered.rerender(publishedCid);
           await waitFor(() => typeof rendered.result.current.comment?.updatedAt === "number");
@@ -664,7 +660,7 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
           console.log("parent comment indexed, publishing reply");
 
           const publishCommentOptions = {
-            subplebbitAddress,
+            communityAddress,
             parentCid: publishedCid,
             postCid: publishedCid,
             content: "some content",

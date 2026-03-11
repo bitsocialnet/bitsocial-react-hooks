@@ -1,3 +1,3 @@
-import chain from './chain'
-export * from './chain'
-export default chain
+import chain from "./chain";
+export * from "./chain";
+export default chain;

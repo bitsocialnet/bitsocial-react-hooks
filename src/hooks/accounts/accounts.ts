@@ -4,7 +4,7 @@ import useAccountsStore from "../../stores/accounts";
 import Logger from "@plebbit/plebbit-logger";
 const log = Logger("bitsocial-react-hooks:accounts:hooks");
 import assert from "assert";
-import { useListSubplebbits, useSubplebbits } from "../subplebbits";
+import { useListCommunities, useCommunities } from "../communities";
 import type {
   AccountComment,
   AccountComments,
@@ -13,8 +13,8 @@ import type {
   AccountVote,
   AccountsComments,
   AccountsCommentsReplies,
-  UseAccountSubplebbitsOptions,
-  UseAccountSubplebbitsResult,
+  UseAccountCommunitiesOptions,
+  UseAccountCommunitiesResult,
   UseAccountVoteOptions,
   UseAccountVoteResult,
   UseAccountVotesOptions,
@@ -40,10 +40,10 @@ import {
   useCalculatedNotifications,
 } from "./utils";
 import {
-  getCanonicalSubplebbitAddress,
-  getEquivalentSubplebbitAddressGroupKey,
-  pickPreferredEquivalentSubplebbitAddress,
-} from "../../lib/subplebbit-address";
+  getCanonicalCommunityAddress,
+  getEquivalentCommunityAddressGroupKey,
+  pickPreferredEquivalentCommunityAddress,
+} from "../../lib/community-address";
 import { addCommentModeration } from "../../lib/utils/comment-moderation";
 import useInterval from "../utils/use-interval";
 
@@ -124,137 +124,142 @@ export function useAccounts() {
 }
 
 /**
- * Returns all subplebbits where the account is a creator or moderator
+ * Returns all communities where the account is a creator or moderator
  */
-export function useAccountSubplebbits(
-  options?: UseAccountSubplebbitsOptions,
-): UseAccountSubplebbitsResult {
+export function useAccountCommunities(
+  options?: UseAccountCommunitiesOptions,
+): UseAccountCommunitiesResult {
   assert(
     !options || typeof options === "object",
-    `useAccountSubplebbits options argument '${options}' not an object`,
+    `useAccountCommunities options argument '${options}' not an object`,
   );
   const opts = options ?? {};
   const { accountName, onlyIfCached } = opts;
   const accountId = useAccountId(accountName);
   const accountIdKey = accountId || "";
-  const accountsStoreAccountSubplebbits = useAccountsStore(
-    (state) => state.accounts[accountIdKey]?.subplebbits,
+  const accountsStoreAccountCommunities = useAccountsStore(
+    (state) => state.accounts[accountIdKey]?.communities,
   );
 
-  // get all unique account subplebbit addresses
-  const ownerSubplebbitAddresses = useListSubplebbits();
-  const groupedSubplebbitAddresses = useMemo(() => {
-    const accountSubplebbitAddresses = [];
-    if (accountsStoreAccountSubplebbits) {
-      for (const subplebbitAddress in accountsStoreAccountSubplebbits) {
-        accountSubplebbitAddresses.push(subplebbitAddress);
+  // get all unique account community addresses
+  const ownerCommunityAddresses = useListCommunities(accountName);
+  const groupedCommunityAddresses = useMemo(() => {
+    const accountCommunityAddresses = [];
+    if (accountsStoreAccountCommunities) {
+      for (const communityAddress in accountsStoreAccountCommunities) {
+        accountCommunityAddresses.push(communityAddress);
       }
     }
-    const allSubplebbitAddresses = [
-      ...new Set([...ownerSubplebbitAddresses, ...accountSubplebbitAddresses]),
+    const allCommunityAddresses = [
+      ...new Set([...ownerCommunityAddresses, ...accountCommunityAddresses]),
     ].sort();
     const groupedAddresses = new Map<string, string[]>();
-    for (const subplebbitAddress of allSubplebbitAddresses) {
-      const groupKey = getEquivalentSubplebbitAddressGroupKey(subplebbitAddress);
+    for (const communityAddress of allCommunityAddresses) {
+      const groupKey = getEquivalentCommunityAddressGroupKey(communityAddress);
       const addresses = groupedAddresses.get(groupKey);
       if (addresses) {
-        addresses.push(subplebbitAddress);
+        addresses.push(communityAddress);
       } else {
-        groupedAddresses.set(groupKey, [subplebbitAddress]);
+        groupedAddresses.set(groupKey, [communityAddress]);
       }
     }
     return [...groupedAddresses.entries()].map(([groupKey, addresses]) => ({
       groupKey,
       addresses,
-      preferredAddress: pickPreferredEquivalentSubplebbitAddress(addresses),
+      preferredAddress: pickPreferredEquivalentCommunityAddress(addresses),
     }));
-  }, [accountsStoreAccountSubplebbits, ownerSubplebbitAddresses]);
-  const uniqueSubplebbitAddresses = useMemo(
-    () => groupedSubplebbitAddresses.map(({ preferredAddress }) => preferredAddress),
-    [groupedSubplebbitAddresses],
+  }, [accountsStoreAccountCommunities, ownerCommunityAddresses]);
+  const uniqueCommunityAddresses = useMemo(
+    () => groupedCommunityAddresses.map(({ preferredAddress }) => preferredAddress),
+    [groupedCommunityAddresses],
   );
 
-  // fetch all subplebbit data
-  const { subplebbits: subplebbitsArray } = useSubplebbits({
-    subplebbitAddresses: uniqueSubplebbitAddresses,
+  // fetch all community data
+  const {
+    communities: communitiesArray,
+    state: communitiesState,
+    error: communitiesError,
+    errors: communitiesErrors,
+  } = useCommunities({
+    communityAddresses: uniqueCommunityAddresses,
     accountName,
     onlyIfCached,
   });
   const canonicalAddressByGroupKey = useMemo(() => {
     const canonicalAddresses: { [groupKey: string]: string } = {};
-    for (const [i, { groupKey, preferredAddress }] of groupedSubplebbitAddresses.entries()) {
-      const fetchedAddress = subplebbitsArray[i]?.address;
-      canonicalAddresses[groupKey] = getCanonicalSubplebbitAddress(
+    for (const [i, { groupKey, preferredAddress }] of groupedCommunityAddresses.entries()) {
+      const fetchedAddress = communitiesArray[i]?.address;
+      canonicalAddresses[groupKey] = getCanonicalCommunityAddress(
         fetchedAddress || preferredAddress,
       );
     }
     return canonicalAddresses;
-  }, [groupedSubplebbitAddresses, subplebbitsArray]);
-  const subplebbits: any = useMemo(() => {
-    const subplebbits: any = {};
-    for (const [i, subplebbit] of subplebbitsArray.entries()) {
-      const { groupKey, preferredAddress } = groupedSubplebbitAddresses[i];
+  }, [groupedCommunityAddresses, communitiesArray]);
+  const communities: any = useMemo(() => {
+    const communities: any = {};
+    for (const [i, community] of communitiesArray.entries()) {
+      const { groupKey, preferredAddress } = groupedCommunityAddresses[i];
       const canonicalAddress =
         canonicalAddressByGroupKey[groupKey] ||
-        getCanonicalSubplebbitAddress(subplebbit?.address || preferredAddress);
-      subplebbits[canonicalAddress] = {
-        ...subplebbits[canonicalAddress],
-        ...subplebbit,
-        // make sure the canonical address is defined even if the subplebbit hasn't fetched yet
+        getCanonicalCommunityAddress(community?.address || preferredAddress);
+      communities[canonicalAddress] = {
+        ...communities[canonicalAddress],
+        ...community,
+        // make sure the canonical address is defined even if the community hasn't fetched yet
         address: canonicalAddress,
       };
     }
-    return subplebbits;
-  }, [subplebbitsArray, groupedSubplebbitAddresses, canonicalAddressByGroupKey]);
+    return communities;
+  }, [communitiesArray, groupedCommunityAddresses, canonicalAddressByGroupKey]);
 
-  // merged subplebbit data with account.subplebbits data
-  const accountSubplebbits: any = useMemo(() => {
-    const accountSubplebbits: any = { ...subplebbits };
-    if (accountsStoreAccountSubplebbits) {
-      for (const subplebbitAddress in accountsStoreAccountSubplebbits) {
-        const groupKey = getEquivalentSubplebbitAddressGroupKey(subplebbitAddress);
+  // merged community data with account.communities data
+  const accountCommunities: any = useMemo(() => {
+    const accountCommunities: any = { ...communities };
+    if (accountsStoreAccountCommunities) {
+      for (const communityAddress in accountsStoreAccountCommunities) {
+        const groupKey = getEquivalentCommunityAddressGroupKey(communityAddress);
         const canonicalAddress =
-          canonicalAddressByGroupKey[groupKey] || getCanonicalSubplebbitAddress(subplebbitAddress);
-        accountSubplebbits[canonicalAddress] = {
-          ...accountSubplebbits[canonicalAddress],
-          ...accountsStoreAccountSubplebbits[subplebbitAddress],
+          canonicalAddressByGroupKey[groupKey] || getCanonicalCommunityAddress(communityAddress);
+        accountCommunities[canonicalAddress] = {
+          ...accountCommunities[canonicalAddress],
+          ...accountsStoreAccountCommunities[communityAddress],
           address: canonicalAddress,
         };
       }
     }
-    // add plebbit.subplebbits data
-    for (const subplebbitAddress of ownerSubplebbitAddresses) {
-      const groupKey = getEquivalentSubplebbitAddressGroupKey(subplebbitAddress);
+    // add plebbit.communities data
+    for (const communityAddress of ownerCommunityAddresses) {
+      const groupKey = getEquivalentCommunityAddressGroupKey(communityAddress);
       const canonicalAddress =
-        canonicalAddressByGroupKey[groupKey] || getCanonicalSubplebbitAddress(subplebbitAddress);
-      accountSubplebbits[canonicalAddress] = {
-        ...accountSubplebbits[canonicalAddress],
+        canonicalAddressByGroupKey[groupKey] || getCanonicalCommunityAddress(communityAddress);
+      accountCommunities[canonicalAddress] = {
+        ...accountCommunities[canonicalAddress],
         address: canonicalAddress,
         role: { role: "owner" },
       };
     }
-    return accountSubplebbits;
+    return accountCommunities;
   }, [
-    accountsStoreAccountSubplebbits,
-    ownerSubplebbitAddresses,
-    subplebbits,
+    accountsStoreAccountCommunities,
+    ownerCommunityAddresses,
+    communities,
     canonicalAddressByGroupKey,
   ]);
 
   if (accountId) {
-    log("useAccountSubplebbits", { accountSubplebbits });
+    log("useAccountCommunities", { accountCommunities });
   }
 
-  const state = accountId ? "succeeded" : "initializing";
+  const state = accountId ? communitiesState : "initializing";
 
   return useMemo(
     () => ({
-      accountSubplebbits,
+      accountCommunities,
       state,
-      error: undefined,
-      errors: [],
+      error: communitiesError,
+      errors: communitiesErrors,
     }),
-    [accountSubplebbits, state],
+    [accountCommunities, state, communitiesError, communitiesErrors],
   );
 }
 
@@ -427,8 +432,8 @@ export function useAccountComment(options?: UseAccountCommentOptions): UseAccoun
 }
 
 /**
- * Returns the own user's votes stored locally, even those not yet published by the subplebbit owner.
- * Check UseAccountCommentsOptions type in types.tsx to filter them, e.g. filter = {subplebbitAddresses: ['memes.eth']}.
+ * Returns the own user's votes stored locally, even those not yet published by the community owner.
+ * Check UseAccountCommentsOptions type in types.tsx to filter them, e.g. filter = {communityAddresses: ['memes.eth']}.
  */
 export function useAccountVotes(options?: UseAccountVotesOptions): UseAccountVotesResult {
   assert(
@@ -508,7 +513,7 @@ export function useAccountVote(options?: UseAccountVoteOptions): UseAccountVoteR
 }
 
 /**
- * Returns all the comment and subplebbit edits published by an account.
+ * Returns all the comment and community edits published by an account.
  */
 export function useAccountEdits(options?: UseAccountEditsOptions): UseAccountEditsResult {
   assert(
@@ -596,7 +601,7 @@ export function useEditedComment(options?: UseEditedCommentOptions): UseEditedCo
       "author",
       "signer",
       "commentCid",
-      "subplebbitAddress",
+      "communityAddress",
       "timestamp",
     ]);
 
@@ -741,7 +746,7 @@ export function useEditedComment(options?: UseEditedCommentOptions): UseEditedCo
  * by subscribing to the pubsub right away.
  *
  * @param accountName - The nickname of the account, e.g. 'Account 1'.
- * @param subplebbitAddress - The subplebbit address to subscribe to, e.g. 'news.eth'.
+ * @param communityAddress - The community address to subscribe to, e.g. 'news.eth'.
  */
 export function usePubsubSubscribe(options?: UsePubsubSubscribeOptions): UsePubsubSubscribeResult {
   assert(
@@ -749,7 +754,7 @@ export function usePubsubSubscribe(options?: UsePubsubSubscribeOptions): UsePubs
     `usePubsubSubscribe options argument '${options}' not an object`,
   );
   const opts = options ?? {};
-  const { accountName, subplebbitAddress } = opts;
+  const { accountName, communityAddress } = opts;
   const accountId = useAccountId(accountName);
   const accountIdKey = accountId || "";
   const account = useAccountsStore((state) => state.accounts[accountIdKey]);
@@ -757,30 +762,30 @@ export function usePubsubSubscribe(options?: UsePubsubSubscribeOptions): UsePubs
   const [errors, setErrors] = useState<Error[]>([]);
 
   useEffect(() => {
-    if (!account?.plebbit || !subplebbitAddress) {
+    if (!account?.plebbit || !communityAddress) {
       return;
     }
     setState("subscribing");
     account.plebbit
-      .pubsubSubscribe(subplebbitAddress)
+      .pubsubSubscribe(communityAddress)
       .then(() => setState("succeeded"))
       .catch((error: any) => {
         setErrors([...errors, error]);
         setState("failed");
-        log.error("usePubsubSubscribe plebbit.pubsubSubscribe error", { subplebbitAddress, error });
+        log.error("usePubsubSubscribe plebbit.pubsubSubscribe error", { communityAddress, error });
       });
 
     // unsub on component unmount
     return function () {
-      account.plebbit.pubsubUnsubscribe(subplebbitAddress).catch((error: any) => {
+      account.plebbit.pubsubUnsubscribe(communityAddress).catch((error: any) => {
         setErrors([...errors, error]);
         log.error("usePubsubSubscribe plebbit.pubsubUnsubscribe error", {
-          subplebbitAddress,
+          communityAddress,
           error,
         });
       });
     };
-  }, [account?.plebbit, subplebbitAddress]);
+  }, [account?.plebbit, communityAddress]);
 
   return useMemo(
     () => ({

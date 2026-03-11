@@ -1,6 +1,6 @@
 import { act } from "@testing-library/react";
 import { renderHook } from "../test-utils";
-import { useSubplebbit, setPlebbitJs, restorePlebbitJs } from "../../dist";
+import { useCommunity, setPlebbitJs, restorePlebbitJs } from "../../dist";
 import debugUtils from "../../dist/lib/debug-utils";
 import testUtils from "../../dist/lib/test-utils";
 import PlebbitJsMock from "../../dist/lib/plebbit-js/plebbit-js-mock";
@@ -9,9 +9,9 @@ setPlebbitJs(PlebbitJsMock);
 
 const timeout = 10000;
 
-describe("subplebbits (plebbit-js mock)", () => {
+describe("communities (plebbit-js mock)", () => {
   beforeAll(async () => {
-    console.log("before subplebbits tests");
+    console.log("before communities tests");
     testUtils.silenceReactWarnings();
     // reset before or init accounts sometimes fails
     await testUtils.resetDatabasesAndStores();
@@ -22,31 +22,31 @@ describe("subplebbits (plebbit-js mock)", () => {
     console.log("after reset stores");
   });
 
-  describe("no subplebbits in database", () => {
-    it("get subplebbits one at a time", async () => {
-      console.log("starting subplebbits tests");
-      const rendered = renderHook((subplebbitAddress) => useSubplebbit({ subplebbitAddress }));
+  describe("no communities in database", () => {
+    it("get communities one at a time", async () => {
+      console.log("starting communities tests");
+      const rendered = renderHook((communityAddress) => useCommunity({ communityAddress }));
       const waitFor = testUtils.createWaitFor(rendered, { timeout });
 
       expect(rendered.result.current?.updatedAt).to.equal(undefined);
-      rendered.rerender("subplebbit address 1");
+      rendered.rerender("community address 1");
       await waitFor(() => typeof rendered.result.current.title === "string");
-      expect(rendered.result.current.address).to.equal("subplebbit address 1");
-      expect(rendered.result.current.title).to.equal("subplebbit address 1 title");
-      // wait for subplebbit.on('update') to fetch the updated description
+      expect(rendered.result.current.address).to.equal("community address 1");
+      expect(rendered.result.current.title).to.equal("community address 1 title");
+      // wait for community.on('update') to fetch the updated description
       await waitFor(() => typeof rendered.result.current.description === "string");
       expect(rendered.result.current.description).to.equal(
-        "subplebbit address 1 description updated",
+        "community address 1 description updated",
       );
 
-      rendered.rerender("subplebbit address 2");
+      rendered.rerender("community address 2");
       await waitFor(() => typeof rendered.result.current.title === "string");
-      expect(rendered.result.current.address).to.equal("subplebbit address 2");
-      expect(rendered.result.current.title).to.equal("subplebbit address 2 title");
-      // wait for subplebbit.on('update') to fetch the updated description
+      expect(rendered.result.current.address).to.equal("community address 2");
+      expect(rendered.result.current.title).to.equal("community address 2 title");
+      // wait for community.on('update') to fetch the updated description
       await waitFor(() => typeof rendered.result.current.description === "string");
       expect(rendered.result.current.description).to.equal(
-        "subplebbit address 2 description updated",
+        "community address 2 description updated",
       );
     });
   });

@@ -4,28 +4,29 @@ const log = Logger("bitsocial-react-hooks:feeds:stores");
 import {
   Feed,
   Feeds,
-  Subplebbit,
-  Subplebbits,
+  Community,
+  Communities,
   Account,
   FeedsOptions,
-  SubplebbitPage,
-  FeedsSubplebbitsPostCounts,
+  CommunityPage,
+  FeedsCommunitiesPostCounts,
   CommentsFilter,
   FeedOptionsAccountComments,
   Comment,
 } from "../../types";
 import createStore from "zustand";
 import localForageLru from "../../lib/localforage-lru";
-import { subplebbitPostsCacheExpired } from "../../lib/utils";
+import { communityPostsCacheExpired } from "../../lib/utils";
+import { getPlebbitGetCommunity } from "../../lib/plebbit-compat";
 import accountsStore from "../accounts";
-import subplebbitsStore from "../subplebbits";
-import subplebbitsPagesStore from "../subplebbits-pages";
+import communitiesStore from "../communities";
+import communitiesPagesStore from "../communities-pages";
 import {
-  getFeedsSubplebbitsFirstPageCids,
+  getFeedsCommunitiesFirstPageCids,
   getLoadedFeeds,
   getUpdatedFeeds,
   getBufferedFeedsWithoutLoadedFeeds,
-  getFeedsSubplebbitsPostCounts,
+  getFeedsCommunitiesPostCounts,
   getFeedsHaveMore,
   getAccountsBlockedAddresses,
   feedsHaveChangedBlockedAddresses,
@@ -33,12 +34,12 @@ import {
   getAccountsBlockedCids,
   feedsHaveChangedBlockedCids,
   accountsBlockedCidsChanged,
-  feedsSubplebbitsChanged,
-  getFeedsSubplebbits,
-  getFeedsSubplebbitsLoadedCount,
-  getFeedsSubplebbitsPostsPagesFirstUpdatedAts,
+  feedsCommunitiesChanged,
+  getFeedsCommunities,
+  getFeedsCommunitiesLoadedCount,
+  getFeedsCommunitiesPostsPagesFirstUpdatedAts,
   getFilteredSortedFeeds,
-  getFeedsSubplebbitAddressesWithNewerPosts,
+  getFeedsCommunityAddressesWithNewerPosts,
 } from "./utils";
 
 // reddit loads approximately 25 posts per page
@@ -46,16 +47,16 @@ import {
 export const defaultPostsPerPage = 25;
 
 // keep large buffer because fetching cids is slow
-const subplebbitPostsLeftBeforeNextPage = 50;
+const communityPostsLeftBeforeNextPage = 50;
 
 type FeedsState = {
   feedsOptions: FeedsOptions;
   bufferedFeeds: Feeds;
   loadedFeeds: Feeds;
   updatedFeeds: Feeds;
-  bufferedFeedsSubplebbitsPostCounts: FeedsSubplebbitsPostCounts;
+  bufferedFeedsCommunitiesPostCounts: FeedsCommunitiesPostCounts;
   feedsHaveMore: { [feedName: string]: boolean };
-  feedsSubplebbitAddressesWithNewerPosts: { [feedName: string]: string[] };
+  feedsCommunityAddressesWithNewerPosts: { [feedName: string]: string[] };
   addFeedToStore: Function;
   incrementFeedPageNumber: Function;
   resetFeed: Function;
@@ -71,13 +72,13 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
   bufferedFeeds: {},
   loadedFeeds: {},
   updatedFeeds: {},
-  bufferedFeedsSubplebbitsPostCounts: {},
+  bufferedFeedsCommunitiesPostCounts: {},
   feedsHaveMore: {},
-  feedsSubplebbitAddressesWithNewerPosts: {},
+  feedsCommunityAddressesWithNewerPosts: {},
 
   async addFeedToStore(
     feedName: string,
-    subplebbitAddresses: string[],
+    communityAddresses: string[],
     sortType: string,
     account: Account,
     isBufferedFeed?: boolean,
@@ -95,15 +96,15 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
       `feedsStore.addFeedToStore feedName '${feedName}' invalid`,
     );
     assert(
-      Array.isArray(subplebbitAddresses),
-      `addFeedToStore.addFeedToStore subplebbitAddresses '${subplebbitAddresses}' invalid`,
+      Array.isArray(communityAddresses),
+      `addFeedToStore.addFeedToStore communityAddresses '${communityAddresses}' invalid`,
     );
     assert(
       sortType && typeof sortType === "string",
       `addFeedToStore.addFeedToStore sortType '${sortType}' invalid`,
     );
     assert(
-      typeof account?.plebbit?.getSubplebbit === "function",
+      typeof getPlebbitGetCommunity(account?.plebbit) === "function",
       `addFeedToStore.addFeedToStore account '${account}' invalid`,
     );
     assert(
@@ -146,7 +147,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
     }
     // to add a buffered feed, add a feed with pageNumber 0
     const feedOptions = {
-      subplebbitAddresses,
+      communityAddresses,
       sortType,
       accountId: account.id,
       pageNumber: isBufferedFeed === true ? 0 : 1,
@@ -162,10 +163,10 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
       feedsOptions: { ...feedsOptions, [feedName]: feedOptions },
     }));
 
-    addSubplebbitsToSubplebbitsStore(subplebbitAddresses, account);
+    addCommunitiesToCommunitiesStore(communityAddresses, account);
 
-    // update feeds right away to use the already loaded subplebbits and pages
-    // if no new subplebbits are added by the feed, like for a sort type change,
+    // update feeds right away to use the already loaded communities and pages
+    // if no new communities are added by the feed, like for a sort type change,
     // a feed update will never be triggered, so must be triggered it manually
     updateFeeds();
   },
@@ -208,7 +209,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
     );
     log("feedsActions.resetFeed", { feedName });
 
-    const { modQueue, sortType, subplebbitAddresses, accountId } = feedsOptions[feedName];
+    const { modQueue, sortType, communityAddresses, accountId } = feedsOptions[feedName];
     const account = accountsStore.getState().accounts[accountId];
     assert(
       account,
@@ -228,29 +229,27 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
     });
 
     if (modQueue?.[0]) {
-      const { subplebbits } = subplebbitsStore.getState();
-      const { invalidateSubplebbitPages } = subplebbitsPagesStore.getState();
-      const loadedSubplebbits = subplebbitAddresses
-        .map((subplebbitAddress: string) => subplebbits[subplebbitAddress])
-        .filter((subplebbit: Subplebbit | undefined): subplebbit is Subplebbit =>
-          Boolean(subplebbit),
-        );
+      const { communities } = communitiesStore.getState();
+      const { invalidateCommunityPages } = communitiesPagesStore.getState();
+      const loadedCommunities = communityAddresses
+        .map((communityAddress: string) => communities[communityAddress])
+        .filter((community: Community | undefined): community is Community => Boolean(community));
       await Promise.all(
-        loadedSubplebbits.map((subplebbit: Subplebbit) =>
-          invalidateSubplebbitPages(subplebbit, sortType, modQueue),
+        loadedCommunities.map((community: Community) =>
+          invalidateCommunityPages(community, sortType, modQueue, account.id),
         ),
       );
     }
 
     await Promise.all(
-      subplebbitAddresses.map((subplebbitAddress: string) =>
-        subplebbitsStore
+      communityAddresses.map((communityAddress: string) =>
+        communitiesStore
           .getState()
-          .refreshSubplebbit(subplebbitAddress, account)
+          .refreshCommunity(communityAddress, account)
           .catch((error: unknown) =>
-            log.error("feedsStore.resetFeed refreshSubplebbit error", {
+            log.error("feedsStore.resetFeed refreshCommunity error", {
               feedName,
-              subplebbitAddress,
+              communityAddress,
               error,
             }),
           ),
@@ -260,7 +259,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
     updateFeeds();
   },
 
-  // recalculate all feeds using new subplebbits.post.pages, subplebbitsPagesStore and page numbers
+  // recalculate all feeds using new communities.post.pages, communitiesPagesStore and page numbers
   updateFeeds() {
     if (updateFeedsPending) {
       return;
@@ -274,17 +273,17 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
       // get state from all stores
       const previousState = getState();
       const { feedsOptions } = previousState;
-      const { subplebbits } = subplebbitsStore.getState();
-      const { subplebbitsPages } = subplebbitsPagesStore.getState();
+      const { communities } = communitiesStore.getState();
+      const { communitiesPages } = communitiesPagesStore.getState();
       const { accounts } = accountsStore.getState();
 
       // calculate new feeds
       const filteredSortedFeeds = getFilteredSortedFeeds(
         feedsOptions,
-        subplebbits,
-        subplebbitsPages,
+        communities,
+        communitiesPages,
         accounts,
-        subplebbitsPagesStore.getState().comments,
+        communitiesPagesStore.getState().comments,
       );
       const bufferedFeedsWithoutPreviousLoadedFeeds = getBufferedFeedsWithoutLoadedFeeds(
         filteredSortedFeeds,
@@ -302,21 +301,21 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
         bufferedFeedsWithoutPreviousLoadedFeeds,
         loadedFeeds,
       );
-      const bufferedFeedsSubplebbitsPostCounts = getFeedsSubplebbitsPostCounts(
+      const bufferedFeedsCommunitiesPostCounts = getFeedsCommunitiesPostCounts(
         feedsOptions,
         bufferedFeeds,
       );
       const feedsHaveMore = getFeedsHaveMore(
         feedsOptions,
         bufferedFeeds,
-        subplebbits,
-        subplebbitsPages,
+        communities,
+        communitiesPages,
         accounts,
       );
-      const feedsSubplebbitAddressesWithNewerPosts = getFeedsSubplebbitAddressesWithNewerPosts(
+      const feedsCommunityAddressesWithNewerPosts = getFeedsCommunityAddressesWithNewerPosts(
         filteredSortedFeeds,
         loadedFeeds,
-        previousState.feedsSubplebbitAddressesWithNewerPosts,
+        previousState.feedsCommunityAddressesWithNewerPosts,
       );
       const updatedFeeds = await getUpdatedFeeds(
         feedsOptions,
@@ -331,20 +330,20 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
         bufferedFeeds,
         loadedFeeds,
         updatedFeeds,
-        bufferedFeedsSubplebbitsPostCounts,
+        bufferedFeedsCommunitiesPostCounts,
         feedsHaveMore,
-        feedsSubplebbitAddressesWithNewerPosts,
+        feedsCommunityAddressesWithNewerPosts,
       }));
       log.trace("feedsStore.updateFeeds", {
         feedsOptions,
         bufferedFeeds,
         loadedFeeds,
         updatedFeeds,
-        bufferedFeedsSubplebbitsPostCounts,
+        bufferedFeedsCommunitiesPostCounts,
         feedsHaveMore,
-        subplebbits,
-        subplebbitsPages,
-        feedsSubplebbitAddressesWithNewerPosts,
+        communities,
+        communitiesPages,
+        feedsCommunityAddressesWithNewerPosts,
       });
 
       // TODO: if updateFeeds was called while updateFeedsPending = true, maybe we should recall updateFeeds here
@@ -358,13 +357,13 @@ const initializeFeedsStore = async () => {
   if (feedsStoreInitialized) {
     return;
   }
-  // TODO: optimize subscriptions e.g. updateFeedsOnFeedsSubplebbitsChange(subplebbits)
-  // subscribe to subplebbits store changes
-  subplebbitsStore.subscribe(updateFeedsOnFeedsSubplebbitsChange);
-  // subscribe to bufferedFeedsSubplebbitsPostCounts change
-  feedsStore.subscribe(addSubplebbitsPagesOnLowBufferedFeedsSubplebbitsPostCounts);
-  // subscribe to subplebbits pages store changes
-  subplebbitsPagesStore.subscribe(updateFeedsOnFeedsSubplebbitsPagesChange);
+  // TODO: optimize subscriptions e.g. updateFeedsOnFeedsCommunitiesChange(communities)
+  // subscribe to communities store changes
+  communitiesStore.subscribe(updateFeedsOnFeedsCommunitiesChange);
+  // subscribe to bufferedFeedsCommunitiesPostCounts change
+  feedsStore.subscribe(addCommunitiesPagesOnLowBufferedFeedsCommunitiesPostCounts);
+  // subscribe to communities pages store changes
+  communitiesPagesStore.subscribe(updateFeedsOnFeedsCommunitiesPagesChange);
   // subscribe to accounts store change (for blocked addresses)
   accountsStore.subscribe(updateFeedsOnAccountsBlockedAddressesChange);
   // subscribe to accounts store change (for blocked cids)
@@ -456,95 +455,95 @@ const updateFeedsOnAccountsBlockedCidsChange = (accountsStoreState: any) => {
   updateFeeds();
 };
 
-let previousSubplebbitsPages: { [pageCid: string]: SubplebbitPage } = {};
-const updateFeedsOnFeedsSubplebbitsPagesChange = (subplebbitsPagesStoreState: any) => {
-  const { subplebbitsPages } = subplebbitsPagesStoreState;
+let previousCommunitiesPages: { [pageCid: string]: CommunityPage } = {};
+const updateFeedsOnFeedsCommunitiesPagesChange = (communitiesPagesStoreState: any) => {
+  const { communitiesPages } = communitiesPagesStoreState;
 
   // no changes, do nothing
-  if (subplebbitsPages === previousSubplebbitsPages) {
+  if (communitiesPages === previousCommunitiesPages) {
     return;
   }
-  previousSubplebbitsPages = subplebbitsPages;
+  previousCommunitiesPages = communitiesPages;
 
-  // currently only the feeds use subplebbitsPagesStore, so any change must
-  // trigger a feed update, if in the future another hook uses the subplebbitsPagesStore
-  // we should check if the subplebbits pages changed are actually used by the feeds before
+  // currently only the feeds use communitiesPagesStore, so any change must
+  // trigger a feed update, if in the future another hook uses the communitiesPagesStore
+  // we should check if the communities pages changed are actually used by the feeds before
   // triggering an update
   feedsStore.getState().updateFeeds();
 };
 
-let previousBufferedFeedsSubplebbitsPostCountsPageCids: string[] = [];
-let previousBufferedFeedsSubplebbits = new Map<string, Subplebbit>();
-let previousBufferedFeedsSubplebbitsPostCounts: FeedsSubplebbitsPostCounts = {};
-const addSubplebbitsPagesOnLowBufferedFeedsSubplebbitsPostCounts = (feedsStoreState: any) => {
-  const { bufferedFeedsSubplebbitsPostCounts, feedsOptions } = feedsStore.getState();
-  const { subplebbits } = subplebbitsStore.getState();
+let previousBufferedFeedsCommunitiesPostCountsPageCids: string[] = [];
+let previousBufferedFeedsCommunities = new Map<string, Community>();
+let previousBufferedFeedsCommunitiesPostCounts: FeedsCommunitiesPostCounts = {};
+const addCommunitiesPagesOnLowBufferedFeedsCommunitiesPostCounts = (feedsStoreState: any) => {
+  const { bufferedFeedsCommunitiesPostCounts, feedsOptions } = feedsStore.getState();
+  const { communities } = communitiesStore.getState();
 
-  // if feeds subplebbits have changed, we must try adding them even if buffered posts counts haven't changed
-  const bufferedFeedsSubplebbits = getFeedsSubplebbits(feedsOptions, subplebbits);
-  const _feedsSubplebbitsChanged = feedsSubplebbitsChanged(
-    previousBufferedFeedsSubplebbits,
-    bufferedFeedsSubplebbits,
+  // if feeds communities have changed, we must try adding them even if buffered posts counts haven't changed
+  const bufferedFeedsCommunities = getFeedsCommunities(feedsOptions, communities);
+  const _feedsCommunitiesChanged = feedsCommunitiesChanged(
+    previousBufferedFeedsCommunities,
+    bufferedFeedsCommunities,
   );
-  const bufferedFeedsSubplebbitsPostCountsChanged =
-    previousBufferedFeedsSubplebbitsPostCounts !== bufferedFeedsSubplebbitsPostCounts;
+  const bufferedFeedsCommunitiesPostCountsChanged =
+    previousBufferedFeedsCommunitiesPostCounts !== bufferedFeedsCommunitiesPostCounts;
 
-  // if feeds subplebbits havent changed and buffered posts counts also havent changed, do nothing
-  if (!_feedsSubplebbitsChanged && !bufferedFeedsSubplebbitsPostCountsChanged) {
+  // if feeds communities havent changed and buffered posts counts also havent changed, do nothing
+  if (!_feedsCommunitiesChanged && !bufferedFeedsCommunitiesPostCountsChanged) {
     return;
   }
-  previousBufferedFeedsSubplebbits = bufferedFeedsSubplebbits;
-  previousBufferedFeedsSubplebbitsPostCounts = bufferedFeedsSubplebbitsPostCounts;
+  previousBufferedFeedsCommunities = bufferedFeedsCommunities;
+  previousBufferedFeedsCommunitiesPostCounts = bufferedFeedsCommunitiesPostCounts;
 
-  // in case feeds subplebbit changed, but the first page cids haven't
-  const bufferedFeedsSubplebbitsPostCountsPageCids =
-    getFeedsSubplebbitsFirstPageCids(bufferedFeedsSubplebbits);
-  const bufferedFeedsSubplebbitsPostCountsPageCidsChanged =
-    bufferedFeedsSubplebbitsPostCountsPageCids.toString() !==
-    previousBufferedFeedsSubplebbitsPostCountsPageCids.toString();
+  // in case feeds community changed, but the first page cids haven't
+  const bufferedFeedsCommunitiesPostCountsPageCids =
+    getFeedsCommunitiesFirstPageCids(bufferedFeedsCommunities);
+  const bufferedFeedsCommunitiesPostCountsPageCidsChanged =
+    bufferedFeedsCommunitiesPostCountsPageCids.toString() !==
+    previousBufferedFeedsCommunitiesPostCountsPageCids.toString();
   if (
-    !bufferedFeedsSubplebbitsPostCountsPageCidsChanged &&
-    !bufferedFeedsSubplebbitsPostCountsChanged
+    !bufferedFeedsCommunitiesPostCountsPageCidsChanged &&
+    !bufferedFeedsCommunitiesPostCountsChanged
   ) {
     return;
   }
-  previousBufferedFeedsSubplebbitsPostCountsPageCids = bufferedFeedsSubplebbitsPostCountsPageCids;
+  previousBufferedFeedsCommunitiesPostCountsPageCids = bufferedFeedsCommunitiesPostCountsPageCids;
 
-  const { addNextSubplebbitPageToStore } = subplebbitsPagesStore.getState();
+  const { addNextCommunityPageToStore } = communitiesPagesStore.getState();
   const { accounts } = accountsStore.getState();
 
-  // bufferedFeedsSubplebbitsPostCounts have changed, check if any of them are low
-  for (const feedName in bufferedFeedsSubplebbitsPostCounts) {
+  // bufferedFeedsCommunitiesPostCounts have changed, check if any of them are low
+  for (const feedName in bufferedFeedsCommunitiesPostCounts) {
     const account = accounts[feedsOptions[feedName].accountId];
-    const subplebbitsPostCounts = bufferedFeedsSubplebbitsPostCounts[feedName];
+    const communitiesPostCounts = bufferedFeedsCommunitiesPostCounts[feedName];
     const { sortType, modQueue } = feedsOptions[feedName];
-    for (const subplebbitAddress in subplebbitsPostCounts) {
-      // don't fetch more pages if subplebbit address is blocked
-      if (account?.blockedAddresses[subplebbitAddress]) {
+    for (const communityAddress in communitiesPostCounts) {
+      // don't fetch more pages if community address is blocked
+      if (account?.blockedAddresses[communityAddress]) {
         continue;
       }
 
-      // subplebbit hasn't loaded yet
-      if (!subplebbits[subplebbitAddress]) {
+      // community hasn't loaded yet
+      if (!communities[communityAddress]) {
         continue;
       }
 
-      // if subplebbit posts cache is expired, don't use, wait for next subplebbit update
-      if (subplebbitPostsCacheExpired(subplebbits[subplebbitAddress])) {
+      // if community posts cache is expired, don't use, wait for next community update
+      if (communityPostsCacheExpired(communities[communityAddress])) {
         continue;
       }
 
-      // subplebbit post count is low, fetch next subplebbit page
-      if (subplebbitsPostCounts[subplebbitAddress] <= subplebbitPostsLeftBeforeNextPage) {
-        addNextSubplebbitPageToStore(
-          subplebbits[subplebbitAddress],
+      // community post count is low, fetch next community page
+      if (communitiesPostCounts[communityAddress] <= communityPostsLeftBeforeNextPage) {
+        addNextCommunityPageToStore(
+          communities[communityAddress],
           sortType,
           account,
           modQueue,
         ).catch((error: unknown) =>
-          log.error("feedsStore subplebbitsActions.addNextSubplebbitPageToStore error", {
-            subplebbitAddress,
-            subplebbit: subplebbits[subplebbitAddress],
+          log.error("feedsStore communitiesActions.addNextCommunityPageToStore error", {
+            communityAddress,
+            community: communities[communityAddress],
             sortType,
             error,
           }),
@@ -554,50 +553,50 @@ const addSubplebbitsPagesOnLowBufferedFeedsSubplebbitsPostCounts = (feedsStoreSt
   }
 };
 
-let previousFeedsSubplebbitsFirstPageCids: string[] = [];
-let previousFeedsSubplebbits: Map<string, Subplebbit> = new Map();
-let previousFeedsSubplebbitsLoadedCount = 0;
-let previousFeedsSubplebbitsPostsPagesFirstUpdatedAts = "";
-const updateFeedsOnFeedsSubplebbitsChange = (subplebbitsStoreState: any) => {
-  const { subplebbits } = subplebbitsStoreState;
+let previousFeedsCommunitiesFirstPageCids: string[] = [];
+let previousFeedsCommunities: Map<string, Community> = new Map();
+let previousFeedsCommunitiesLoadedCount = 0;
+let previousFeedsCommunitiesPostsPagesFirstUpdatedAts = "";
+const updateFeedsOnFeedsCommunitiesChange = (communitiesStoreState: any) => {
+  const { communities } = communitiesStoreState;
   const { feedsOptions, updateFeeds } = feedsStore.getState();
 
-  // feeds subplebbits haven't changed, do nothing
-  const feedsSubplebbits = getFeedsSubplebbits(feedsOptions, subplebbits);
-  if (!feedsSubplebbitsChanged(previousFeedsSubplebbits, feedsSubplebbits)) {
+  // feeds communities haven't changed, do nothing
+  const feedsCommunities = getFeedsCommunities(feedsOptions, communities);
+  if (!feedsCommunitiesChanged(previousFeedsCommunities, feedsCommunities)) {
     return;
   }
-  previousFeedsSubplebbits = feedsSubplebbits;
+  previousFeedsCommunities = feedsCommunities;
 
-  // decide if feeds subplebbits have changed by looking at all feeds subplebbits page cids
-  // (in case that a subplebbit changed, but its first page cid didn't)
-  const feedsSubplebbitsFirstPageCids = getFeedsSubplebbitsFirstPageCids(feedsSubplebbits);
+  // decide if feeds communities have changed by looking at all feeds communities page cids
+  // (in case that a community changed, but its first page cid didn't)
+  const feedsCommunitiesFirstPageCids = getFeedsCommunitiesFirstPageCids(feedsCommunities);
 
   // first page cids haven't changed, do nothing
   if (
-    feedsSubplebbitsFirstPageCids.toString() === previousFeedsSubplebbitsFirstPageCids.toString()
+    feedsCommunitiesFirstPageCids.toString() === previousFeedsCommunitiesFirstPageCids.toString()
   ) {
-    // if no new feed subplebbits have loaded, do nothing
+    // if no new feed communities have loaded, do nothing
     // in case a sub loads with no first page cid and first pages cids don't change, need to trigger hasMore update
-    const feedsSubplebbitsLoadedCount = getFeedsSubplebbitsLoadedCount(feedsSubplebbits);
-    if (feedsSubplebbitsLoadedCount === previousFeedsSubplebbitsLoadedCount) {
-      // if subplebbit.posts.pages haven't changed, do nothing
-      const feedsSubplebbitsPostsPagesFirstUpdatedAts =
-        getFeedsSubplebbitsPostsPagesFirstUpdatedAts(feedsSubplebbits);
+    const feedsCommunitiesLoadedCount = getFeedsCommunitiesLoadedCount(feedsCommunities);
+    if (feedsCommunitiesLoadedCount === previousFeedsCommunitiesLoadedCount) {
+      // if community.posts.pages haven't changed, do nothing
+      const feedsCommunitiesPostsPagesFirstUpdatedAts =
+        getFeedsCommunitiesPostsPagesFirstUpdatedAts(feedsCommunities);
       if (
-        feedsSubplebbitsPostsPagesFirstUpdatedAts ===
-        previousFeedsSubplebbitsPostsPagesFirstUpdatedAts
+        feedsCommunitiesPostsPagesFirstUpdatedAts ===
+        previousFeedsCommunitiesPostsPagesFirstUpdatedAts
       ) {
         return;
       }
 
-      previousFeedsSubplebbitsPostsPagesFirstUpdatedAts = feedsSubplebbitsPostsPagesFirstUpdatedAts;
+      previousFeedsCommunitiesPostsPagesFirstUpdatedAts = feedsCommunitiesPostsPagesFirstUpdatedAts;
     }
-    previousFeedsSubplebbitsLoadedCount = feedsSubplebbitsLoadedCount;
+    previousFeedsCommunitiesLoadedCount = feedsCommunitiesLoadedCount;
   }
 
-  // feeds subplebbits have changed, update feeds
-  previousFeedsSubplebbitsFirstPageCids = feedsSubplebbitsFirstPageCids;
+  // feeds communities have changed, update feeds
+  previousFeedsCommunitiesFirstPageCids = feedsCommunitiesFirstPageCids;
   updateFeeds();
 };
 
@@ -628,12 +627,12 @@ const updateFeedsOnAccountsCommentsChange = (accountsStoreState: any) => {
   feedsStore.getState().updateFeeds();
 };
 
-const addSubplebbitsToSubplebbitsStore = (subplebbitAddresses: string[], account: Account) => {
-  const addSubplebbitToStore = subplebbitsStore.getState().addSubplebbitToStore;
-  for (const subplebbitAddress of subplebbitAddresses) {
-    addSubplebbitToStore(subplebbitAddress, account).catch((error: unknown) =>
-      log.error("feedsStore subplebbitsActions.addSubplebbitToStore error", {
-        subplebbitAddress,
+const addCommunitiesToCommunitiesStore = (communityAddresses: string[], account: Account) => {
+  const addCommunityToStore = communitiesStore.getState().addCommunityToStore;
+  for (const communityAddress of communityAddresses) {
+    addCommunityToStore(communityAddress, account).catch((error: unknown) =>
+      log.error("feedsStore communitiesActions.addCommunityToStore error", {
+        communityAddress,
         error,
       }),
     );
@@ -644,18 +643,18 @@ const addSubplebbitsToSubplebbitsStore = (subplebbitAddresses: string[], account
 const originalState = feedsStore.getState();
 // async function because some stores have async init
 export const resetFeedsStore = async () => {
-  previousBufferedFeedsSubplebbitsPostCounts = {};
-  previousBufferedFeedsSubplebbitsPostCountsPageCids = [];
-  previousBufferedFeedsSubplebbits = new Map();
+  previousBufferedFeedsCommunitiesPostCounts = {};
+  previousBufferedFeedsCommunitiesPostCountsPageCids = [];
+  previousBufferedFeedsCommunities = new Map();
   previousBlockedAddresses = [];
   previousAccountsBlockedAddresses = [];
   previousBlockedCids = [];
   previousAccountsBlockedCids = [];
-  previousFeedsSubplebbitsFirstPageCids = [];
-  previousFeedsSubplebbits = new Map();
-  previousFeedsSubplebbitsLoadedCount = 0;
-  previousFeedsSubplebbitsPostsPagesFirstUpdatedAts = "";
-  previousSubplebbitsPages = {};
+  previousFeedsCommunitiesFirstPageCids = [];
+  previousFeedsCommunities = new Map();
+  previousFeedsCommunitiesLoadedCount = 0;
+  previousFeedsCommunitiesPostsPagesFirstUpdatedAts = "";
+  previousCommunitiesPages = {};
   previousAccountsCommentsCount = 0;
   previousAccountsCommentsCids = "";
   updateFeedsPending = false;
@@ -668,7 +667,7 @@ export const resetFeedsStore = async () => {
 
 // reset database and store in between tests
 export const resetFeedsDatabaseAndStore = async () => {
-  await localForageLru.createInstance({ name: "plebbitReactHooks-subplebbitsPages" }).clear();
+  await localForageLru.createInstance({ name: "plebbitReactHooks-communitiesPages" }).clear();
   await resetFeedsStore();
 };
 

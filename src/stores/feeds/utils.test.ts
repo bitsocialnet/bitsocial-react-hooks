@@ -4,8 +4,8 @@ import {
   addAccountsComments,
   getBufferedFeedsWithoutLoadedFeeds,
   getUpdatedFeeds,
-  getFeedsSubplebbitsFirstPageCids,
-  getFeedsSubplebbits,
+  getFeedsCommunitiesFirstPageCids,
+  getFeedsCommunities,
   getAccountsBlockedAddresses,
   accountsBlockedAddressesChanged,
   accountsBlockedCidsChanged,
@@ -48,14 +48,14 @@ describe("feeds utils", () => {
       });
     });
 
-    test("uses preloaded posts when subplebbit.posts.pages[sortType].comments exists", () => {
+    test("uses preloaded posts when community.posts.pages[sortType].comments exists", () => {
       const feedName = "feed1";
       const preloadedComment = {
         cid: "preloaded-cid",
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: 100,
       };
-      const subplebbits = {
+      const communities = {
         sub1: {
           address: "sub1",
           updatedAt: 1,
@@ -66,103 +66,103 @@ describe("feeds utils", () => {
       };
       const feedsOptions = {
         [feedName]: {
-          subplebbitAddresses: ["sub1"],
+          communityAddresses: ["sub1"],
           sortType: "new",
           accountId: mockAccountId,
         },
       };
-      const feeds = getFilteredSortedFeeds(feedsOptions, subplebbits, {}, makeMockAccounts());
+      const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, makeMockAccounts());
       expect(feeds[feedName]).toContainEqual(expect.objectContaining({ cid: "preloaded-cid" }));
     });
 
-    test("returns undefined preloaded when pageCids present (hasPageCids), uses subplebbitsPages", () => {
+    test("returns undefined preloaded when pageCids present (hasPageCids), uses communitiesPages", () => {
       const pageCid = "page-cid-1";
-      const subplebbits = {
+      const communities = {
         sub1: {
           address: "sub1",
           updatedAt: 1,
           posts: {
             pageCids: { new: pageCid },
-            pages: { new: { comments: [{ cid: "c1", subplebbitAddress: "sub1" }] } },
+            pages: { new: { comments: [{ cid: "c1", communityAddress: "sub1" }] } },
           },
         },
       };
-      const subplebbitsPages = {
+      const communitiesPages = {
         [pageCid]: {
-          comments: [{ cid: "c1", subplebbitAddress: "sub1", timestamp: 1 }],
+          comments: [{ cid: "c1", communityAddress: "sub1", timestamp: 1 }],
           nextCid: undefined,
         },
       };
       const feedsOptions = {
         feed1: {
-          subplebbitAddresses: ["sub1"],
+          communityAddresses: ["sub1"],
           sortType: "new",
           accountId: mockAccountId,
         },
       };
       const feeds = getFilteredSortedFeeds(
         feedsOptions,
-        subplebbits,
-        subplebbitsPages,
+        communities,
+        communitiesPages,
         makeMockAccounts(),
       );
       expect(feeds.feed1).toBeDefined();
       expect(feeds.feed1).toContainEqual(
-        expect.objectContaining({ cid: "c1", subplebbitAddress: "sub1" }),
+        expect.objectContaining({ cid: "c1", communityAddress: "sub1" }),
       );
     });
 
-    test("skips cache-expired subplebbit when navigator.onLine", () => {
+    test("skips cache-expired community when navigator.onLine", () => {
       const origOnLine = Object.getOwnPropertyDescriptor(navigator, "onLine");
       Object.defineProperty(navigator, "onLine", { value: true, configurable: true });
-      const subplebbits = {
+      const communities = {
         sub1: {
           address: "sub1",
           updatedAt: 1,
           fetchedAt: 0,
           posts: {
-            pages: { new: { comments: [{ cid: "c1", subplebbitAddress: "sub1", timestamp: 1 }] } },
+            pages: { new: { comments: [{ cid: "c1", communityAddress: "sub1", timestamp: 1 }] } },
           },
         },
       };
       const feedsOptions = {
         feed1: {
-          subplebbitAddresses: ["sub1"],
+          communityAddresses: ["sub1"],
           sortType: "new",
           accountId: mockAccountId,
         },
       };
-      const feeds = getFilteredSortedFeeds(feedsOptions, subplebbits, {}, makeMockAccounts());
+      const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, makeMockAccounts());
       expect(feeds.feed1).toEqual([]);
       if (origOnLine) Object.defineProperty(navigator, "onLine", origOnLine);
     });
 
-    test("skips subplebbit that has not loaded yet", () => {
+    test("skips community that has not loaded yet", () => {
       const feedsOptions = {
         feed1: {
-          subplebbitAddresses: ["sub1", "sub2"],
+          communityAddresses: ["sub1", "sub2"],
           sortType: "new",
           accountId: mockAccountId,
         },
       };
-      const subplebbits = {
+      const communities = {
         sub1: {
           address: "sub1",
           updatedAt: 1,
           posts: {
-            pages: { new: { comments: [{ cid: "c1", subplebbitAddress: "sub1", timestamp: 1 }] } },
+            pages: { new: { comments: [{ cid: "c1", communityAddress: "sub1", timestamp: 1 }] } },
           },
         },
       };
-      const feeds = getFilteredSortedFeeds(feedsOptions, subplebbits, {}, makeMockAccounts());
+      const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, makeMockAccounts());
       expect(feeds.feed1).toContainEqual(
-        expect.objectContaining({ cid: "c1", subplebbitAddress: "sub1" }),
+        expect.objectContaining({ cid: "c1", communityAddress: "sub1" }),
       );
     });
 
-    test("breaks subplebbitPages loop when post has wrong subplebbitAddress", () => {
+    test("breaks communityPages loop when post has wrong communityAddress", () => {
       const pageCid = "page-cid-break";
-      const subplebbits = {
+      const communities = {
         sub1: {
           address: "sub1",
           updatedAt: 1,
@@ -172,34 +172,34 @@ describe("feeds utils", () => {
           },
         },
       };
-      const subplebbitsPages = {
+      const communitiesPages = {
         [pageCid]: {
           comments: [
-            { cid: "c1", subplebbitAddress: "sub1", timestamp: 1 },
-            { cid: "c2", subplebbitAddress: "wrong-sub", timestamp: 2 },
+            { cid: "c1", communityAddress: "sub1", timestamp: 1 },
+            { cid: "c2", communityAddress: "wrong-sub", timestamp: 2 },
           ],
           nextCid: undefined,
         },
       };
       const feedsOptions = {
         feed1: {
-          subplebbitAddresses: ["sub1"],
+          communityAddresses: ["sub1"],
           sortType: "new",
           accountId: mockAccountId,
         },
       };
       const feeds = getFilteredSortedFeeds(
         feedsOptions,
-        subplebbits,
-        subplebbitsPages,
+        communities,
+        communitiesPages,
         makeMockAccounts(),
       );
       expect(feeds.feed1).toHaveLength(1);
       expect(feeds.feed1[0].cid).toBe("c1");
     });
 
-    test("breaks preloaded loop when post has wrong subplebbitAddress", () => {
-      const subplebbits = {
+    test("breaks preloaded loop when post has wrong communityAddress", () => {
+      const communities = {
         sub1: {
           address: "sub1",
           updatedAt: 1,
@@ -207,8 +207,8 @@ describe("feeds utils", () => {
             pages: {
               new: {
                 comments: [
-                  { cid: "c1", subplebbitAddress: "sub1", timestamp: 1 },
-                  { cid: "c2", subplebbitAddress: "other-sub", timestamp: 2 },
+                  { cid: "c1", communityAddress: "sub1", timestamp: 1 },
+                  { cid: "c2", communityAddress: "other-sub", timestamp: 2 },
                 ],
               },
             },
@@ -217,18 +217,18 @@ describe("feeds utils", () => {
       };
       const feedsOptions = {
         feed1: {
-          subplebbitAddresses: ["sub1"],
+          communityAddresses: ["sub1"],
           sortType: "new",
           accountId: mockAccountId,
         },
       };
-      const feeds = getFilteredSortedFeeds(feedsOptions, subplebbits, {}, makeMockAccounts());
+      const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, makeMockAccounts());
       expect(feeds.feed1).toHaveLength(1);
       expect(feeds.feed1[0].cid).toBe("c1");
     });
 
     test("modQueue excludes page comments that no longer have pendingApproval", () => {
-      const subplebbits = {
+      const communities = {
         sub1: {
           address: "sub1",
           updatedAt: 1,
@@ -238,17 +238,17 @@ describe("feeds utils", () => {
           },
         },
       };
-      const subplebbitsPages = {
-        "mod-queue-page-cid": {
+      const communitiesPages = {
+        [`${mockAccountId}:mod-queue-page-cid`]: {
           comments: [
             {
               cid: "public-cid",
-              subplebbitAddress: "sub1",
+              communityAddress: "sub1",
               timestamp: 1,
             },
             {
               cid: "pending-cid",
-              subplebbitAddress: "sub1",
+              communityAddress: "sub1",
               timestamp: 2,
               pendingApproval: true,
             },
@@ -258,7 +258,7 @@ describe("feeds utils", () => {
       };
       const feedsOptions = {
         feed1: {
-          subplebbitAddresses: ["sub1"],
+          communityAddresses: ["sub1"],
           sortType: "new",
           accountId: mockAccountId,
           modQueue: ["pendingApproval"],
@@ -267,16 +267,16 @@ describe("feeds utils", () => {
 
       const feeds = getFilteredSortedFeeds(
         feedsOptions,
-        subplebbits,
-        subplebbitsPages,
+        communities,
+        communitiesPages,
         makeMockAccounts(),
       );
 
       expect(feeds.feed1.map((post: any) => post.cid)).toEqual(["pending-cid"]);
     });
 
-    test("keeps posts when requested subplebbitAddress is a .bso alias of the post .eth address", () => {
-      const subplebbits = {
+    test("keeps posts when requested communityAddress is a .bso alias of the post .eth address", () => {
+      const communities = {
         "music-posting.bso": {
           address: "music-posting.bso",
           updatedAt: 1,
@@ -284,8 +284,8 @@ describe("feeds utils", () => {
             pages: {
               new: {
                 comments: [
-                  { cid: "c1", subplebbitAddress: "music-posting.eth", timestamp: 1 },
-                  { cid: "c2", subplebbitAddress: "music-posting.eth", timestamp: 2 },
+                  { cid: "c1", communityAddress: "music-posting.eth", timestamp: 1 },
+                  { cid: "c2", communityAddress: "music-posting.eth", timestamp: 2 },
                 ],
               },
             },
@@ -294,18 +294,18 @@ describe("feeds utils", () => {
       };
       const feedsOptions = {
         feed1: {
-          subplebbitAddresses: ["music-posting.bso"],
+          communityAddresses: ["music-posting.bso"],
           sortType: "new",
           accountId: mockAccountId,
         },
       };
-      const feeds = getFilteredSortedFeeds(feedsOptions, subplebbits, {}, makeMockAccounts());
+      const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, makeMockAccounts());
       expect(feeds.feed1.map((post: any) => post.cid)).toEqual(["c2", "c1"]);
     });
 
-    test("skips post when subplebbit address is blocked", () => {
+    test("skips post when community address is blocked", () => {
       const blockedSubAddr = "blocked-sub-addr";
-      const subplebbits = {
+      const communities = {
         [blockedSubAddr]: {
           address: blockedSubAddr,
           updatedAt: 1,
@@ -313,8 +313,8 @@ describe("feeds utils", () => {
             pages: {
               new: {
                 comments: [
-                  { cid: "c1", subplebbitAddress: blockedSubAddr, timestamp: 1 },
-                  { cid: "c2", subplebbitAddress: blockedSubAddr, timestamp: 2 },
+                  { cid: "c1", communityAddress: blockedSubAddr, timestamp: 1 },
+                  { cid: "c2", communityAddress: blockedSubAddr, timestamp: 2 },
                 ],
               },
             },
@@ -323,7 +323,7 @@ describe("feeds utils", () => {
       };
       const feedsOptions = {
         feed1: {
-          subplebbitAddresses: [blockedSubAddr],
+          communityAddresses: [blockedSubAddr],
           sortType: "new",
           accountId: mockAccountId,
         },
@@ -331,13 +331,13 @@ describe("feeds utils", () => {
       const accounts = makeMockAccounts({
         blockedAddresses: { [blockedSubAddr]: true },
       });
-      const feeds = getFilteredSortedFeeds(feedsOptions, subplebbits, {}, accounts);
+      const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, accounts);
       expect(feeds.feed1).toHaveLength(0);
     });
 
     test("skips post when author address is blocked", () => {
       const blockedAuthorAddr = "blocked-author-addr";
-      const subplebbits = {
+      const communities = {
         sub1: {
           address: "sub1",
           updatedAt: 1,
@@ -347,11 +347,11 @@ describe("feeds utils", () => {
                 comments: [
                   {
                     cid: "c1",
-                    subplebbitAddress: "sub1",
+                    communityAddress: "sub1",
                     timestamp: 1,
                     author: { address: blockedAuthorAddr },
                   },
-                  { cid: "c2", subplebbitAddress: "sub1", timestamp: 2 },
+                  { cid: "c2", communityAddress: "sub1", timestamp: 2 },
                 ],
               },
             },
@@ -360,7 +360,7 @@ describe("feeds utils", () => {
       };
       const feedsOptions = {
         feed1: {
-          subplebbitAddresses: ["sub1"],
+          communityAddresses: ["sub1"],
           sortType: "new",
           accountId: mockAccountId,
         },
@@ -368,13 +368,13 @@ describe("feeds utils", () => {
       const accounts = makeMockAccounts({
         blockedAddresses: { [blockedAuthorAddr]: true },
       });
-      const feeds = getFilteredSortedFeeds(feedsOptions, subplebbits, {}, accounts);
+      const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, accounts);
       expect(feeds.feed1.map((p: any) => p.cid)).not.toContain("c1");
       expect(feeds.feed1.map((p: any) => p.cid)).toContain("c2");
     });
 
     test("filter function excludes posts when filter returns false", () => {
-      const subplebbits = {
+      const communities = {
         sub1: {
           address: "sub1",
           updatedAt: 1,
@@ -382,8 +382,8 @@ describe("feeds utils", () => {
             pages: {
               new: {
                 comments: [
-                  { cid: "c1", subplebbitAddress: "sub1", timestamp: 1 },
-                  { cid: "c2", subplebbitAddress: "sub1", timestamp: 2 },
+                  { cid: "c1", communityAddress: "sub1", timestamp: 1 },
+                  { cid: "c2", communityAddress: "sub1", timestamp: 2 },
                 ],
               },
             },
@@ -392,19 +392,19 @@ describe("feeds utils", () => {
       };
       const feedsOptions = {
         feed1: {
-          subplebbitAddresses: ["sub1"],
+          communityAddresses: ["sub1"],
           sortType: "new",
           accountId: mockAccountId,
           filter: { filter: (p: any) => p.cid !== "c2", key: "exclude-c2" },
         },
       };
-      const feeds = getFilteredSortedFeeds(feedsOptions, subplebbits, {}, makeMockAccounts());
+      const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, makeMockAccounts());
       expect(feeds.feed1).toHaveLength(1);
       expect(feeds.feed1[0].cid).toBe("c1");
     });
 
-    test("skips pinned post when feed has multiple subplebbits", () => {
-      const subplebbits = {
+    test("skips pinned post when feed has multiple communities", () => {
+      const communities = {
         sub1: {
           address: "sub1",
           updatedAt: 1,
@@ -412,8 +412,8 @@ describe("feeds utils", () => {
             pages: {
               new: {
                 comments: [
-                  { cid: "c1", subplebbitAddress: "sub1", timestamp: 1, pinned: true },
-                  { cid: "c2", subplebbitAddress: "sub1", timestamp: 2 },
+                  { cid: "c1", communityAddress: "sub1", timestamp: 1, pinned: true },
+                  { cid: "c2", communityAddress: "sub1", timestamp: 2 },
                 ],
               },
             },
@@ -425,7 +425,7 @@ describe("feeds utils", () => {
           posts: {
             pages: {
               new: {
-                comments: [{ cid: "c3", subplebbitAddress: "sub2", timestamp: 3 }],
+                comments: [{ cid: "c3", communityAddress: "sub2", timestamp: 3 }],
               },
             },
           },
@@ -433,19 +433,19 @@ describe("feeds utils", () => {
       };
       const feedsOptions = {
         feed1: {
-          subplebbitAddresses: ["sub1", "sub2"],
+          communityAddresses: ["sub1", "sub2"],
           sortType: "new",
           accountId: mockAccountId,
         },
       };
-      const feeds = getFilteredSortedFeeds(feedsOptions, subplebbits, {}, makeMockAccounts());
+      const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, makeMockAccounts());
       expect(feeds.feed1.map((p: any) => p.cid)).not.toContain("c1");
       expect(feeds.feed1.map((p: any) => p.cid)).toContain("c2");
       expect(feeds.feed1.map((p: any) => p.cid)).toContain("c3");
     });
 
     test("getPreloadedPosts returns undefined when hasPageCids but no preloaded for sortType", () => {
-      const subplebbits = {
+      const communities = {
         sub1: {
           address: "sub1",
           updatedAt: 1,
@@ -455,32 +455,32 @@ describe("feeds utils", () => {
           },
         },
       };
-      const subplebbitsPages = {
+      const communitiesPages = {
         "page-cid-1": {
-          comments: [{ cid: "c1", subplebbitAddress: "sub1", timestamp: 1 }],
+          comments: [{ cid: "c1", communityAddress: "sub1", timestamp: 1 }],
           nextCid: undefined,
         },
       };
       const feedsOptions = {
         feed1: {
-          subplebbitAddresses: ["sub1"],
+          communityAddresses: ["sub1"],
           sortType: "new",
           accountId: mockAccountId,
         },
       };
       const feeds = getFilteredSortedFeeds(
         feedsOptions,
-        subplebbits,
-        subplebbitsPages,
+        communities,
+        communitiesPages,
         makeMockAccounts(),
       );
       expect(feeds.feed1).toContainEqual(
-        expect.objectContaining({ cid: "c1", subplebbitAddress: "sub1" }),
+        expect.objectContaining({ cid: "c1", communityAddress: "sub1" }),
       );
     });
 
     test("getPreloadedPosts returns undefined when pages exist but pages[0].comments is empty", () => {
-      const subplebbits = {
+      const communities = {
         sub1: {
           address: "sub1",
           updatedAt: 1,
@@ -493,22 +493,22 @@ describe("feeds utils", () => {
       };
       const feedsOptions = {
         feed1: {
-          subplebbitAddresses: ["sub1"],
+          communityAddresses: ["sub1"],
           sortType: "new",
           accountId: mockAccountId,
         },
       };
-      const feeds = getFilteredSortedFeeds(feedsOptions, subplebbits, {}, makeMockAccounts());
+      const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, makeMockAccounts());
       expect(feeds.feed1).toEqual([]);
     });
 
     test("fallback to any page when no pageCids, no nextCids, single preloaded page", () => {
       const feedComment = {
         cid: "fallback-cid",
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: 1,
       };
-      const subplebbits = {
+      const communities = {
         sub1: {
           address: "sub1",
           updatedAt: 1,
@@ -521,12 +521,12 @@ describe("feeds utils", () => {
       };
       const feedsOptions = {
         feed1: {
-          subplebbitAddresses: ["sub1"],
+          communityAddresses: ["sub1"],
           sortType: "new",
           accountId: mockAccountId,
         },
       };
-      const feeds = getFilteredSortedFeeds(feedsOptions, subplebbits, {}, makeMockAccounts());
+      const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, makeMockAccounts());
       expect(feeds.feed1).toContainEqual(expect.objectContaining({ cid: "fallback-cid" }));
     });
   });
@@ -547,7 +547,7 @@ describe("feeds utils", () => {
       const recentTs = Math.floor(Date.now() / 1000) - 100;
       const feedsOptions = {
         [feedName]: {
-          subplebbitAddresses: ["sub1"],
+          communityAddresses: ["sub1"],
           accountId: mockAccountId,
           accountComments: { newerThan: 3600, append: false },
         },
@@ -555,7 +555,7 @@ describe("feeds utils", () => {
       const existingPost = {
         cid: "already-cid",
         index: 1,
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: recentTs,
       };
       (accountsStore as any).getState = () => ({
@@ -573,7 +573,7 @@ describe("feeds utils", () => {
       const recentTs = Math.floor(Date.now() / 1000) - 100;
       const feedsOptions = {
         [feedName]: {
-          subplebbitAddresses: ["sub1"],
+          communityAddresses: ["sub1"],
           accountId: mockAccountId,
           accountComments: { newerThan: 3600, append: false },
         },
@@ -581,13 +581,13 @@ describe("feeds utils", () => {
       const loadedPostWithOldIndex = {
         cid: "same-cid",
         index: 1,
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: recentTs,
       };
       const freshAccountPost = {
         cid: "same-cid",
         index: 2,
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: recentTs,
       };
       // @ts-ignore
@@ -610,7 +610,7 @@ describe("feeds utils", () => {
       const recentTs = Math.floor(Date.now() / 1000) - 100;
       const feedsOptions = {
         [feedName]: {
-          subplebbitAddresses: ["sub1"],
+          communityAddresses: ["sub1"],
           accountId: mockAccountId,
           accountComments: { newerThan: 3600, append: true },
         },
@@ -618,13 +618,13 @@ describe("feeds utils", () => {
       const existingPost = {
         cid: "existing-cid",
         index: undefined,
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: recentTs - 1000,
       };
       const accountPost = {
         cid: "append-cid",
         index: 1,
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: recentTs,
       };
       (accountsStore as any).getState = () => ({
@@ -643,20 +643,20 @@ describe("feeds utils", () => {
       const recentTs = Math.floor(Date.now() / 1000) - 100;
       const feedsOptions = {
         [feedName]: {
-          subplebbitAddresses: ["sub1"],
+          communityAddresses: ["sub1"],
           accountId: mockAccountId,
           accountComments: { newerThan: 3600, append: false },
         },
       };
       const pendingPost = {
         index: 1,
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: recentTs,
       };
       const accountPostWithCid = {
         cid: "new-cid",
         index: 1,
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: recentTs,
       };
       // @ts-ignore
@@ -676,8 +676,8 @@ describe("feeds utils", () => {
   });
 
   describe("blocked addresses/cids no-change false branches", () => {
-    test("feedsHaveChangedBlockedAddresses returns true when changed address is in feed subplebbits", () => {
-      const feedsOptions = { feeds1: { subplebbitAddresses: ["blocked-x"] } };
+    test("feedsHaveChangedBlockedAddresses returns true when changed address is in feed communities", () => {
+      const feedsOptions = { feeds1: { communityAddresses: ["blocked-x"] } };
       const bufferedFeeds = { feeds1: [] };
       const blockedAddresses = ["blocked-x"];
       const previousBlockedAddresses: string[] = [];
@@ -691,9 +691,9 @@ describe("feeds utils", () => {
     });
 
     test("feedsHaveChangedBlockedAddresses returns false when changed blocked not in feeds", () => {
-      const feedsOptions = { feeds1: { subplebbitAddresses: ["sub-a"] } };
+      const feedsOptions = { feeds1: { communityAddresses: ["sub-a"] } };
       const bufferedFeeds = {
-        feeds1: [{ cid: "c1", subplebbitAddress: "sub-a", author: { address: "addr-a" } }],
+        feeds1: [{ cid: "c1", communityAddress: "sub-a", author: { address: "addr-a" } }],
       };
       const blockedAddresses = ["blocked-x"];
       const previousBlockedAddresses: string[] = [];
@@ -707,9 +707,9 @@ describe("feeds utils", () => {
     });
 
     test("feedsHaveChangedBlockedCids returns false when changed blocked cids not in feeds", () => {
-      const feedsOptions = { feeds1: { subplebbitAddresses: ["sub-a"] } };
+      const feedsOptions = { feeds1: { communityAddresses: ["sub-a"] } };
       const bufferedFeeds = {
-        feeds1: [{ cid: "c1", subplebbitAddress: "sub-a" }],
+        feeds1: [{ cid: "c1", communityAddress: "sub-a" }],
       };
       const blockedCids = ["blocked-cid-x"];
       const previousBlockedCids: string[] = [];
@@ -723,9 +723,9 @@ describe("feeds utils", () => {
     });
 
     test("feedsHaveChangedBlockedCids returns true when cid in feed is blocked", () => {
-      const feedsOptions = { feeds1: { subplebbitAddresses: ["sub-a"] } };
+      const feedsOptions = { feeds1: { communityAddresses: ["sub-a"] } };
       const bufferedFeeds = {
-        feeds1: [{ cid: "blocked-cid-x", subplebbitAddress: "sub-a" }],
+        feeds1: [{ cid: "blocked-cid-x", communityAddress: "sub-a" }],
       };
       const blockedCids = ["blocked-cid-x"];
       const previousBlockedCids: string[] = [];
@@ -751,7 +751,7 @@ describe("feeds utils", () => {
     test("returns loadedFeeds when no missing posts and no account comments change", async () => {
       const feedsOptions = {
         feed1: {
-          subplebbitAddresses: ["sub1"],
+          communityAddresses: ["sub1"],
           sortType: "new",
           accountId: mockAccountId,
           pageNumber: 1,
@@ -759,10 +759,10 @@ describe("feeds utils", () => {
         },
       };
       const loadedFeeds = {
-        feed1: [{ cid: "c1", subplebbitAddress: "sub1", timestamp: 100, index: 1 }],
+        feed1: [{ cid: "c1", communityAddress: "sub1", timestamp: 100, index: 1 }],
       };
       const filteredSortedFeeds = {
-        feed1: [{ cid: "c1", subplebbitAddress: "sub1", timestamp: 100, index: 1 }],
+        feed1: [{ cid: "c1", communityAddress: "sub1", timestamp: 100, index: 1 }],
       };
       const bufferedFeeds = { feed1: [] };
       const accounts = makeMockAccounts();
@@ -779,7 +779,7 @@ describe("feeds utils", () => {
     test("adds missing posts from buffered feed", async () => {
       const feedsOptions = {
         feed1: {
-          subplebbitAddresses: ["sub1"],
+          communityAddresses: ["sub1"],
           sortType: "new",
           accountId: mockAccountId,
           pageNumber: 2,
@@ -788,11 +788,11 @@ describe("feeds utils", () => {
       };
       const loadedFeeds = { feed1: [] };
       const bufferedPosts = [
-        { cid: "c1", subplebbitAddress: "sub1", timestamp: 1 },
-        { cid: "c2", subplebbitAddress: "sub1", timestamp: 2 },
-        { cid: "c3", subplebbitAddress: "sub1", timestamp: 3 },
-        { cid: "c4", subplebbitAddress: "sub1", timestamp: 4 },
-        { cid: "c5", subplebbitAddress: "sub1", timestamp: 5 },
+        { cid: "c1", communityAddress: "sub1", timestamp: 1 },
+        { cid: "c2", communityAddress: "sub1", timestamp: 2 },
+        { cid: "c3", communityAddress: "sub1", timestamp: 3 },
+        { cid: "c4", communityAddress: "sub1", timestamp: 4 },
+        { cid: "c5", communityAddress: "sub1", timestamp: 5 },
       ];
       const filteredSortedFeeds = { feed1: bufferedPosts };
       const bufferedFeeds = { feed1: bufferedPosts };
@@ -811,7 +811,7 @@ describe("feeds utils", () => {
       const feedName = "feed1";
       const feedsOptions = {
         [feedName]: {
-          subplebbitAddresses: ["sub1"],
+          communityAddresses: ["sub1"],
           sortType: "new",
           accountId: mockAccountId,
           pageNumber: 2,
@@ -823,14 +823,14 @@ describe("feeds utils", () => {
         [feedName]: [
           {
             cid: "keep-cid",
-            subplebbitAddress: "sub1",
+            communityAddress: "sub1",
             timestamp: 1,
             updatedAt: 1,
             pendingApproval: true,
           },
           {
             cid: "remove-cid",
-            subplebbitAddress: "sub1",
+            communityAddress: "sub1",
             timestamp: 2,
             updatedAt: 2,
             pendingApproval: true,
@@ -841,14 +841,14 @@ describe("feeds utils", () => {
         [feedName]: [
           {
             cid: "keep-cid",
-            subplebbitAddress: "sub1",
+            communityAddress: "sub1",
             timestamp: 1,
             updatedAt: 10,
             pendingApproval: true,
           },
           {
             cid: "new-cid",
-            subplebbitAddress: "sub1",
+            communityAddress: "sub1",
             timestamp: 3,
             updatedAt: 3,
             pendingApproval: true,
@@ -883,14 +883,14 @@ describe("feeds utils", () => {
         validateComment: () => Promise.resolve(true),
       };
       const accounts = makeMockAccounts({ plebbit });
-      const loadedFeed = [{ cid: "r1", subplebbitAddress: "sub1", timestamp: 100, updatedAt: 100 }];
+      const loadedFeed = [{ cid: "r1", communityAddress: "sub1", timestamp: 100, updatedAt: 100 }];
       const loadedFeeds = { [feedName]: loadedFeed };
       const updatedFeeds = {
         [feedName]: [loadedFeed[0]],
       };
       const newerPost = {
         cid: "r1",
-        subplebbitAddress: "sub1",
+        communityAddress: "sub1",
         timestamp: 100,
         updatedAt: 200,
       };
@@ -907,15 +907,15 @@ describe("feeds utils", () => {
   });
 
   describe("getFeedsHaveMore", () => {
-    test("continues when subplebbit address is blocked", () => {
+    test("continues when community address is blocked", () => {
       const feedsOptions = {
         feed1: {
-          subplebbitAddresses: ["blocked-sub", "sub2"],
+          communityAddresses: ["blocked-sub", "sub2"],
           sortType: "new",
           accountId: mockAccountId,
         },
       };
-      const subplebbits = {
+      const communities = {
         "blocked-sub": { address: "blocked-sub", updatedAt: 1, posts: {} },
         sub2: {
           address: "sub2",
@@ -923,48 +923,50 @@ describe("feeds utils", () => {
           posts: { pageCids: { new: "pc1" }, pages: {} },
         },
       };
-      const subplebbitsPages = {
+      const communitiesPages = {
         pc1: { comments: [], nextCid: undefined },
       };
       const accounts = makeMockAccounts({
         blockedAddresses: { "blocked-sub": true },
       });
-      const result = getFeedsHaveMore(feedsOptions, {}, subplebbits, subplebbitsPages, accounts);
+      const result = getFeedsHaveMore(feedsOptions, {}, communities, communitiesPages, accounts);
       expect(result.feed1).toBeDefined();
     });
 
     test("uses modQueue when modQueue option present", () => {
       const feedsOptions = {
         feed1: {
-          subplebbitAddresses: ["sub1"],
+          communityAddresses: ["sub1"],
           sortType: "new",
           accountId: mockAccountId,
           modQueue: ["approved"],
         },
       };
-      const subplebbits = {
+      const communities = {
         sub1: {
           address: "sub1",
           updatedAt: 1,
           modQueue: { pageCids: { approved: "mq1" }, pages: {} },
         },
       };
-      const subplebbitsPages = { mq1: { comments: [], nextCid: undefined } };
+      const communitiesPages = {
+        [`${mockAccountId}:mq1`]: { comments: [], nextCid: undefined },
+      };
       const result = getFeedsHaveMore(
         feedsOptions,
         {},
-        subplebbits,
-        subplebbitsPages,
+        communities,
+        communitiesPages,
         makeMockAccounts(),
       );
       expect(result.feed1).toBe(false);
     });
   });
 
-  describe("getFeedsSubplebbitsFirstPageCids", () => {
+  describe("getFeedsCommunitiesFirstPageCids", () => {
     test("includes pageCids from posts and modQueue", () => {
-      const feedsOptions = { f1: { subplebbitAddresses: ["s1"] } };
-      const subplebbits = new Map([
+      const feedsOptions = { f1: { communityAddresses: ["s1"] } };
+      const communities = new Map([
         [
           "s1",
           {
@@ -977,7 +979,7 @@ describe("feeds utils", () => {
           },
         ],
       ]);
-      const cids = getFeedsSubplebbitsFirstPageCids(subplebbits);
+      const cids = getFeedsCommunitiesFirstPageCids(communities);
       expect(cids).toContain("page-cid-1");
       expect(cids).toContain("next-cid-1");
       expect(cids).toContain("mod-cid-1");
@@ -1030,9 +1032,9 @@ describe("feeds utils", () => {
 
   describe("feedsHaveChangedBlockedAddresses author address", () => {
     test("returns true when post author address is in changed blocked", () => {
-      const feedsOptions = { f1: { subplebbitAddresses: ["sub-a"] } };
+      const feedsOptions = { f1: { communityAddresses: ["sub-a"] } };
       const bufferedFeeds = {
-        f1: [{ cid: "c1", subplebbitAddress: "sub-a", author: { address: "blocked-author" } }],
+        f1: [{ cid: "c1", communityAddress: "sub-a", author: { address: "blocked-author" } }],
       };
       const result = feedsHaveChangedBlockedAddresses(
         feedsOptions,

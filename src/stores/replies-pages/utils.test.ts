@@ -43,7 +43,7 @@ describe("replies-pages utils", () => {
         {
           cid: "reply-1",
           depth: 1,
-          subplebbitAddress: "sub1",
+          communityAddress: "sub1",
           replies: {
             pages: {
               best: { comments: [{ cid: "nested-1", depth: 2 }] },
@@ -62,7 +62,7 @@ describe("replies-pages utils", () => {
 
   test("addChildrenRepliesFeedsToAddToStore uses getSortTypeFromPage fallback when no nested comments", () => {
     const page = {
-      comments: [{ cid: "reply-1", depth: 1, subplebbitAddress: "sub1" }],
+      comments: [{ cid: "reply-1", depth: 1, communityAddress: "sub1" }],
     };
     const comment = { cid: "parent-cid", depth: 0 };
 

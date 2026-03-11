@@ -18,12 +18,12 @@ const getPageCommentCount = 100;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 class MockPages {
-  subplebbitAddress: string;
+  communityAddress: string;
   pageCids: { [pageCid: string]: string };
-  constructor({ subplebbitAddress }: any) {
-    this.subplebbitAddress = subplebbitAddress;
+  constructor({ communityAddress }: any) {
+    this.communityAddress = communityAddress;
     this.pageCids = {
-      new: `${subplebbitAddress} new page cid`,
+      new: `${communityAddress} new page cid`,
     };
   }
 
@@ -46,20 +46,20 @@ class MockPages {
       comments.push({
         timestamp: index,
         cid: pageCid + " comment cid " + index,
-        subplebbitAddress: this.subplebbitAddress,
+        communityAddress: this.communityAddress,
       });
     }
     return comments;
   }
 }
 
-class MockSubplebbit extends EventEmitter {
+class MockCommunity extends EventEmitter {
   address: string;
   posts: MockPages;
   constructor({ address }: any) {
     super();
     this.address = address;
-    this.posts = new MockPages({ subplebbitAddress: address });
+    this.posts = new MockPages({ communityAddress: address });
   }
   async update() {}
 }
@@ -68,13 +68,13 @@ class MockComment extends EventEmitter {
   cid: string;
   replies: MockPages;
   postCid: string;
-  subplebbitAddress: string;
+  communityAddress: string;
   constructor({ cid }: any) {
     super();
     this.cid = cid;
     this.postCid = "post cid";
-    this.subplebbitAddress = `${cid} subplebbit address`;
-    this.replies = new MockPages({ subplebbitAddress: this.subplebbitAddress });
+    this.communityAddress = `${cid} community address`;
+    this.replies = new MockPages({ communityAddress: this.communityAddress });
   }
   async update() {}
 }
@@ -82,11 +82,11 @@ class MockComment extends EventEmitter {
 const mockAccount: any = {
   id: "mock account id",
   plebbit: {
-    createSubplebbit: async ({ address }: any) => new MockSubplebbit({ address }),
+    createCommunity: async ({ address }: any) => new MockCommunity({ address }),
     createComment: async ({ cid }: any) => new MockComment({ cid }),
-    getSubplebbit: async (options: { address: string }) =>
-      new MockSubplebbit({ address: options?.address }),
-    subplebbits: [],
+    getCommunity: async (options: { address: string }) =>
+      new MockCommunity({ address: options?.address }),
+    communities: [],
     async validateComment(comment: any) {},
   },
   blockedAddresses: {},
@@ -335,13 +335,13 @@ describe("replies store", () => {
     const commentCid = "skip-validation-cid";
     const comment = {
       cid: commentCid,
-      subplebbitAddress: subAddr,
+      communityAddress: subAddr,
       replies: {
         pages: {
           new: {
             comments: [
-              { cid: "r1", subplebbitAddress: subAddr, timestamp: 1 },
-              { cid: "r2", subplebbitAddress: subAddr, timestamp: 2 },
+              { cid: "r1", communityAddress: subAddr, timestamp: 1 },
+              { cid: "r2", communityAddress: subAddr, timestamp: 2 },
             ],
             nextCid: "next-page-cid",
           },

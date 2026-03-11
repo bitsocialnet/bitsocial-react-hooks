@@ -2,12 +2,12 @@ import { act } from "@testing-library/react";
 import testUtils, { renderHook } from "../lib/test-utils";
 import {
   useComment,
-  useSubplebbit,
+  useCommunity,
   useFeed,
   useReplies,
   setPlebbitJs,
   useClientsStates,
-  useSubplebbitsStates,
+  useCommunitiesStates,
   useAccountComment,
   usePublishComment,
   useAccount,
@@ -60,7 +60,7 @@ class Client extends EventEmitter {
   state = "stopped";
 }
 
-const mockCommentSubplebbitAddress = "subplebbit address 1";
+const mockCommentCommunityAddress = "community address 1";
 class Comment extends EventEmitter {
   clients: any = {
     ipfsGateways: {
@@ -95,12 +95,12 @@ class Comment extends EventEmitter {
   timestamp?: number;
   updatedAt?: number;
   replies: Pages;
-  subplebbitAddress: string;
+  communityAddress: string;
   constructor(createCommentOptions: any) {
     super();
     this.cid = createCommentOptions.cid;
-    this.subplebbitAddress = mockCommentSubplebbitAddress;
-    this.replies = new Pages(this.subplebbitAddress);
+    this.communityAddress = mockCommentCommunityAddress;
+    this.replies = new Pages(this.communityAddress);
   }
 
   async update() {
@@ -152,7 +152,7 @@ class Comment extends EventEmitter {
       );
       await simulateLoadingTime(20);
 
-      // set states resolving subplebbit address
+      // set states resolving community address
       changeClientsStates(
         this.clients,
         "ipfsGateways",
@@ -179,7 +179,7 @@ class Comment extends EventEmitter {
       );
       await simulateLoadingTime(20);
 
-      // set states stop resolving subplebbit address
+      // set states stop resolving community address
       changeClientsStates(
         this.clients,
         "chainProviders",
@@ -193,9 +193,9 @@ class Comment extends EventEmitter {
       this.replies.pages = {
         new: {
           comments: [
-            { cid: `${this.cid} reply cid 1`, subplebbitAddress: this.subplebbitAddress },
-            { cid: `${this.cid} reply cid 2`, subplebbitAddress: this.subplebbitAddress },
-            { cid: `${this.cid} reply cid 3`, subplebbitAddress: this.subplebbitAddress },
+            { cid: `${this.cid} reply cid 1`, communityAddress: this.communityAddress },
+            { cid: `${this.cid} reply cid 2`, communityAddress: this.communityAddress },
+            { cid: `${this.cid} reply cid 3`, communityAddress: this.communityAddress },
           ],
           nextCid: `${this.cid} next replies page cid -`,
         },
@@ -208,7 +208,7 @@ class Comment extends EventEmitter {
     (async () => {
       await simulateLoadingTime(20);
 
-      // set states resolving subplebbit address
+      // set states resolving community address
       changeClientsStates(
         this.clients,
         "chainProviders",
@@ -378,9 +378,9 @@ class Pages {
   };
   pages: any = {};
   pageCids = {};
-  subplebbitAddress: string;
-  constructor(subplebbitAddress) {
-    this.subplebbitAddress = subplebbitAddress;
+  communityAddress: string;
+  constructor(communityAddress) {
+    this.communityAddress = communityAddress;
   }
   async getPage(options: { cid: string }) {
     const cid = options?.cid;
@@ -431,16 +431,16 @@ class Pages {
 
     return {
       comments: [
-        { cid: `${cid} cid 1`, subplebbitAddress: this.subplebbitAddress },
-        { cid: `${cid} cid 2`, subplebbitAddress: this.subplebbitAddress },
-        { cid: `${cid} cid 3`, subplebbitAddress: this.subplebbitAddress },
+        { cid: `${cid} cid 1`, communityAddress: this.communityAddress },
+        { cid: `${cid} cid 2`, communityAddress: this.communityAddress },
+        { cid: `${cid} cid 3`, communityAddress: this.communityAddress },
       ],
     };
   }
   async validatePage(_page: any) {}
 }
 
-class Subplebbit extends EventEmitter {
+class Community extends EventEmitter {
   clients: any = {
     ipfsGateways: {
       [ipfsGatewayUrl1]: new Client(),
@@ -482,7 +482,7 @@ class Subplebbit extends EventEmitter {
 
   async update() {
     (async () => {
-      // set states resolving subplebbit address
+      // set states resolving community address
       this.updatingState = "resolving-address";
       this.emit("updatingstatechange", "resolving-address");
       changeClientsStates(
@@ -501,7 +501,7 @@ class Subplebbit extends EventEmitter {
         "stopped",
       );
 
-      // set states fetching subplebbit ipns
+      // set states fetching community ipns
       this.updatingState = "fetching-ipns";
       this.emit("updatingstatechange", "fetching-ipns");
       changeClientsStates(
@@ -524,7 +524,7 @@ class Subplebbit extends EventEmitter {
       );
       await simulateLoadingTime(100);
 
-      // set states stop fetching subplebbit ipns
+      // set states stop fetching community ipns
       this.updatingState = "succeeded";
       this.emit("updatingstatechange", "succeeded");
       changeClientsStates(
@@ -547,14 +547,14 @@ class Subplebbit extends EventEmitter {
       );
       await simulateLoadingTime(100);
 
-      // fetched subplebbit ipns
+      // fetched community ipns
       this.updatedAt = updatedAt;
       this.posts.pages = {
         new: {
           comments: [
-            { cid: `${this.address} cid 1`, subplebbitAddress: this.address },
-            { cid: `${this.address} cid 2`, subplebbitAddress: this.address },
-            { cid: `${this.address} cid 3`, subplebbitAddress: this.address },
+            { cid: `${this.address} cid 1`, communityAddress: this.address },
+            { cid: `${this.address} cid 2`, communityAddress: this.address },
+            { cid: `${this.address} cid 3`, communityAddress: this.address },
           ],
           nextCid: `${this.address} next page cid -`,
         },
@@ -565,7 +565,7 @@ class Subplebbit extends EventEmitter {
 }
 
 const createComment = Plebbit.prototype.createComment;
-const createSubplebbit = Plebbit.prototype.createSubplebbit;
+const createCommunity = Plebbit.prototype.createCommunity;
 
 describe("states", () => {
   beforeAll(async () => {
@@ -578,16 +578,16 @@ describe("states", () => {
       const comment: any = new Comment({ cid });
       return comment;
     };
-    Plebbit.prototype.createSubplebbit = async ({ address }: any) => {
-      const subplebbit: any = new Subplebbit({ address });
-      return subplebbit;
+    Plebbit.prototype.createCommunity = async ({ address }: any) => {
+      const community: any = new Community({ address });
+      return community;
     };
     testUtils.silenceReactWarnings();
   });
   afterAll(() => {
     // restore
     Plebbit.prototype.createComment = createComment;
-    Plebbit.prototype.createSubplebbit = createSubplebbit;
+    Plebbit.prototype.createCommunity = createCommunity;
     testUtils.restoreAll();
   });
   afterEach(async () => {
@@ -616,16 +616,16 @@ describe("states", () => {
       );
     });
 
-    test("useClientsStates asserts invalid subplebbit type (branch 28)", () => {
-      expect(() => renderHook(() => useClientsStates({ subplebbit: 123 as any }))).toThrow(
-        /subplebbit argument.*not an object/,
+    test("useClientsStates asserts invalid community type (branch 28)", () => {
+      expect(() => renderHook(() => useClientsStates({ community: 123 as any }))).toThrow(
+        /community argument.*not an object/,
       );
     });
 
-    test("useClientsStates asserts comment and subplebbit both defined (branch 28)", () => {
+    test("useClientsStates asserts comment and community both defined (branch 28)", () => {
       expect(() =>
         renderHook(() =>
-          useClientsStates({ comment: { cid: "c" } as any, subplebbit: { address: "a" } as any }),
+          useClientsStates({ comment: { cid: "c" } as any, community: { address: "a" } as any }),
         ),
       ).toThrow(/cannot be defined at the same time/);
     });
@@ -766,24 +766,24 @@ describe("states", () => {
       expect(rendered.result.current.states).toEqual({});
     });
 
-    test("fetch subplebbit", async () => {
-      const rendered = renderHook<any, any>((subplebbitAddress: string) => {
-        const subplebbit = useSubplebbit({ subplebbitAddress });
+    test("fetch community", async () => {
+      const rendered = renderHook<any, any>((communityAddress: string) => {
+        const community = useCommunity({ communityAddress });
         const { feed, loadMore } = useFeed({
-          subplebbitAddresses: subplebbitAddress ? [subplebbitAddress] : [],
+          communityAddresses: communityAddress ? [communityAddress] : [],
           sortType: "new",
         });
-        const { states } = useClientsStates({ subplebbit });
-        return { subplebbit, states, feed, loadMore };
+        const { states } = useClientsStates({ community });
+        return { community, states, feed, loadMore };
       });
       const waitFor = testUtils.createWaitFor(rendered);
-      expect(rendered.result.current.subplebbit.address).toBe(undefined);
+      expect(rendered.result.current.community.address).toBe(undefined);
       expect(rendered.result.current.states).toEqual({});
 
       // initial state
-      rendered.rerender("subplebbit address 1");
-      await waitFor(() => typeof rendered.result.current.subplebbit.address === "string");
-      expect(rendered.result.current.subplebbit.address).toBe("subplebbit address 1");
+      rendered.rerender("community address 1");
+      await waitFor(() => typeof rendered.result.current.community.address === "string");
+      expect(rendered.result.current.community.address).toBe("community address 1");
 
       // states start fetching comment ipfs
       await waitFor(() => rendered.result.current.states["resolving-address"].length >= 2);
@@ -791,7 +791,7 @@ describe("states", () => {
         "resolving-address": [ethChainProviderUrl1, ethChainProviderUrl2],
       });
 
-      // states start fetching subplebbit ipns
+      // states start fetching community ipns
       await waitFor(() => rendered.result.current.states["fetching-ipns"].length >= 6);
       expect(rendered.result.current.states).toEqual({
         "fetching-ipns": [
@@ -804,16 +804,16 @@ describe("states", () => {
         ],
       });
 
-      // wait for subplebbit update
-      await waitFor(() => typeof rendered.result.current.subplebbit.updatedAt === "number");
-      expect(rendered.result.current.subplebbit.updatedAt).toBe(updatedAt);
+      // wait for community update
+      await waitFor(() => typeof rendered.result.current.community.updatedAt === "number");
+      expect(rendered.result.current.community.updatedAt).toBe(updatedAt);
       expect(rendered.result.current.states).toEqual({});
 
       // wait for first page
       await waitFor(() => rendered.result.current.feed.length === 3);
       expect(rendered.result.current.feed.length).toEqual(3);
 
-      // states start fetching subplebbit page
+      // states start fetching community page
       await waitFor(() => rendered.result.current.states["fetching-ipfs-page-new"].length >= 6);
       expect(rendered.result.current.states).toEqual({
         "fetching-ipfs-page-new": [
@@ -836,7 +836,7 @@ describe("states", () => {
       const onChallenge = (challenge: any, comment: Comment) => comment.publishChallengeAnswers();
       const onChallengeVerification = vi.fn();
       const publishCommentOptions = {
-        subplebbitAddress: "12D3KooW... states.test",
+        communityAddress: "12D3KooW... states.test",
         title: "some title states.test",
         content: "some content states.test",
         onChallenge,
@@ -860,7 +860,7 @@ describe("states", () => {
         await rendered.result.current.publishComment();
       });
 
-      // wait for resolving subplebbit address (React 19 may batch past intermediate states)
+      // wait for resolving community address (React 19 may batch past intermediate states)
       await waitFor(
         () =>
           rendered.result.current.states["resolving-address"]?.length >= 2 ||
@@ -958,46 +958,46 @@ describe("states", () => {
     });
   });
 
-  describe("useSubplebbitsStates", () => {
+  describe("useCommunitiesStates", () => {
     afterEach(async () => {
       await testUtils.resetDatabasesAndStores();
     });
 
-    test("useSubplebbitsStates asserts invalid options type", () => {
-      expect(() => renderHook(() => useSubplebbitsStates(123 as any))).toThrow(/not an object/);
+    test("useCommunitiesStates asserts invalid options type", () => {
+      expect(() => renderHook(() => useCommunitiesStates(123 as any))).toThrow(/not an object/);
     });
 
-    test("useSubplebbitsStates with no options (branch 28)", () => {
-      const rendered = renderHook(() => useSubplebbitsStates());
+    test("useCommunitiesStates with no options (branch 28)", () => {
+      const rendered = renderHook(() => useCommunitiesStates());
       expect(rendered.result.current.states).toEqual({});
     });
 
-    test("useSubplebbitsStates with subplebbitAddresses undefined (branch 149)", () => {
-      const rendered = renderHook(() => useSubplebbitsStates({ subplebbitAddresses: undefined }));
+    test("useCommunitiesStates with communityAddresses undefined (branch 149)", () => {
+      const rendered = renderHook(() => useCommunitiesStates({ communityAddresses: undefined }));
       expect(rendered.result.current.states).toEqual({});
     });
 
-    test("useSubplebbitsStates asserts subplebbitAddresses not array (branch 144)", () => {
+    test("useCommunitiesStates asserts communityAddresses not array (branch 144)", () => {
       expect(() =>
-        renderHook(() => useSubplebbitsStates({ subplebbitAddresses: "not-array" as any })),
-      ).toThrow(/subplebbitAddresses.*not an array/);
+        renderHook(() => useCommunitiesStates({ communityAddresses: "not-array" as any })),
+      ).toThrow(/communityAddresses.*not an array/);
     });
 
-    test("useSubplebbitsStates asserts subplebbitAddress not string (branch 149)", () => {
+    test("useCommunitiesStates asserts communityAddress not string (branch 149)", () => {
       expect(() =>
-        renderHook(() => useSubplebbitsStates({ subplebbitAddresses: ["valid", 123 as any] })),
-      ).toThrow(/subplebbitAddress.*not a string/);
+        renderHook(() => useCommunitiesStates({ communityAddresses: ["valid", 123 as any] })),
+      ).toThrow(/communityAddress.*not a string/);
     });
 
     test("fetch feed", { retry: 5 }, async () => {
-      const subplebbitAddresses = [
-        "subplebbit address 1",
-        "subplebbit address 2",
-        "subplebbit address 3",
+      const communityAddresses = [
+        "community address 1",
+        "community address 2",
+        "community address 3",
       ];
       const rendered = testUtils.renderHookWithHistory<any, any>(() => {
-        const { states } = useSubplebbitsStates({ subplebbitAddresses });
-        const { feed, loadMore } = useFeed({ subplebbitAddresses, sortType: "new" });
+        const { states } = useCommunitiesStates({ communityAddresses });
+        const { feed, loadMore } = useFeed({ communityAddresses, sortType: "new" });
         return { states, feed, loadMore };
       });
       const waitFor = testUtils.createWaitFor(rendered);
@@ -1010,13 +1010,13 @@ describe("states", () => {
       // states contained resolving address (React 19 may batch past this intermediate state)
       let _resolvingAddress = false;
       for (const result of rendered.result.all) {
-        if (result.states["resolving-address"]?.subplebbitAddresses.length === 3) {
+        if (result.states["resolving-address"]?.communityAddresses.length === 3) {
           expect(result.states).toEqual({
             "resolving-address": {
-              subplebbitAddresses: [
-                "subplebbit address 1",
-                "subplebbit address 2",
-                "subplebbit address 3",
+              communityAddresses: [
+                "community address 1",
+                "community address 2",
+                "community address 3",
               ],
               clientUrls: ["https://ethchainprovider1.com", "https://ethchainprovider2.com"],
             },
@@ -1030,13 +1030,13 @@ describe("states", () => {
       // states contained fetching ipns (React 19 may batch past this intermediate state)
       let _fetchingIpns = false;
       for (const result of rendered.result.all) {
-        if (result.states["fetching-ipns"]?.subplebbitAddresses.length === 3) {
+        if (result.states["fetching-ipns"]?.communityAddresses.length === 3) {
           expect(result.states).toEqual({
             "fetching-ipns": {
-              subplebbitAddresses: [
-                "subplebbit address 1",
-                "subplebbit address 2",
-                "subplebbit address 3",
+              communityAddresses: [
+                "community address 1",
+                "community address 2",
+                "community address 3",
               ],
               clientUrls: [
                 "https://ipfsgateway1.com",
@@ -1061,13 +1061,13 @@ describe("states", () => {
       // states contained fetching ipfs page new (React 19 may batch past this intermediate state)
       let _fetchingIpfsPageNew = false;
       for (const result of rendered.result.all) {
-        if (result.states["fetching-ipfs-page-new"]?.subplebbitAddresses.length === 3) {
+        if (result.states["fetching-ipfs-page-new"]?.communityAddresses.length === 3) {
           expect(result.states).toEqual({
             "fetching-ipfs-page-new": {
-              subplebbitAddresses: [
-                "subplebbit address 1",
-                "subplebbit address 2",
-                "subplebbit address 3",
+              communityAddresses: [
+                "community address 1",
+                "community address 2",
+                "community address 3",
               ],
               clientUrls: [
                 "https://ipfsgateway1.com",

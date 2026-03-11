@@ -8,9 +8,9 @@ import { directory as getTmpFolderPath } from "tempy";
 import http from "http";
 const plebbitDataPath = getTmpFolderPath();
 
-// set up a subplebbit for testing
+// set up a community for testing
 (async () => {
-  // always use the same private key and subplebbit address when testing
+  // always use the same private key and community address when testing
   const privateKey = signers[0].privateKey;
   const adminRoleAddress = signers[1].address;
 
@@ -41,27 +41,27 @@ const plebbitDataPath = getTmpFolderPath();
   });
   const signer = await plebbit.createSigner({ privateKey, type: "ed25519" });
 
-  console.log(`creating subplebbit with address '${signer.address}'...`);
-  const subplebbit = await plebbit.createSubplebbit({
+  console.log(`creating community with address '${signer.address}'...`);
+  const community = await plebbit.createSubplebbit({
     signer: signer,
   });
-  subplebbit.on("challengerequest", console.log);
-  subplebbit.on("challengeanswer", console.log);
-  await subplebbit.edit({
+  community.on("challengerequest", console.log);
+  community.on("challengeanswer", console.log);
+  await community.edit({
     settings: {
       challenges: [{ name: "question", options: { question: "1+1=?", answer: "2" } }],
     },
     roles: { [adminRoleAddress]: { role: "admin" } },
   });
-  console.log("subplebbit created");
+  console.log("community created");
 
-  // tests can cause subplebbit errors, e.g. changing name to wrong .eth
-  subplebbit.on("error", console.log);
+  // tests can cause community errors, e.g. changing name to wrong .eth
+  community.on("error", console.log);
 
-  console.log("starting subplebbit...");
-  await subplebbit.start();
-  subplebbit.once("update", async () => {
-    console.log(`subplebbit started with address ${signer.address}`);
+  console.log("starting community...");
+  await community.start();
+  community.once("update", async () => {
+    console.log(`community started with address ${signer.address}`);
 
     console.log("publish test comment");
     const comment = await plebbit2.createComment({

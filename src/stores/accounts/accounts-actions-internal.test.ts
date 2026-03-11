@@ -38,7 +38,7 @@ describe("accounts-actions-internal", () => {
       const plainComment = {
         cid: "plain-cid",
         author: { address: account.author.address },
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         depth: 0,
       };
       await accountsDatabase.addAccountComment(account.id, {
@@ -267,14 +267,14 @@ describe("accounts-actions-internal", () => {
       const validReply = {
         cid: "reply-p1",
         author: { address: "r1" },
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         depth: 1,
         parentCid: "cid-undefined-comments",
       };
       const comment = new Comment({
         cid: "cid-undefined-comments",
         author: { address: account.author.address },
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         depth: 0,
       });
       (comment as any).replies = {
@@ -311,7 +311,7 @@ describe("accounts-actions-internal", () => {
 
       const updatedComment = {
         cid: "cid-undefined-comments",
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         depth: 0,
         author: { address: account.author.address },
         replies: {
@@ -339,14 +339,14 @@ describe("accounts-actions-internal", () => {
       const validReply = {
         cid: "reply-p1",
         author: { address: "r1" },
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         depth: 1,
         parentCid: "cid-null-page",
       };
       const comment = new Comment({
         cid: "cid-null-page",
         author: { address: account.author.address },
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         depth: 0,
       });
       (comment as any).replies = {
@@ -381,7 +381,7 @@ describe("accounts-actions-internal", () => {
 
       const updatedComment = {
         cid: "cid-null-page",
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         depth: 0,
         author: { address: account.author.address },
         replies: {
@@ -443,7 +443,7 @@ describe("accounts-actions-internal", () => {
       const comment = new Comment({
         cid: "cid-no-pages",
         author: { address: account.author.address },
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         depth: 0,
       });
       (comment as any).replies = {};
@@ -486,13 +486,13 @@ describe("accounts-actions-internal", () => {
       const comment = new Comment({
         cid: "cid-replies",
         author: { address: account.author.address },
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         depth: 0,
       });
       const validReply = {
         cid: "reply-1",
         author: { address: "r1" },
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         depth: 1,
         parentCid: "cid-replies",
       };
@@ -531,7 +531,7 @@ describe("accounts-actions-internal", () => {
       const updatedComment = {
         ...comment,
         cid: "cid-replies",
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         depth: 0,
         replies: {
           pages: {
@@ -557,7 +557,7 @@ describe("accounts-actions-internal", () => {
       const comment = new Comment({
         cid: "cid-replies",
         author: { address: account.author.address },
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         depth: 0,
       });
       (comment as any).replies = {
@@ -567,7 +567,7 @@ describe("accounts-actions-internal", () => {
               {
                 cid: "reply-1",
                 author: { address: "r1" },
-                subplebbitAddress: "sub.eth",
+                communityAddress: "sub.eth",
                 depth: 1,
                 parentCid: "cid-replies",
               },
@@ -601,7 +601,7 @@ describe("accounts-actions-internal", () => {
 
       const updatedComment = {
         cid: "cid-replies",
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
         depth: 0,
         author: { address: account.author.address },
         replies: {
@@ -611,7 +611,7 @@ describe("accounts-actions-internal", () => {
                 {
                   cid: "reply-1",
                   author: { address: "r1" },
-                  subplebbitAddress: "sub.eth",
+                  communityAddress: "sub.eth",
                   depth: 1,
                   parentCid: "cid-replies",
                 },
@@ -637,13 +637,13 @@ describe("accounts-actions-internal", () => {
       const comment = new Comment({
         cid: "cid-mixed-pages",
         author: { address: account.author.address },
-        subplebbitAddress: subAddr,
+        communityAddress: subAddr,
         depth: 0,
       });
       const validReply = {
         cid: "reply-from-p1",
         author: { address: "r1" },
-        subplebbitAddress: subAddr,
+        communityAddress: subAddr,
         depth: 1,
         parentCid: "cid-mixed-pages",
       };
@@ -682,7 +682,7 @@ describe("accounts-actions-internal", () => {
 
       const updatedComment = {
         cid: "cid-mixed-pages",
-        subplebbitAddress: subAddr,
+        communityAddress: subAddr,
         depth: 0,
         author: { address: account.author.address },
         replies: {
@@ -707,7 +707,7 @@ describe("accounts-actions-internal", () => {
       const comment = new Comment({
         cid: "cid-marked",
         author: { address: account.author.address },
-        subplebbitAddress: "sub.eth",
+        communityAddress: "sub.eth",
       });
       (comment as any).replies = {
         pages: {
@@ -1094,54 +1094,54 @@ describe("accounts-actions-internal", () => {
     });
   });
 
-  describe("addSubplebbitRoleToAccountsSubplebbits", () => {
+  describe("addCommunityRoleToAccountsCommunities", () => {
     beforeEach(async () => {
       await testUtils.resetDatabasesAndStores();
     });
 
-    test("no subplebbit: returns early", async () => {
-      await accountsActionsInternal.addSubplebbitRoleToAccountsSubplebbits(null as any);
-      await accountsActionsInternal.addSubplebbitRoleToAccountsSubplebbits(undefined as any);
+    test("no community: returns early", async () => {
+      await accountsActionsInternal.addCommunityRoleToAccountsCommunities(null as any);
+      await accountsActionsInternal.addCommunityRoleToAccountsCommunities(undefined as any);
     });
 
-    test("subplebbit with no roles property: treats as no roles (branch 337)", async () => {
+    test("community with no roles property: treats as no roles (branch 337)", async () => {
       const account = Object.values(accountsStore.getState().accounts)[0];
-      const subplebbit = { address: "sub.eth" } as any;
+      const community = { address: "sub.eth" } as any;
       accountsStore.setState((s) => ({
         accounts: {
           ...s.accounts,
           [account.id]: {
             ...account,
-            subplebbits: { "sub.eth": { role: { role: "admin" } } },
+            communities: { "sub.eth": { role: { role: "admin" } } },
           },
         },
       }));
 
-      await accountsActionsInternal.addSubplebbitRoleToAccountsSubplebbits(subplebbit);
+      await accountsActionsInternal.addCommunityRoleToAccountsCommunities(community);
 
       const acc = accountsStore.getState().accounts[account.id];
-      expect(acc?.subplebbits?.["sub.eth"]).toBeUndefined();
+      expect(acc?.communities?.["sub.eth"]).toBeUndefined();
     });
 
-    test("subplebbit with no roles, account has no subplebbit: no-op (branch 340 false)", async () => {
+    test("community with no roles, account has no community: no-op (branch 340 false)", async () => {
       const account = Object.values(accountsStore.getState().accounts)[0];
-      const subplebbit = { address: "other.eth" } as any;
+      const community = { address: "other.eth" } as any;
       accountsStore.setState((s) => ({
         accounts: {
           ...s.accounts,
-          [account.id]: { ...account, subplebbits: {} },
+          [account.id]: { ...account, communities: {} },
         },
       }));
 
-      await accountsActionsInternal.addSubplebbitRoleToAccountsSubplebbits(subplebbit);
+      await accountsActionsInternal.addCommunityRoleToAccountsCommunities(community);
 
       const acc = accountsStore.getState().accounts[account.id];
-      expect(acc?.subplebbits?.["other.eth"]).toBeUndefined();
+      expect(acc?.communities?.["other.eth"]).toBeUndefined();
     });
 
     test("no-change: account already has role, no add/remove", async () => {
       const account = Object.values(accountsStore.getState().accounts)[0];
-      const subplebbit = {
+      const community = {
         address: "sub.eth",
         roles: { [account.author.address]: { role: "admin" } },
       };
@@ -1150,39 +1150,61 @@ describe("accounts-actions-internal", () => {
           ...s.accounts,
           [account.id]: {
             ...account,
-            subplebbits: { "sub.eth": { role: { role: "admin" } } },
+            communities: { "sub.eth": { role: { role: "admin" } } },
           },
         },
       }));
 
-      await accountsActionsInternal.addSubplebbitRoleToAccountsSubplebbits(subplebbit as any);
+      await accountsActionsInternal.addCommunityRoleToAccountsCommunities(community as any);
 
       const acc = accountsStore.getState().accounts[account.id];
-      expect(acc?.subplebbits?.["sub.eth"]).toBeDefined();
+      expect(acc?.communities?.["sub.eth"]).toBeDefined();
     });
 
-    test("add: adds role when subplebbit has role for account", async () => {
+    test("add: adds role when community has role for account", async () => {
       const account = Object.values(accountsStore.getState().accounts)[0];
-      const subplebbit = {
+      const community = {
         address: "new-sub.eth",
         roles: { [account.author.address]: { role: "moderator" } },
       };
       accountsStore.setState((s) => ({
         accounts: {
           ...s.accounts,
-          [account.id]: { ...account, subplebbits: {} },
+          [account.id]: { ...account, communities: {} },
         },
       }));
 
-      await accountsActionsInternal.addSubplebbitRoleToAccountsSubplebbits(subplebbit as any);
+      await accountsActionsInternal.addCommunityRoleToAccountsCommunities(community as any);
 
       const acc = accountsStore.getState().accounts[account.id];
-      expect(acc?.subplebbits?.["new-sub.eth"]).toEqual({ role: { role: "moderator" } });
+      expect(acc?.communities?.["new-sub.eth"]).toEqual({ role: { role: "moderator" } });
     });
 
-    test("remove: removes role when subplebbit no longer has role", async () => {
+    test("updates stored role when the community role changes", async () => {
       const account = Object.values(accountsStore.getState().accounts)[0];
-      const subplebbit = {
+      const community = {
+        address: "updated-role.eth",
+        roles: { [account.author.address]: { role: "admin" } },
+      };
+      accountsStore.setState((s) => ({
+        accounts: {
+          ...s.accounts,
+          [account.id]: {
+            ...account,
+            communities: { "updated-role.eth": { role: { role: "moderator" } } },
+          },
+        },
+      }));
+
+      await accountsActionsInternal.addCommunityRoleToAccountsCommunities(community as any);
+
+      const acc = accountsStore.getState().accounts[account.id];
+      expect(acc?.communities?.["updated-role.eth"]).toEqual({ role: { role: "admin" } });
+    });
+
+    test("remove: removes role when community no longer has role", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const community = {
         address: "old-sub.eth",
         roles: {},
       };
@@ -1191,15 +1213,15 @@ describe("accounts-actions-internal", () => {
           ...s.accounts,
           [account.id]: {
             ...account,
-            subplebbits: { "old-sub.eth": { role: { role: "admin" } } },
+            communities: { "old-sub.eth": { role: { role: "admin" } } },
           },
         },
       }));
 
-      await accountsActionsInternal.addSubplebbitRoleToAccountsSubplebbits(subplebbit as any);
+      await accountsActionsInternal.addCommunityRoleToAccountsCommunities(community as any);
 
       const acc = accountsStore.getState().accounts[account.id];
-      expect(acc?.subplebbits?.["old-sub.eth"]).toBeUndefined();
+      expect(acc?.communities?.["old-sub.eth"]).toBeUndefined();
     });
   });
 });

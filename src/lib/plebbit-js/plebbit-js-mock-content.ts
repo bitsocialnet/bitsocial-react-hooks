@@ -60,14 +60,14 @@ const mediaLinks = [
   "https://upload.wikimedia.org/wikipedia/en/b/bf/Dave_Niehaus_Winning_Call_1995_AL_Division_Series.ogg",
 ];
 
-const subplebbitTitles = [
+const communityTitles = [
   "The Ethereum investment community",
   "Cryptography news and discussions",
   "Memes",
   "🤡",
 ];
 
-const subplebbitDescriptions = [
+const communityDescriptions = [
   "Welcome to /r/EthTrader, a 100% community driven sub. Here you can discuss Ethereum news, memes, investing, trading, miscellaneous market-related subjects and other relevant technology.",
   "Cryptography is the art of creating mathematical assurances for who can do what with data, including but not limited to encryption of messages such that only the key-holder can read it. Cryptography lives at an intersection of math and computer science. This subreddit covers the theory and practice of modern and *strong* cryptography, and it is a technical subreddit focused on the algorithms and implementations of cryptography.",
   "Memes",
@@ -500,178 +500,178 @@ const getReplyContent = async (getReplyContentOptions: any, seed: string) => {
   return replyContent;
 };
 
-const getSubplebbitContent = async (seed: string) => {
-  const subplebbitNumberSeed = SeedIncrementer(await getNumberHash(seed));
-  const subplebbit: any = {
-    pubsubTopic: await seedToCid(subplebbitNumberSeed.seed),
+const getCommunityContent = async (seed: string) => {
+  const communityNumberSeed = SeedIncrementer(await getNumberHash(seed));
+  const community: any = {
+    pubsubTopic: await seedToCid(communityNumberSeed.seed),
   };
 
-  const hasChallengeTypes = await getArrayItem([true, false], subplebbitNumberSeed.increment());
+  const hasChallengeTypes = await getArrayItem([true, false], communityNumberSeed.increment());
   if (hasChallengeTypes) {
-    subplebbit.challengeTypes = ["image"];
+    community.challengeTypes = ["image"];
   }
 
-  const hasRoles = await getArrayItem([true, false], subplebbitNumberSeed.increment());
+  const hasRoles = await getArrayItem([true, false], communityNumberSeed.increment());
   if (hasRoles) {
-    subplebbit.roles = {
-      [await getAuthorAddress(subplebbitNumberSeed.increment())]: { role: "owner" },
-      [await getAuthorAddress(subplebbitNumberSeed.increment())]: { role: "admin" },
-      [await getAuthorAddress(subplebbitNumberSeed.increment())]: { role: "moderator" },
-      [await getAuthorAddress(subplebbitNumberSeed.increment())]: { role: "moderator" },
-      [await getAuthorAddress(subplebbitNumberSeed.increment())]: { role: "moderator" },
-      [await getAuthorAddress(subplebbitNumberSeed.increment())]: { role: "moderator" },
-      [await getAuthorAddress(subplebbitNumberSeed.increment())]: { role: "moderator" },
-      [await getAuthorAddress(subplebbitNumberSeed.increment())]: { role: "moderator" },
+    community.roles = {
+      [await getAuthorAddress(communityNumberSeed.increment())]: { role: "owner" },
+      [await getAuthorAddress(communityNumberSeed.increment())]: { role: "admin" },
+      [await getAuthorAddress(communityNumberSeed.increment())]: { role: "moderator" },
+      [await getAuthorAddress(communityNumberSeed.increment())]: { role: "moderator" },
+      [await getAuthorAddress(communityNumberSeed.increment())]: { role: "moderator" },
+      [await getAuthorAddress(communityNumberSeed.increment())]: { role: "moderator" },
+      [await getAuthorAddress(communityNumberSeed.increment())]: { role: "moderator" },
+      [await getAuthorAddress(communityNumberSeed.increment())]: { role: "moderator" },
     };
   }
 
   const title = await getArrayItem(
-    [undefined, ...subplebbitTitles],
-    subplebbitNumberSeed.increment(),
+    [undefined, ...communityTitles],
+    communityNumberSeed.increment(),
   );
   if (title) {
-    subplebbit.title = title;
+    community.title = title;
   }
   const description = await getArrayItem(
-    [undefined, ...subplebbitDescriptions],
-    subplebbitNumberSeed.increment(),
+    [undefined, ...communityDescriptions],
+    communityNumberSeed.increment(),
   );
   if (description) {
-    subplebbit.description = description;
+    community.description = description;
   }
 
-  const hasPostFlairs = await getArrayItem([true, false], subplebbitNumberSeed.increment());
+  const hasPostFlairs = await getArrayItem([true, false], communityNumberSeed.increment());
   if (hasPostFlairs) {
-    subplebbit.flairs = { post: postFlairs };
+    community.flairs = { post: postFlairs };
   }
-  const hasAuthorFlairs = await getArrayItem([true, false], subplebbitNumberSeed.increment());
+  const hasAuthorFlairs = await getArrayItem([true, false], communityNumberSeed.increment());
   if (hasAuthorFlairs) {
-    subplebbit.flairs = { post: subplebbit.flairs?.post, author: authorFlairs };
+    community.flairs = { post: community.flairs?.post, author: authorFlairs };
   }
 
-  const hasSuggested = await getArrayItem([true, false], subplebbitNumberSeed.increment());
+  const hasSuggested = await getArrayItem([true, false], communityNumberSeed.increment());
   if (hasSuggested) {
-    subplebbit.suggested = {
-      primaryColor: (await getArrayItem(postFlairs, subplebbitNumberSeed.increment()))
+    community.suggested = {
+      primaryColor: (await getArrayItem(postFlairs, communityNumberSeed.increment()))
         .backgroundColor,
-      secondaryColor: (await getArrayItem(postFlairs, subplebbitNumberSeed.increment()))
+      secondaryColor: (await getArrayItem(postFlairs, communityNumberSeed.increment()))
         .backgroundColor,
       avatarUrl: await getArrayItem(
-        [undefined, await getImageUrl(subplebbitNumberSeed.increment())],
-        subplebbitNumberSeed.increment(),
+        [undefined, await getImageUrl(communityNumberSeed.increment())],
+        communityNumberSeed.increment(),
       ),
       bannerUrl: await getArrayItem(
-        [undefined, await getImageUrl(subplebbitNumberSeed.increment())],
-        subplebbitNumberSeed.increment(),
+        [undefined, await getImageUrl(communityNumberSeed.increment())],
+        communityNumberSeed.increment(),
       ),
       backgroundUrl: await getArrayItem(
-        [undefined, await getImageUrl(subplebbitNumberSeed.increment())],
-        subplebbitNumberSeed.increment(),
+        [undefined, await getImageUrl(communityNumberSeed.increment())],
+        communityNumberSeed.increment(),
       ),
       language: await getArrayItem(
         [undefined, undefined, "en", "en", "es", "ru"],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
     };
   }
 
-  const hasFeatures = await getArrayItem([true, false], subplebbitNumberSeed.increment());
+  const hasFeatures = await getArrayItem([true, false], communityNumberSeed.increment());
   if (hasFeatures) {
-    subplebbit.features = {
+    community.features = {
       noVideos: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       noSpoilers: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       noImages: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       noVideoReplies: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       noSpoilerReplies: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       noImageReplies: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       noPolls: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       noCrossposts: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       noUpvotes: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       noDownvotes: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       noAuthors: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       anonymousAuthors: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       noNestedReplies: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       safeForWork: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       authorFlairs: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       requireAuthorFlairs: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       postFlairs: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       requirePostFlairs: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       noMarkdownImages: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       noMarkdownVideos: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       markdownImageReplies: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
       markdownVideoReplies: await getArrayItem(
         [undefined, undefined, true, false],
-        subplebbitNumberSeed.increment(),
+        communityNumberSeed.increment(),
       ),
     };
   }
 
-  const hasRules = await getArrayItem([true, false], subplebbitNumberSeed.increment());
+  const hasRules = await getArrayItem([true, false], communityNumberSeed.increment());
   if (hasRules) {
-    subplebbit.rules = [
+    community.rules = [
       "no spam",
       "be nice",
       "Do not link to CNN.",
@@ -680,23 +680,23 @@ const getSubplebbitContent = async (seed: string) => {
     ];
   }
 
-  const isOnline = await getArrayItem([true, false], subplebbitNumberSeed.increment());
+  const isOnline = await getArrayItem([true, false], communityNumberSeed.increment());
   if (isOnline) {
     // updated in last 1h
-    subplebbit.updatedAt =
+    community.updatedAt =
       Math.round(Date.now() / 1000) -
-      (await getNumberBetween(1, 60 * 60, subplebbitNumberSeed.increment()));
+      (await getNumberBetween(1, 60 * 60, communityNumberSeed.increment()));
   } else {
     // updated in last month
-    subplebbit.updatedAt =
+    community.updatedAt =
       Math.round(Date.now() / 1000) -
-      (await getNumberBetween(60 * 60, 60 * 60 * 24 * 30, subplebbitNumberSeed.increment()));
+      (await getNumberBetween(60 * 60, 60 * 60 * 24 * 30, communityNumberSeed.increment()));
   }
-  subplebbit.createdAt =
-    subplebbit.updatedAt -
-    (await getNumberBetween(1, 60 * 60 * 24 * 3000, subplebbitNumberSeed.increment()));
+  community.createdAt =
+    community.updatedAt -
+    (await getNumberBetween(1, 60 * 60 * 24 * 3000, communityNumberSeed.increment()));
 
-  return subplebbit;
+  return community;
 };
 
 // for debugging slow bulk reply generation
@@ -765,7 +765,7 @@ const getCommentUpdateContent = async (comment: any) => {
         commentUpdateSeedNumber.increment(),
       ),
       ...replyContent,
-      subplebbitAddress: comment.subplebbitAddress || "memes.eth",
+      communityAddress: comment.communityAddress || "memes.eth",
     };
     if (replyCids.has(reply.cid)) {
       console.error(`mock content error: duplicate reply cid '${reply.cid}'`);
@@ -874,8 +874,8 @@ const getCommentUpdateContent = async (comment: any) => {
 };
 
 const pageCommentCids: any = new Set();
-const getCommentsPage = async (pageCid: string, subplebbitOrComment: any) => {
-  const subplebbitAddress = subplebbitOrComment.address || subplebbitOrComment.subplebbitAddress;
+const getCommentsPage = async (pageCid: string, communityOrComment: any) => {
+  const communityAddress = communityOrComment.address || communityOrComment.communityAddress;
   const commentsPageSeedNumber = SeedIncrementer(await getNumberHash(pageCid));
   const page: any = {
     nextCid: await seedToCid(commentsPageSeedNumber.increment()),
@@ -893,7 +893,7 @@ const getCommentsPage = async (pageCid: string, subplebbitOrComment: any) => {
     pageCommentCids.add(cid);
     // comment = {...comment, ...(await getPostContent(comment.cid)), ...(await getCommentUpdateContent(comment))}
     const comment: any = await plebbit.getComment({ cid });
-    comment.subplebbitAddress = subplebbitAddress;
+    comment.communityAddress = communityAddress;
     const commentUpdateContent: any = await getCommentUpdateContent(comment);
     for (const prop in commentUpdateContent) {
       comment[prop] = commentUpdateContent[prop];
@@ -903,8 +903,8 @@ const getCommentsPage = async (pageCid: string, subplebbitOrComment: any) => {
   return page;
 };
 
-// array of subplebbits probably created by the user
-const createdSubplebbits: any = {};
+// array of communities probably created by the user
+const createdCommunities: any = {};
 
 class Plebbit extends EventEmitter {
   async createSigner() {
@@ -916,48 +916,48 @@ class Plebbit extends EventEmitter {
 
   async resolveAuthorAddress(options: { address: string }) {}
 
-  async createSubplebbit(createSubplebbitOptions: any) {
+  async createCommunity(createCommunityOptions: any) {
     // if the only argument is {address}, the user didn't create the sub, it's a fetched sub
-    if (createSubplebbitOptions?.address && Object.keys(createSubplebbitOptions).length === 1) {
-      return new Subplebbit(createSubplebbitOptions);
+    if (createCommunityOptions?.address && Object.keys(createCommunityOptions).length === 1) {
+      return new Community(createCommunityOptions);
     }
 
     const signer = await this.createSigner();
-    const subplebbit = new Subplebbit({ signer, ...createSubplebbitOptions });
+    const community = new Community({ signer, ...createCommunityOptions });
 
-    // keep a list of subplebbits the user probably created himself to use with plebbit.subplebbits
-    if (!createSubplebbitOptions?.address) {
-      createdSubplebbits[subplebbit.address || ""] = subplebbit;
+    // keep a list of communities the user probably created himself to use with plebbit.communities
+    if (!createCommunityOptions?.address) {
+      createdCommunities[community.address || ""] = community;
     }
 
-    return subplebbit;
+    return community;
   }
 
-  async getSubplebbit(options: { address: string }) {
+  async getCommunity(options: { address: string }) {
     const address = options?.address;
-    const createSubplebbitOptions = { address };
-    const subplebbit: any = new Subplebbit(createSubplebbitOptions);
+    const createCommunityOptions = { address };
+    const community: any = new Community(createCommunityOptions);
     const hotPageCid = await seedToCid(await getNumberHash(address + "hotpagecid"));
-    subplebbit.posts.pages.hot = await getCommentsPage(hotPageCid, subplebbit);
-    subplebbit.posts.pageCids = {
+    community.posts.pages.hot = await getCommentsPage(hotPageCid, community);
+    community.posts.pageCids = {
       hot: await seedToCid(await getNumberHash(address + "hotpagecid2")),
       topAll: await seedToCid(await getNumberHash(address + "topallpagecid")),
       new: await seedToCid(await getNumberHash(address + "newpagecid")),
       active: await seedToCid(await getNumberHash(address + "activepagecid")),
     };
 
-    const subplebbitContent = await getSubplebbitContent(address);
+    const communityContent = await getCommunityContent(address);
     // add extra props
-    for (const prop in subplebbitContent) {
-      subplebbit[prop] = subplebbitContent[prop];
+    for (const prop in communityContent) {
+      community[prop] = communityContent[prop];
     }
-    return subplebbit;
+    return community;
   }
 
-  // TODO: implement event subplebbitschange
-  get subplebbits() {
-    const subplebbitAddresses = Object.keys(createdSubplebbits);
-    return subplebbitAddresses;
+  // TODO: implement event communitieschange
+  get communities() {
+    const communityAddresses = Object.keys(createdCommunities);
+    return communityAddresses;
   }
 
   async createComment(createCommentOptions: any) {
@@ -979,7 +979,7 @@ class Plebbit extends EventEmitter {
     const createCommentOptions = {
       cid,
       timestamp: await getNumberBetween(NOW - DAY * 30, NOW, commentSeedNumber.increment()),
-      subplebbitAddress: "memes.eth",
+      communityAddress: "memes.eth",
       ...commentContent,
     };
     const comment = new Comment(createCommentOptions);
@@ -999,8 +999,8 @@ class Plebbit extends EventEmitter {
     return new CommentEdit(publishCommentEditOptions);
   }
 
-  async createSubplebbitEdit() {
-    return new SubplebbitEdit();
+  async createCommunityEdit() {
+    return new CommunityEdit();
   }
 
   async fetchCid(options: { cid: string }) {
@@ -1024,8 +1024,8 @@ class Plebbit extends EventEmitter {
     throw Error(`plebbit.fetchCid not implemented in mock content for cid '${cid}'`);
   }
 
-  async pubsubSubscribe(subplebbitAddress: string) {}
-  async pubsubUnsubscribe(subplebbitAddress: string) {}
+  async pubsubSubscribe(communityAddress: string) {}
+  async pubsubUnsubscribe(communityAddress: string) {}
 
   clients = {
     plebbitRpcClients: {
@@ -1059,12 +1059,12 @@ class PlebbitRpcClient extends EventEmitter {
 class Pages {
   pageCids: any = {};
   pages: any = {};
-  subplebbit: any;
+  community: any;
   comment: any;
 
   constructor(pagesOptions?: any) {
-    Object.defineProperty(this, "subplebbit", {
-      value: pagesOptions?.subplebbit,
+    Object.defineProperty(this, "community", {
+      value: pagesOptions?.community,
       enumerable: false,
     });
     Object.defineProperty(this, "comment", { value: pagesOptions?.comment, enumerable: false });
@@ -1074,13 +1074,13 @@ class Pages {
     const cid = options?.cid;
     // need to wait twice otherwise react renders too fast and fetches too many pages in advance
     await simulateLoadingTime();
-    return getCommentsPage(cid, this.subplebbit || this.comment);
+    return getCommentsPage(cid, this.community || this.comment);
   }
 
   async validatePage(page: any) {}
 }
 
-class Subplebbit extends EventEmitter {
+class Community extends EventEmitter {
   address: string | undefined;
   title: string | undefined;
   description: string | undefined;
@@ -1098,39 +1098,39 @@ class Subplebbit extends EventEmitter {
   signer: any | undefined;
   shortAddress: string | undefined;
   statsCid: string | undefined;
-  _getSubplebbitOnFirstUpdate = false;
+  _getCommunityOnFirstUpdate = false;
   updatingState: string | undefined;
 
-  constructor(createSubplebbitOptions?: any) {
+  constructor(createCommunityOptions?: any) {
     super();
-    this.address = createSubplebbitOptions?.address;
-    this.pubsubTopic = createSubplebbitOptions?.pubsubTopic;
-    this.createdAt = createSubplebbitOptions?.createdAt;
-    this.updatedAt = createSubplebbitOptions?.updatedAt;
-    this.challengeTypes = createSubplebbitOptions?.challengeTypes;
-    this.roles = createSubplebbitOptions?.roles;
-    this.flairs = createSubplebbitOptions?.flairs;
-    this.suggested = createSubplebbitOptions?.suggested;
-    this.features = createSubplebbitOptions?.features;
-    this.rules = createSubplebbitOptions?.rules;
-    this.title = createSubplebbitOptions?.title;
-    this.description = createSubplebbitOptions?.description;
+    this.address = createCommunityOptions?.address;
+    this.pubsubTopic = createCommunityOptions?.pubsubTopic;
+    this.createdAt = createCommunityOptions?.createdAt;
+    this.updatedAt = createCommunityOptions?.updatedAt;
+    this.challengeTypes = createCommunityOptions?.challengeTypes;
+    this.roles = createCommunityOptions?.roles;
+    this.flairs = createCommunityOptions?.flairs;
+    this.suggested = createCommunityOptions?.suggested;
+    this.features = createCommunityOptions?.features;
+    this.rules = createCommunityOptions?.rules;
+    this.title = createCommunityOptions?.title;
+    this.description = createCommunityOptions?.description;
     this.statsCid = "statscid";
 
-    for (const prop in createSubplebbitOptions) {
-      if (createSubplebbitOptions[prop]) {
+    for (const prop in createCommunityOptions) {
+      if (createCommunityOptions[prop] !== undefined) {
         // @ts-ignore
-        this[prop] = createSubplebbitOptions[prop];
+        this[prop] = createCommunityOptions[prop];
       }
     }
-    this.posts = new Pages({ subplebbit: this });
+    this.posts = new Pages({ community: this });
 
-    // add subplebbit.posts from createSubplebbitOptions
-    if (createSubplebbitOptions?.posts?.pages) {
-      this.posts.pages = createSubplebbitOptions?.posts?.pages;
+    // add community.posts from createCommunityOptions
+    if (createCommunityOptions?.posts?.pages) {
+      this.posts.pages = createCommunityOptions?.posts?.pages;
     }
-    if (createSubplebbitOptions?.posts?.pageCids) {
-      this.posts.pageCids = createSubplebbitOptions?.posts?.pageCids;
+    if (createCommunityOptions?.posts?.pageCids) {
+      this.posts.pageCids = createCommunityOptions?.posts?.pageCids;
     }
 
     if (!this.address && this.signer?.address) {
@@ -1144,28 +1144,28 @@ class Subplebbit extends EventEmitter {
     // @ts-ignore
     this.updating = false;
 
-    // if the only argument is {address}, it means the first update should use getSubplebbit()
-    if (createSubplebbitOptions?.address && Object.keys(createSubplebbitOptions).length === 1) {
-      this._getSubplebbitOnFirstUpdate = true;
+    // if the only argument is {address}, it means the first update should use getCommunity()
+    if (createCommunityOptions?.address && Object.keys(createCommunityOptions).length === 1) {
+      this._getCommunityOnFirstUpdate = true;
     }
   }
 
-  async edit(editSubplebbitOptions: any) {
+  async edit(editCommunityOptions: any) {
     assert(
-      editSubplebbitOptions && typeof editSubplebbitOptions === "object",
-      `invalid editSubplebbitOptions '${editSubplebbitOptions}'`,
+      editCommunityOptions && typeof editCommunityOptions === "object",
+      `invalid editCommunityOptions '${editCommunityOptions}'`,
     );
-    for (const prop in editSubplebbitOptions) {
-      if (editSubplebbitOptions[prop]) {
+    for (const prop in editCommunityOptions) {
+      if (editCommunityOptions[prop] !== undefined) {
         // @ts-ignore
-        this[prop] = editSubplebbitOptions[prop];
+        this[prop] = editCommunityOptions[prop];
       }
     }
   }
 
   async update() {
     if (!this.address) {
-      throw Error(`can't update without subplebbit.address`);
+      throw Error(`can't update without community.address`);
     }
     // don't update twice
     // @ts-ignore
@@ -1183,23 +1183,23 @@ class Subplebbit extends EventEmitter {
 
   async delete() {
     if (this.address) {
-      delete createdSubplebbits[this.address];
+      delete createdCommunities[this.address];
     }
   }
 
   simulateUpdateEvent() {
-    if (this._getSubplebbitOnFirstUpdate) {
-      return this.simulateGetSubplebbitOnFirstUpdateEvent();
+    if (this._getCommunityOnFirstUpdate) {
+      return this.simulateGetCommunityOnFirstUpdateEvent();
     }
     this.emit("update", this);
   }
 
-  async simulateGetSubplebbitOnFirstUpdateEvent() {
-    this._getSubplebbitOnFirstUpdate = false;
+  async simulateGetCommunityOnFirstUpdateEvent() {
+    this._getCommunityOnFirstUpdate = false;
 
     // @ts-ignore
-    const subplebbit = await new Plebbit().getSubplebbit({ address: this.address });
-    const props = JSON.parse(JSON.stringify(subplebbit));
+    const community = await new Plebbit().getCommunity({ address: this.address });
+    const props = JSON.parse(JSON.stringify(community));
     for (const prop in props) {
       if (prop.startsWith("_")) {
         continue;
@@ -1207,7 +1207,7 @@ class Subplebbit extends EventEmitter {
       // @ts-ignore
       this[prop] = props[prop];
     }
-    this.posts.getPage = subplebbit.posts.getPage;
+    this.posts.getPage = community.posts.getPage;
     this.updatingState = "succeeded";
     this.emit("update", this);
     this.emit("updatingstatechange", "succeeded");
@@ -1304,8 +1304,8 @@ class Comment extends Publication {
   shortCid: string | undefined;
   _getCommentOnFirstUpdate = false;
   updatingState: string | undefined;
-  subplebbitAddress: string | undefined;
-  shortSubplebbitAddress: string | undefined;
+  communityAddress: string | undefined;
+  shortCommunityAddress: string | undefined;
 
   constructor(createCommentOptions?: any) {
     super();
@@ -1347,8 +1347,8 @@ class Comment extends Publication {
       this._getCommentOnFirstUpdate = true;
     }
 
-    if (this.subplebbitAddress) {
-      this.shortSubplebbitAddress = this.subplebbitAddress.substring(0, 12);
+    if (this.communityAddress) {
+      this.shortCommunityAddress = this.communityAddress.substring(0, 12);
     }
   }
 
@@ -1426,7 +1426,7 @@ class CommentEdit extends Publication {
   }
 }
 
-class SubplebbitEdit extends Publication {}
+class CommunityEdit extends Publication {}
 
 const createPlebbit: any = async (...args: any) => {
   return new Plebbit(...args);

@@ -242,10 +242,10 @@ describe("authors comments store", () => {
       if (commentCid === "comment cid") {
         authorCommentIndex = totalAuthorCommentCount;
       }
-      if (commentCid === "subplebbit last comment cid") {
+      if (commentCid === "community last comment cid") {
         authorCommentIndex = totalAuthorCommentCountFromLastCommentCid;
       }
-      if (commentCid === "subplebbit last comment cid 2") {
+      if (commentCid === "community last comment cid 2") {
         authorCommentIndex = totalAuthorCommentCountFromLastCommentCid2;
       }
 
@@ -263,8 +263,8 @@ describe("authors comments store", () => {
 
       // add a last comment cid to comments after the 80th comment
       if (totalAuthorCommentCount - authorCommentIndex > 80) {
-        comment.author.subplebbit = { lastCommentCid: "subplebbit last comment cid" };
-        comment.subplebbitAddress = "subplebbit address";
+        comment.author.community = { lastCommentCid: "community last comment cid" };
+        comment.communityAddress = "community address";
       }
 
       // add parent cid to some of the comments for filters
@@ -272,8 +272,8 @@ describe("authors comments store", () => {
         comment.parentCid = "parent cid";
       }
 
-      // if comment is 'subplebbit last comment cid'
-      if (commentCid === "subplebbit last comment cid") {
+      // if comment is 'community last comment cid'
+      if (commentCid === "community last comment cid") {
         // timestamp of last comment cid must be newer than all
         comment.timestamp =
           firstTimestamp + totalAuthorCommentCount + totalAuthorCommentCountFromLastCommentCid;
@@ -281,7 +281,7 @@ describe("authors comments store", () => {
         comment.author.previousCommentCid = `previous from last comment cid ${authorCommentIndex - 1}`;
       }
 
-      // if comment is previous from 'subplebbit last comment cid'
+      // if comment is previous from 'community last comment cid'
       if (commentCid.includes("previous from last comment cid")) {
         comment.timestamp = firstTimestamp + totalAuthorCommentCount + authorCommentIndex;
         comment.author.previousCommentCid = `previous from last comment cid ${authorCommentIndex - 1}`;
@@ -292,8 +292,8 @@ describe("authors comments store", () => {
         }
       }
 
-      // if comment is 'subplebbit last comment cid 2'
-      if (commentCid === "subplebbit last comment cid 2") {
+      // if comment is 'community last comment cid 2'
+      if (commentCid === "community last comment cid 2") {
         // timestamp of last comment cid must be newer than all
         comment.timestamp =
           firstTimestamp +
@@ -304,14 +304,14 @@ describe("authors comments store", () => {
         comment.author.previousCommentCid = `previous 2 from last comment cid ${authorCommentIndex - 1}`;
       }
 
-      // if comment is previous from 'subplebbit last comment cid 2'
+      // if comment is previous from 'community last comment cid 2'
       if (commentCid.includes("previous 2 from last comment cid")) {
         comment.timestamp = firstTimestamp + totalAuthorCommentCount + authorCommentIndex;
         comment.author.previousCommentCid = `previous 2 from last comment cid ${authorCommentIndex - 1}`;
 
-        // no more comments from last comment cid, go back to first 'subplebbit last comment cid'
+        // no more comments from last comment cid, go back to first 'community last comment cid'
         if (authorCommentIndex === 1) {
-          comment.author.previousCommentCid = "subplebbit last comment cid";
+          comment.author.previousCommentCid = "community last comment cid";
         }
       }
 
@@ -394,11 +394,10 @@ describe("authors comments store", () => {
 
     // wait for last comment cid
     await waitFor(
-      () =>
-        rendered.result.current.lastCommentCids[authorAddress] === "subplebbit last comment cid",
+      () => rendered.result.current.lastCommentCids[authorAddress] === "community last comment cid",
     );
     expect(rendered.result.current.lastCommentCids[authorAddress]).toBe(
-      "subplebbit last comment cid",
+      "community last comment cid",
     );
 
     // last comment of loaded comments is from 'comment cid' previous comments because already loaded feeds can't change
@@ -409,14 +408,14 @@ describe("authors comments store", () => {
     ).toBe("previous comment cid 56");
 
     // first comment of next page is from last cid because buffered comments get reordered by most recent as they are fetched
-    expect(bufferedComments[2 * commentsPerPage].cid).toBe("subplebbit last comment cid");
+    expect(bufferedComments[2 * commentsPerPage].cid).toBe("community last comment cid");
     expect(bufferedComments[2 * commentsPerPage + 1].cid).toBe("previous from last comment cid 39");
 
     // discover older lastCommentCid, should do nothing because not new
     commentsStore.setState((state: any) => {
       const commentCid = "previous comment cid 100";
       const comment = { ...state.comments[commentCid] };
-      comment.author.subplebbit = { lastCommentCid: "previous comment cid 3" };
+      comment.author.community = { lastCommentCid: "previous comment cid 3" };
       return { comments: { ...state.comments, [commentCid]: comment } };
     });
 
@@ -495,7 +494,7 @@ describe("authors comments store", () => {
     // fetched all author comments, no next comment to fetch
     expect(rendered.result.current.nextCommentCidsToFetch[authorAddress]).toBe(undefined);
 
-    // no more comments from 'subplebbit last comment cid'
+    // no more comments from 'community last comment cid'
     bufferedComments = getBufferedComments(rendered, authorCommentsName, authorAddress);
     expect(bufferedComments[4 * commentsPerPage - 1].cid).toBe("previous comment cid 46");
     expect(
@@ -508,17 +507,17 @@ describe("authors comments store", () => {
     commentsStore.setState((state: any) => {
       const commentCid = "comment cid";
       const comment = { ...state.comments[commentCid] };
-      comment.author.subplebbit = { lastCommentCid: "subplebbit last comment cid 2" };
+      comment.author.community = { lastCommentCid: "community last comment cid 2" };
       return { comments: { ...state.comments, [commentCid]: comment } };
     });
 
     // wait for last comment cid and next comment cid to fetch
     await waitFor(
       () =>
-        rendered.result.current.lastCommentCids[authorAddress] === "subplebbit last comment cid 2",
+        rendered.result.current.lastCommentCids[authorAddress] === "community last comment cid 2",
     );
     expect(rendered.result.current.lastCommentCids[authorAddress]).toBe(
-      "subplebbit last comment cid 2",
+      "community last comment cid 2",
     );
     // React 19 batching may produce off-by-one; accept 8 or 9
     expect(["previous 2 from last comment cid 8", "previous 2 from last comment cid 9"]).toContain(
@@ -676,24 +675,24 @@ describe("authors comments store", () => {
       emptyFilterCommentCount,
     );
 
-    // add another author comments with subplebbit filter (0 matching)
-    const subplebbitFilterName = authorAddress + "-subplebbit-filter";
-    const subplebbitFilter = {
-      filter: (comment: Comment) => comment.subplebbitAddress === `doesn't exist`,
-      key: "subplebbit-filter",
+    // add another author comments with community filter (0 matching)
+    const communityFilterName = authorAddress + "-community-filter";
+    const communityFilter = {
+      filter: (comment: Comment) => comment.communityAddress === `doesn't exist`,
+      key: "community-filter",
     };
     act(() => {
       rendered.result.current.addAuthorCommentsToStore(
-        subplebbitFilterName,
+        communityFilterName,
         authorAddress,
         commentCid,
-        subplebbitFilter,
+        communityFilter,
         account,
       );
     });
     // give some time to load comments
     await new Promise((r) => setTimeout(r, 100));
-    expect(rendered.result.current.loadedComments[subplebbitFilterName].length).toBe(0);
+    expect(rendered.result.current.loadedComments[communityFilterName].length).toBe(0);
 
     // add another author comments with different address
     const differentAuthorAddress = "different-" + authorAddress;
@@ -723,7 +722,7 @@ describe("authors comments store", () => {
     commentsStore.setState((state: any) => {
       const commentCid = "different author comment cid 20";
       const comment = { ...state.comments[commentCid] };
-      comment.author.subplebbit = {
+      comment.author.community = {
         lastCommentCid:
           "different author comment cid " + differentAuthorTotalCommentCountFromLastCid,
       };
@@ -787,7 +786,7 @@ describe("authors comments store", () => {
         // 1/3 of comments are replies
         parentCid: authorCommentIndex % 3 === 0 ? "parent cid" : undefined,
         // split comments between 2 subs
-        subplebbitAddress: authorCommentIndex % 2 === 0 ? "subplebbit1.eth" : "subplebbit2.eth",
+        communityAddress: authorCommentIndex % 2 === 0 ? "community1.eth" : "community2.eth",
       };
       return comment;
     };
@@ -799,16 +798,15 @@ describe("authors comments store", () => {
       filter: (comment: Comment) => !!comment.parentCid,
       key: "reply-filter",
     };
-    const postAndSubplebbitFilter = {
-      filter: (comment: any) =>
-        !comment.parentCid && comment.subplebbitAddress === "subplebbit2.eth",
-      key: "post-subplebbit2.eth-filter",
+    const postAndCommunityFilter = {
+      filter: (comment: any) => !comment.parentCid && comment.communityAddress === "community2.eth",
+      key: "post-community2.eth-filter",
     };
     const author1Name = `${author1}-name`;
     const author2Name = `${author2}-name`;
     const author3Name = `${author3}-name`;
     const author1ReplyFilterName = `${author1}-reply-filter-name`;
-    const author1PostAndSubplebbitFilterName = `${author1}-post-and-subplebbit-filter-name`;
+    const author1PostAndCommunityFilterName = `${author1}-post-and-community-filter-name`;
     const author1TotalCommentCount = 100;
     const author2TotalCommentCount = 70;
     const author3TotalCommentCount = 50;
@@ -863,8 +861,8 @@ describe("authors comments store", () => {
           ...baseComment,
           author: {
             ...(baseComment.author || { address: authorAddress }),
-            subplebbit: {
-              ...(baseComment.author?.subplebbit || {}),
+            community: {
+              ...(baseComment.author?.community || {}),
               lastCommentCid: getAccountCommentCid(
                 startCid,
                 totalAuthorCommentCount + totalAuthorCommentCountFromLastCommentCid,
@@ -881,10 +879,10 @@ describe("authors comments store", () => {
       if (filter === replyFilter) {
         commentCount = Math.ceil(commentCount / 3);
       }
-      if (filter === postAndSubplebbitFilter) {
+      if (filter === postAndCommunityFilter) {
         // 2/3 of comments are posts
         commentCount = Math.ceil((commentCount / 3) * 2);
-        // 1/2 of subplebbits are filtered
+        // 1/2 of communities are filtered
         commentCount = Math.ceil(commentCount / 2);
       }
       await scrollPagesToComment(rendered, authorCommentsName, commentCount, waitFor);
@@ -925,10 +923,10 @@ describe("authors comments store", () => {
         author1TotalCommentCountFromLastCommentCid,
       ),
       test(
-        author1PostAndSubplebbitFilterName,
+        author1PostAndCommunityFilterName,
         author1,
         author1StartCid,
-        postAndSubplebbitFilter,
+        postAndCommunityFilter,
         author1TotalCommentCount,
         author1TotalCommentCountFromLastCommentCid,
       ),
@@ -946,7 +944,7 @@ describe("authors comments store", () => {
     expect(rendered.result.current.loadedComments[author1ReplyFilterName].length).toBe(
       Math.ceil((author1TotalCommentCount + author1TotalCommentCountFromLastCommentCid) / 3),
     );
-    expect(rendered.result.current.loadedComments[author1PostAndSubplebbitFilterName].length).toBe(
+    expect(rendered.result.current.loadedComments[author1PostAndCommunityFilterName].length).toBe(
       (((author1TotalCommentCount + author1TotalCommentCountFromLastCommentCid) / 3) * 2) / 2,
     );
 
@@ -1079,7 +1077,7 @@ describe("authors comments store", () => {
     },
     async () => {
       const createComment = Plebbit.prototype.createComment;
-      const failingLastCid = "subplebbit-last-fail";
+      const failingLastCid = "community-last-fail";
       Plebbit.prototype.createComment = async function (opts: any) {
         if (opts?.cid === failingLastCid) {
           throw new Error("sub last comment fetch failed");
@@ -1089,7 +1087,7 @@ describe("authors comments store", () => {
           (comment as any).author = {
             address: authorAddress,
             previousCommentCid: "prev 1",
-            subplebbit: { lastCommentCid: failingLastCid },
+            community: { lastCommentCid: failingLastCid },
           };
           (comment as any).timestamp = 1000;
         }
@@ -1162,7 +1160,7 @@ describe("authors comments store", () => {
           (comment as any).author = {
             address: authorAddress,
             previousCommentCid: "prev 1",
-            subplebbit: { lastCommentCid: orphanCid },
+            community: { lastCommentCid: orphanCid },
           };
           (comment as any).timestamp = 1000;
         }
@@ -1218,7 +1216,7 @@ describe("authors comments store", () => {
           (comment as any).author = {
             address: authorAddress,
             previousCommentCid: "prev 1",
-            subplebbit: { lastCommentCid: lowTsCid },
+            community: { lastCommentCid: lowTsCid },
           };
           (comment as any).timestamp = 1000;
         }
@@ -1226,7 +1224,7 @@ describe("authors comments store", () => {
           (comment as any).author = {
             address: authorAddress,
             previousCommentCid: undefined,
-            subplebbit: { lastCommentCid: midTsLastCid },
+            community: { lastCommentCid: midTsLastCid },
           };
           (comment as any).timestamp = 100;
         }
@@ -1308,7 +1306,7 @@ describe("authors comments store", () => {
           (comment as any).author = {
             address: authorAddress,
             previousCommentCid: "prev 1",
-            subplebbit: { lastCommentCid: wrongAuthorCid },
+            community: { lastCommentCid: wrongAuthorCid },
           };
           (comment as any).timestamp = 1000;
         }
@@ -1355,7 +1353,7 @@ describe("authors comments store", () => {
           (comment as any).author = {
             address: authorAddress,
             previousCommentCid: "prev 1",
-            subplebbit: { lastCommentCid: leafLastCid },
+            community: { lastCommentCid: leafLastCid },
           };
           (comment as any).timestamp = 1000;
         }

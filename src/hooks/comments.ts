@@ -20,7 +20,7 @@ import {
   addCommentModeration,
   addCommentModerationToComments,
 } from "../lib/utils/comment-moderation";
-import useSubplebbitsPagesStore from "../stores/subplebbits-pages";
+import useCommunitiesPagesStore from "../stores/communities-pages";
 import useRepliesPagesStore from "../stores/replies-pages";
 import shallow from "zustand/shallow";
 
@@ -52,7 +52,7 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
   const account = useAccount({ accountName });
   const commentFromStore = useCommentsStore((state: any) => state.comments[commentCid || ""]);
   const addCommentToStore = useCommentsStore((state: any) => state.addCommentToStore);
-  const subplebbitsPagesComment = useSubplebbitsPagesStore(
+  const communitiesPagesComment = useCommunitiesPagesStore(
     (state: any) => state.comments[commentCid || ""],
   );
   const repliesPagesComment = useRepliesPagesStore(
@@ -86,8 +86,8 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
 
   let comment = commentFromStore;
 
-  if (commentCid && subplebbitsPagesComment) {
-    comment = preferFresher(comment, subplebbitsPagesComment);
+  if (commentCid && communitiesPagesComment) {
+    comment = preferFresher(comment, communitiesPagesComment);
   }
   if (commentCid && repliesPagesComment) {
     comment = preferFresher(comment, repliesPagesComment);
@@ -132,7 +132,7 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
       replyCount,
       state,
       commentFromStore,
-      subplebbitsPagesComment,
+      communitiesPagesComment,
       repliesPagesComment,
       accountComment,
       commentsStore: useCommentsStore.getState().comments,
@@ -169,7 +169,7 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
     (state: any) => commentCids.map((commentCid) => state.comments[commentCid || ""]),
     shallow,
   );
-  const subplebbitsPagesComments: (Comment | undefined)[] = useSubplebbitsPagesStore(
+  const communitiesPagesComments: (Comment | undefined)[] = useCommunitiesPagesStore(
     (state: any) => commentCids.map((commentCid) => state.comments[commentCid || ""]),
     shallow,
   );
@@ -201,15 +201,15 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
     });
   }
 
-  // if comment from subplebbit pages exists and is fresher (or current missing), use it instead
+  // if comment from community pages exists and is fresher (or current missing), use it instead
   const comments = useMemo(() => {
     const result = [...commentsStoreComments];
     for (const i in result) {
-      const candidate = subplebbitsPagesComments[i];
+      const candidate = communitiesPagesComments[i];
       if (candidate) result[i] = preferFresher(result[i], candidate);
     }
     return result;
-  }, [commentsStoreComments, subplebbitsPagesComments]);
+  }, [commentsStoreComments, communitiesPagesComments]);
   const normalizedComments = useMemo(() => addCommentModerationToComments(comments), [comments]);
 
   // succeed if no comments are undefined
@@ -242,10 +242,10 @@ export function useValidateComment(options?: UseValidateCommentOptions): UseVali
       setValidated(undefined);
       return;
     }
-    // don't automatically block subplebbit because what subplebbit it comes from
-    // a malicious subplebbit could try to block other subplebbits, etc
-    const blockSubplebbit = false;
-    commentIsValid(comment, { validateReplies, blockSubplebbit }, account.plebbit).then(
+    // don't automatically block community because what community it comes from
+    // a malicious community could try to block other communities, etc
+    const blockCommunity = false;
+    commentIsValid(comment, { validateReplies, blockCommunity }, account.plebbit).then(
       (validated) => setValidated(validated),
     );
   }, [comment, validateReplies, account?.plebbit]);

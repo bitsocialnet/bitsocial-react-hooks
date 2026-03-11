@@ -196,7 +196,7 @@ describe("replies", () => {
         cid: "comment cid 1",
         depth: 0,
         postCid: "p",
-        subplebbitAddress: "sub",
+        communityAddress: "sub",
         replies: { pages: {} },
       };
       const { result } = renderHook(() => useReplies({ comment, validateOptimistically: false }));
@@ -209,7 +209,7 @@ describe("replies", () => {
         cid: "flat-cid",
         depth: 0,
         postCid: "p",
-        subplebbitAddress: "sub",
+        communityAddress: "sub",
         replies: { pages: {} },
       };
       rendered.rerender({ comment, flat: true, flatDepth: 5 });
@@ -251,22 +251,26 @@ describe("replies", () => {
         cid: "comment cid 1",
         depth: 0,
         postCid: "p",
-        subplebbitAddress: "sub",
+        communityAddress: "sub",
         replies: { pages: {} },
       };
       const rendered = renderHook(() => useReplies({ comment }));
-      await act(async () => {});
-      const feedNames = Object.keys(repliesStore.getState().feedsOptions);
-      const feedName = feedNames.find((fn) => fn.includes(comment.cid));
-      if (feedName) {
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => Object.keys(repliesStore.getState().feedsOptions).length > 0);
+      const feedName = Object.keys(repliesStore.getState().feedsOptions).find((fn) =>
+        fn.includes(comment.cid),
+      );
+      expect(feedName).toBeDefined();
+
+      await act(async () => {
         repliesStore.setState((s: any) => ({
           ...s,
-          feedsHaveMore: { ...s.feedsHaveMore, [feedName]: false },
+          feedsHaveMore: { ...s.feedsHaveMore, [feedName!]: false },
         }));
-        rendered.rerender({ comment });
-        await act(async () => {});
-        expect(rendered.result.current.hasMore).toBe(false);
-      }
+      });
+
+      await waitFor(() => rendered.result.current.hasMore === false);
+      expect(rendered.result.current.hasMore).toBe(false);
     });
 
     test("useReplies sortType defaults to best when not provided (branch 31)", async () => {
@@ -280,7 +284,7 @@ describe("replies", () => {
         cid: "comment cid 1",
         depth: 0,
         postCid: "p",
-        subplebbitAddress: "sub",
+        communityAddress: "sub",
         replies: { pages: {} },
       };
       comment.replies.pages.best = Pages.prototype.pageToGet.apply({ comment }, [
@@ -408,7 +412,7 @@ describe("replies", () => {
 
       const commentAbc = createMockComment({
         cid: "comment cid abc",
-        subplebbitAddress: "subplebbit address 1",
+        communityAddress: "community address 1",
       });
       rendered.rerender({ comment: commentAbc, sortType: "new" });
       await waitFor(() => rendered.result.current.replies.length === repliesPerPage);
@@ -437,7 +441,7 @@ describe("replies", () => {
 
       const commentXyz = createMockComment({
         cid: "comment cid xyz",
-        subplebbitAddress: "subplebbit address 1",
+        communityAddress: "community address 1",
       });
       rendered.rerender({ comment: commentXyz, sortType: "old" });
       await waitFor(
@@ -562,7 +566,7 @@ describe("replies", () => {
             {
               timestamp: 1,
               cid: this.cid + " topAll reply cid 1",
-              subplebbitAddress: this.subplebbitAddress,
+              communityAddress: this.communityAddress,
               upvoteCount: 1,
               downvoteCount: 10,
               author: { address: this.cid + " topAll author address" },
@@ -613,7 +617,7 @@ describe("replies", () => {
           page.comments.push({
             timestamp: page.comments.length + 1,
             cid: cid + " comment cid " + (page.comments.length + 1),
-            subplebbitAddress: this.comment.subplebbitAddress,
+            communityAddress: this.comment.communityAddress,
           });
         }
         return page;
@@ -747,7 +751,7 @@ describe("replies", () => {
       pageToGet = Pages.prototype.pageToGet;
       Pages.prototype.pageToGet = function (pageCid) {
         void (pageCid.match(/\b(best|newFlat|new|oldFlat|old|topAll)\b/)?.[1] || "best");
-        const subplebbitAddress = this.subplebbit?.address || this.comment?.subplebbitAddress;
+        const communityAddress = this.community?.address || this.comment?.communityAddress;
         const depth = (this.comment.depth || 0) + 1;
         const page: any = { comments: [] };
         const count = 35;
@@ -756,7 +760,7 @@ describe("replies", () => {
           page.comments.push({
             timestamp: index,
             cid: pageCid + " comment cid " + index,
-            subplebbitAddress,
+            communityAddress,
             upvoteCount: index,
             downvoteCount: 10,
             author: { address: pageCid + " author address " + index },
@@ -880,10 +884,10 @@ describe("replies", () => {
       Pages.prototype.pageToGet = function (pageCid) {
         const pageCidSortType =
           pageCid.match(/\b(best|newFlat|new|oldFlat|old|topAll)\b/)?.[1] || "best";
-        const subplebbitAddress = this.subplebbit?.address || this.comment?.subplebbitAddress;
+        const communityAddress = this.community?.address || this.comment?.communityAddress;
         const depth = (this.comment.depth || 0) + 1;
         const page: any = {
-          nextCid: subplebbitAddress + " " + pageCid + " - next page cid",
+          nextCid: communityAddress + " " + pageCid + " - next page cid",
           comments: [],
         };
         const count = 35;
@@ -892,7 +896,7 @@ describe("replies", () => {
           page.comments.push({
             timestamp: index,
             cid: pageCid + " comment cid " + index,
-            subplebbitAddress,
+            communityAddress,
             upvoteCount: index,
             downvoteCount: 10,
             author: {
@@ -907,7 +911,7 @@ describe("replies", () => {
                     {
                       timestamp: index + 10,
                       cid: pageCid + " comment cid " + index + " nested 1",
-                      subplebbitAddress,
+                      communityAddress,
                       upvoteCount: index,
                       downvoteCount: 10,
                       author: {
@@ -922,7 +926,7 @@ describe("replies", () => {
                               {
                                 timestamp: index + 20,
                                 cid: pageCid + " comment cid " + index + " nested 2",
-                                subplebbitAddress,
+                                communityAddress,
                                 upvoteCount: index,
                                 downvoteCount: 10,
                                 author: {
@@ -1151,14 +1155,14 @@ describe("replies", () => {
     test("replies.pages has 1 reply with no next cid, hasMore false", async () => {
       const simulateUpdateEvent = Comment.prototype.simulateUpdateEvent;
       Comment.prototype.simulateUpdateEvent = async function () {
-        this.subplebbitAddress = "subplebbit address";
+        this.communityAddress = "community address";
         this.replies.pages = {
           best: {
             comments: [
               {
                 timestamp: 1,
                 cid: "reply cid 1",
-                subplebbitAddress: "subplebbit address",
+                communityAddress: "community address",
                 updatedAt: 1,
                 upvoteCount: 1,
               },
@@ -1189,7 +1193,7 @@ describe("replies", () => {
           {
             timestamp: 1,
             cid: "reply cid 1",
-            subplebbitAddress: "subplebbit address",
+            communityAddress: "community address",
             updatedAt: 1,
             upvoteCount: 1,
           },
@@ -1201,7 +1205,7 @@ describe("replies", () => {
           {
             timestamp: 1,
             cid: "reply cid 1",
-            subplebbitAddress: "subplebbit address",
+            communityAddress: "community address",
             updatedAt: 1,
             upvoteCount: 2,
           },
@@ -1212,7 +1216,7 @@ describe("replies", () => {
           {
             timestamp: 1,
             cid: "reply cid 1",
-            subplebbitAddress: "subplebbit address",
+            communityAddress: "community address",
             updatedAt: 2,
             upvoteCount: 2,
           },
@@ -1223,14 +1227,14 @@ describe("replies", () => {
           {
             timestamp: 100,
             cid: "reply cid 2",
-            subplebbitAddress: "subplebbit address",
+            communityAddress: "community address",
             updatedAt: 100,
             upvoteCount: 100,
           },
           {
             timestamp: 1,
             cid: "reply cid 1",
-            subplebbitAddress: "subplebbit address",
+            communityAddress: "community address",
             updatedAt: 3,
             upvoteCount: 3,
           },
@@ -1243,7 +1247,7 @@ describe("replies", () => {
       Comment.prototype.simulateUpdateEvent = async function () {
         // eslint-disable-next-line @typescript-eslint/no-this-alias -- test mock needs to capture comment reference
         comment = this;
-        this.subplebbitAddress = "subplebbit address";
+        this.communityAddress = "community address";
         this.replies.pages = { best: pages.shift() };
         this.replies.pageCids = {};
         this.updatedAt = this.updatedAt ? this.updatedAt + 1 : 1;
@@ -1341,7 +1345,7 @@ describe("replies", () => {
         }
         const pageCidSortType =
           pageCid.match(/\b(best|newFlat|new|oldFlat|old|topAll)\b/)?.[1] || "best";
-        const subplebbitAddress = this.subplebbit?.address || this.comment?.subplebbitAddress;
+        const communityAddress = this.community?.address || this.comment?.communityAddress;
         const depth = (this.comment.depth || 0) + 1;
         const page: any = {
           comments: [],
@@ -1353,7 +1357,7 @@ describe("replies", () => {
           page.comments.push({
             timestamp: index,
             cid: pageCid + " comment cid " + index,
-            subplebbitAddress,
+            communityAddress,
             upvoteCount: index,
             downvoteCount: 10,
             author: {
@@ -1368,7 +1372,7 @@ describe("replies", () => {
                     {
                       timestamp: index + 10,
                       cid: pageCid + " comment cid " + index + " nested 1",
-                      subplebbitAddress,
+                      communityAddress,
                       upvoteCount: index,
                       downvoteCount: 10,
                       author: {
@@ -1383,7 +1387,7 @@ describe("replies", () => {
                               {
                                 timestamp: index + 20,
                                 cid: pageCid + " comment cid " + index + " nested 2",
-                                subplebbitAddress,
+                                communityAddress,
                                 upvoteCount: index,
                                 downvoteCount: 10,
                                 author: {
@@ -1662,7 +1666,7 @@ describe("replies", () => {
             {
               timestamp: 1,
               cid: this.cid + " - reply cid 1",
-              subplebbitAddress: this.subplebbitAddress,
+              communityAddress: this.communityAddress,
               updatedAt: this.updatedAt,
               depth: 1,
               replies: {
@@ -1672,7 +1676,7 @@ describe("replies", () => {
                       {
                         timestamp: 2,
                         cid: this.cid + " - reply cid 1 - nested 1",
-                        subplebbitAddress: this.subplebbitAddress,
+                        communityAddress: this.communityAddress,
                         updatedAt: this.updatedAt,
                         depth: 2,
                       },
@@ -1695,7 +1699,7 @@ describe("replies", () => {
           this.replies.pages.best.comments[0].replies.pages.best.comments.push({
             timestamp: 3,
             cid: this.cid + " - reply cid 1 - nested 2",
-            subplebbitAddress: this.subplebbitAddress,
+            communityAddress: this.communityAddress,
             updatedAt: this.updatedAt,
             depth: 2,
           });
@@ -1759,7 +1763,7 @@ describe("replies", () => {
             {
               timestamp: 1,
               cid: this.cid + " - reply cid 1",
-              subplebbitAddress: this.subplebbitAddress,
+              communityAddress: this.communityAddress,
               updatedAt: this.updatedAt,
               depth: 1,
               replies: { pages: {} },
@@ -1778,7 +1782,7 @@ describe("replies", () => {
               {
                 timestamp: 2,
                 cid: this.cid + " - reply cid 1 - nested 1",
-                subplebbitAddress: this.subplebbitAddress,
+                communityAddress: this.communityAddress,
                 updatedAt: this.updatedAt,
                 depth: 2,
               },
@@ -1857,7 +1861,7 @@ describe("replies", () => {
         }
         const pageCidSortType =
           pageCid.match(/\b(best|newFlat|new|oldFlat|old|topAll)\b/)?.[1] || "best";
-        const subplebbitAddress = this.subplebbit?.address || this.comment?.subplebbitAddress;
+        const communityAddress = this.community?.address || this.comment?.communityAddress;
         const depth = (this.comment?.depth || 0) + 1;
         const postCid = this.comment?.postCid || this.comment?.cid;
         const page: any = {
@@ -1871,7 +1875,7 @@ describe("replies", () => {
             timestamp: index,
             cid: pageCid + " comment cid " + index,
             postCid,
-            subplebbitAddress,
+            communityAddress,
             upvoteCount: index,
             downvoteCount: 10,
             author: {
@@ -1887,7 +1891,7 @@ describe("replies", () => {
                       timestamp: index + 10,
                       cid: pageCid + " comment cid " + index + " nested 1",
                       postCid,
-                      subplebbitAddress,
+                      communityAddress,
                       upvoteCount: index,
                       downvoteCount: 10,
                       author: {
@@ -1903,7 +1907,7 @@ describe("replies", () => {
                                 timestamp: index + 20,
                                 cid: pageCid + " comment cid " + index + " nested 2",
                                 postCid,
-                                subplebbitAddress,
+                                communityAddress,
                                 upvoteCount: index,
                                 downvoteCount: 10,
                                 author: {
@@ -2241,7 +2245,7 @@ describe("replies", () => {
       // publishing a reply automatically adds to replies feed
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "subplebbit address",
+          communityAddress: "community address",
           parentCid: postCid,
           postCid,
           content: "added to feed",
@@ -2249,7 +2253,7 @@ describe("replies", () => {
           onChallengeVerification: () => {},
         });
         await accountsActions.publishComment({
-          subplebbitAddress: "subplebbit address",
+          communityAddress: "community address",
           parentCid: reply1Depth2Cid,
           postCid,
           content: "added to feed 2",
@@ -2386,7 +2390,7 @@ describe("replies", () => {
       // publishing a reply automatically adds to replies feed
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "subplebbit address",
+          communityAddress: "community address",
           parentCid: postCid,
           postCid,
           content: "added to feed",
@@ -2394,7 +2398,7 @@ describe("replies", () => {
           onChallengeVerification: () => {},
         });
         await accountsActions.publishComment({
-          subplebbitAddress: "subplebbit address",
+          communityAddress: "community address",
           parentCid: reply1Depth2Cid,
           postCid,
           content: "added to feed 2",
@@ -2509,7 +2513,7 @@ describe("replies", () => {
       const content = "published content";
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "subplebbit address",
+          communityAddress: "community address",
           parentCid: postCid,
           postCid,
           content,
@@ -2583,7 +2587,7 @@ describe("replies", () => {
       const content = "published content";
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "subplebbit address",
+          communityAddress: "community address",
           parentCid: postCid,
           postCid,
           content,
@@ -2645,7 +2649,7 @@ describe("replies", () => {
       const content2 = "published content 2";
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "subplebbit address",
+          communityAddress: "community address",
           parentCid: reply1Depth2Cid,
           postCid,
           content: content2,
@@ -2793,7 +2797,7 @@ describe("replies", () => {
       const content = "published content";
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "subplebbit address",
+          communityAddress: "community address",
           parentCid: postCid,
           postCid,
           content,
@@ -2841,7 +2845,7 @@ describe("replies", () => {
       const content2 = "published content 2";
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "subplebbit address",
+          communityAddress: "community address",
           parentCid: reply1Depth2Cid,
           postCid,
           content: content2,
@@ -2911,7 +2915,7 @@ describe("replies", () => {
       const content = "published content";
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "subplebbit address",
+          communityAddress: "community address",
           parentCid: postCid,
           postCid,
           content,
@@ -2959,7 +2963,7 @@ describe("replies", () => {
       const content2 = "published content 2";
       await act(async () => {
         await accountsActions.publishComment({
-          subplebbitAddress: "subplebbit address",
+          communityAddress: "community address",
           parentCid: reply1Depth2Cid,
           postCid,
           content: content2,

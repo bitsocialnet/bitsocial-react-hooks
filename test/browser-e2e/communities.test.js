@@ -1,12 +1,12 @@
 import { assertTestServerDidntCrash } from "../test-server/monitor-test-server";
 import { act } from "@testing-library/react";
 import { renderHook } from "../test-utils";
-import { useAccount, useSubplebbit, useAccountVotes, useComment } from "../../dist";
+import { useAccount, useCommunity, useAccountVotes, useComment } from "../../dist";
 import debugUtils from "../../dist/lib/debug-utils";
 import * as accountsActions from "../../dist/stores/accounts/accounts-actions";
 import testUtils from "../../dist/lib/test-utils";
 import signers from "../fixtures/signers";
-const subplebbitAddress = signers[0].address;
+const communityAddress = signers[0].address;
 import { offlineIpfs, pubsubIpfs, plebbitRpc } from "../test-server/config";
 
 // large value for manual debugging
@@ -42,9 +42,9 @@ const plebbitOptionsTypes = {
 };
 
 for (const plebbitOptionsType in plebbitOptionsTypes) {
-  describe(`subplebbits (${plebbitOptionsType})`, () => {
+  describe(`communities (${plebbitOptionsType})`, () => {
     beforeAll(async () => {
-      console.log(`before subplebbits tests (${plebbitOptionsType})`);
+      console.log(`before communities tests (${plebbitOptionsType})`);
       testUtils.silenceReactWarnings();
       // reset before or init accounts sometimes fails
       await testUtils.resetDatabasesAndStores();
@@ -61,16 +61,16 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
       await assertTestServerDidntCrash();
     });
 
-    describe(`no subplebbits in database (${plebbitOptionsType})`, () => {
+    describe(`no communities in database (${plebbitOptionsType})`, () => {
       let rendered, waitFor, commentCid;
 
       beforeAll(async () => {
-        rendered = renderHook(({ subplebbitAddress, commentCid } = {}) => {
+        rendered = renderHook(({ communityAddress, commentCid } = {}) => {
           const account = useAccount();
-          const subplebbit = useSubplebbit({ subplebbitAddress });
+          const community = useCommunity({ communityAddress });
           const { accountVotes } = useAccountVotes();
           const comment = useComment({ commentCid });
-          return { account, subplebbit, comment, accountVotes, ...accountsActions };
+          return { account, community, comment, accountVotes, ...accountsActions };
         });
         rendered.detach();
         waitFor = testUtils.createWaitFor(rendered, { timeout });
@@ -95,17 +95,17 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
         console.log("after set account");
       });
 
-      it(`get subplebbits one at a time (${plebbitOptionsType})`, async () => {
-        rendered.rerender({ subplebbitAddress });
-        await waitFor(() => typeof rendered.result.current.subplebbit.updatedAt === "number");
-        expect(typeof rendered.result.current.subplebbit.updatedAt).to.equal("number");
-        expect(rendered.result.current.subplebbit.address).to.equal(subplebbitAddress);
-        await waitFor(() => rendered.result.current.subplebbit.posts.pages.hot.comments[0]);
-        expect(typeof rendered.result.current.subplebbit.posts.pages.hot.comments[0].cid).to.equal(
+      it(`get communities one at a time (${plebbitOptionsType})`, async () => {
+        rendered.rerender({ communityAddress });
+        await waitFor(() => typeof rendered.result.current.community.updatedAt === "number");
+        expect(typeof rendered.result.current.community.updatedAt).to.equal("number");
+        expect(rendered.result.current.community.address).to.equal(communityAddress);
+        await waitFor(() => rendered.result.current.community.posts.pages.hot.comments[0]);
+        expect(typeof rendered.result.current.community.posts.pages.hot.comments[0].cid).to.equal(
           "string",
         );
-        commentCid = rendered.result.current.subplebbit.posts.pages.hot.comments[0].cid;
-        expect(rendered.result.current.subplebbit.state).to.equal("succeeded");
+        commentCid = rendered.result.current.community.posts.pages.hot.comments[0].cid;
+        expect(rendered.result.current.community.state).to.equal("succeeded");
         console.log("comment cid", commentCid);
       });
 
@@ -127,7 +127,7 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
 
       it(`publish vote (${plebbitOptionsType})`, async () => {
         const publishVoteOptions = {
-          subplebbitAddress,
+          communityAddress,
           commentCid: commentCid,
           vote: 1,
           onChallenge,
@@ -173,7 +173,7 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
 
       it(`get comment with updated vote count (${plebbitOptionsType})`, async () => {
         console.log("before getting comment");
-        rendered.rerender({ subplebbitAddress, commentCid });
+        rendered.rerender({ communityAddress, commentCid });
 
         await waitFor(() => typeof rendered.result.current.comment.cid === "string");
         console.log("after getting comment");

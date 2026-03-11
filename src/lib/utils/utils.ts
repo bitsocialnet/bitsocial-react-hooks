@@ -3,7 +3,7 @@ import QuickLru from "quick-lru";
 import Logger from "@plebbit/plebbit-logger";
 import PlebbitJs from "../plebbit-js";
 import { Comment } from "../../types";
-import { areEquivalentSubplebbitAddresses } from "../subplebbit-address";
+import { areEquivalentCommunityAddresses } from "../community-address";
 const log = Logger("bitsocial-react-hooks:utils");
 
 const merge = (...args: any) => {
@@ -278,19 +278,19 @@ const pageClientsOnStateChange = (clients: any, onStateChange: Function) => {
   }
 };
 
-export const subplebbitPostsCacheExpired = (subplebbit: any) => {
-  // NOTE: fetchedAt is undefined on owner subplebbits
-  if (!subplebbit?.fetchedAt) {
-    false;
+export const communityPostsCacheExpired = (community: any) => {
+  // NOTE: fetchedAt is undefined on owner communities
+  if (!community || community.fetchedAt == null) {
+    return false;
   }
-  // if subplebbit cache is older than 1 hour, its subplebbit.posts are considered expired
+  // if community cache is older than 1 hour, its community.posts are considered expired
   const oneHourAgo = Date.now() / 1000 - 60 * 60;
-  return oneHourAgo > subplebbit.fetchedAt;
+  return oneHourAgo > community.fetchedAt;
 };
 
 export const removeInvalidComments = async (
   comments: Comment[],
-  { validateReplies, blockSubplebbit }: any,
+  { validateReplies, blockCommunity }: any,
   plebbit: any,
 ) => {
   if (!comments.length) {
@@ -298,37 +298,37 @@ export const removeInvalidComments = async (
   }
   const isValid = await Promise.all(
     comments.map((comment) =>
-      commentIsValid(comment, { validateReplies, blockSubplebbit }, plebbit),
+      commentIsValid(comment, { validateReplies, blockCommunity }, plebbit),
     ),
   );
   const validComments = comments.filter((_, i) => isValid[i]);
   return validComments;
 };
 
-const subplebbitsWithInvalidComments: { [subplebbitAddress: string]: boolean } = {};
+const communitiesWithInvalidComments: { [communityAddress: string]: boolean } = {};
 export const commentIsValid = async (
   comment: Comment,
-  { validateReplies, blockSubplebbit }: any = {},
+  { validateReplies, blockCommunity }: any = {},
   plebbit: any,
 ) => {
   validateReplies = Boolean(validateReplies);
-  if (blockSubplebbit === undefined || blockSubplebbit === null) {
-    blockSubplebbit = true;
+  if (blockCommunity === undefined || blockCommunity === null) {
+    blockCommunity = true;
   }
   if (!comment) {
     return false;
   }
-  if (subplebbitsWithInvalidComments[comment.subplebbitAddress]) {
+  if (communitiesWithInvalidComments[comment.communityAddress]) {
     console.log(
-      `subplebbit '${comment.subplebbitAddress}' had an invalid comment, invalidate all its future comments to avoid wasting resources`,
+      `community '${comment.communityAddress}' had an invalid comment, invalidate all its future comments to avoid wasting resources`,
     );
     return false;
   }
   try {
     await plebbit.validateComment(comment, { validateReplies });
   } catch (e) {
-    if (blockSubplebbit) {
-      subplebbitsWithInvalidComments[comment.subplebbitAddress] = true;
+    if (blockCommunity) {
+      communitiesWithInvalidComments[comment.communityAddress] = true;
     }
     console.log("invalid comment", { comment, error: e });
     return false;
@@ -338,19 +338,19 @@ export const commentIsValid = async (
 
 const repliesAreValid = async (
   comment: Comment,
-  { validateReplies, blockSubplebbit }: any = {},
+  { validateReplies, blockCommunity }: any = {},
   plebbit: any,
 ) => {
   validateReplies = Boolean(validateReplies);
-  if (blockSubplebbit === undefined || blockSubplebbit === null) {
-    blockSubplebbit = true;
+  if (blockCommunity === undefined || blockCommunity === null) {
+    blockCommunity = true;
   }
   if (!comment) {
     return false;
   }
-  if (subplebbitsWithInvalidComments[comment.subplebbitAddress]) {
+  if (communitiesWithInvalidComments[comment.communityAddress]) {
     console.log(
-      `subplebbit '${comment.subplebbitAddress}' had an invalid comment, invalidate all its future comments to avoid wasting resources`,
+      `community '${comment.communityAddress}' had an invalid comment, invalidate all its future comments to avoid wasting resources`,
     );
     return false;
   }
@@ -360,17 +360,17 @@ const repliesAreValid = async (
   // manual validation
   for (const reply of replies) {
     if (
-      !areEquivalentSubplebbitAddresses(reply.subplebbitAddress, comment.subplebbitAddress) ||
+      !areEquivalentCommunityAddresses(reply.communityAddress, comment.communityAddress) ||
       reply.depth !== comment.depth + 1 ||
       reply.parentCid !== comment.cid
     ) {
-      if (blockSubplebbit) {
-        subplebbitsWithInvalidComments[comment.subplebbitAddress] = true;
+      if (blockCommunity) {
+        communitiesWithInvalidComments[comment.communityAddress] = true;
       }
       console.log("invalid comment", {
         comment: reply,
         error:
-          "!areEquivalentSubplebbitAddresses(reply.subplebbitAddress, comment.subplebbitAddress) || reply.depth !== comment.depth + 1 || reply.parentCid !== comment.cid",
+          "!areEquivalentCommunityAddresses(reply.communityAddress, comment.communityAddress) || reply.depth !== comment.depth + 1 || reply.parentCid !== comment.cid",
       });
       return false;
     }
@@ -379,12 +379,12 @@ const repliesAreValid = async (
   // signature verification
   try {
     const promises = replies.map((reply) =>
-      commentIsValid(reply, { validateReplies: false, blockSubplebbit: true }, plebbit),
+      commentIsValid(reply, { validateReplies: false, blockCommunity: true }, plebbit),
     );
     await Promise.all(promises);
   } catch (e: any) {
-    if (blockSubplebbit) {
-      subplebbitsWithInvalidComments[comment.subplebbitAddress] = true;
+    if (blockCommunity) {
+      communitiesWithInvalidComments[comment.communityAddress] = true;
     }
     console.log("invalid comment", { comment, error: e });
     return false;
@@ -404,7 +404,7 @@ const utils = {
   retryInfinityMaxTimeout: 1000 * 60 * 60 * 24,
   clientsOnStateChange,
   pageClientsOnStateChange,
-  subplebbitPostsCacheExpired,
+  communityPostsCacheExpired,
   commentIsValid,
   removeInvalidComments,
   repliesAreValid,

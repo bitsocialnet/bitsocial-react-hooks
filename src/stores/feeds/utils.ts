@@ -5,23 +5,23 @@ import {
   Feeds,
   FeedOptions,
   FeedsOptions,
-  Subplebbit,
-  Subplebbits,
+  Community,
+  Communities,
   Account,
   Accounts,
-  SubplebbitPage,
-  SubplebbitsPages,
-  FeedsSubplebbitsPostCounts,
+  CommunityPage,
+  CommunitiesPages,
+  FeedsCommunitiesPostCounts,
 } from "../../types";
-import { getSubplebbitPages, getSubplebbitFirstPageCid } from "../subplebbits-pages";
+import { getCommunityPages, getCommunityFirstPageCid } from "../communities-pages";
 import accountsStore from "../accounts";
 import feedSorter from "./feed-sorter";
+import { communityPostsCacheExpired, commentIsValid, removeInvalidComments } from "../../lib/utils";
+import { areEquivalentCommunityAddresses } from "../../lib/community-address";
 import {
-  subplebbitPostsCacheExpired,
-  commentIsValid,
-  removeInvalidComments,
-} from "../../lib/utils";
-import { areEquivalentSubplebbitAddresses } from "../../lib/subplebbit-address";
+  getCommentCommunityAddress,
+  normalizeCommentCommunityAddress,
+} from "../../lib/plebbit-compat";
 import Logger from "@plebbit/plebbit-logger";
 const log = Logger("bitsocial-react-hooks:feeds:stores");
 
@@ -41,24 +41,33 @@ const commentMatchesModQueue = (comment: Comment | undefined, modQueue?: string[
 
 const getFeedPost = (
   post: Comment,
-  subplebbitAddress: string,
+  communityAddress: string,
   modQueue?: string[],
   freshestComments?: { [commentCid: string]: Comment },
 ) => {
-  const freshestComment = post.cid ? freshestComments?.[post.cid] : undefined;
-  if (!areEquivalentSubplebbitAddresses(post.subplebbitAddress, subplebbitAddress)) {
+  const normalizedPost = normalizeCommentCommunityAddress(post) as Comment;
+  const freshestComment = post.cid
+    ? normalizeCommentCommunityAddress(freshestComments?.[post.cid])
+    : undefined;
+  const postCommunityAddress = getCommentCommunityAddress(normalizedPost);
+  if (!areEquivalentCommunityAddresses(postCommunityAddress, communityAddress)) {
     return;
   }
-  if (!commentMatchesModQueue(post, modQueue)) {
+  if (!commentMatchesModQueue(normalizedPost, modQueue)) {
     return;
   }
-  if (!freshestComment || getCommentFreshness(freshestComment) <= getCommentFreshness(post)) {
-    return post;
+  if (
+    !freshestComment ||
+    getCommentFreshness(freshestComment) <= getCommentFreshness(normalizedPost)
+  ) {
+    return normalizedPost;
   }
   if (!commentMatchesModQueue(freshestComment, modQueue)) {
     return;
   }
-  if (!areEquivalentSubplebbitAddresses(freshestComment.subplebbitAddress, subplebbitAddress)) {
+  if (
+    !areEquivalentCommunityAddresses(getCommentCommunityAddress(freshestComment), communityAddress)
+  ) {
     return;
   }
   return freshestComment;
@@ -107,19 +116,19 @@ const reconcileLoadedModQueueFeed = (
 };
 
 /**
- * Calculate the feeds from all the loaded subplebbit pages, filter and sort them
+ * Calculate the feeds from all the loaded community pages, filter and sort them
  */
 export const getFilteredSortedFeeds = (
   feedsOptions: FeedsOptions,
-  subplebbits: Subplebbits,
-  subplebbitsPages: SubplebbitsPages,
+  communities: Communities,
+  communitiesPages: CommunitiesPages,
   accounts: Accounts,
   freshestComments?: { [commentCid: string]: Comment },
 ) => {
   // calculate each feed
   let feeds: Feeds = {};
   for (const feedName in feedsOptions) {
-    let { subplebbitAddresses, sortType, accountId, filter, newerThan, modQueue } =
+    let { communityAddresses, sortType, accountId, filter, newerThan, modQueue } =
       feedsOptions[feedName];
     const newerThanTimestamp = newerThan ? Math.floor(Date.now() / 1000) - newerThan : undefined;
 
@@ -134,47 +143,52 @@ export const getFilteredSortedFeeds = (
     const bufferedFeedPosts = [];
 
     // add each comment from each page, do not filter at this stage, filter after sorting
-    for (const subplebbitAddress of subplebbitAddresses) {
-      // subplebbit hasn't loaded yet
-      if (!subplebbits[subplebbitAddress]) {
+    for (const communityAddress of communityAddresses) {
+      // community hasn't loaded yet
+      if (!communities[communityAddress]) {
         continue;
       }
 
-      // if cache is expired and has internet access, don't use, wait for next subplebbit update
-      if (subplebbitPostsCacheExpired(subplebbits[subplebbitAddress]) && window.navigator.onLine) {
+      // if cache is expired and has internet access, don't use, wait for next community update
+      if (communityPostsCacheExpired(communities[communityAddress]) && window.navigator.onLine) {
         continue;
       }
 
-      // use subplebbit preloaded posts if any
-      const preloadedPosts = getPreloadedPosts(subplebbits[subplebbitAddress], sortType);
+      // use community preloaded posts if any
+      const preloadedPosts = getPreloadedPosts(communities[communityAddress], sortType);
       if (preloadedPosts) {
         for (const post of preloadedPosts) {
-          // posts are manually validated, could have fake subplebbitAddress
-          if (!areEquivalentSubplebbitAddresses(post.subplebbitAddress, subplebbitAddress)) {
+          // posts are manually validated, could have fake communityAddress
+          if (
+            !areEquivalentCommunityAddresses(getCommentCommunityAddress(post), communityAddress)
+          ) {
             break;
           }
-          const nextPost = getFeedPost(post, subplebbitAddress, modQueue, freshestComments);
+          const nextPost = getFeedPost(post, communityAddress, modQueue, freshestComments);
           if (nextPost) {
             bufferedFeedPosts.push(nextPost);
           }
         }
       }
 
-      // add all posts from subplebbit pages
-      const subplebbitPages = getSubplebbitPages(
-        subplebbits[subplebbitAddress],
+      // add all posts from community pages
+      const communityPages = getCommunityPages(
+        communities[communityAddress],
         sortType,
-        subplebbitsPages,
+        communitiesPages,
         pageType,
+        accountId,
       );
-      for (const subplebbitPage of subplebbitPages) {
-        if (subplebbitPage?.comments) {
-          for (const post of subplebbitPage.comments) {
-            // posts are manually validated, could have fake subplebbitAddress
-            if (!areEquivalentSubplebbitAddresses(post.subplebbitAddress, subplebbitAddress)) {
+      for (const communityPage of communityPages) {
+        if (communityPage?.comments) {
+          for (const post of communityPage.comments) {
+            // posts are manually validated, could have fake communityAddress
+            if (
+              !areEquivalentCommunityAddresses(getCommentCommunityAddress(post), communityAddress)
+            ) {
               break;
             }
-            const nextPost = getFeedPost(post, subplebbitAddress, modQueue, freshestComments);
+            const nextPost = getFeedPost(post, communityAddress, modQueue, freshestComments);
             if (nextPost) {
               bufferedFeedPosts.push(nextPost);
             }
@@ -192,7 +206,7 @@ export const getFilteredSortedFeeds = (
     for (const post of sortedBufferedFeedPosts) {
       // address is blocked
       if (
-        accounts[accountId]?.blockedAddresses[post.subplebbitAddress] ||
+        accounts[accountId]?.blockedAddresses[getCommentCommunityAddress(post) || ""] ||
         (post.author?.address && accounts[accountId]?.blockedAddresses[post.author.address])
       ) {
         continue;
@@ -205,7 +219,7 @@ export const getFilteredSortedFeeds = (
 
       // if a feed has more than 1 sub, don't include pinned posts
       // TODO: add test to check if pinned are filtered
-      if (post.pinned && subplebbitAddresses.length > 1) {
+      if (post.pinned && communityAddresses.length > 1) {
         continue;
       }
 
@@ -235,16 +249,16 @@ export const getFilteredSortedFeeds = (
   return feeds;
 };
 
-const getPreloadedPosts = (subplebbit: Subplebbit, sortType: string) => {
-  let preloadedPosts = subplebbit.posts?.pages?.[sortType]?.comments;
+const getPreloadedPosts = (community: Community, sortType: string) => {
+  let preloadedPosts = community.posts?.pages?.[sortType]?.comments;
   if (preloadedPosts) {
     return preloadedPosts;
   }
-  const hasPageCids = Object.keys(subplebbit.posts?.pageCids || {}).length !== 0;
+  const hasPageCids = Object.keys(community.posts?.pageCids || {}).length !== 0;
   if (hasPageCids) {
     return;
   }
-  const pages: any[] = Object.values(subplebbit.posts?.pages || {});
+  const pages: any[] = Object.values(community.posts?.pages || {});
   if (!pages.length) {
     return;
   }
@@ -334,7 +348,7 @@ export const addAccountsComments = (feedsOptions: FeedsOptions, loadedFeeds: Fee
     const {
       accountId,
       accountComments: accountCommentsOptions,
-      subplebbitAddresses,
+      communityAddresses,
     } = feedsOptions[feedName];
     const { newerThan, append } = accountCommentsOptions || {};
     if (!newerThan) {
@@ -344,7 +358,7 @@ export const addAccountsComments = (feedsOptions: FeedsOptions, loadedFeeds: Fee
       newerThan === Infinity ? 0 : Math.floor(Date.now() / 1000) - newerThan;
     const isNewerThan = (post: Comment) => post.timestamp > newerThanTimestamp;
 
-    const subplebbitAddressesSet = new Set(subplebbitAddresses);
+    const communityAddressesSet = new Set(communityAddresses);
     const accountComments = accountsComments[accountId] || [];
     const accountPosts = accountComments.filter((comment) => {
       // is a reply, not a post
@@ -354,7 +368,7 @@ export const addAccountsComments = (feedsOptions: FeedsOptions, loadedFeeds: Fee
       if (!isNewerThan(comment)) {
         return false;
       }
-      return subplebbitAddressesSet.has(comment.subplebbitAddress);
+      return communityAddressesSet.has(getCommentCommunityAddress(comment) || "");
     });
     const validAccountIndices = new Set(accountPosts.map((p) => p.index));
     const accountCidToPost = new Map<string, Comment>();
@@ -525,63 +539,68 @@ export const getUpdatedFeeds = async (
   return newUpdatedFeeds;
 };
 
-// find with subplebbits have posts newer (or ranked higher) than the loaded feeds
+// find with communities have posts newer (or ranked higher) than the loaded feeds
 // can be used to display "new posts in x, y, z subs" alert, like on twitter
-export const getFeedsSubplebbitAddressesWithNewerPosts = (
+export const getFeedsCommunityAddressesWithNewerPosts = (
   filteredSortedFeeds: Feeds,
   loadedFeeds: Feeds,
-  previousFeedsSubplebbitAddressesWithNewerPosts: { [feedName: string]: string[] },
+  previousFeedsCommunityAddressesWithNewerPosts: { [feedName: string]: string[] },
 ) => {
-  const feedsSubplebbitAddressesWithNewerPosts: { [feedName: string]: string[] } = {};
+  const feedsCommunityAddressesWithNewerPosts: { [feedName: string]: string[] } = {};
   for (const feedName in loadedFeeds) {
     const loadedFeed = loadedFeeds[feedName];
     const cidsInLoadedFeed = new Set();
     for (const post of loadedFeed) {
       cidsInLoadedFeed.add(post.cid);
     }
-    const subplebbitAddressesWithNewerPostsSet = new Set<string>();
+    const communityAddressesWithNewerPostsSet = new Set<string>();
     for (const [i, post] of filteredSortedFeeds[feedName].entries()) {
       if (i >= loadedFeed.length) {
         break;
       }
       // if any post in filteredSortedFeeds ranks higher than the loaded feed count, it's a newer post
       if (!cidsInLoadedFeed.has(post.cid)) {
-        subplebbitAddressesWithNewerPostsSet.add(post.subplebbitAddress);
+        const postCommunityAddress = getCommentCommunityAddress(post);
+        if (postCommunityAddress) {
+          communityAddressesWithNewerPostsSet.add(postCommunityAddress);
+        }
       }
     }
-    const subplebbitAddressesWithNewerPosts = [...subplebbitAddressesWithNewerPostsSet];
+    const communityAddressesWithNewerPosts = [...communityAddressesWithNewerPostsSet];
 
     // don't update the array if the data is the same to avoid rerenders
-    const previousSubplebbitAddressesWithNewerPosts =
-      previousFeedsSubplebbitAddressesWithNewerPosts[feedName] || [];
+    const previousCommunityAddressesWithNewerPosts =
+      previousFeedsCommunityAddressesWithNewerPosts[feedName] || [];
     if (
-      subplebbitAddressesWithNewerPosts.length ===
-        previousSubplebbitAddressesWithNewerPosts.length &&
-      subplebbitAddressesWithNewerPosts.toString() ===
-        previousSubplebbitAddressesWithNewerPosts.toString()
+      communityAddressesWithNewerPosts.length === previousCommunityAddressesWithNewerPosts.length &&
+      communityAddressesWithNewerPosts.toString() ===
+        previousCommunityAddressesWithNewerPosts.toString()
     ) {
-      feedsSubplebbitAddressesWithNewerPosts[feedName] =
-        previousFeedsSubplebbitAddressesWithNewerPosts[feedName];
+      feedsCommunityAddressesWithNewerPosts[feedName] =
+        previousFeedsCommunityAddressesWithNewerPosts[feedName];
     } else {
-      feedsSubplebbitAddressesWithNewerPosts[feedName] = subplebbitAddressesWithNewerPosts;
+      feedsCommunityAddressesWithNewerPosts[feedName] = communityAddressesWithNewerPosts;
     }
   }
-  return feedsSubplebbitAddressesWithNewerPosts;
+  return feedsCommunityAddressesWithNewerPosts;
 };
 
-// find how many posts are left in each subplebbits in a buffereds feeds
-export const getFeedsSubplebbitsPostCounts = (feedsOptions: FeedsOptions, feeds: Feeds) => {
-  const feedsSubplebbitsPostCounts: FeedsSubplebbitsPostCounts = {};
+// find how many posts are left in each communities in a buffereds feeds
+export const getFeedsCommunitiesPostCounts = (feedsOptions: FeedsOptions, feeds: Feeds) => {
+  const feedsCommunitiesPostCounts: FeedsCommunitiesPostCounts = {};
   for (const feedName in feedsOptions) {
-    feedsSubplebbitsPostCounts[feedName] = {};
-    for (const subplebbitAddress of feedsOptions[feedName].subplebbitAddresses) {
-      feedsSubplebbitsPostCounts[feedName][subplebbitAddress] = 0;
+    feedsCommunitiesPostCounts[feedName] = {};
+    for (const communityAddress of feedsOptions[feedName].communityAddresses) {
+      feedsCommunitiesPostCounts[feedName][communityAddress] = 0;
     }
     for (const comment of feeds[feedName] || []) {
-      feedsSubplebbitsPostCounts[feedName][comment.subplebbitAddress]++;
+      const commentCommunityAddress = getCommentCommunityAddress(comment);
+      if (commentCommunityAddress) {
+        feedsCommunitiesPostCounts[feedName][commentCommunityAddress]++;
+      }
     }
   }
-  return feedsSubplebbitsPostCounts;
+  return feedsCommunitiesPostCounts;
 };
 
 /**
@@ -590,8 +609,8 @@ export const getFeedsSubplebbitsPostCounts = (feedsOptions: FeedsOptions, feeds:
 export const getFeedsHaveMore = (
   feedsOptions: FeedsOptions,
   bufferedFeeds: Feeds,
-  subplebbits: Subplebbits,
-  subplebbitsPages: SubplebbitsPages,
+  communities: Communities,
+  communitiesPages: CommunitiesPages,
   accounts: Accounts,
 ) => {
   const feedsHaveMore: { [feedName: string]: boolean } = {};
@@ -602,7 +621,7 @@ export const getFeedsHaveMore = (
       continue feedsLoop;
     }
 
-    let { subplebbitAddresses, sortType, accountId, modQueue } = feedsOptions[feedName];
+    let { communityAddresses, sortType, accountId, modQueue } = feedsOptions[feedName];
 
     let pageType = "posts";
     if (modQueue?.[0]) {
@@ -611,33 +630,33 @@ export const getFeedsHaveMore = (
       pageType = "modQueue";
     }
 
-    subplebbitAddressesLoop: for (const subplebbitAddress of subplebbitAddresses) {
+    communityAddressesLoop: for (const communityAddress of communityAddresses) {
       // don't consider the sub if the address is blocked
-      if (accounts[accountId]?.blockedAddresses[subplebbitAddress]) {
-        continue subplebbitAddressesLoop;
+      if (accounts[accountId]?.blockedAddresses[communityAddress]) {
+        continue communityAddressesLoop;
       }
 
-      const subplebbit = subplebbits[subplebbitAddress];
-      // if at least 1 subplebbit hasn't loaded yet, then the feed still has more
-      if (!subplebbit?.updatedAt) {
+      const community = communities[communityAddress];
+      // if at least 1 community hasn't loaded yet, then the feed still has more
+      if (!community?.updatedAt) {
         feedsHaveMore[feedName] = true;
         continue feedsLoop;
       }
 
-      // if at least 1 subplebbit has posts cache expired, then the feed still has more
-      if (subplebbitPostsCacheExpired(subplebbit)) {
+      // if at least 1 community has posts cache expired, then the feed still has more
+      if (communityPostsCacheExpired(community)) {
         feedsHaveMore[feedName] = true;
         continue feedsLoop;
       }
 
-      const firstPageCid = getSubplebbitFirstPageCid(subplebbit, sortType, pageType);
-      // TODO: if a loaded subplebbit doesn't have a first page, it's unclear what we should do
+      const firstPageCid = getCommunityFirstPageCid(community, sortType, pageType);
+      // TODO: if a loaded community doesn't have a first page, it's unclear what we should do
       // should we try to use another sort type by default, like 'hot', or should we just ignore it?
       // 'continue' to ignore it for now
       if (!firstPageCid) {
-        continue subplebbitAddressesLoop;
+        continue communityAddressesLoop;
       }
-      const pages = getSubplebbitPages(subplebbit, sortType, subplebbitsPages, pageType);
+      const pages = getCommunityPages(community, sortType, communitiesPages, pageType, accountId);
       // if first page isn't loaded yet, then the feed still has more
       if (!pages.length) {
         feedsHaveMore[feedName] = true;
@@ -650,111 +669,109 @@ export const getFeedsHaveMore = (
       }
     }
 
-    // if buffered feeds are empty and no last page of any subplebbit has a next page, then has more is false
+    // if buffered feeds are empty and no last page of any community has a next page, then has more is false
     feedsHaveMore[feedName] = false;
   }
   return feedsHaveMore;
 };
 
-// get all subplebbits pages cids of all feeds, use to check if a subplebbitsStore change should trigger updateFeeds
-export const getFeedsSubplebbits = (feedsOptions: FeedsOptions, subplebbits: Subplebbits) => {
-  // find all feeds subplebbits
-  const feedsSubplebbitAddresses = new Set<string>();
+// get all communities pages cids of all feeds, use to check if a communitiesStore change should trigger updateFeeds
+export const getFeedsCommunities = (feedsOptions: FeedsOptions, communities: Communities) => {
+  // find all feeds communities
+  const feedsCommunityAddresses = new Set<string>();
   Object.keys(feedsOptions).forEach((i) =>
-    feedsOptions[i].subplebbitAddresses.forEach((a) => feedsSubplebbitAddresses.add(a)),
+    feedsOptions[i].communityAddresses.forEach((a) => feedsCommunityAddresses.add(a)),
   );
 
   // use map for performance increase when checking size
-  const feedsSubplebbits = new Map<string, Subplebbit>();
-  for (const subplebbitAddress of feedsSubplebbitAddresses) {
-    feedsSubplebbits.set(subplebbitAddress, subplebbits[subplebbitAddress]);
+  const feedsCommunities = new Map<string, Community>();
+  for (const communityAddress of feedsCommunityAddresses) {
+    feedsCommunities.set(communityAddress, communities[communityAddress]);
   }
-  return feedsSubplebbits;
+  return feedsCommunities;
 };
 
-export const feedsSubplebbitsChanged = (
-  previousFeedsSubplebbits: Map<string, Subplebbit>,
-  feedsSubplebbits: Map<string, Subplebbit>,
+export const feedsCommunitiesChanged = (
+  previousFeedsCommunities: Map<string, Community>,
+  feedsCommunities: Map<string, Community>,
 ) => {
-  if (previousFeedsSubplebbits.size !== feedsSubplebbits.size) {
+  if (previousFeedsCommunities.size !== feedsCommunities.size) {
     return true;
   }
-  for (let subplebbitAddress of previousFeedsSubplebbits.keys()) {
+  for (let communityAddress of previousFeedsCommunities.keys()) {
     // check if the object is still the same
-    if (
-      previousFeedsSubplebbits.get(subplebbitAddress) !== feedsSubplebbits.get(subplebbitAddress)
-    ) {
+    if (previousFeedsCommunities.get(communityAddress) !== feedsCommunities.get(communityAddress)) {
       return true;
     }
   }
   return false;
 };
 
-// get all subplebbits pages cids of all feeds, use to check if a subplebbitsStore change should trigger updateFeeds
-export const getFeedsSubplebbitsFirstPageCids = (
-  feedsSubplebbits: Map<string, Subplebbit>,
+// get all communities pages cids of all feeds, use to check if a communitiesStore change should trigger updateFeeds
+export const getFeedsCommunitiesFirstPageCids = (
+  feedsCommunities: Map<string, Community>,
 ): string[] => {
-  // find all the feeds subplebbits first page cids
-  const feedsSubplebbitsFirstPageCids = new Set<string>();
-  for (const subplebbit of feedsSubplebbits.values()) {
-    if (!subplebbit?.posts && !subplebbit?.modQueue) {
+  // find all the feeds communities first page cids
+  const feedsCommunitiesFirstPageCids = new Set<string>();
+  for (const community of feedsCommunities.values()) {
+    if (!community?.posts && !community?.modQueue) {
       continue;
     }
 
     // check pages
-    if (subplebbit.posts?.pages) {
-      for (const page of Object.values<SubplebbitPage>(subplebbit.posts.pages)) {
+    if (community.posts?.pages) {
+      for (const page of Object.values<CommunityPage>(community.posts.pages)) {
         if (page?.nextCid) {
-          feedsSubplebbitsFirstPageCids.add(page?.nextCid);
+          feedsCommunitiesFirstPageCids.add(page?.nextCid);
         }
       }
     }
 
     // check pageCids
-    if (subplebbit.posts?.pageCids) {
-      for (const pageCid of Object.values<string>(subplebbit.posts.pageCids)) {
+    if (community.posts?.pageCids) {
+      for (const pageCid of Object.values<string>(community.posts.pageCids)) {
         if (pageCid) {
-          feedsSubplebbitsFirstPageCids.add(pageCid);
+          feedsCommunitiesFirstPageCids.add(pageCid);
         }
       }
     }
 
     // TODO: would be more performant to only check modQueue if there's a feedOptions with modQueue
-    if (subplebbit.modQueue?.pageCids) {
-      for (const pageCid of Object.values<string>(subplebbit.modQueue.pageCids)) {
+    if (community.modQueue?.pageCids) {
+      for (const pageCid of Object.values<string>(community.modQueue.pageCids)) {
         if (pageCid) {
-          feedsSubplebbitsFirstPageCids.add(pageCid);
+          feedsCommunitiesFirstPageCids.add(pageCid);
         }
       }
     }
   }
 
-  return [...feedsSubplebbitsFirstPageCids].sort();
+  return [...feedsCommunitiesFirstPageCids].sort();
 };
 
-// get all subplebbits posts pages first post updatedAts, use to check if a subplebbitsStore change should trigger updateFeeds
-export const getFeedsSubplebbitsPostsPagesFirstUpdatedAts = (
-  feedsSubplebbits: Map<string, Subplebbit>,
+// get all communities posts pages first post updatedAts, use to check if a communitiesStore change should trigger updateFeeds
+export const getFeedsCommunitiesPostsPagesFirstUpdatedAts = (
+  feedsCommunities: Map<string, Community>,
 ): string => {
-  let feedsSubplebbitsPostsPagesFirstUpdatedAts = "";
-  for (const subplebbit of feedsSubplebbits.values()) {
-    for (const page of Object.values<SubplebbitPage>(subplebbit?.posts?.pages || {})) {
+  let feedsCommunitiesPostsPagesFirstUpdatedAts = "";
+  for (const community of feedsCommunities.values()) {
+    for (const page of Object.values<CommunityPage>(community?.posts?.pages || {})) {
       if (page?.comments?.[0]?.updatedAt) {
-        feedsSubplebbitsPostsPagesFirstUpdatedAts +=
+        feedsCommunitiesPostsPagesFirstUpdatedAts +=
           page.comments[0].cid + page.comments[0].updatedAt;
       }
     }
   }
-  return feedsSubplebbitsPostsPagesFirstUpdatedAts;
+  return feedsCommunitiesPostsPagesFirstUpdatedAts;
 };
 
-// get number of feeds subplebbit that are loaded
-export const getFeedsSubplebbitsLoadedCount = (
-  feedsSubplebbits: Map<string, Subplebbit>,
+// get number of feeds community that are loaded
+export const getFeedsCommunitiesLoadedCount = (
+  feedsCommunities: Map<string, Community>,
 ): number => {
   let count = 0;
-  for (const subplebbit of feedsSubplebbits.values()) {
-    if (subplebbit?.updatedAt) {
+  for (const community of feedsCommunities.values()) {
+    if (community?.updatedAt) {
       count++;
     }
   }
@@ -801,13 +818,13 @@ export const feedsHaveChangedBlockedAddresses = (
     .concat(previousBlockedAddresses.filter((x) => !blockedAddresses.includes(x)));
 
   // if changed blocked addresses arent used in the feeds, do nothing
-  const feedsSubplebbitAddresses = new Set<string>();
+  const feedsCommunityAddresses = new Set<string>();
   Object.keys(feedsOptions).forEach((i) =>
-    feedsOptions[i].subplebbitAddresses.forEach((a) => feedsSubplebbitAddresses.add(a)),
+    feedsOptions[i].communityAddresses.forEach((a) => feedsCommunityAddresses.add(a)),
   );
   for (const address of changedBlockedAddresses) {
     // a changed address is used in the feed, update feeds
-    if (feedsSubplebbitAddresses.has(address)) {
+    if (feedsCommunityAddresses.has(address)) {
       return true;
     }
   }

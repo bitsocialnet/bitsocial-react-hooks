@@ -14,15 +14,15 @@ import localForageLru from "../../lib/localforage-lru";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 class MockPages {
-  subplebbitAddress: string;
+  communityAddress: string;
   pageCids: { [pageCid: string]: string };
   pages: { [sortType: string]: RepliesPage };
-  constructor({ subplebbitAddress }: any) {
-    this.subplebbitAddress = subplebbitAddress;
+  constructor({ communityAddress }: any) {
+    this.communityAddress = communityAddress;
     this.pageCids = {
-      new: `${subplebbitAddress} new page cid`,
+      new: `${communityAddress} new page cid`,
     };
-    const bestPageCid = `${subplebbitAddress} best page cid`;
+    const bestPageCid = `${communityAddress} best page cid`;
     this.pages = {
       best: {
         nextCid: bestPageCid + " - next page cid",
@@ -49,7 +49,7 @@ class MockPages {
       comments.push({
         timestamp: index,
         cid: pageCid + " comment cid " + index,
-        subplebbitAddress: this.subplebbitAddress,
+        communityAddress: this.communityAddress,
         updatedAt: index,
       });
     }
@@ -59,25 +59,25 @@ class MockPages {
   async validatePage(page: any) {}
 }
 
-class MockSubplebbit extends EventEmitter {
+class MockCommunity extends EventEmitter {
   address: string;
   posts: MockPages;
   constructor({ address }: any) {
     super();
     this.address = address;
-    this.posts = new MockPages({ subplebbitAddress: address });
+    this.posts = new MockPages({ communityAddress: address });
   }
 }
 
 class MockComment extends EventEmitter {
   cid: string;
-  subplebbitAddress: string;
+  communityAddress: string;
   replies: MockPages;
   constructor({ cid }: any) {
     super();
     this.cid = cid;
-    this.subplebbitAddress = `${cid} subplebbit address`;
-    this.replies = new MockPages({ subplebbitAddress: this.subplebbitAddress });
+    this.communityAddress = `${cid} community address`;
+    this.replies = new MockPages({ communityAddress: this.communityAddress });
   }
   async update() {}
 }
@@ -85,7 +85,7 @@ class MockComment extends EventEmitter {
 const mockAccount: any = {
   id: "mock account id",
   plebbit: {
-    createSubplebbit: async ({ address }: any) => new MockSubplebbit({ address }),
+    createCommunity: async ({ address }: any) => new MockCommunity({ address }),
     createComment: async ({ cid }: any) => new MockComment({ cid }),
   },
 };
@@ -120,7 +120,7 @@ describe("replies pages store", () => {
         replies: {
           pages: {
             best: {
-              comments: [{ cid: "db-c1", timestamp: 1, subplebbitAddress: "s1" }],
+              comments: [{ cid: "db-c1", timestamp: 1, communityAddress: "s1" }],
             },
           },
         },
@@ -152,7 +152,7 @@ describe("replies pages store", () => {
   });
 
   test("addRepliesPageCommentsToStore skips when existing fresher (branch 116, 175)", async () => {
-    const staleComment = { cid: "stale-c1", timestamp: 1, subplebbitAddress: "s1" };
+    const staleComment = { cid: "stale-c1", timestamp: 1, communityAddress: "s1" };
     act(() => {
       rendered.result.current.addRepliesPageCommentsToStore({
         cid: "tmp",
@@ -168,7 +168,7 @@ describe("replies pages store", () => {
         replies: {
           pages: {
             best: {
-              comments: [{ cid: "stale-c1", timestamp: 1, subplebbitAddress: "s1" }],
+              comments: [{ cid: "stale-c1", timestamp: 1, communityAddress: "s1" }],
             },
           },
         },
@@ -184,7 +184,7 @@ describe("replies pages store", () => {
         replies: {
           pages: {
             best: {
-              comments: [{ cid: "c1", timestamp: 1, subplebbitAddress: "s1" }],
+              comments: [{ cid: "c1", timestamp: 1, communityAddress: "s1" }],
             },
           },
         },
@@ -222,7 +222,7 @@ describe("replies pages store", () => {
               cid: firstCommentCid,
               timestamp: 0,
               updatedAt: 0,
-              subplebbitAddress: (this as any).subplebbitAddress,
+              communityAddress: (this as any).communityAddress,
             },
           ],
         };
@@ -410,7 +410,7 @@ describe("replies pages store", () => {
     const commentWithoutUpdatedAt = {
       cid: "no-updated-at-cid",
       timestamp: 5,
-      subplebbitAddress: "test-sub",
+      communityAddress: "test-sub",
     };
     const comment = {
       cid: "parent-cid",
@@ -437,7 +437,7 @@ describe("replies pages store", () => {
   test("addNextRepliesPageToStore returns early when no repliesFirstPageCid", async () => {
     const commentWithoutReplies = {
       cid: "no-replies-cid",
-      subplebbitAddress: "sub1",
+      communityAddress: "sub1",
       replies: {},
     };
     const sortType = "new";
@@ -458,8 +458,8 @@ describe("replies pages store", () => {
         pages: {
           best: {
             comments: [
-              { cid: "c1", timestamp: 1, subplebbitAddress: "sub1" },
-              { timestamp: 2, subplebbitAddress: "sub1" },
+              { cid: "c1", timestamp: 1, communityAddress: "sub1" },
+              { timestamp: 2, communityAddress: "sub1" },
             ],
           },
         },
@@ -495,8 +495,8 @@ describe("replies pages store", () => {
       return {
         nextCid: options?.cid + " - next page cid",
         comments: [
-          { cid: "valid-cid", timestamp: 1, subplebbitAddress: mockComment.subplebbitAddress },
-          { timestamp: 2, subplebbitAddress: mockComment.subplebbitAddress },
+          { cid: "valid-cid", timestamp: 1, communityAddress: mockComment.communityAddress },
+          { timestamp: 2, communityAddress: mockComment.communityAddress },
         ],
       };
     };
@@ -522,7 +522,7 @@ describe("replies pages store", () => {
                 cid: "existing-cid",
                 timestamp: 100,
                 updatedAt: 100,
-                subplebbitAddress: "sub1",
+                communityAddress: "sub1",
               },
             ],
           },
@@ -547,7 +547,7 @@ describe("replies pages store", () => {
     const firstPageCid = mockComment.replies.pageCids[sortType];
     const cachedPage = {
       nextCid: firstPageCid + " - next",
-      comments: [{ cid: "cached-1", subplebbitAddress: mockComment.subplebbitAddress }],
+      comments: [{ cid: "cached-1", communityAddress: mockComment.communityAddress }],
     };
     const db = localForageLru.createInstance({ name: "plebbitReactHooks-repliesPages" });
     await db.setItem(firstPageCid, cachedPage);
@@ -667,7 +667,7 @@ describe("replies pages store", () => {
       cid: "shared-cid",
       timestamp: 100,
       updatedAt: 100,
-      subplebbitAddress: "test-sub",
+      communityAddress: "test-sub",
     };
     const commentWithFresher = {
       cid: "parent-1",
@@ -691,7 +691,7 @@ describe("replies pages store", () => {
     const olderComment = {
       cid: "shared-cid",
       timestamp: 1,
-      subplebbitAddress: "test-sub",
+      communityAddress: "test-sub",
     };
     const commentWithOlder = {
       cid: "parent-2",

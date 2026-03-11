@@ -39,31 +39,31 @@ describe("PlebbitJsMock", () => {
     expect(onUpdatingstatechange.mock.results[2].value).toEqual("succeeded");
   });
 
-  test("Subplebbit.state and Subplebbit.updatingState", async () => {
+  test("Community.state and Community.updatingState", async () => {
     const plebbit = await PlebbitJsMock();
-    const subplebbit = await plebbit.createSubplebbit({ address: "subplebbit address" });
+    const community = await plebbit.createCommunity({ address: "community address" });
 
     // initial state is stopped
-    expect(subplebbit.state).toBe("stopped");
-    expect(subplebbit.updatingState).toBe("stopped");
+    expect(community.state).toBe("stopped");
+    expect(community.updatingState).toBe("stopped");
 
-    const onStatechange = vi.fn(() => subplebbit.state);
-    const onUpdatingstatechange = vi.fn(() => subplebbit.updatingState);
+    const onStatechange = vi.fn(() => community.state);
+    const onUpdatingstatechange = vi.fn(() => community.updatingState);
 
-    subplebbit.on("statechange", onStatechange);
-    subplebbit.on("updatingstatechange", onUpdatingstatechange);
+    community.on("statechange", onStatechange);
+    community.on("updatingstatechange", onUpdatingstatechange);
 
     // wait for succeeded twice (2 updates)
     let succeededCount = 0;
     const succeededPromise = new Promise((resolve) =>
-      subplebbit.on("updatingstatechange", (state: string) => {
+      community.on("updatingstatechange", (state: string) => {
         state === "succeeded" && ++succeededCount === 2 && resolve(state);
       }),
     );
 
     // start updating state
-    await subplebbit.update();
-    expect(subplebbit.state).toBe("updating");
+    await community.update();
+    expect(community.state).toBe("updating");
 
     await succeededPromise;
     expect(onStatechange.mock.calls[0]).toEqual(["updating"]);
@@ -84,7 +84,7 @@ describe("PlebbitJsMock", () => {
     const plebbit = await PlebbitJsMock();
     const comment = await plebbit.createComment({
       content: "content",
-      subplebbitAddresses: "subplebbit address",
+      communityAddress: "community address",
     });
 
     // initial state is stopped
@@ -130,7 +130,7 @@ describe("PlebbitJsMock", () => {
     const plebbit = await PlebbitJsMock();
     const comment = await plebbit.createComment({
       content: "content",
-      subplebbitAddress: "subplebbit address",
+      communityAddress: "community address",
     });
 
     expect(comment.state).toBe("stopped");
@@ -154,5 +154,25 @@ describe("PlebbitJsMock", () => {
     expect(comment.publishingState).toBe("stopped");
     expect(onStatechange.mock.calls.some((c) => c[0] === "stopped")).toBe(true);
     expect(onPublishingstatechange.mock.calls.some((c) => c[0] === "stopped")).toBe(true);
+  });
+
+  test("Community create/edit preserves intentional falsy values", async () => {
+    const plebbit = await PlebbitJsMock();
+    const community = await plebbit.createCommunity({
+      address: "community address",
+      customFlag: false,
+      customCount: 0,
+      customLabel: "",
+      suggested: true,
+      title: "title",
+    });
+
+    expect((community as any).customFlag).toBe(false);
+    expect((community as any).customCount).toBe(0);
+    expect((community as any).customLabel).toBe("");
+
+    await community.edit({ suggested: false, title: "" });
+    expect(community.suggested).toBe(false);
+    expect(community.title).toBe("");
   });
 });

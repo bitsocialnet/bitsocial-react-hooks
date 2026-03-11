@@ -11,11 +11,11 @@ Account {
   plebbit: Plebbit,
   plebbitOptions: PlebbitOptions,
   // subscriptions to show in feed
-  subscriptions: string[], // subplebbit subscriptions
+  subscriptions: string[], // community subscriptions
   multisubSubscriptions: string[],
   authorSubscriptions: string[],
   // notifications turned on for addresses/cids
-  notifyingSubplebbits: {[address: string]: boolean}
+  notifyingCommunities: {[address: string]: boolean}
   notifyingMultisubs: {[address: string]: boolean}
   notifyingAuthors: {[address: string]: boolean}
   notifyingComments: {[commentCid: string]: boolean}
@@ -25,7 +25,7 @@ Account {
   savedComments: string[], // save a list of comments for later
   karma: Karma
   unreadNotificationCount: number
-  subplebbits: {[subplebbitAddress: string]: AccountSubplebbit} // the subplebbits moderated or created by the user
+  communities: {[communityAddress: string]: AccountCommunity} // the communities moderated or created by the user
 }
 Karma {
   replyUpvoteCount
@@ -38,7 +38,7 @@ Karma {
   downvoteCount
   score
 }
-AccountSubplebbit { // the subplebbits moderated or created by the user
+AccountCommunity { // the communities moderated or created by the user
   role: Role
 }
 AccountComment extends Comment {
@@ -53,8 +53,8 @@ UseAccountsCommentsOptions {
   accountName?: string
   filter: UseAccountCommentsFilter
 }
-UseAccountCommentsFilter { // only get your own account's comments/votes on a certain subplebbit, thread, etc useful for certain UI pages
-  subplebbitAddresses?: string[]
+UseAccountCommentsFilter { // only get your own account's comments/votes on a certain community, thread, etc useful for certain UI pages
+  communityAddresses?: string[]
   postCids?: string[]
   commentCids?: string[]
   parentCommentCids?: string[]
@@ -99,14 +99,14 @@ Challenge {
   AccountsVotes (each database named accountVotes-[accountId]) {
     [commentCid: string]: AccountVote
   }
-  Subplebbits {
-    [subplebbitAddress: string]: Subplebbit // last recently used database, delete oldest data
+  Communities {
+    [communityAddress: string]: Community // last recently used database, delete oldest data
   }
   Comments {
     [commentCid: string]: Comment // last recently used database, delete oldest data, different from AccountsComments that never expire
   }
-  SubplebbitPages {
-    [pageCid: string]: SubplebbitPage // last recently used database, delete oldest data
+  CommunityPages {
+    [pageCid: string]: CommunityPage // last recently used database, delete oldest data
   }
 ```
 
@@ -132,16 +132,16 @@ commentsStore (store in indexeddb last recently used) {
   // internal
   addCommentToStore(commentCid)
 }
-subplebbitsStore (store in indexeddb last recently used) {
-  subplebbits: {[subplebbitAddress: string]: Subplebbit}
+communitiesStore (store in indexeddb last recently used) {
+  communities: {[communityAddress: string]: Community}
   // internal
-  addSubplebbitToStore(subplebbitAddress)
+  addCommunityToStore(communityAddress)
 }
-feedsStore (no persistant storage, can be rebuilt from Subplebbits and SubplebbitPages databases) {
+feedsStore (no persistant storage, can be rebuilt from Communities and CommunityPages databases) {
   bufferedFeeds: {[feedName: string]: Comment[]}
   loadedFeeds: {[feedName: string]: Comment[]}
   feedsHaveMore: {[feedName: string]: boolean}
   // internal
-  addFeedToStore(feedName, subplebbitAddresses, sortType, account)
+  addFeedToStore(feedName, communityAddresses, sortType, account)
 }
 ```

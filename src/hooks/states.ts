@@ -5,18 +5,18 @@ import assert from "assert";
 import {
   UseClientsStatesOptions,
   UseClientsStatesResult,
-  UseSubplebbitsStatesOptions,
-  UseSubplebbitsStatesResult,
+  UseCommunitiesStatesOptions,
+  UseCommunitiesStatesResult,
 } from "../types";
-import { useSubplebbits } from "./subplebbits";
-import { subplebbitPostsCacheExpired } from "../lib/utils";
+import { useCommunities } from "./communities";
+import { communityPostsCacheExpired } from "../lib/utils";
 
 // TODO: implement getting peers
 const peers = {};
 
 /**
  * @param comment - The comment to get the states from
- * @param subplebbit - The subplebbit to get the states from
+ * @param community - The community to get the states from
  * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
  * the active account.
  */
@@ -25,33 +25,33 @@ export function useClientsStates(options?: UseClientsStatesOptions): UseClientsS
     options == null || typeof options === "object",
     `useClientsStates options argument '${options}' not an object`,
   );
-  const { comment, subplebbit } = options ?? {};
+  const { comment, community } = options ?? {};
   assert(
     comment == null || typeof comment === "object",
     `useClientsStates options.comment argument '${comment}' not an object`,
   );
   assert(
-    subplebbit == null || typeof subplebbit === "object",
-    `useClientsStates options.subplebbit argument '${subplebbit}' not an object`,
+    community == null || typeof community === "object",
+    `useClientsStates options.community argument '${community}' not an object`,
   );
   assert(
-    !(comment && subplebbit),
-    `useClientsStates options.comment and options.subplebbit arguments cannot be defined at the same time`,
+    !(comment && community),
+    `useClientsStates options.comment and options.community arguments cannot be defined at the same time`,
   );
-  const commentOrSubplebbit = comment || subplebbit;
+  const commentOrCommunity = comment || community;
 
   const states = useMemo(() => {
     const states: { [state: string]: string[] } = {};
 
     // if comment is newer than 5 minutes, don't show updating state so user knows it finished
-    if (commentOrSubplebbit?.cid && commentOrSubplebbit.timestamp + 5 * 60 > Date.now() / 1000) {
+    if (commentOrCommunity?.cid && commentOrCommunity.timestamp + 5 * 60 > Date.now() / 1000) {
       return states;
     }
 
-    if (!commentOrSubplebbit?.clients) {
+    if (!commentOrCommunity?.clients) {
       return states;
     }
-    const clients = commentOrSubplebbit?.clients;
+    const clients = commentOrCommunity?.clients;
 
     const addState = (state: string | undefined, clientUrl: string) => {
       if (!state || state === "stopped") {
@@ -64,7 +64,7 @@ export function useClientsStates(options?: UseClientsStatesOptions): UseClientsS
     };
 
     // dont show state if the data is already fetched
-    if (!commentOrSubplebbit?.updatedAt || subplebbitPostsCacheExpired(commentOrSubplebbit)) {
+    if (!commentOrCommunity?.updatedAt || communityPostsCacheExpired(commentOrCommunity)) {
       for (const clientUrl in clients?.ipfsGateways) {
         addState(clients.ipfsGateways[clientUrl]?.state, clientUrl);
       }
@@ -87,8 +87,8 @@ export function useClientsStates(options?: UseClientsStatesOptions): UseClientsS
       }
     }
 
-    // find subplebbit pages and comment replies pages states
-    const pages = commentOrSubplebbit?.posts || commentOrSubplebbit?.replies;
+    // find community pages and comment replies pages states
+    const pages = commentOrCommunity?.posts || commentOrCommunity?.replies;
     if (pages) {
       for (const clientType in pages.clients) {
         for (const sortType in pages.clients[clientType]) {
@@ -108,14 +108,14 @@ export function useClientsStates(options?: UseClientsStatesOptions): UseClientsS
     }
 
     log("useClientsStates", {
-      subplebbitAddress: commentOrSubplebbit?.address,
-      commentCid: commentOrSubplebbit?.cid,
+      communityAddress: commentOrCommunity?.address,
+      commentCid: commentOrCommunity?.cid,
       states,
-      commentOrSubplebbit,
+      commentOrCommunity,
     });
 
     return states;
-  }, [commentOrSubplebbit]);
+  }, [commentOrCommunity]);
 
   return useMemo(
     () => ({
@@ -130,85 +130,85 @@ export function useClientsStates(options?: UseClientsStatesOptions): UseClientsS
 }
 
 /**
- * @param subplebbitAddresses - The subplebbit addresses to get the states from
+ * @param communityAddresses - The community addresses to get the states from
  * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
  * the active account.
  */
-export function useSubplebbitsStates(
-  options?: UseSubplebbitsStatesOptions,
-): UseSubplebbitsStatesResult {
+export function useCommunitiesStates(
+  options?: UseCommunitiesStatesOptions,
+): UseCommunitiesStatesResult {
   assert(
     options == null || typeof options === "object",
-    `useSubplebbitsStates options argument '${options}' not an object`,
+    `useCommunitiesStates options argument '${options}' not an object`,
   );
-  const { subplebbitAddresses } = options ?? {};
+  const { communityAddresses } = options ?? {};
   assert(
-    subplebbitAddresses == null || Array.isArray(subplebbitAddresses),
-    `useSubplebbitsStates subplebbitAddresses '${subplebbitAddresses}' not an array`,
+    communityAddresses == null || Array.isArray(communityAddresses),
+    `useCommunitiesStates communityAddresses '${communityAddresses}' not an array`,
   );
-  for (const subplebbitAddress of subplebbitAddresses ?? []) {
+  for (const communityAddress of communityAddresses ?? []) {
     assert(
-      typeof subplebbitAddress === "string",
-      `useSubplebbitsStates subplebbitAddresses '${subplebbitAddresses}' subplebbitAddress '${subplebbitAddress}' not a string`,
+      typeof communityAddress === "string",
+      `useCommunitiesStates communityAddresses '${communityAddresses}' communityAddress '${communityAddress}' not a string`,
     );
   }
-  const { subplebbits } = useSubplebbits({ subplebbitAddresses });
+  const { communities } = useCommunities({ communityAddresses });
 
   const states = useMemo(() => {
     const states: {
-      [state: string]: { subplebbitAddresses: Set<string>; clientUrls: Set<string> };
+      [state: string]: { communityAddresses: Set<string>; clientUrls: Set<string> };
     } = {};
-    for (const subplebbit of subplebbits) {
-      if (!subplebbit?.updatingState) {
+    for (const community of communities) {
+      if (!community?.updatingState) {
         continue;
       }
 
-      // dont show subplebbit state if data is already fetched
+      // dont show community state if data is already fetched
       if (
-        (!subplebbit.updatedAt || subplebbitPostsCacheExpired(subplebbit)) &&
-        subplebbit?.updatingState !== "stopped" &&
-        subplebbit?.updatingState !== "succeeded"
+        (!community.updatedAt || communityPostsCacheExpired(community)) &&
+        community?.updatingState !== "stopped" &&
+        community?.updatingState !== "succeeded"
       ) {
-        if (!states[subplebbit.updatingState]) {
-          states[subplebbit.updatingState] = {
-            subplebbitAddresses: new Set(),
+        if (!states[community.updatingState]) {
+          states[community.updatingState] = {
+            communityAddresses: new Set(),
             clientUrls: new Set(),
           };
         }
-        states[subplebbit.updatingState].subplebbitAddresses.add(subplebbit.address);
+        states[community.updatingState].communityAddresses.add(community.address);
 
         // find client urls
-        for (const clientType in subplebbit.clients) {
+        for (const clientType in community.clients) {
           if (clientType === "chainProviders") {
-            for (const chainTicker in subplebbit.clients.chainProviders) {
-              for (const clientUrl in subplebbit.clients.chainProviders[chainTicker]) {
-                const state = subplebbit.clients.chainProviders[chainTicker][clientUrl].state;
-                // TODO: client states should always be the same as subplebbit.updatingState
+            for (const chainTicker in community.clients.chainProviders) {
+              for (const clientUrl in community.clients.chainProviders[chainTicker]) {
+                const state = community.clients.chainProviders[chainTicker][clientUrl].state;
+                // TODO: client states should always be the same as community.updatingState
                 // but possibly because of a plebbit-js bug they are sometimes not
-                if (state !== "stopped" && state === subplebbit.updatingState) {
-                  states[subplebbit.updatingState].clientUrls.add(clientUrl);
+                if (state !== "stopped" && state === community.updatingState) {
+                  states[community.updatingState].clientUrls.add(clientUrl);
                 }
               }
             }
           } else {
-            for (const clientUrl in subplebbit.clients[clientType]) {
-              const state = subplebbit.clients[clientType][clientUrl].state;
-              // TODO: client states should always be the same as subplebbit.updatingState
+            for (const clientUrl in community.clients[clientType]) {
+              const state = community.clients[clientType][clientUrl].state;
+              // TODO: client states should always be the same as community.updatingState
               // but possibly because of a plebbit-js bug they are sometimes not
-              if (state !== "stopped" && state === subplebbit.updatingState) {
-                states[subplebbit.updatingState].clientUrls.add(clientUrl);
+              if (state !== "stopped" && state === community.updatingState) {
+                states[community.updatingState].clientUrls.add(clientUrl);
               }
             }
           }
         }
       }
 
-      // find subplebbit pages states and client urls
+      // find community pages states and client urls
       const pagesClientsUrls: { [state: string]: string[] } = {};
-      for (const clientType in subplebbit?.posts?.clients) {
-        for (const sortType in subplebbit.posts.clients[clientType]) {
-          for (const clientUrl in subplebbit.posts.clients[clientType][sortType]) {
-            let state = subplebbit.posts.clients[clientType][sortType][clientUrl].state;
+      for (const clientType in community?.posts?.clients) {
+        for (const sortType in community.posts.clients[clientType]) {
+          for (const clientUrl in community.posts.clients[clientType][sortType]) {
+            let state = community.posts.clients[clientType][sortType][clientUrl].state;
             if (state !== "stopped") {
               state += `-page-${sortType}`;
               if (!pagesClientsUrls[state]) {
@@ -219,12 +219,12 @@ export function useSubplebbitsStates(
           }
         }
       }
-      // add subplebbitAddresses and clientUrls
+      // add communityAddresses and clientUrls
       for (const pagesState in pagesClientsUrls) {
         if (!states[pagesState]) {
-          states[pagesState] = { subplebbitAddresses: new Set(), clientUrls: new Set() };
+          states[pagesState] = { communityAddresses: new Set(), clientUrls: new Set() };
         }
-        states[pagesState].subplebbitAddresses.add(subplebbit.address);
+        states[pagesState].communityAddresses.add(community.address);
         pagesClientsUrls[pagesState].forEach((clientUrl: string) =>
           states[pagesState].clientUrls.add(clientUrl),
         );
@@ -232,23 +232,22 @@ export function useSubplebbitsStates(
     }
 
     // convert sets to arrays
-    const _states: { [state: string]: { subplebbitAddresses: string[]; clientUrls: string[] } } =
-      {};
+    const _states: { [state: string]: { communityAddresses: string[]; clientUrls: string[] } } = {};
     for (const state in states) {
       _states[state] = {
-        subplebbitAddresses: [...states[state].subplebbitAddresses],
+        communityAddresses: [...states[state].communityAddresses],
         clientUrls: [...states[state].clientUrls],
       };
     }
 
-    log("useSubplebbitsStates", {
-      subplebbitAddresses,
+    log("useCommunitiesStates", {
+      communityAddresses,
       states: _states,
-      subplebbits,
+      communities,
     });
 
     return _states;
-  }, [subplebbits]);
+  }, [communities]);
 
   return useMemo(
     () => ({

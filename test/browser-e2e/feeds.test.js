@@ -13,7 +13,7 @@ import * as accountsActions from "../../dist/stores/accounts/accounts-actions";
 import testUtils from "../../dist/lib/test-utils";
 import { offlineIpfs, pubsubIpfs, plebbitRpc } from "../test-server/config";
 import signers from "../fixtures/signers";
-const subplebbitAddress = signers[0].address;
+const communityAddress = signers[0].address;
 const isBase64 = (testString) =>
   /^([0-9a-zA-Z+/]{4})*(([0-9a-zA-Z+/]{2}==)|([0-9a-zA-Z+/]{3}))?$/gm.test(testString);
 
@@ -107,21 +107,21 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
     it("change sort type", async () => {
       console.log(`starting feeds tests (${plebbitOptionsType})`);
 
-      rendered.rerender({ subplebbitAddresses: [subplebbitAddress], sortType: "hot" });
+      rendered.rerender({ communityAddresses: [communityAddress], sortType: "hot" });
       await waitFor(() => !!rendered.result.current.feed[0].cid);
-      expect(rendered.result.current.feed[0].subplebbitAddress).to.equal(subplebbitAddress);
+      expect(rendered.result.current.feed[0].communityAddress).to.equal(communityAddress);
       console.log("after first render");
 
       // reset
-      rendered.rerender({ subplebbitAddresses: [] });
+      rendered.rerender({ communityAddresses: [] });
       await waitFor(() => rendered.result.current.feed.length === 0);
       expect(rendered.result.current.feed.length).to.equal(0);
       console.log("after second render");
 
       // change sort type
-      rendered.rerender({ subplebbitAddresses: [subplebbitAddress], sortType: "new" });
+      rendered.rerender({ communityAddresses: [communityAddress], sortType: "new" });
       await waitFor(() => !!rendered.result.current.feed[0].cid);
-      expect(rendered.result.current.feed[0].subplebbitAddress).to.equal(subplebbitAddress);
+      expect(rendered.result.current.feed[0].communityAddress).to.equal(communityAddress);
     });
 
     it("validate comments", async () => {
@@ -133,9 +133,9 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
       // utility directly instead — the hook is a thin wrapper around it.
       const { commentIsValid } = await import("../../dist/lib/utils/utils");
 
-      rendered.rerender({ subplebbitAddresses: [subplebbitAddress], sortType: "hot" });
+      rendered.rerender({ communityAddresses: [communityAddress], sortType: "hot" });
       await waitFor(() => !!rendered.result.current.feed[0]?.cid);
-      expect(rendered.result.current.feed[0].subplebbitAddress).to.equal(subplebbitAddress);
+      expect(rendered.result.current.feed[0].communityAddress).to.equal(communityAddress);
       const comment = rendered.result.current.feed[0];
       const plebbit = rendered.result.current.account.plebbit;
       console.log("after first render");
@@ -148,7 +148,7 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
       invalidComment.raw.comment.signature.signature = "corrupted";
       const invalidResult = await commentIsValid(
         invalidComment,
-        { validateReplies: true, blockSubplebbit: false },
+        { validateReplies: true, blockCommunity: false },
         plebbit,
       );
       expect(invalidResult).to.equal(false);
@@ -157,7 +157,7 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
       // validate valid comment
       const validResult = await commentIsValid(
         comment,
-        { validateReplies: true, blockSubplebbit: false },
+        { validateReplies: true, blockCommunity: false },
         plebbit,
       );
       expect(validResult).to.equal(true);
@@ -166,7 +166,7 @@ for (const plebbitOptionsType in plebbitOptionsTypes) {
       // validate valid comment without replies
       const validWithoutRepliesResult = await commentIsValid(
         comment,
-        { validateReplies: false, blockSubplebbit: false },
+        { validateReplies: false, blockCommunity: false },
         plebbit,
       );
       expect(validWithoutRepliesResult).to.equal(true);
