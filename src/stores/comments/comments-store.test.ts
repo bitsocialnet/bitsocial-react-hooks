@@ -181,6 +181,41 @@ describe("comments store", () => {
     (repliesPagesStore as any).getState = repliesPagesGetState;
   });
 
+  test("addCommentToStore preserves live legacy comment instances with event methods", async () => {
+    const commentCid = "legacy-live-comment-cid";
+    const onSpy = vi.fn();
+    const updateSpy = vi.fn().mockResolvedValue(undefined);
+    const liveComment = {
+      cid: commentCid,
+      timestamp: 1,
+      subplebbitAddress: "legacy-community-address",
+      clients: {},
+      on: onSpy,
+      once: vi.fn(),
+      update: updateSpy,
+      removeAllListeners: vi.fn(),
+    };
+    const createCommentOrig = mockAccount.plebbit.createComment;
+    mockAccount.plebbit.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    await act(async () => {
+      await commentsStore.getState().addCommentToStore(commentCid, mockAccount);
+    });
+
+    expect(mockAccount.plebbit.createComment).toHaveBeenCalledWith({ cid: commentCid });
+    expect(commentsStore.getState().comments[commentCid]).toEqual(
+      expect.objectContaining({
+        cid: commentCid,
+        communityAddress: "legacy-community-address",
+      }),
+    );
+    expect(liveComment.communityAddress).toBe("legacy-community-address");
+    expect(onSpy).toHaveBeenCalledTimes(3);
+    expect(updateSpy).toHaveBeenCalledTimes(1);
+
+    mockAccount.plebbit.createComment = createCommentOrig;
+  });
+
   test("missing-comment client update guard returns empty object", async () => {
     const commentCid = "client-update-cid";
     let storedCb: ((...args: any[]) => void) | null = null;

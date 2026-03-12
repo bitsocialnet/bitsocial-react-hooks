@@ -232,6 +232,29 @@ describe("replies store", () => {
     const repliesPagesCount = Object.keys(repliesPagesStore.getState().repliesPages).length;
   });
 
+  test("addFeedToStoreOrUpdateComment accepts legacy plebbit accounts without getCommunity", async () => {
+    const getCommunity = mockAccount.plebbit.getCommunity;
+    delete mockAccount.plebbit.getCommunity;
+
+    try {
+      const commentCid = "legacy comment cid";
+      const sortType = "new";
+      const feedOptions = { sortType, commentCid, accountId: mockAccount.id };
+      const feedName = feedOptionsToFeedName(feedOptions);
+      const comment = new MockComment({ cid: commentCid });
+
+      act(() => {
+        rendered.result.current.addFeedToStoreOrUpdateComment(comment, feedOptions);
+      });
+
+      await waitFor(() => rendered.result.current.feedsOptions[feedName]);
+      await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length > 0);
+      expect(rendered.result.current.loadedFeeds[feedName].length).toBe(repliesPerPage);
+    } finally {
+      mockAccount.plebbit.getCommunity = getCommunity;
+    }
+  });
+
   test("addFeedsToStore returns early when feedOptionsArray is empty", () => {
     const result = rendered.result.current.addFeedsToStore([]);
     expect(result).toBeUndefined();

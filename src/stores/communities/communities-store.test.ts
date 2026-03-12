@@ -3,11 +3,36 @@ import testUtils, { renderHook } from "../../lib/test-utils";
 import communitiesStore, { resetCommunitiesDatabaseAndStore } from "./communities-store";
 import localForageLru from "../../lib/localforage-lru";
 import { setPlebbitJs } from "../..";
-import PlebbitJsMock from "../../lib/plebbit-js/plebbit-js-mock";
+import PlebbitJsMock, { Plebbit as BasePlebbit } from "../../lib/plebbit-js/plebbit-js-mock";
 import accountsStore from "../accounts";
 import communitiesPagesStore from "../communities-pages";
 
 let mockAccount: any;
+
+const createLegacyOnlyAccount = () => {
+  class LegacyOnlyPlebbit extends BasePlebbit {
+    constructor(...args: any[]) {
+      super(...args);
+      (this as any).createCommunity = undefined;
+      (this as any).getCommunity = undefined;
+      (this as any).createCommunityEdit = undefined;
+    }
+
+    async createSubplebbit(opts: any) {
+      return BasePlebbit.prototype.createCommunity.call(this, opts);
+    }
+
+    async getSubplebbit(opts: any) {
+      return BasePlebbit.prototype.getCommunity.call(this, opts);
+    }
+
+    async createSubplebbitEdit(opts: any) {
+      return BasePlebbit.prototype.createCommunityEdit.call(this, opts);
+    }
+  }
+
+  return { id: "legacy-account-id", plebbit: new LegacyOnlyPlebbit() };
+};
 
 describe("communities store", () => {
   beforeAll(async () => {
@@ -238,6 +263,34 @@ describe("communities store", () => {
     await expect(
       communitiesStore.getState().createCommunity({ address: "addr-no-signer" }, mockAccount),
     ).rejects.toThrow("createCommunityOptions.address 'addr-no-signer' must be undefined");
+  });
+
+  test("legacy createSubplebbit accounts can create, edit, and delete communities", async () => {
+    const legacyAccount = createLegacyOnlyAccount();
+    let community: any;
+
+    await act(async () => {
+      community = await communitiesStore
+        .getState()
+        .createCommunity({ title: "legacy title" }, legacyAccount);
+    });
+
+    expect(community.address).toBeDefined();
+    expect(communitiesStore.getState().communities[community.address]?.title).toBe("legacy title");
+
+    await act(async () => {
+      await communitiesStore
+        .getState()
+        .editCommunity(community.address, { title: "legacy edited" }, legacyAccount);
+    });
+
+    expect(communitiesStore.getState().communities[community.address]?.title).toBe("legacy edited");
+
+    await act(async () => {
+      await communitiesStore.getState().deleteCommunity(community.address, legacyAccount);
+    });
+
+    expect(communitiesStore.getState().communities[community.address]).toBeUndefined();
   });
 
   test("clientsOnStateChange with chainTicker branch", async () => {

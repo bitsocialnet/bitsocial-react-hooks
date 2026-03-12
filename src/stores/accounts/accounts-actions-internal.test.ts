@@ -71,13 +71,75 @@ describe("accounts-actions-internal", () => {
         0,
       );
 
-      expect(account.plebbit.createComment).toHaveBeenCalledWith(plainComment);
+      expect(account.plebbit.createComment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cid: "plain-cid",
+          author: expect.objectContaining({ address: account.author.address }),
+          subplebbitAddress: "sub.eth",
+          depth: 0,
+        }),
+      );
+      expect(createdComment.communityAddress).toBe("sub.eth");
 
       await act(async () => {
         createdComment.emit("update", { ...plainComment, cid: "plain-cid" });
       });
 
       await new Promise((r) => setTimeout(r, 50));
+    });
+
+    test("frozen live comment without communityAddress does not crash backfill fallback", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const updateListeners: Array<(c: any) => void> = [];
+      const plainComment = Object.freeze({
+        cid: "cid-frozen-community",
+        on: (_: string, fn: (c: any) => void) => {
+          updateListeners.push(fn);
+        },
+        emit: (_: string, c: any) => {
+          updateListeners.forEach((fn) => fn(c));
+        },
+        removeAllListeners: () => {},
+        stop: () => {},
+        update: () => Promise.resolve(),
+      });
+      await accountsDatabase.addAccountComment(account.id, {
+        cid: "cid-frozen-community",
+        index: 0,
+        accountId: account.id,
+        timestamp: 1,
+        author: { address: account.author.address },
+        communityAddress: "sub.eth",
+      } as any);
+      accountsStore.setState((s) => ({
+        accountsComments: {
+          ...s.accountsComments,
+          [account.id]: [
+            {
+              cid: "cid-frozen-community",
+              index: 0,
+              accountId: account.id,
+              timestamp: 1,
+              communityAddress: "sub.eth",
+            },
+          ],
+        },
+        commentCidsToAccountsComments: {
+          "cid-frozen-community": { accountId: account.id, accountCommentIndex: 0 },
+        },
+        accountsCommentsReplies: {
+          ...s.accountsCommentsReplies,
+          [account.id]: {},
+        },
+      }));
+
+      await accountsActionsInternal.startUpdatingAccountCommentOnCommentUpdateEvents(
+        plainComment as any,
+        account,
+        0,
+      );
+
+      expect((plainComment as any).communityAddress).toBeUndefined();
     });
 
     test("returns early when account comment already updating", async () => {
@@ -547,6 +609,84 @@ describe("accounts-actions-internal", () => {
       await new Promise((r) => setTimeout(r, 150));
       const replies = accountsStore.getState().accountsCommentsReplies[account.id] || {};
       expect(replies["reply-1"]).toBeDefined();
+    });
+
+    test("update backfills root communityAddress and normalizes legacy reply fields", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const comment = new Comment({
+        cid: "cid-legacy-replies",
+        author: { address: account.author.address },
+        depth: 0,
+      });
+      const legacyReply = {
+        cid: "reply-legacy",
+        author: { address: "r1" },
+        subplebbitAddress: "sub.eth",
+        depth: 1,
+        parentCid: "cid-legacy-replies",
+        timestamp: 2,
+      };
+      await accountsDatabase.addAccountComment(account.id, {
+        cid: "cid-legacy-replies",
+        index: 0,
+        accountId: account.id,
+        timestamp: 1,
+        author: { address: account.author.address },
+        communityAddress: "sub.eth",
+      } as any);
+      accountsStore.setState((s) => ({
+        accountsComments: {
+          ...s.accountsComments,
+          [account.id]: [
+            {
+              cid: "cid-legacy-replies",
+              index: 0,
+              accountId: account.id,
+              timestamp: 1,
+              communityAddress: "sub.eth",
+            },
+          ],
+        },
+        commentCidsToAccountsComments: {
+          "cid-legacy-replies": { accountId: account.id, accountCommentIndex: 0 },
+        },
+        accountsCommentsReplies: {
+          ...s.accountsCommentsReplies,
+          [account.id]: {},
+        },
+      }));
+
+      await accountsActionsInternal.startUpdatingAccountCommentOnCommentUpdateEvents(
+        comment,
+        account,
+        0,
+      );
+
+      expect(comment.communityAddress).toBe("sub.eth");
+
+      await act(async () => {
+        comment.emit("update", {
+          cid: "cid-legacy-replies",
+          author: { address: account.author.address },
+          depth: 0,
+          replies: {
+            pages: {
+              page1: { comments: [legacyReply] },
+            },
+          },
+        });
+      });
+
+      await new Promise((r) => setTimeout(r, 150));
+
+      const storedComment = accountsStore.getState().accountsComments[account.id]?.[0];
+      expect(storedComment?.communityAddress).toBe("sub.eth");
+      expect(storedComment?.subplebbitAddress).toBeUndefined();
+
+      const replies = accountsStore.getState().accountsCommentsReplies[account.id] || {};
+      expect(replies["reply-legacy"]).toBeDefined();
+      expect(replies["reply-legacy"].communityAddress).toBe("sub.eth");
+      expect(replies["reply-legacy"].subplebbitAddress).toBeUndefined();
     });
 
     test("update with hasReplies but accountsCommentsReplies[account.id] missing: logs error", async () => {

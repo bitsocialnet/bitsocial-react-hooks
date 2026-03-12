@@ -254,7 +254,7 @@ const communitiesStore = createStore<CommunitiesState>(
         `communitiesStore.editCommunity invalid communityEditOptions argument '${communityEditOptions}'`,
       );
       assert(
-        typeof account?.plebbit?.createCommunity === "function",
+        typeof getPlebbitCreateCommunity(account?.plebbit) === "function",
         `communitiesStore.editCommunity invalid account argument '${account}'`,
       );
 
@@ -304,7 +304,7 @@ const communitiesStore = createStore<CommunitiesState>(
         );
       }
       assert(
-        typeof account?.plebbit?.createCommunity === "function",
+        typeof getPlebbitCreateCommunity(account?.plebbit) === "function",
         `communitiesStore.createCommunity invalid account argument '${account}'`,
       );
 
@@ -331,7 +331,7 @@ const communitiesStore = createStore<CommunitiesState>(
         `communitiesStore.deleteCommunity invalid communityAddress argument '${communityAddress}'`,
       );
       assert(
-        typeof account?.plebbit?.createCommunity === "function",
+        typeof getPlebbitCreateCommunity(account?.plebbit) === "function",
         `communitiesStore.deleteCommunity invalid account argument '${account}'`,
       );
 

@@ -15,6 +15,41 @@ import {
   Community,
 } from "../../types";
 import utils from "../../lib/utils";
+import {
+  backfillPublicationCommunityAddress,
+  getCommentCommunityAddress,
+  normalizePublicationOptionsForPlebbit,
+  normalizePublicationOptionsForStore,
+} from "../../lib/plebbit-compat";
+import { addShortAddressesToAccountComment } from "./utils";
+
+const backfillLiveCommentCommunityAddress = (
+  comment: Comment | undefined,
+  communityAddress: string | undefined,
+) => {
+  if (!comment || comment.communityAddress || !communityAddress) {
+    return;
+  }
+
+  try {
+    Object.defineProperty(comment, "communityAddress", {
+      value: communityAddress,
+      writable: true,
+      configurable: true,
+      enumerable: false,
+    });
+  } catch (error) {
+    try {
+      comment.communityAddress = communityAddress;
+    } catch (assignmentError) {
+      log.trace("backfillLiveCommentCommunityAddress failed", {
+        cid: comment.cid,
+        error,
+        assignmentError,
+      });
+    }
+  }
+};
 
 // TODO: we currently subscribe to updates for every single comment
 // in the user's account history. This probably does not scale, we
@@ -50,8 +85,22 @@ export const startUpdatingAccountCommentOnCommentUpdateEvents = async (
 
   // comment is not a `Comment` instance
   if (!comment.on) {
-    comment = await account.plebbit.createComment(comment);
+    comment = backfillPublicationCommunityAddress(
+      await account.plebbit.createComment(
+        normalizePublicationOptionsForPlebbit(account.plebbit, comment),
+      ),
+      comment,
+    );
   }
+
+  const initialStoredComment =
+    accountsStore.getState().accountsComments[account.id]?.[accountCommentIndex];
+  backfillLiveCommentCommunityAddress(
+    comment,
+    getCommentCommunityAddress(commentArgument) ||
+      initialStoredComment?.communityAddress ||
+      initialStoredComment?.subplebbitAddress,
+  );
 
   comment.on("update", async (updatedComment: Comment) => {
     const mapping =
@@ -76,7 +125,38 @@ export const startUpdatingAccountCommentOnCommentUpdateEvents = async (
     const currentIndex = mapping.accountCommentIndex;
 
     // merge should not be needed if plebbit-js is implemented properly, but no harm in fixing potential errors
+    const storedComment = accountsStore.getState().accountsComments[account.id]?.[currentIndex];
     updatedComment = utils.merge(commentArgument, comment, updatedComment);
+    updatedComment.communityAddress =
+      getCommentCommunityAddress(updatedComment) ||
+      getCommentCommunityAddress(comment) ||
+      getCommentCommunityAddress(commentArgument) ||
+      storedComment?.communityAddress ||
+      storedComment?.subplebbitAddress;
+    updatedComment = addShortAddressesToAccountComment(
+      normalizePublicationOptionsForStore(updatedComment) as Comment,
+    ) as Comment;
+    if (updatedComment.replies?.pages) {
+      updatedComment = {
+        ...updatedComment,
+        replies: {
+          ...updatedComment.replies,
+          pages: Object.fromEntries(
+            Object.entries(updatedComment.replies.pages).map(([pageCid, page]: [string, any]) => [
+              pageCid,
+              page?.comments
+                ? {
+                    ...page,
+                    comments: page.comments.map((reply: any) =>
+                      normalizePublicationOptionsForStore(reply),
+                    ),
+                  }
+                : page,
+            ]),
+          ),
+        },
+      } as Comment;
+    }
     await accountsDatabase.addAccountComment(account.id, updatedComment, currentIndex);
     log("startUpdatingAccountCommentOnCommentUpdateEvents comment update", {
       commentCid: comment.cid,

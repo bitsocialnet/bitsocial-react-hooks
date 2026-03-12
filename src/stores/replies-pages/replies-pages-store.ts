@@ -41,7 +41,7 @@ const repliesPagesStore = createStore<RepliesPagesState>(
         `repliesPagesStore.addNextRepliesPageToStore sortType '${sortType}' invalid`,
       );
       assert(
-        typeof account?.plebbit?.createCommunity === "function",
+        typeof account?.plebbit?.createComment === "function",
         `repliesPagesStore.addNextRepliesPageToStore account '${account}' invalid`,
       );
 

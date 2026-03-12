@@ -70,7 +70,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     }
 
     // the comment is still missing up to date mutable data like upvotes, edits, replies, etc
-    comment?.on("update", async (updatedComment: Comment) => {
+    comment?.on?.("update", async (updatedComment: Comment) => {
       updatedComment = normalizeCommentCommunityAddress(utils.clone(updatedComment)) as Comment;
       await commentsDatabase.setItem(commentCid, updatedComment);
       log("commentsStore comment update", { commentCid, updatedComment, account });
@@ -82,7 +82,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
       repliesPagesStore.getState().addRepliesPageCommentsToStore(comment);
     });
 
-    comment?.on("updatingstatechange", (updatingState: string) => {
+    comment?.on?.("updatingstatechange", (updatingState: string) => {
       setState((state: CommentsState) => ({
         comments: {
           ...state.comments,
@@ -91,7 +91,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
       }));
     });
 
-    comment?.on("error", (error: Error) => {
+    comment?.on?.("error", (error: Error) => {
       setState((state: CommentsState) => {
         let commentErrors = state.errors[commentCid] || [];
         commentErrors = [...commentErrors, error];
@@ -132,7 +132,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     // if comment.timestamp isn't defined, it means the next update will contain the timestamp and author
     // which is used in addCidToAccountComment
     if (!comment?.timestamp) {
-      comment?.once("update", () =>
+      comment?.once?.("update", () =>
         accountsStore
           .getState()
           .accountsActionsInternal.addCidToAccountComment(comment)
@@ -144,7 +144,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
 
     listeners.push(comment);
     comment
-      ?.update()
+      ?.update?.()
       .catch((error: unknown) => log.trace("comment.update error", { comment, error }));
   },
 }));

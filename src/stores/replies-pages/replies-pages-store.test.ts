@@ -451,6 +451,26 @@ describe("replies pages store", () => {
     expect(Object.keys(rendered.result.current.repliesPages).length).toBe(0);
   });
 
+  test("addNextRepliesPageToStore accepts legacy plebbit accounts without createCommunity", async () => {
+    const createCommunity = mockAccount.plebbit.createCommunity;
+    delete mockAccount.plebbit.createCommunity;
+
+    try {
+      const legacyComment = await mockAccount.plebbit.createComment({ cid: "legacy-page-cid" });
+      const sortType = "new";
+      const firstPageCid = legacyComment.replies.pageCids[sortType];
+
+      act(() => {
+        rendered.result.current.addNextRepliesPageToStore(legacyComment, sortType, mockAccount);
+      });
+
+      await waitFor(() => rendered.result.current.repliesPages[firstPageCid]);
+      expect(rendered.result.current.repliesPages[firstPageCid].comments.length).toBe(100);
+    } finally {
+      mockAccount.plebbit.createCommunity = createCommunity;
+    }
+  });
+
   test("addRepliesPageCommentsToStore skips comments without cid", () => {
     const commentWithNoCid = {
       cid: "parent",

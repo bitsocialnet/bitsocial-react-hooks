@@ -142,6 +142,135 @@ function createRetryPlebbitMock() {
   return createRetryPlebbit;
 }
 
+function createLegacyOnlyPlebbitMock() {
+  class LegacyOnlyPlebbit extends BasePlebbit {
+    constructor(...args: any[]) {
+      super(...args);
+      (this as any).createCommunity = undefined;
+      (this as any).getCommunity = undefined;
+      (this as any).createCommunityEdit = undefined;
+    }
+
+    async createComment(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("legacy createComment received communityAddress");
+      }
+      return super.createComment(opts);
+    }
+
+    async createVote(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("legacy createVote received communityAddress");
+      }
+      return super.createVote(opts);
+    }
+
+    async createCommentEdit(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("legacy createCommentEdit received communityAddress");
+      }
+      return super.createCommentEdit(opts);
+    }
+
+    async createCommentModeration(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("legacy createCommentModeration received communityAddress");
+      }
+      return super.createCommentModeration(opts);
+    }
+
+    async createSubplebbitEdit(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("legacy createSubplebbitEdit received communityAddress");
+      }
+      if ("communityEdit" in opts) {
+        throw new Error("legacy createSubplebbitEdit received communityEdit");
+      }
+      const communityEdit: any = await BasePlebbit.prototype.createCommunityEdit.call(this, opts);
+      communityEdit.subplebbitAddress = opts.subplebbitAddress;
+      return communityEdit;
+    }
+  }
+
+  const createLegacyOnlyPlebbit: any = async (...args: any[]) => new LegacyOnlyPlebbit(...args);
+  createLegacyOnlyPlebbit.getShortAddress = PlebbitJsMock.getShortAddress;
+  createLegacyOnlyPlebbit.getShortCid = PlebbitJsMock.getShortCid;
+  return createLegacyOnlyPlebbit;
+}
+
+function createLegacyPublicationSchemaPlebbitMock() {
+  class LegacyPublicationSchemaPlebbit extends BasePlebbit {
+    async createComment(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("createComment received communityAddress");
+      }
+      const comment: any = await super.createComment(opts);
+      comment.subplebbitAddress = opts.subplebbitAddress;
+      return comment;
+    }
+
+    async createVote(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("createVote received communityAddress");
+      }
+      const vote: any = await super.createVote(opts);
+      vote.subplebbitAddress = opts.subplebbitAddress;
+      return vote;
+    }
+
+    async createCommentEdit(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("createCommentEdit received communityAddress");
+      }
+      if ("communityEdit" in opts) {
+        throw new Error("createCommentEdit received communityEdit");
+      }
+      const commentEdit: any = await super.createCommentEdit(opts);
+      commentEdit.subplebbitAddress = opts.subplebbitAddress;
+      return commentEdit;
+    }
+
+    async createCommentModeration(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("createCommentModeration received communityAddress");
+      }
+      const commentModeration: any = await super.createCommentModeration(opts);
+      commentModeration.subplebbitAddress = opts.subplebbitAddress;
+      return commentModeration;
+    }
+
+    async createCommunityEdit(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("createCommunityEdit received communityAddress");
+      }
+      if ("communityEdit" in opts) {
+        throw new Error("createCommunityEdit received communityEdit");
+      }
+      const communityEdit: any = await super.createCommunityEdit(opts);
+      communityEdit.subplebbitAddress = opts.subplebbitAddress;
+      return communityEdit;
+    }
+
+    async createSubplebbitEdit(opts: any) {
+      if ("communityAddress" in opts) {
+        throw new Error("createSubplebbitEdit received communityAddress");
+      }
+      if ("communityEdit" in opts) {
+        throw new Error("createSubplebbitEdit received communityEdit");
+      }
+      const communityEdit: any = await BasePlebbit.prototype.createCommunityEdit.call(this, opts);
+      communityEdit.subplebbitAddress = opts.subplebbitAddress;
+      return communityEdit;
+    }
+  }
+
+  const createLegacyPublicationSchemaPlebbit: any = async (...args: any[]) =>
+    new LegacyPublicationSchemaPlebbit(...args);
+  createLegacyPublicationSchemaPlebbit.getShortAddress = PlebbitJsMock.getShortAddress;
+  createLegacyPublicationSchemaPlebbit.getShortCid = PlebbitJsMock.getShortCid;
+  return createLegacyPublicationSchemaPlebbit;
+}
+
 describe("accounts-actions", () => {
   beforeAll(async () => {
     setPlebbitJs(PlebbitJsMock);
@@ -740,6 +869,217 @@ describe("accounts-actions", () => {
 
       await new Promise((r) => setTimeout(r, 200));
       // no throw = success
+    });
+  });
+
+  describe("legacy plebbit-js compatibility", () => {
+    beforeEach(async () => {
+      setPlebbitJs(createLegacyOnlyPlebbitMock());
+      await testUtils.resetDatabasesAndStores();
+    });
+
+    afterEach(() => {
+      setPlebbitJs(PlebbitJsMock);
+    });
+
+    test("publication actions map community fields back to legacy subplebbit fields", async () => {
+      await act(async () => {
+        await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "legacy comment",
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+
+      await act(async () => {
+        await accountsActions.publishVote({
+          communityAddress: "sub.eth",
+          commentCid: "legacy cid",
+          vote: 1,
+          onChallenge: (ch: any, v: any) => v.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+
+      await act(async () => {
+        await accountsActions.publishCommentEdit({
+          communityAddress: "sub.eth",
+          commentCid: "legacy cid",
+          spoiler: true,
+          onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+
+      await act(async () => {
+        await accountsActions.publishCommentModeration({
+          communityAddress: "sub.eth",
+          commentCid: "legacy cid",
+          commentModeration: { locked: true },
+          onChallenge: (ch: any, m: any) => m.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+
+      await act(async () => {
+        await accountsActions.publishCommunityEdit("remote-sub.eth", {
+          title: "legacy edit",
+          onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+
+      const { activeAccountId, accountsComments, accountsVotes, accountsEdits } =
+        accountsStore.getState();
+      const accountId = activeAccountId!;
+      const storedComment = accountsComments[accountId][0];
+      const storedVote = accountsVotes[accountId]["legacy cid"];
+      const storedEdits = accountsEdits[accountId]["legacy cid"] || [];
+
+      expect(storedComment.communityAddress).toBe("sub.eth");
+      expect(storedComment.subplebbitAddress).toBeUndefined();
+      expect(storedComment.shortCommunityAddress).toBeDefined();
+
+      expect(storedVote.communityAddress).toBe("sub.eth");
+      expect(storedVote.subplebbitAddress).toBeUndefined();
+
+      expect(storedEdits).toHaveLength(2);
+      for (const storedEdit of storedEdits) {
+        expect(storedEdit.communityAddress).toBe("sub.eth");
+        expect(storedEdit.subplebbitAddress).toBeUndefined();
+      }
+    });
+  });
+
+  describe("partial community rename compatibility", () => {
+    beforeEach(async () => {
+      setPlebbitJs(createLegacyPublicationSchemaPlebbitMock());
+      await testUtils.resetDatabasesAndStores();
+    });
+
+    afterEach(() => {
+      setPlebbitJs(PlebbitJsMock);
+    });
+
+    test("publication actions still use subplebbit payloads when createCommunity methods exist", async () => {
+      const waitForStore = async (condition: () => boolean) => {
+        const start = Date.now();
+        while (Date.now() - start < 2000) {
+          await act(async () => {});
+          if (condition()) {
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        throw new Error("timed out waiting for store update");
+      };
+
+      let remoteVotePublication: any;
+      let remoteCommentEditPublication: any;
+      let remoteCommentModerationPublication: any;
+
+      await act(async () => {
+        await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "mixed comment",
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+      await waitForStore(
+        () =>
+          !!accountsStore.getState().accountsComments[
+            accountsStore.getState().activeAccountId!
+          ]?.[0]?.cid,
+      );
+
+      await act(async () => {
+        await accountsActions.publishVote({
+          communityAddress: "sub.eth",
+          commentCid: "mixed cid",
+          vote: 1,
+          onChallenge: (ch: any, v: any) => {
+            remoteVotePublication = v;
+            v.publishChallengeAnswers(["4"]);
+          },
+          onChallengeVerification: (_verification: any, v: any) => {
+            remoteVotePublication = v;
+          },
+        });
+      });
+      await waitForStore(() => remoteVotePublication?.communityAddress === "sub.eth");
+
+      await act(async () => {
+        await accountsActions.publishCommentEdit({
+          communityAddress: "sub.eth",
+          commentCid: "mixed cid",
+          spoiler: true,
+          onChallenge: (ch: any, e: any) => {
+            remoteCommentEditPublication = e;
+            e.publishChallengeAnswers(["4"]);
+          },
+          onChallengeVerification: (_verification: any, e: any) => {
+            remoteCommentEditPublication = e;
+          },
+        });
+      });
+      await waitForStore(() => remoteCommentEditPublication?.communityAddress === "sub.eth");
+
+      await act(async () => {
+        await accountsActions.publishCommentModeration({
+          communityAddress: "sub.eth",
+          commentCid: "mixed cid",
+          commentModeration: { locked: true },
+          onChallenge: (ch: any, m: any) => {
+            remoteCommentModerationPublication = m;
+            m.publishChallengeAnswers(["4"]);
+          },
+          onChallengeVerification: (_verification: any, m: any) => {
+            remoteCommentModerationPublication = m;
+          },
+        });
+      });
+      await waitForStore(() => remoteCommentModerationPublication?.communityAddress === "sub.eth");
+
+      let remoteCommunityEditPublication: any;
+      await act(async () => {
+        await accountsActions.publishCommunityEdit("remote-sub.eth", {
+          title: "mixed edit",
+          onChallenge: (ch: any, e: any) => {
+            remoteCommunityEditPublication = e;
+            e.publishChallengeAnswers(["4"]);
+          },
+          onChallengeVerification: (_verification: any, e: any) => {
+            remoteCommunityEditPublication = e;
+          },
+        });
+      });
+      await waitForStore(
+        () => remoteCommunityEditPublication?.communityAddress === "remote-sub.eth",
+      );
+
+      const { accountsComments, accountsVotes, accountsEdits, activeAccountId } =
+        accountsStore.getState();
+      const accountId = activeAccountId!;
+      const storedComment = accountsComments[accountId][0];
+      const storedVote = accountsVotes[accountId]["mixed cid"];
+      const storedEdits = accountsEdits[accountId]["mixed cid"] || [];
+
+      expect(storedComment.communityAddress).toBe("sub.eth");
+      expect(storedComment.shortCommunityAddress).toBeDefined();
+      expect(storedComment.subplebbitAddress).toBeUndefined();
+      expect(storedVote.communityAddress).toBe("sub.eth");
+      expect(storedVote.subplebbitAddress).toBeUndefined();
+      expect(remoteVotePublication.communityAddress).toBe("sub.eth");
+      expect(storedEdits).toHaveLength(2);
+      for (const storedEdit of storedEdits) {
+        expect(storedEdit.communityAddress).toBe("sub.eth");
+        expect(storedEdit.subplebbitAddress).toBeUndefined();
+      }
+      expect(remoteCommentEditPublication.communityAddress).toBe("sub.eth");
+      expect(remoteCommentModerationPublication.communityAddress).toBe("sub.eth");
+      expect(remoteCommunityEditPublication.communityAddress).toBe("remote-sub.eth");
     });
   });
 

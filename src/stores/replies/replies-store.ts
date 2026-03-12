@@ -140,7 +140,7 @@ const repliesStore = createStore<RepliesState>((setState: Function, getState: Fu
     );
     const account = accountsStore.getState().accounts[feedOptions.accountId];
     assert(
-      typeof account?.plebbit?.getCommunity === "function",
+      typeof account?.plebbit?.createComment === "function",
       `repliesStore.addFeedToStoreOrUpdateComment feedOptions.accountId '${feedOptions.accountId}' invalid`,
     );
     assert(

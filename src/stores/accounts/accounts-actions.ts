@@ -25,9 +25,12 @@ import {
 } from "../../types";
 import * as accountsActionsInternal from "./accounts-actions-internal";
 import {
+  backfillPublicationCommunityAddress,
   createPlebbitCommunityEdit,
   getPlebbitCommunityAddresses,
-  withLegacySubplebbitAddress,
+  normalizeCommunityEditOptionsForPlebbit,
+  normalizePublicationOptionsForStore,
+  normalizePublicationOptionsForPlebbit,
 } from "../../lib/plebbit-compat";
 import {
   getAccountCommunities,
@@ -635,7 +638,7 @@ export const publishComment = async (
     author.previousCommentCid = previousCommentCid;
   }
 
-  let createCommentOptions: any = withLegacySubplebbitAddress({
+  let createCommentOptions: any = normalizePublicationOptionsForPlebbit(account.plebbit, {
     timestamp: Math.floor(Date.now() / 1000),
     author,
     signer: account.signer,
@@ -646,6 +649,7 @@ export const publishComment = async (
   delete createCommentOptions.onError;
   delete createCommentOptions.onPublishingStateChange;
   delete createCommentOptions._onPendingCommentIndex;
+  const storedCreateCommentOptions = normalizePublicationOptionsForStore(createCommentOptions);
 
   // make sure the options dont throw
   await account.plebbit.createComment(createCommentOptions);
@@ -680,7 +684,7 @@ export const publishComment = async (
     });
   };
   let createdAccountComment = {
-    ...createCommentOptions,
+    ...storedCreateCommentOptions,
     depth,
     index: accountCommentIndex,
     accountId: account.id,
@@ -699,7 +703,10 @@ export const publishComment = async (
       createdAccountComment = { ...createdAccountComment, ...commentLinkDimensions };
       await saveCreatedAccountComment(createdAccountComment);
     }
-    comment = await account.plebbit.createComment(createCommentOptions);
+    comment = backfillPublicationCommunityAddress(
+      await account.plebbit.createComment(createCommentOptions),
+      createCommentOptions,
+    );
     publishAndRetryFailedChallengeVerification();
     log("accountsActions.publishComment", { createCommentOptions });
   })();
@@ -720,7 +727,10 @@ export const publishComment = async (
         createCommentOptions = { ...createCommentOptions, timestamp };
         createdAccountComment = { ...createdAccountComment, timestamp };
         await saveCreatedAccountComment(createdAccountComment);
-        comment = await account.plebbit.createComment(createCommentOptions);
+        comment = backfillPublicationCommunityAddress(
+          await account.plebbit.createComment(createCommentOptions),
+          createCommentOptions,
+        );
         lastChallenge = undefined;
         publishAndRetryFailedChallengeVerification();
       } else {
@@ -731,7 +741,9 @@ export const publishComment = async (
           const currentIndex = sessionInfo?.currentIndex ?? accountCommentIndex;
           if (!sessionInfo || abandonedPublishKeys.has(sessionInfo.sessionKey)) return;
           cleanupPublishSessionOnTerminal(account.id, sessionInfo.keyIndex);
-          const commentWithCid = comment;
+          const commentWithCid = addShortAddressesToAccountComment(
+            normalizePublicationOptionsForStore(comment as any),
+          );
           await accountsDatabase.addAccountComment(account.id, commentWithCid, currentIndex);
           accountsStore.setState(({ accountsComments, commentCidsToAccountsComments }) => {
             const updatedAccountComments = [...accountsComments[account.id]];
@@ -754,7 +766,9 @@ export const publishComment = async (
           });
 
           // clone the comment or it bugs publishing callbacks
-          const updatingComment = await account.plebbit.createComment({ ...comment });
+          const updatingComment = await account.plebbit.createComment(
+            normalizePublicationOptionsForPlebbit(account.plebbit, { ...comment }),
+          );
           accountsActionsInternal
             .startUpdatingAccountCommentOnCommentUpdateEvents(
               updatingComment,
@@ -906,7 +920,7 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
     account,
   });
 
-  let createVoteOptions: any = withLegacySubplebbitAddress({
+  let createVoteOptions: any = normalizePublicationOptionsForPlebbit(account.plebbit, {
     timestamp: Math.floor(Date.now() / 1000),
     author: account.author,
     signer: account.signer,
@@ -916,8 +930,12 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
   delete createVoteOptions.onChallengeVerification;
   delete createVoteOptions.onError;
   delete createVoteOptions.onPublishingStateChange;
+  const storedCreateVoteOptions = normalizePublicationOptionsForStore(createVoteOptions);
 
-  let vote = await account.plebbit.createVote(createVoteOptions);
+  let vote = backfillPublicationCommunityAddress(
+    await account.plebbit.createVote(createVoteOptions),
+    createVoteOptions,
+  );
   let lastChallenge: Challenge | undefined;
   const publishAndRetryFailedChallengeVerification = async () => {
     vote.once("challenge", async (challenge: Challenge) => {
@@ -929,7 +947,10 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
       if (!challengeVerification.challengeSuccess && lastChallenge) {
         // publish again automatically on fail
         createVoteOptions = { ...createVoteOptions, timestamp: Math.floor(Date.now() / 1000) };
-        vote = await account.plebbit.createVote(createVoteOptions);
+        vote = backfillPublicationCommunityAddress(
+          await account.plebbit.createVote(createVoteOptions),
+          createVoteOptions,
+        );
         lastChallenge = undefined;
         publishAndRetryFailedChallengeVerification();
       }
@@ -950,16 +971,16 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
   };
 
   publishAndRetryFailedChallengeVerification();
-  await accountsDatabase.addAccountVote(account.id, createVoteOptions);
+  await accountsDatabase.addAccountVote(account.id, storedCreateVoteOptions);
   log("accountsActions.publishVote", { createVoteOptions });
   accountsStore.setState(({ accountsVotes }) => ({
     accountsVotes: {
       ...accountsVotes,
       [account.id]: {
         ...accountsVotes[account.id],
-        [createVoteOptions.commentCid]:
+        [storedCreateVoteOptions.commentCid]:
           // remove signer and author because not needed and they expose private key
-          { ...createVoteOptions, signer: undefined, author: undefined },
+          { ...storedCreateVoteOptions, signer: undefined, author: undefined },
       },
     },
   }));
@@ -985,7 +1006,7 @@ export const publishCommentEdit = async (
     account,
   });
 
-  let createCommentEditOptions: any = withLegacySubplebbitAddress({
+  let createCommentEditOptions: any = normalizePublicationOptionsForPlebbit(account.plebbit, {
     timestamp: Math.floor(Date.now() / 1000),
     author: account.author,
     signer: account.signer,
@@ -995,8 +1016,13 @@ export const publishCommentEdit = async (
   delete createCommentEditOptions.onChallengeVerification;
   delete createCommentEditOptions.onError;
   delete createCommentEditOptions.onPublishingStateChange;
+  const storedCreateCommentEditOptions =
+    normalizePublicationOptionsForStore(createCommentEditOptions);
 
-  let commentEdit = await account.plebbit.createCommentEdit(createCommentEditOptions);
+  let commentEdit = backfillPublicationCommunityAddress(
+    await account.plebbit.createCommentEdit(createCommentEditOptions),
+    createCommentEditOptions,
+  );
   let lastChallenge: Challenge | undefined;
   const publishAndRetryFailedChallengeVerification = async () => {
     commentEdit.once("challenge", async (challenge: Challenge) => {
@@ -1013,7 +1039,10 @@ export const publishCommentEdit = async (
             ...createCommentEditOptions,
             timestamp: Math.floor(Date.now() / 1000),
           };
-          commentEdit = await account.plebbit.createCommentEdit(createCommentEditOptions);
+          commentEdit = backfillPublicationCommunityAddress(
+            await account.plebbit.createCommentEdit(createCommentEditOptions),
+            createCommentEditOptions,
+          );
           lastChallenge = undefined;
           publishAndRetryFailedChallengeVerification();
         }
@@ -1038,19 +1067,23 @@ export const publishCommentEdit = async (
 
   publishAndRetryFailedChallengeVerification();
 
-  await accountsDatabase.addAccountEdit(account.id, createCommentEditOptions);
+  await accountsDatabase.addAccountEdit(account.id, storedCreateCommentEditOptions);
   log("accountsActions.publishCommentEdit", { createCommentEditOptions });
   accountsStore.setState(({ accountsEdits }) => {
     // remove signer and author because not needed and they expose private key
-    const commentEdit = { ...createCommentEditOptions, signer: undefined, author: undefined };
-    let commentEdits = accountsEdits[account.id][createCommentEditOptions.commentCid] || [];
+    const commentEdit = {
+      ...storedCreateCommentEditOptions,
+      signer: undefined,
+      author: undefined,
+    };
+    let commentEdits = accountsEdits[account.id][storedCreateCommentEditOptions.commentCid] || [];
     commentEdits = [...commentEdits, commentEdit];
     return {
       accountsEdits: {
         ...accountsEdits,
         [account.id]: {
           ...accountsEdits[account.id],
-          [createCommentEditOptions.commentCid]: commentEdits,
+          [storedCreateCommentEditOptions.commentCid]: commentEdits,
         },
       },
     };
@@ -1077,7 +1110,7 @@ export const publishCommentModeration = async (
     account,
   });
 
-  let createCommentModerationOptions: any = withLegacySubplebbitAddress({
+  let createCommentModerationOptions: any = normalizePublicationOptionsForPlebbit(account.plebbit, {
     timestamp: Math.floor(Date.now() / 1000),
     author: account.author,
     signer: account.signer,
@@ -1087,8 +1120,12 @@ export const publishCommentModeration = async (
   delete createCommentModerationOptions.onChallengeVerification;
   delete createCommentModerationOptions.onError;
   delete createCommentModerationOptions.onPublishingStateChange;
+  const storedCreateCommentModerationOptions = normalizePublicationOptionsForStore(
+    createCommentModerationOptions,
+  );
 
-  let commentModeration = await account.plebbit.createCommentModeration(
+  let commentModeration = backfillPublicationCommunityAddress(
+    await account.plebbit.createCommentModeration(createCommentModerationOptions),
     createCommentModerationOptions,
   );
   let lastChallenge: Challenge | undefined;
@@ -1110,7 +1147,8 @@ export const publishCommentModeration = async (
             ...createCommentModerationOptions,
             timestamp: Math.floor(Date.now() / 1000),
           };
-          commentModeration = await account.plebbit.createCommentModeration(
+          commentModeration = backfillPublicationCommunityAddress(
+            await account.plebbit.createCommentModeration(createCommentModerationOptions),
             createCommentModerationOptions,
           );
           lastChallenge = undefined;
@@ -1137,24 +1175,24 @@ export const publishCommentModeration = async (
 
   publishAndRetryFailedChallengeVerification();
 
-  await accountsDatabase.addAccountEdit(account.id, createCommentModerationOptions);
+  await accountsDatabase.addAccountEdit(account.id, storedCreateCommentModerationOptions);
   log("accountsActions.publishCommentModeration", { createCommentModerationOptions });
   accountsStore.setState(({ accountsEdits }) => {
     // remove signer and author because not needed and they expose private key
     const commentModeration = {
-      ...createCommentModerationOptions,
+      ...storedCreateCommentModerationOptions,
       signer: undefined,
       author: undefined,
     };
     let commentModerations =
-      accountsEdits[account.id][createCommentModerationOptions.commentCid] || [];
+      accountsEdits[account.id][storedCreateCommentModerationOptions.commentCid] || [];
     commentModerations = [...commentModerations, commentModeration];
     return {
       accountsEdits: {
         ...accountsEdits,
         [account.id]: {
           ...accountsEdits[account.id],
-          [createCommentModerationOptions.commentCid]: commentModerations,
+          [storedCreateCommentModerationOptions.commentCid]: commentModerations,
         },
       },
     };
@@ -1206,18 +1244,20 @@ export const publishCommunityEdit = async (
       publishCommunityEditOptions.address === communityAddress,
     `accountsActions.publishCommunityEdit can't edit address of a remote community`,
   );
-  let createCommunityEditOptions: any = withLegacySubplebbitAddress({
+  let createCommunityEditOptions: any = normalizeCommunityEditOptionsForPlebbit(account.plebbit, {
     timestamp: Math.floor(Date.now() / 1000),
     author: account.author,
     signer: account.signer,
     // not possible to edit community.address over pubsub, only locally
     communityAddress,
-    subplebbitAddress: communityAddress,
     communityEdit: communityEditOptions,
     subplebbitEdit: communityEditOptions,
   });
 
-  let communityEdit = await createPlebbitCommunityEdit(account.plebbit, createCommunityEditOptions);
+  let communityEdit = backfillPublicationCommunityAddress(
+    await createPlebbitCommunityEdit(account.plebbit, createCommunityEditOptions),
+    createCommunityEditOptions,
+  );
   let lastChallenge: Challenge | undefined;
   const publishAndRetryFailedChallengeVerification = async () => {
     communityEdit.once("challenge", async (challenge: Challenge) => {
@@ -1234,8 +1274,8 @@ export const publishCommunityEdit = async (
             ...createCommunityEditOptions,
             timestamp: Math.floor(Date.now() / 1000),
           };
-          communityEdit = await createPlebbitCommunityEdit(
-            account.plebbit,
+          communityEdit = backfillPublicationCommunityAddress(
+            await createPlebbitCommunityEdit(account.plebbit, createCommunityEditOptions),
             createCommunityEditOptions,
           );
           lastChallenge = undefined;
