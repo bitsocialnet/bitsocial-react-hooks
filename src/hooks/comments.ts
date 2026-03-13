@@ -66,7 +66,9 @@ const getCommentStateAndReplyCount = (comment: Comment | undefined) => {
 };
 
 const getCommentsState = (comments: (Comment | undefined)[]) =>
-  comments.indexOf(undefined) === -1 ? "succeeded" : "fetching-ipfs";
+  comments.every((comment) => getCommentStateAndReplyCount(comment).state === "succeeded")
+    ? "succeeded"
+    : "fetching-ipfs";
 
 let commentAutoUpdateSubscriptionCount = 0;
 let commentsAutoUpdateSubscriptionCount = 0;
@@ -270,7 +272,7 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
   const stopCommentAutoUpdate = useCommentsStore((state: any) => state.stopCommentAutoUpdate);
   const refreshCommentInStore = useCommentsStore((state: any) => state.refreshComment);
   const autoUpdateSubscriptionId = useRef(`useComments-${++commentsAutoUpdateSubscriptionCount}`);
-  const commentCidsKey = commentCids?.toString() || "";
+  const commentCidsKey = JSON.stringify(commentCids);
   const commentsKey = `${account?.id || ""}:${commentCidsKey}`;
   const currentCommentsKeyRef = useRef(commentsKey);
   currentCommentsKeyRef.current = commentsKey;

@@ -259,6 +259,57 @@ describe("comments", () => {
       expect(rendered.result.current.comments[1]?.cid).toBe("");
     });
 
+    test("useComments keeps fetching-ipfs state while entries are still cid-only placeholders", async () => {
+      const account = { id: "mock-placeholder-comments-account", plebbit: {} };
+      const commentCids = ["comment cid placeholder 1", "comment cid placeholder 2"];
+      const useAccountSpy = vi.spyOn(accountsHooks, "useAccount").mockReturnValue(account as any);
+
+      try {
+        commentsStore.setState((state: any) => ({
+          ...state,
+          comments: {
+            ...state.comments,
+            [commentCids[0]]: { cid: commentCids[0] },
+            [commentCids[1]]: { cid: commentCids[1] },
+          },
+        }));
+
+        const rendered = renderHook<any, any>(() =>
+          useComments({ commentCids, autoUpdate: false, onlyIfCached: true }),
+        );
+        const waitFor = testUtils.createWaitFor(rendered);
+
+        await waitFor(() => rendered.result.current.comments[0]?.cid === commentCids[0]);
+        expect(rendered.result.current.state).toBe("fetching-ipfs");
+
+        act(() => {
+          commentsStore.setState((state: any) => ({
+            ...state,
+            comments: {
+              ...state.comments,
+              [commentCids[0]]: {
+                cid: commentCids[0],
+                timestamp: 1,
+                updatedAt: 1,
+                upvoteCount: 3,
+              },
+              [commentCids[1]]: {
+                cid: commentCids[1],
+                timestamp: 1,
+                updatedAt: 1,
+                upvoteCount: 4,
+              },
+            },
+          }));
+        });
+
+        await waitFor(() => rendered.result.current.state === "succeeded");
+        expect(rendered.result.current.state).toBe("succeeded");
+      } finally {
+        useAccountSpy.mockRestore();
+      }
+    });
+
     test("useComments effect returns early when account is undefined (branch 176)", async () => {
       vi.spyOn(accountsHooks, "useAccount").mockReturnValue(undefined as any);
       const rendered = renderHook<any, any>(() => useComments({ commentCids: ["comment cid 1"] }));
@@ -1059,6 +1110,57 @@ describe("comments", () => {
 
         await new Promise((r) => setTimeout(r, 0));
         expect(rendered.result.current.comments[0]?.upvoteCount).toBe(2);
+      } finally {
+        useAccountSpy.mockRestore();
+      }
+    });
+
+    test("useComments resets frozen state when different cid selections share the same Array#toString()", async () => {
+      const combinedCommentCid = "comment cid key collision,1";
+      const splitCommentCids = ["comment cid key collision", "1"];
+      const account = { id: "mock-key-collision-account", plebbit: {} };
+      const useAccountSpy = vi.spyOn(accountsHooks, "useAccount").mockReturnValue(account as any);
+
+      try {
+        commentsStore.setState((state: any) => ({
+          ...state,
+          comments: {
+            ...state.comments,
+            [combinedCommentCid]: {
+              cid: combinedCommentCid,
+              timestamp: 1,
+              updatedAt: 1,
+              upvoteCount: 3,
+            },
+            [splitCommentCids[0]]: {
+              cid: splitCommentCids[0],
+              timestamp: 1,
+              updatedAt: 1,
+              upvoteCount: 4,
+            },
+            [splitCommentCids[1]]: {
+              cid: splitCommentCids[1],
+              timestamp: 1,
+              updatedAt: 1,
+              upvoteCount: 5,
+            },
+          },
+        }));
+
+        const rendered = renderHook<any, any>((commentCids) =>
+          useComments({ commentCids, autoUpdate: false, onlyIfCached: true }),
+        );
+        const waitFor = testUtils.createWaitFor(rendered);
+
+        rendered.rerender([combinedCommentCid]);
+        await waitFor(() => rendered.result.current.comments[0]?.cid === combinedCommentCid);
+        expect(rendered.result.current.comments).toHaveLength(1);
+
+        rendered.rerender(splitCommentCids);
+        await waitFor(() => rendered.result.current.comments[1]?.cid === splitCommentCids[1]);
+        expect(
+          rendered.result.current.comments.map((comment: Comment | undefined) => comment?.cid),
+        ).toEqual(splitCommentCids);
       } finally {
         useAccountSpy.mockRestore();
       }
