@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAccount } from "./accounts";
 import validator from "../lib/validator";
 import Logger from "@plebbit/plebbit-logger";
@@ -207,7 +207,7 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
     });
   }
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     try {
       if (!commentCid || !account) {
         throw Error("useComment cannot refresh comment not initialized yet");
@@ -226,7 +226,7 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
       }
       throw error;
     }
-  };
+  }, [account, autoUpdate, commentCid, refreshCommentInStore]);
 
   return useMemo(
     () => ({
@@ -330,7 +330,7 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
   // succeed if no comments are undefined
   const state = normalizedComments.indexOf(undefined) === -1 ? "succeeded" : "fetching-ipfs";
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     if (!account) {
       throw Error("useComments cannot refresh comments not initialized yet");
     }
@@ -338,7 +338,7 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
     await Promise.all(
       uniqueCommentCids.map((commentCid) => refreshCommentInStore(commentCid, account)),
     );
-  };
+  }, [account, commentCids, refreshCommentInStore]);
 
   return useMemo(
     () => ({
