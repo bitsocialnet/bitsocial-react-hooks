@@ -430,6 +430,107 @@ describe("replies utils", () => {
       expect(loadedFeeds[feedName]).toEqual([]);
     });
 
+    test("keeps a just-published account reply while the canonical feed is older than the reply", () => {
+      const feedName = "feed1";
+      const recentTs = Math.floor(Date.now() / 1000) - 100;
+      const feedsOptions = {
+        [feedName]: {
+          commentCid: "c1",
+          postCid: "p1",
+          accountId: mockAccountId,
+          accountComments: { newerThan: 3600, append: true },
+        },
+      };
+      const accountReply = {
+        cid: "newly-published-cid",
+        index: 1,
+        parentCid: "c1",
+        postCid: "p1",
+        communityAddress: "sub1",
+        timestamp: recentTs,
+      };
+      (accountsStore as any).getState = () => ({
+        accountsComments: { [mockAccountId]: [accountReply] },
+        accounts: { [mockAccountId]: { pkc: {} } },
+      });
+      const loadedFeeds = { [feedName]: [] };
+      const changed = addAccountsComments(
+        feedsOptions,
+        loadedFeeds,
+        { [feedName]: false },
+        { [feedName]: recentTs - 1 },
+      );
+      expect(changed).toBe(true);
+      expect(loadedFeeds[feedName]).toEqual([accountReply]);
+    });
+
+    test("does not append published account replies after the canonical feed refreshes after the reply", () => {
+      const feedName = "feed1";
+      const recentTs = Math.floor(Date.now() / 1000) - 100;
+      const feedsOptions = {
+        [feedName]: {
+          commentCid: "c1",
+          postCid: "p1",
+          accountId: mockAccountId,
+          accountComments: { newerThan: 3600, append: true },
+        },
+      };
+      const accountReply = {
+        cid: "purged-cid",
+        index: 1,
+        parentCid: "c1",
+        postCid: "p1",
+        communityAddress: "sub1",
+        timestamp: recentTs,
+      };
+      (accountsStore as any).getState = () => ({
+        accountsComments: { [mockAccountId]: [accountReply] },
+        accounts: { [mockAccountId]: { pkc: {} } },
+      });
+      const loadedFeeds = { [feedName]: [] };
+      const changed = addAccountsComments(
+        feedsOptions,
+        loadedFeeds,
+        { [feedName]: false },
+        { [feedName]: recentTs + 1 },
+      );
+      expect(changed).toBe(false);
+      expect(loadedFeeds[feedName]).toEqual([]);
+    });
+
+    test("does not append published account replies without timestamps after the canonical feed is exhausted", () => {
+      const feedName = "feed1";
+      const recentTs = Math.floor(Date.now() / 1000) - 100;
+      const feedsOptions = {
+        [feedName]: {
+          commentCid: "c1",
+          postCid: "p1",
+          accountId: mockAccountId,
+          accountComments: { newerThan: 3600, append: true },
+        },
+      };
+      const accountReply = {
+        cid: "timestampless-cid",
+        index: 1,
+        parentCid: "c1",
+        postCid: "p1",
+        communityAddress: "sub1",
+      };
+      (accountsStore as any).getState = () => ({
+        accountsComments: { [mockAccountId]: [accountReply] },
+        accounts: { [mockAccountId]: { pkc: {} } },
+      });
+      const loadedFeeds = { [feedName]: [] };
+      const changed = addAccountsComments(
+        feedsOptions,
+        loadedFeeds,
+        { [feedName]: false },
+        { [feedName]: recentTs },
+      );
+      expect(changed).toBe(false);
+      expect(loadedFeeds[feedName]).toEqual([]);
+    });
+
     test("does not append stopped cid account replies after the canonical feed is exhausted", () => {
       const feedName = "feed1";
       const recentTs = Math.floor(Date.now() / 1000) - 100;
@@ -573,6 +674,40 @@ describe("replies utils", () => {
       const changed = addAccountsComments(feedsOptions, loadedFeeds, { [feedName]: false });
       expect(changed).toBe(true);
       expect(loadedFeeds[feedName]).toEqual([]);
+    });
+
+    test("keeps previously appended published account replies until the canonical feed refreshes after the reply", () => {
+      const feedName = "feed1";
+      const recentTs = Math.floor(Date.now() / 1000) - 100;
+      const feedsOptions = {
+        [feedName]: {
+          commentCid: "c1",
+          postCid: "p1",
+          accountId: mockAccountId,
+          accountComments: { newerThan: 3600, append: true },
+        },
+      };
+      const accountReply = {
+        cid: "newly-published-cid",
+        index: 1,
+        parentCid: "c1",
+        postCid: "p1",
+        communityAddress: "sub1",
+        timestamp: recentTs,
+      };
+      (accountsStore as any).getState = () => ({
+        accountsComments: { [mockAccountId]: [accountReply] },
+        accounts: { [mockAccountId]: { pkc: {} } },
+      });
+      const loadedFeeds = { [feedName]: [accountReply] };
+      const changed = addAccountsComments(
+        feedsOptions,
+        loadedFeeds,
+        { [feedName]: false },
+        { [feedName]: recentTs - 1 },
+      );
+      expect(changed).toBe(false);
+      expect(loadedFeeds[feedName]).toEqual([accountReply]);
     });
 
     test("flat: false filters by parentCid", () => {
@@ -992,6 +1127,40 @@ describe("replies utils", () => {
       const accounts = { [mockAccountId]: { pkc: {} } };
       const result = await getLoadedFeeds(feedsOptions, loadedFeeds, {}, accounts);
       expect(result).toBe(loadedFeeds);
+    });
+
+    test("keeps account replies through getLoadedFeeds while the canonical feed is older than the reply", async () => {
+      const recentTs = Math.floor(Date.now() / 1000) - 100;
+      const accountReply = {
+        cid: "newly-published-cid",
+        index: 1,
+        parentCid: "c1",
+        postCid: "p1",
+        communityAddress: "sub1",
+        timestamp: recentTs,
+      };
+      (accountsStore as any).getState = () => ({
+        accountsComments: { [mockAccountId]: [accountReply] },
+        accounts: { [mockAccountId]: { pkc: {} } },
+      });
+      const feedsOptions = {
+        feed1: {
+          commentCid: "c1",
+          postCid: "p1",
+          accountId: mockAccountId,
+          pageNumber: 1,
+          repliesPerPage: 1,
+          streamPage: true,
+          accountComments: { newerThan: 3600, append: true },
+        },
+      };
+      const loadedFeeds = { feed1: [] };
+      const accounts = { [mockAccountId]: { pkc: {} } };
+      const result = await getLoadedFeeds(feedsOptions, loadedFeeds, {}, accounts, {
+        feedsHaveMore: { feed1: false },
+        feedsUpdatedAts: { feed1: recentTs - 1 },
+      });
+      expect(result.feed1).toEqual([accountReply]);
     });
   });
 

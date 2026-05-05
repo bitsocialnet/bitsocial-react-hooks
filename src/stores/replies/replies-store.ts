@@ -73,6 +73,14 @@ export const feedOptionsToFeedName = (feedOptions: Partial<RepliesFeedOptions>) 
   return `${feedOptions?.accountId}-${feedOptions?.commentCid}-${feedOptions?.postCid}-${feedOptions?.sortType}-${feedOptions?.flat}-${feedOptions?.onlyIfCached}-${feedOptions?.accountComments?.newerThan}-${feedOptions?.accountComments?.append}-${feedOptions?.repliesPerPage}-${feedOptions?.filter?.key}-${feedOptions?.streamPage}`;
 };
 
+const getFeedsUpdatedAts = (feedsOptions: RepliesFeedsOptions, comments: Comments) => {
+  const feedsUpdatedAts: { [feedName: string]: number | undefined } = {};
+  for (const feedName in feedsOptions) {
+    feedsUpdatedAts[feedName] = comments[feedsOptions[feedName].commentCid]?.updatedAt;
+  }
+  return feedsUpdatedAts;
+};
+
 // don't updateFeeds more than once per updateFeedsMinIntervalTime
 let updateFeedsPending = false;
 let updateFeedsAgain = false;
@@ -317,11 +325,13 @@ const repliesStore = createStore<RepliesState>((setState: Function, getState: Fu
         repliesPages,
         accounts,
       );
+      const canonicalFeedsUpdatedAts = getFeedsUpdatedAts(feedsOptions, comments);
       const loadedFeedsWithAccountComments = { ...canonicalLoadedFeeds };
       const accountCommentsChangedFeeds = addAccountsComments(
         feedsOptions,
         loadedFeedsWithAccountComments,
         canonicalFeedsHaveMore,
+        canonicalFeedsUpdatedAts,
       );
       const loadedFeeds = accountCommentsChangedFeeds
         ? loadedFeedsWithAccountComments
@@ -587,7 +597,9 @@ export const getRepliesFirstPageSkipValidation = (
     repliesPages,
     accounts,
   );
-  addAccountsComments(feedsOptions, filteredSortedFeeds, feedsHaveMore);
+  addAccountsComments(feedsOptions, filteredSortedFeeds, feedsHaveMore, {
+    [feedName]: comment.updatedAt,
+  });
   return { replies: filteredSortedFeeds[feedName], hasMore: feedsHaveMore[feedName] };
 };
 
