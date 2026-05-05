@@ -140,6 +140,12 @@ const isPublishedAccountReply = (reply) => typeof (reply === null || reply === v
     !!reply.cid &&
     reply.pendingApproval !== true &&
     !isActivePublishingState(reply.publishingState);
+const canonicalFeedRefreshedAfterReply = (reply, feedUpdatedAt) => typeof feedUpdatedAt !== "number" ||
+    typeof reply.timestamp !== "number" ||
+    feedUpdatedAt > reply.timestamp;
+const shouldHidePublishedAccountReply = (reply, hidePublishedAccountReplies, feedUpdatedAt) => hidePublishedAccountReplies &&
+    isPublishedAccountReply(reply) &&
+    canonicalFeedRefreshedAfterReply(reply, feedUpdatedAt);
 export const getLoadedFeeds = (feedsOptions_1, loadedFeeds_1, bufferedFeeds_1, accounts_1, ...args_1) => __awaiter(void 0, [feedsOptions_1, loadedFeeds_1, bufferedFeeds_1, accounts_1, ...args_1], void 0, function* (feedsOptions, loadedFeeds, bufferedFeeds, accounts, options = {}) {
     var _a;
     const loadedFeedsMissingReplies = {};
@@ -187,14 +193,14 @@ export const getLoadedFeeds = (feedsOptions_1, loadedFeeds_1, bufferedFeeds_1, a
     newLoadedFeeds = Object.assign(Object.assign({}, loadedFeeds), newLoadedFeeds);
     const accountCommentsChangedFeeds = options.addAccountComments === false
         ? false
-        : addAccountsComments(feedsOptions, newLoadedFeeds, options.feedsHaveMore);
+        : addAccountsComments(feedsOptions, newLoadedFeeds, options.feedsHaveMore, options.feedsUpdatedAts);
     // do nothing if there are no missing replies
     if (Object.keys(loadedFeedsMissingReplies).length === 0 && !accountCommentsChangedFeeds) {
         return loadedFeeds;
     }
     return newLoadedFeeds;
 });
-export const addAccountsComments = (feedsOptions, loadedFeeds, feedsHaveMore) => {
+export const addAccountsComments = (feedsOptions, loadedFeeds, feedsHaveMore, feedsUpdatedAts) => {
     let loadedFeedsChanged = false;
     const accountsComments = accountsStore.getState().accountsComments || {};
     for (const feedName in feedsOptions) {
@@ -206,9 +212,10 @@ export const addAccountsComments = (feedsOptions, loadedFeeds, feedsHaveMore) =>
         const newerThanTimestamp = newerThan === Infinity ? 0 : Math.floor(Date.now() / 1000) - newerThan;
         const isNewerThan = (reply) => reply.timestamp > newerThanTimestamp;
         const hidePublishedAccountReplies = (feedsHaveMore === null || feedsHaveMore === void 0 ? void 0 : feedsHaveMore[feedName]) === false;
+        const feedUpdatedAt = feedsUpdatedAts === null || feedsUpdatedAts === void 0 ? void 0 : feedsUpdatedAts[feedName];
         const accountComments = accountsComments[accountId] || [];
         const accountReplies = accountComments.filter((reply) => {
-            if (hidePublishedAccountReplies && isPublishedAccountReply(reply)) {
+            if (shouldHidePublishedAccountReply(reply, hidePublishedAccountReplies, feedUpdatedAt)) {
                 return false;
             }
             if (!isNewerThan(reply)) {
@@ -237,7 +244,7 @@ export const addAccountsComments = (feedsOptions, loadedFeeds, feedsHaveMore) =>
                 prunedLoadedFeed.push(reply);
                 continue;
             }
-            if (hidePublishedAccountReplies && isPublishedAccountReply(reply)) {
+            if (shouldHidePublishedAccountReply(reply, hidePublishedAccountReplies, feedUpdatedAt)) {
                 loadedFeedsChanged = true;
                 continue;
             }

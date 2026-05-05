@@ -8,10 +8,15 @@ type GetLoadedFeedsOptions = {
     feedsHaveMore?: {
         [feedName: string]: boolean;
     };
+    feedsUpdatedAts?: {
+        [feedName: string]: number | undefined;
+    };
 };
 export declare const getLoadedFeeds: (feedsOptions: RepliesFeedsOptions, loadedFeeds: Feeds, bufferedFeeds: Feeds, accounts: Accounts, options?: GetLoadedFeedsOptions) => Promise<Feeds>;
 export declare const addAccountsComments: (feedsOptions: RepliesFeedsOptions, loadedFeeds: Feeds, feedsHaveMore?: {
     [feedName: string]: boolean;
+}, feedsUpdatedAts?: {
+    [feedName: string]: number | undefined;
 }) => boolean;
 export declare const getBufferedFeedsWithoutLoadedFeeds: (bufferedFeeds: Feeds, loadedFeeds: Feeds) => Feeds;
 export declare const getUpdatedFeeds: (feedsOptions: RepliesFeedsOptions, filteredSortedFeeds: Feeds, updatedFeeds: Feeds, loadedFeeds: Feeds, accounts: Accounts) => Promise<Feeds>;

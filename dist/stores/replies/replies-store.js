@@ -39,6 +39,14 @@ export const feedOptionsToFeedName = (feedOptions) => {
     feedOptions = addDefaultFeedOptions(feedOptions);
     return `${feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.accountId}-${feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.commentCid}-${feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.postCid}-${feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.sortType}-${feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.flat}-${feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.onlyIfCached}-${(_a = feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.accountComments) === null || _a === void 0 ? void 0 : _a.newerThan}-${(_b = feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.accountComments) === null || _b === void 0 ? void 0 : _b.append}-${feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.repliesPerPage}-${(_c = feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.filter) === null || _c === void 0 ? void 0 : _c.key}-${feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.streamPage}`;
 };
+const getFeedsUpdatedAts = (feedsOptions, comments) => {
+    var _a;
+    const feedsUpdatedAts = {};
+    for (const feedName in feedsOptions) {
+        feedsUpdatedAts[feedName] = (_a = comments[feedsOptions[feedName].commentCid]) === null || _a === void 0 ? void 0 : _a.updatedAt;
+    }
+    return feedsUpdatedAts;
+};
 // don't updateFeeds more than once per updateFeedsMinIntervalTime
 let updateFeedsPending = false;
 let updateFeedsAgain = false;
@@ -196,8 +204,9 @@ const repliesStore = createStore((setState, getState) => ({
             const canonicalLoadedFeeds = yield getLoadedFeeds(feedsOptions, previousState.loadedFeeds, bufferedFeedsWithoutPreviousLoadedFeeds, accounts, { addAccountComments: false });
             const canonicalBufferedFeeds = getBufferedFeedsWithoutLoadedFeeds(bufferedFeedsWithoutPreviousLoadedFeeds, canonicalLoadedFeeds);
             const canonicalFeedsHaveMore = getFeedsHaveMore(feedsOptions, canonicalBufferedFeeds, comments, repliesPages, accounts);
+            const canonicalFeedsUpdatedAts = getFeedsUpdatedAts(feedsOptions, comments);
             const loadedFeedsWithAccountComments = Object.assign({}, canonicalLoadedFeeds);
-            const accountCommentsChangedFeeds = addAccountsComments(feedsOptions, loadedFeedsWithAccountComments, canonicalFeedsHaveMore);
+            const accountCommentsChangedFeeds = addAccountsComments(feedsOptions, loadedFeedsWithAccountComments, canonicalFeedsHaveMore, canonicalFeedsUpdatedAts);
             const loadedFeeds = accountCommentsChangedFeeds
                 ? loadedFeedsWithAccountComments
                 : canonicalLoadedFeeds;
@@ -386,7 +395,9 @@ export const getRepliesFirstPageSkipValidation = (comment, feedOptions) => {
         bufferedFeeds[feedName] = filteredSortedFeeds[feedName].splice(repliesPerPage);
     }
     const feedsHaveMore = getFeedsHaveMore(feedsOptions, bufferedFeeds, comments, repliesPages, accounts);
-    addAccountsComments(feedsOptions, filteredSortedFeeds, feedsHaveMore);
+    addAccountsComments(feedsOptions, filteredSortedFeeds, feedsHaveMore, {
+        [feedName]: comment.updatedAt,
+    });
     return { replies: filteredSortedFeeds[feedName], hasMore: feedsHaveMore[feedName] };
 };
 // reset store in between tests

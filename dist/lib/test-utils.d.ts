@@ -1,6 +1,8 @@
-declare function renderHook<Result, Props>(callback: (props: Props) => Result, options?: {
+type RenderHookOptions<Props> = {
     initialProps?: Props;
-}): {
+    trackHistory?: boolean;
+};
+declare function renderHook<Result, Props>(callback: (props: Props) => Result, options?: RenderHookOptions<Props>): {
     result: {
         current: Result | null;
         all: Result[];
@@ -22,7 +24,14 @@ declare const testUtils: {
     resetStores: () => Promise<void>;
     resetDatabasesAndStores: () => Promise<void>;
     createWaitFor: (rendered: any, waitForOptions?: WaitForOptions) => (waitForFunction: Function) => Promise<void>;
-    renderHookWithHistory: typeof renderHook;
+    renderHookWithHistory: <Result, Props>(callback: (props: Props) => Result, options?: RenderHookOptions<Props>) => {
+        result: {
+            current: Result | null;
+            all: Result[];
+        };
+        rerender: (rerenderCallbackProps: Props) => void;
+        unmount: () => void;
+    };
     silenceWaitForWarning: boolean;
 };
 export default testUtils;

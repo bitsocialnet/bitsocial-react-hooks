@@ -33,12 +33,14 @@ import { resetRepliesPagesStore, resetRepliesPagesDatabaseAndStore } from "../st
 // result.current via useEffect, which breaks polling-based waitFor patterns
 // when Zustand store updates trigger re-renders outside act().
 function renderHook(callback, options) {
-    const _a = options || {}, { initialProps } = _a, renderOptions = __rest(_a, ["initialProps"]);
+    const _a = options || {}, { initialProps, trackHistory = false } = _a, renderOptions = __rest(_a, ["initialProps", "trackHistory"]);
     const result = { current: null, all: [] };
     function TestComponent({ renderCallbackProps }) {
         const pendingResult = callback(renderCallbackProps);
         result.current = pendingResult;
-        result.all.push(pendingResult);
+        if (trackHistory) {
+            result.all.push(pendingResult);
+        }
         return null;
     }
     const { rerender: baseRerender, unmount } = render(React.createElement(TestComponent, { renderCallbackProps: initialProps }), renderOptions);
@@ -163,9 +165,7 @@ const resetDatabasesAndStores = () => __awaiter(void 0, void 0, void 0, function
     // always accounts last because it has async initialization
     yield resetAccountsDatabaseAndStore();
 });
-// renderHookWithHistory is kept for backward compatibility but our custom
-// renderHook already tracks result.all, so this is just a passthrough.
-const renderHookWithHistory = renderHook;
+const renderHookWithHistory = (callback, options) => renderHook(callback, Object.assign(Object.assign({}, options), { trackHistory: true }));
 export { renderHook };
 const testUtils = {
     silenceTestWasNotWrappedInActWarning,

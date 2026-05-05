@@ -1,3 +1,15 @@
+## [0.1.6](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.5...v0.1.6) (2026-05-05)
+
+
+### Bug Fixes
+
+* **deps:** resolve axios dependabot alerts ([f05eac0](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/f05eac02887067fe1413d39aa7fbe21b593c01aa))
+* **deps:** resolve dependabot alerts ([805ac34](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/805ac34b43cbf139c2ff8d479450a45338070ec9))
+* **replies:** keep newly published account replies visible ([96ab074](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/96ab074a85222b838cc71c8c091aae2ece6039da))
+* **tests:** stop account hook suite OOM ([1e217d6](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/1e217d6a11008cdd25b83ed0ef2d3e7d5c95e537))
+
+
+
 ## [0.1.5](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.4...v0.1.5) (2026-05-02)
 
 
