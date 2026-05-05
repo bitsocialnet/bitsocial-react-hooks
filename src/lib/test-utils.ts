@@ -15,21 +15,28 @@ import {
 import { resetRepliesStore, resetRepliesDatabaseAndStore } from "../stores/replies";
 import { resetRepliesPagesStore, resetRepliesPagesDatabaseAndStore } from "../stores/replies-pages";
 
+type RenderHookOptions<Props> = {
+  initialProps?: Props;
+  trackHistory?: boolean;
+};
+
 // Custom renderHook that sets result.current synchronously during render,
 // matching @testing-library/react-hooks behavior. RTL v16's renderHook defers
 // result.current via useEffect, which breaks polling-based waitFor patterns
 // when Zustand store updates trigger re-renders outside act().
 function renderHook<Result, Props>(
   callback: (props: Props) => Result,
-  options?: { initialProps?: Props },
+  options?: RenderHookOptions<Props>,
 ) {
-  const { initialProps, ...renderOptions } = options || {};
+  const { initialProps, trackHistory = false, ...renderOptions } = options || {};
   const result = { current: null as Result | null, all: [] as Result[] };
 
   function TestComponent({ renderCallbackProps }: { renderCallbackProps: Props }) {
     const pendingResult = callback(renderCallbackProps);
     result.current = pendingResult;
-    result.all.push(pendingResult);
+    if (trackHistory) {
+      result.all.push(pendingResult);
+    }
     return null;
   }
 
@@ -175,9 +182,10 @@ const resetDatabasesAndStores = async () => {
   await resetAccountsDatabaseAndStore();
 };
 
-// renderHookWithHistory is kept for backward compatibility but our custom
-// renderHook already tracks result.all, so this is just a passthrough.
-const renderHookWithHistory = renderHook;
+const renderHookWithHistory = <Result, Props>(
+  callback: (props: Props) => Result,
+  options?: RenderHookOptions<Props>,
+) => renderHook(callback, { ...options, trackHistory: true });
 
 export { renderHook };
 

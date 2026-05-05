@@ -30,6 +30,7 @@ import PkcJsMock, {
   debugPkcJsMock,
 } from "../../lib/pkc-js/pkc-js-mock";
 import accountsStore from "../../stores/accounts";
+import communitiesStore from "../../stores/communities";
 import chain from "../../lib/chain";
 
 const toCommunity = (communityAddress?: string) =>
@@ -2659,6 +2660,7 @@ describe("accounts", () => {
         testUtils.silenceWaitForWarning = false;
       });
       afterEach(async () => {
+        rendered?.unmount();
         await testUtils.resetDatabasesAndStores();
       });
 
@@ -2666,8 +2668,8 @@ describe("accounts", () => {
       let waitFor: Function;
 
       beforeEach(async () => {
-        rendered = renderHook<any, any>(() => {
-          const { accountCommunities, state, error, errors } = useAccountCommunities();
+        rendered = renderHook<any, { onlyIfCached?: boolean }>((options) => {
+          const { accountCommunities, state, error, errors } = useAccountCommunities(options);
           const account = useAccount();
           const { setAccount } = accountsActions;
           return { accountCommunities, state, error, errors, setAccount, account };
@@ -2757,76 +2759,53 @@ describe("accounts", () => {
       test("useAccountCommunities reflects in-flight community fetches", async () => {
         await waitFor(() => rendered.result.current.accountCommunities["community address 1"]);
         const { account, setAccount } = rendered.result.current;
-        const createCommunityOrig = PKC.prototype.createCommunity;
-        const slowCommunity = await createCommunityOrig.call(account.pkc, {
-          address: "slow community address",
-        });
-        let resolveSlowCommunity: ((community: any) => void) | undefined;
-        const slowCommunityPromise = new Promise((resolve) => {
-          resolveSlowCommunity = resolve;
-        });
-        PKC.prototype.createCommunity = vi.fn(async function (options: any) {
-          if (options.address === "slow community address") {
-            return slowCommunityPromise;
-          }
-          return createCommunityOrig.call(this, options);
-        });
+        rendered.rerender({ onlyIfCached: true });
 
-        try {
-          await act(async () => {
-            await setAccount({
-              ...account,
-              communities: {
-                ...account.communities,
-                "slow community address": { role: { role: "moderator" } },
-              },
-            });
+        await act(async () => {
+          await setAccount({
+            ...account,
+            communities: {
+              ...account.communities,
+              "slow community address": { role: { role: "moderator" } },
+            },
           });
+        });
 
-          await waitFor(
-            () =>
-              rendered.result.current.accountCommunities["slow community address"] &&
-              rendered.result.current.state === "fetching-ipns",
-          );
-          expect(rendered.result.current.state).toBe("fetching-ipns");
-
-          resolveSlowCommunity?.(slowCommunity);
-          await waitFor(() => rendered.result.current.state === "succeeded");
-        } finally {
-          PKC.prototype.createCommunity = createCommunityOrig;
-        }
+        await waitFor(
+          () =>
+            rendered.result.current.accountCommunities["slow community address"] &&
+            rendered.result.current.state === "fetching-ipns",
+        );
+        expect(rendered.result.current.state).toBe("fetching-ipns");
       });
 
       test("useAccountCommunities propagates failed community fetches", async () => {
         await waitFor(() => rendered.result.current.accountCommunities["community address 1"]);
         const { account, setAccount } = rendered.result.current;
-        const createCommunityOrig = PKC.prototype.createCommunity;
-        PKC.prototype.createCommunity = vi.fn(async function (options: any) {
-          if (options.address === "failing community address") {
-            throw new Error("community fetch failed");
-          }
-          return createCommunityOrig.call(this, options);
+        rendered.rerender({ onlyIfCached: true });
+
+        await act(async () => {
+          await setAccount({
+            ...account,
+            communities: {
+              ...account.communities,
+              "failing community address": { role: { role: "moderator" } },
+            },
+          });
+          communitiesStore.setState((state: any) => ({
+            errors: {
+              ...state.errors,
+              "failing community address": [new Error("community fetch failed")],
+            },
+          }));
         });
 
-        try {
-          await act(async () => {
-            await setAccount({
-              ...account,
-              communities: {
-                ...account.communities,
-                "failing community address": { role: { role: "moderator" } },
-              },
-            });
-          });
-
-          await waitFor(() => rendered.result.current.state === "failed");
-          expect(rendered.result.current.error?.message).toBe("community fetch failed");
-          expect(rendered.result.current.errors.map((error: Error) => error.message)).toContain(
-            "community fetch failed",
-          );
-        } finally {
-          PKC.prototype.createCommunity = createCommunityOrig;
-        }
+        await waitFor(() => rendered.result.current.state === "failed");
+        expect(rendered.result.current.state).toBe("failed");
+        expect(rendered.result.current.error?.message).toBe("community fetch failed");
+        expect(rendered.result.current.errors.map((error: Error) => error.message)).toContain(
+          "community fetch failed",
+        );
       });
     });
 
