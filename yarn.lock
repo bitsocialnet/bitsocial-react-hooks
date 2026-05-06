@@ -283,8 +283,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@bitsocial/bitsocial-react-hooks@workspace:."
   dependencies:
-    "@bitsocial/bso-resolver": "npm:0.0.6"
-    "@pkcprotocol/pkc-js": "npm:0.0.24"
+    "@bitsocial/bso-resolver": "npm:0.0.8"
+    "@pkcprotocol/pkc-js": "npm:0.0.27"
     "@pkcprotocol/pkc-logger": "npm:0.1.0"
     "@testing-library/dom": "npm:10.4.1"
     "@testing-library/react": "npm:16.3.2"
@@ -335,14 +335,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@bitsocial/bso-resolver@npm:0.0.6":
-  version: 0.0.6
-  resolution: "@bitsocial/bso-resolver@npm:0.0.6"
+"@bitsocial/bso-resolver@npm:0.0.8":
+  version: 0.0.8
+  resolution: "@bitsocial/bso-resolver@npm:0.0.8"
   dependencies:
     "@pkcprotocol/pkc-logger": "npm:0.1.0"
-    better-sqlite3: "npm:12.6.2"
     viem: "npm:2.48.1"
-  checksum: 10c0/113e54c08dd86c1e356318e6be1b2b1682753209bba229256352a47bbaef81d340a46c5124f4abf8f49d1289caae479637e902b45ac33e950fc05a34caf0e044
+  checksum: 10c0/0acb033cac4f8860323e154a5a53b95e9d107326e78bc9febd36091cd96dc2c095b31996d594fba9d676c132305c5504d5b7e1b3e5af1f78e2c372f1eebc2f7a
   languageName: node
   linkType: hard
 
@@ -2149,7 +2148,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@libp2p/websockets@npm:10.1.11, @libp2p/websockets@npm:^10.1.8":
+"@libp2p/websockets@npm:^10.1.8":
   version: 10.1.11
   resolution: "@libp2p/websockets@npm:10.1.11"
   dependencies:
@@ -3169,9 +3168,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@pkcprotocol/pkc-js@npm:0.0.24":
-  version: 0.0.24
-  resolution: "@pkcprotocol/pkc-js@npm:0.0.24"
+"@pkcprotocol/pkc-js@npm:0.0.27":
+  version: 0.0.27
+  resolution: "@pkcprotocol/pkc-js@npm:0.0.27"
   dependencies:
     "@enhances/with-resolvers": "npm:0.0.5"
     "@helia/block-brokers": "npm:5.2.4"
@@ -3184,19 +3183,15 @@ __metadata:
     "@libp2p/identify": "npm:4.1.3"
     "@libp2p/interfaces": "npm:3.3.2"
     "@libp2p/peer-id": "npm:6.0.8"
-    "@libp2p/websockets": "npm:10.1.11"
     "@noble/curves": "npm:2.2.0"
     "@pkcprotocol/pkc-logger": "npm:0.1.0"
     "@pkcprotocol/proper-lock-file": "npm:4.2.1"
     assert: "npm:2.1.0"
     better-sqlite3: "npm:12.9.0"
     blockstore-core: "npm:6.1.2"
-    blockstore-fs: "npm:3.0.2"
-    blockstore-idb: "npm:3.0.1"
     buffer: "npm:6.0.3"
     cbor: "npm:10.0.11"
     debounce: "npm:1.2.1"
-    err-code: "npm:3.0.1"
     ext-name: "npm:5.0.0"
     helia: "npm:6.1.4"
     hpagent: "npm:1.2.0"
@@ -3217,7 +3212,6 @@ __metadata:
     retry: "npm:0.13.1"
     rpc-websockets: "npm:9.3.8"
     safe-stable-stringify: "npm:2.4.3"
-    sha1-uint8array: "npm:0.10.7"
     tcp-port-used: "npm:1.0.2"
     tiny-typed-emitter: "npm:2.1.0"
     tinycache: "npm:1.1.2"
@@ -3225,7 +3219,7 @@ __metadata:
     typestub-ipfs-only-hash: "npm:4.0.0"
     uuid: "npm:13.0.0"
     zod: "npm:4.3.6"
-  checksum: 10c0/8acff68a6ce5f1d545ce0a2f47e4a67eb9cc166d37fb9f13c8b3582b2124f984317b68a3ed4e8b7d386c19789f59a1acce8ac1284b40b18715b12a4ba488d7f8
+  checksum: 10c0/19360d831a9ea3ecb586ca02d1763611224bdcc72f2586dc50ffe1a550a56e72c79f173ebce8422ab15623f277889dd96666016ab042d208fb4d185879b82784
   languageName: node
   linkType: hard
 
@@ -4210,17 +4204,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"better-sqlite3@npm:12.6.2":
-  version: 12.6.2
-  resolution: "better-sqlite3@npm:12.6.2"
-  dependencies:
-    bindings: "npm:^1.5.0"
-    node-gyp: "npm:latest"
-    prebuild-install: "npm:^7.1.1"
-  checksum: 10c0/a58fb3f7a7f5469ba0b8de0855aa67396ff34f951a6975746e4b21987f530be6a34427d1d4bd5958cf48c67ed7ba1df038ae163d2ee9d944237f6b8112f6640d
-  languageName: node
-  linkType: hard
-
 "better-sqlite3@npm:12.9.0":
   version: 12.9.0
   resolution: "better-sqlite3@npm:12.9.0"
@@ -4298,7 +4281,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"blockstore-core@npm:6.1.2, blockstore-core@npm:^6.0.0":
+"blockstore-core@npm:6.1.2":
   version: 6.1.2
   resolution: "blockstore-core@npm:6.1.2"
   dependencies:
@@ -4325,38 +4308,6 @@ __metadata:
     it-merge: "npm:^3.0.12"
     multiformats: "npm:^13.4.2"
   checksum: 10c0/3368a2604c8bdefd30cec640846098330d83b8a9504dcffcefa45e86b77a3155ac956154f87e25047752ed97af9c761e64477198306926a4677ae1594bd11dac
-  languageName: node
-  linkType: hard
-
-"blockstore-fs@npm:3.0.2":
-  version: 3.0.2
-  resolution: "blockstore-fs@npm:3.0.2"
-  dependencies:
-    interface-blockstore: "npm:^6.0.0"
-    interface-store: "npm:^7.0.0"
-    it-glob: "npm:^3.0.3"
-    it-map: "npm:^3.1.3"
-    it-parallel-batch: "npm:^3.0.8"
-    multiformats: "npm:^13.3.6"
-    race-signal: "npm:^2.0.0"
-    steno: "npm:^4.0.2"
-  checksum: 10c0/326707456edd7296be495f195a25ab29f92554d07f2cddb03d8648f6f2ea3d2506f06350ae7a4b68938bc930d1a389acea28cdfe9a31db9379d1e23983d598d8
-  languageName: node
-  linkType: hard
-
-"blockstore-idb@npm:3.0.1":
-  version: 3.0.1
-  resolution: "blockstore-idb@npm:3.0.1"
-  dependencies:
-    blockstore-core: "npm:^6.0.0"
-    idb: "npm:^8.0.3"
-    interface-blockstore: "npm:^6.0.0"
-    interface-store: "npm:^7.0.0"
-    it-all: "npm:^3.0.9"
-    it-to-buffer: "npm:^4.0.10"
-    multiformats: "npm:^13.3.6"
-    race-signal: "npm:^2.0.0"
-  checksum: 10c0/d2b63f13a120e7aa167cbd64fe2d9e30ec27e2f57bf37455c9fdbe9b25218a4c65a5be7c2139e848ca21ece2cace7116aeaf67ceef0b34971fd6e0c98aa52696
   languageName: node
   linkType: hard
 
@@ -5779,7 +5730,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"err-code@npm:3.0.1, err-code@npm:^3.0.0, err-code@npm:^3.0.1":
+"err-code@npm:^3.0.0, err-code@npm:^3.0.1":
   version: 3.0.1
   resolution: "err-code@npm:3.0.1"
   checksum: 10c0/78b1c50500adebde6699b8d27b8ce4728c132dcaad75b5d18ba44f6ccb28769d1fff8368ae1164be4559dac8b95d4e26bb15b480ba9999e0cd0f0c64beaf1b24
@@ -6979,13 +6930,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"idb@npm:^8.0.3":
-  version: 8.0.3
-  resolution: "idb@npm:8.0.3"
-  checksum: 10c0/421cd9a3281b7564528857031cc33fd9e95753f8191e483054cb25d1ceea7303a0d1462f4f69f5b41606f0f066156999e067478abf2460dfcf9cab80dae2a2b2
-  languageName: node
-  linkType: hard
-
 "ieee754@npm:^1.1.13, ieee754@npm:^1.2.1":
   version: 1.2.1
   resolution: "ieee754@npm:1.2.1"
@@ -7823,7 +7767,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"it-glob@npm:^3.0.1, it-glob@npm:^3.0.3":
+"it-glob@npm:^3.0.1":
   version: 3.0.4
   resolution: "it-glob@npm:3.0.4"
   dependencies:
@@ -7942,7 +7886,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"it-parallel-batch@npm:^3.0.8, it-parallel-batch@npm:^3.0.9":
+"it-parallel-batch@npm:^3.0.9":
   version: 3.0.9
   resolution: "it-parallel-batch@npm:3.0.9"
   dependencies:
@@ -11269,13 +11213,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sha1-uint8array@npm:0.10.7":
-  version: 0.10.7
-  resolution: "sha1-uint8array@npm:0.10.7"
-  checksum: 10c0/7c2a62aef9c6b8fded4df84d8356038895c8e2a87eedbfb88ea5d74b9e12502ac7c457a3f0708424c5f8f9ce32f040bb89399b352bc772c99f9c0e4e89dddf57
-  languageName: node
-  linkType: hard
-
 "shebang-command@npm:^2.0.0":
   version: 2.0.0
   resolution: "shebang-command@npm:2.0.0"
@@ -11523,13 +11460,6 @@ __metadata:
   version: 3.10.0
   resolution: "std-env@npm:3.10.0"
   checksum: 10c0/1814927a45004d36dde6707eaf17552a546769bc79a6421be2c16ce77d238158dfe5de30910b78ec30d95135cc1c59ea73ee22d2ca170f8b9753f84da34c427f
-  languageName: node
-  linkType: hard
-
-"steno@npm:^4.0.2":
-  version: 4.0.2
-  resolution: "steno@npm:4.0.2"
-  checksum: 10c0/fda6bb192bb73ce9453586080aae3fc75506e1c10c9285df49849a016bb9378c6146610f27976708437a6c5492619ec09efb9def6d5397624ae0ad70e57ccaf1
   languageName: node
   linkType: hard
 
