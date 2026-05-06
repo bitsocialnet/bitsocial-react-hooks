@@ -1,3 +1,12 @@
+## [0.1.7](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.6...v0.1.7) (2026-05-06)
+
+
+### Bug Fixes
+
+* **comments:** pass community identity to pkc comments ([8db8b8c](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/8db8b8c033e3d4c39e5a17e069405560014826fa))
+
+
+
 ## [0.1.6](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.5...v0.1.6) (2026-05-05)
 
 

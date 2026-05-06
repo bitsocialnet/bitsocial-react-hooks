@@ -3,6 +3,7 @@ export declare function getCommentFreshness(comment: Comment | undefined): numbe
 export declare function preferFresher(current: Comment | undefined, candidate: Comment | undefined): Comment | undefined;
 /**
  * @param commentCid - The IPFS CID of the comment to get
+ * @param community - The community identifier, e.g. {name: 'memes.eth', publicKey: '12D3KooW...'}.
  * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
  * the active account.
  */

@@ -104,6 +104,7 @@ export interface UsePubsubSubscribeResult extends Result {
 }
 export interface UseCommentOptions extends Options {
     commentCid?: string;
+    community?: CommunityIdentifier;
     onlyIfCached?: boolean;
     autoUpdate?: boolean;
 }

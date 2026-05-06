@@ -39,6 +39,16 @@ const removeCommentListener = (comment, event, listener) => {
 };
 const getCommentAutoUpdateSubscribersCount = (commentCid) => Object.keys(commentAutoUpdateSubscribers[commentCid] || {}).length;
 const hasCommentAutoUpdateSubscribers = (commentCid) => getCommentAutoUpdateSubscribersCount(commentCid) > 0;
+const mergeCommentData = (commentCid, ...commentDataList) => {
+    const mergedCommentData = { cid: commentCid };
+    for (const commentData of commentDataList) {
+        if (commentData && typeof commentData === "object") {
+            Object.assign(mergedCommentData, utils.clone(commentData));
+        }
+    }
+    mergedCommentData.cid = commentCid;
+    return mergedCommentData;
+};
 const releaseLiveComment = (commentCid, comment) => {
     const liveComment = comment || liveComments[commentCid];
     if (liveComment) {
@@ -172,8 +182,7 @@ const commentsStore = createStore((setState, getState) => {
             return liveCommentPromises[commentCid];
         }
         const liveCommentPromise = (() => __awaiter(void 0, void 0, void 0, function* () {
-            const initialComment = normalizeCommentCommunityAddress(utils.clone(commentData || { cid: commentCid })) ||
-                { cid: commentCid };
+            const initialComment = normalizeCommentCommunityAddress(mergeCommentData(commentCid, commentData));
             const liveComment = normalizeCommentCommunityAddress(yield account.pkc.createComment(initialComment));
             initializeComment(commentCid, liveComment, account);
             return liveComment;
@@ -226,7 +235,7 @@ const commentsStore = createStore((setState, getState) => {
     return {
         comments: {},
         errors: {},
-        addCommentToStore(commentCid, account) {
+        addCommentToStore(commentCid, account, commentData) {
             return __awaiter(this, void 0, void 0, function* () {
                 const { comments } = getState();
                 const pendingKey = commentCid + account.id;
@@ -238,9 +247,9 @@ const commentsStore = createStore((setState, getState) => {
                 pkcGetCommentPending[pendingKey] = true;
                 try {
                     // try to find comment in database
-                    comment = yield getCommentFromDatabase(commentCid, account);
+                    comment = yield getCommentFromDatabase(commentCid, account, commentData);
                     if (!comment) {
-                        comment = yield ensureLiveComment(commentCid, account, { cid: commentCid });
+                        comment = yield ensureLiveComment(commentCid, account, commentData);
                         comment = normalizeCommentCommunityAddress(comment);
                         log("commentsStore.addCommentToStore", { commentCid, comment, account });
                         setState((state) => ({
@@ -254,7 +263,7 @@ const commentsStore = createStore((setState, getState) => {
                         }));
                         // add comment replies pages to repliesPagesStore so they can be used in useComment
                         repliesPagesStore.getState().addRepliesPageCommentsToStore(comment);
-                        comment = yield ensureLiveComment(commentCid, account, comment);
+                        comment = yield ensureLiveComment(commentCid, account, mergeCommentData(commentCid, comment, commentData));
                     }
                     if (comment) {
                         requestCommentUpdate(commentCid, comment, { stopAfterNextUpdate: true });
@@ -269,7 +278,7 @@ const commentsStore = createStore((setState, getState) => {
                 }
             });
         },
-        startCommentAutoUpdate(commentCid, subscriberId, account) {
+        startCommentAutoUpdate(commentCid, subscriberId, account, commentData) {
             return __awaiter(this, void 0, void 0, function* () {
                 const hadAutoUpdateSubscribers = hasCommentAutoUpdateSubscribers(commentCid);
                 commentAutoUpdateSubscribers[commentCid] = Object.assign(Object.assign({}, (commentAutoUpdateSubscribers[commentCid] || {})), { [subscriberId]: true });
@@ -277,7 +286,7 @@ const commentsStore = createStore((setState, getState) => {
                     return;
                 }
                 const storedComment = getState().comments[commentCid];
-                const liveComment = yield ensureLiveComment(commentCid, account, storedComment || { cid: commentCid });
+                const liveComment = yield ensureLiveComment(commentCid, account, mergeCommentData(commentCid, storedComment, commentData));
                 if (!storedComment) {
                     setState((state) => ({
                         comments: Object.assign(Object.assign({}, state.comments), { [commentCid]: utils.clone(liveComment) }),
@@ -308,10 +317,10 @@ const commentsStore = createStore((setState, getState) => {
                 maybeReleaseStoppedLiveComment(commentCid, liveComment);
             });
         },
-        refreshComment(commentCid, account) {
+        refreshComment(commentCid, account, commentData) {
             return __awaiter(this, void 0, void 0, function* () {
                 const storedComment = getState().comments[commentCid];
-                const liveComment = yield ensureLiveComment(commentCid, account, storedComment || { cid: commentCid });
+                const liveComment = yield ensureLiveComment(commentCid, account, mergeCommentData(commentCid, storedComment, commentData));
                 if (!hasCommentAutoUpdateSubscribers(commentCid) &&
                     (liveComment === null || liveComment === void 0 ? void 0 : liveComment.updatingState) !== "stopped") {
                     yield stopLiveComment(commentCid, liveComment);
@@ -325,13 +334,13 @@ const commentsStore = createStore((setState, getState) => {
         },
     };
 });
-const getCommentFromDatabase = (commentCid, account) => __awaiter(void 0, void 0, void 0, function* () {
+const getCommentFromDatabase = (commentCid, account, initialCommentData) => __awaiter(void 0, void 0, void 0, function* () {
     const commentData = yield commentsDatabase.getItem(commentCid);
     if (!commentData) {
         return;
     }
     try {
-        const comment = normalizeCommentCommunityAddress(yield account.pkc.createComment(commentData));
+        const comment = normalizeCommentCommunityAddress(yield account.pkc.createComment(mergeCommentData(commentCid, commentData, initialCommentData)));
         return comment;
     }
     catch (e) {

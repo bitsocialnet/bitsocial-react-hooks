@@ -20,6 +20,7 @@ import { addCommentModeration, addCommentModerationToComments, } from "../lib/ut
 import useCommunitiesPagesStore from "../stores/communities-pages/index.js";
 import useRepliesPagesStore from "../stores/replies-pages/index.js";
 import shallow from "zustand/shallow";
+import { assertCommunityRef } from "../lib/community-ref.js";
 export function getCommentFreshness(comment) {
     var _a, _b;
     if (!comment)
@@ -60,14 +61,47 @@ const getCommentsState = (comments) => comments.every((comment) => getCommentSta
     : "fetching-ipfs";
 let commentAutoUpdateSubscriptionCount = 0;
 let commentsAutoUpdateSubscriptionCount = 0;
+const getCommentCreateCommentData = (commentCid, community, ...comments) => {
+    if (!commentCid) {
+        return undefined;
+    }
+    const createCommentData = { cid: commentCid };
+    let hasCommunityData = false;
+    for (const comment of comments) {
+        if (!comment) {
+            continue;
+        }
+        if (!createCommentData.communityPublicKey && comment.communityPublicKey) {
+            createCommentData.communityPublicKey = comment.communityPublicKey;
+            hasCommunityData = true;
+        }
+        if (!createCommentData.communityName && comment.communityName) {
+            createCommentData.communityName = comment.communityName;
+            hasCommunityData = true;
+        }
+    }
+    if (community === null || community === void 0 ? void 0 : community.publicKey) {
+        createCommentData.communityPublicKey = community.publicKey;
+        hasCommunityData = true;
+    }
+    if (community === null || community === void 0 ? void 0 : community.name) {
+        createCommentData.communityName = community.name;
+        hasCommunityData = true;
+    }
+    return hasCommunityData ? createCommentData : undefined;
+};
 /**
  * @param commentCid - The IPFS CID of the comment to get
+ * @param community - The community identifier, e.g. {name: 'memes.eth', publicKey: '12D3KooW...'}.
  * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
  * the active account.
  */
 export function useComment(options) {
     assert(!options || typeof options === "object", `useComment options argument '${options}' not an object`);
-    const { commentCid, accountName, onlyIfCached, autoUpdate = true } = options !== null && options !== void 0 ? options : {};
+    const { commentCid, community, accountName, onlyIfCached, autoUpdate = true } = options !== null && options !== void 0 ? options : {};
+    if (community !== undefined) {
+        assertCommunityRef(community, "useComment community");
+    }
     const account = useAccount({ accountName });
     const commentFromStore = useCommentsStore((state) => state.comments[commentCid || ""]);
     const addCommentToStore = useCommentsStore((state) => state.addCommentToStore);
@@ -83,6 +117,15 @@ export function useComment(options) {
         var _a;
         return (_a = state.accountsComments[(accountCommentInfo === null || accountCommentInfo === void 0 ? void 0 : accountCommentInfo.accountId) || ""]) === null || _a === void 0 ? void 0 : _a[Number(accountCommentInfo === null || accountCommentInfo === void 0 ? void 0 : accountCommentInfo.accountCommentIndex)];
     });
+    const createCommentData = useMemo(() => getCommentCreateCommentData(commentCid, community, communitiesPagesComment, repliesPagesComment), [
+        commentCid,
+        community === null || community === void 0 ? void 0 : community.name,
+        community === null || community === void 0 ? void 0 : community.publicKey,
+        communitiesPagesComment === null || communitiesPagesComment === void 0 ? void 0 : communitiesPagesComment.communityName,
+        communitiesPagesComment === null || communitiesPagesComment === void 0 ? void 0 : communitiesPagesComment.communityPublicKey,
+        repliesPagesComment === null || repliesPagesComment === void 0 ? void 0 : repliesPagesComment.communityName,
+        repliesPagesComment === null || repliesPagesComment === void 0 ? void 0 : repliesPagesComment.communityPublicKey,
+    ]);
     const autoUpdateSubscriptionId = useRef(`useComment-${++commentAutoUpdateSubscriptionCount}`);
     const currentCommentCidRef = useRef(commentCid);
     currentCommentCidRef.current = commentCid;
@@ -95,18 +138,24 @@ export function useComment(options) {
         validator.validateUseCommentArguments(commentCid, account);
         if (!commentFromStore && !onlyIfCached) {
             // if comment isn't already in store, add it
-            addCommentToStore(commentCid, account).catch((error) => log.error("useComment addCommentToStore error", { commentCid, error }));
+            const addCommentPromise = createCommentData
+                ? addCommentToStore(commentCid, account, createCommentData)
+                : addCommentToStore(commentCid, account);
+            addCommentPromise.catch((error) => log.error("useComment addCommentToStore error", { commentCid, error }));
         }
-    }, [commentCid, account === null || account === void 0 ? void 0 : account.id, onlyIfCached]);
+    }, [commentCid, account === null || account === void 0 ? void 0 : account.id, onlyIfCached, createCommentData]);
     useEffect(() => {
         if (!commentCid || !account || onlyIfCached || !autoUpdate) {
             return;
         }
-        startCommentAutoUpdate(commentCid, autoUpdateSubscriptionId.current, account).catch((error) => log.error("useComment startCommentAutoUpdate error", { commentCid, error }));
+        const startAutoUpdatePromise = createCommentData
+            ? startCommentAutoUpdate(commentCid, autoUpdateSubscriptionId.current, account, createCommentData)
+            : startCommentAutoUpdate(commentCid, autoUpdateSubscriptionId.current, account);
+        startAutoUpdatePromise.catch((error) => log.error("useComment startCommentAutoUpdate error", { commentCid, error }));
         return () => {
             stopCommentAutoUpdate(commentCid, autoUpdateSubscriptionId.current).catch((error) => log.error("useComment stopCommentAutoUpdate error", { commentCid, error }));
         };
-    }, [commentCid, account === null || account === void 0 ? void 0 : account.id, onlyIfCached, autoUpdate]);
+    }, [commentCid, account === null || account === void 0 ? void 0 : account.id, onlyIfCached, autoUpdate, createCommentData]);
     let selectedComment = commentFromStore;
     if (commentCid && communitiesPagesComment) {
         selectedComment = preferFresher(selectedComment, communitiesPagesComment);
@@ -177,12 +226,14 @@ export function useComment(options) {
             throw Error("useComment cannot refresh comment not initialized yet");
         }
         const refreshCommentCid = commentCid;
-        const refreshedComment = yield refreshCommentInStore(refreshCommentCid, account);
+        const refreshedComment = createCommentData
+            ? yield refreshCommentInStore(refreshCommentCid, account, createCommentData)
+            : yield refreshCommentInStore(refreshCommentCid, account);
         if (!autoUpdate && refreshedComment && currentCommentCidRef.current === refreshCommentCid) {
             setFrozenComment(refreshedComment);
             setFreezeSettledCid(refreshCommentCid);
         }
-    }), [account, autoUpdate, commentCid, refreshCommentInStore]);
+    }), [account, autoUpdate, commentCid, createCommentData, refreshCommentInStore]);
     return useMemo(() => (Object.assign(Object.assign({}, comment), { replyCount,
         state,
         refresh, error: errors === null || errors === void 0 ? void 0 : errors[errors.length - 1], errors: errors || [] })), [comment, commentCid, errors, refresh, state, replyCount]);
