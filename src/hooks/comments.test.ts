@@ -116,6 +116,72 @@ describe("comments", () => {
       PKC.prototype.getComment = getComment;
     });
 
+    test("useComment forwards community identifiers to pkc.createComment", async () => {
+      const commentCid = "comment cid with community ref";
+      const community = {
+        name: "community-ref.eth",
+        publicKey: "community-ref-public-key",
+      };
+      const createCommentSpy = vi.spyOn(PKC.prototype, "createComment");
+
+      const rendered = renderHook<any, any>((options) => useComment(options));
+      try {
+        const waitFor = testUtils.createWaitFor(rendered);
+        rendered.rerender({ commentCid, community });
+
+        await waitFor(() => rendered.result.current.cid === commentCid);
+        await waitFor(() => commentsStore.getState().comments[commentCid]?.upvoteCount === 3);
+
+        expect(createCommentSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            cid: commentCid,
+            communityName: community.name,
+            communityPublicKey: community.publicKey,
+          }),
+        );
+      } finally {
+        createCommentSpy.mockRestore();
+        rendered.unmount();
+      }
+    });
+
+    test("useComment forwards page comment community identifiers to pkc.createComment", async () => {
+      const commentCid = "comment cid with page community ref";
+      const pageComment = {
+        cid: commentCid,
+        timestamp: 1,
+        communityName: "page-community-ref.eth",
+        communityPublicKey: "page-community-ref-public-key",
+      };
+      communitiesPagesStore.setState({
+        comments: {
+          [commentCid]: pageComment,
+        },
+      });
+      const createCommentSpy = vi.spyOn(PKC.prototype, "createComment");
+
+      const rendered = renderHook<any, any>((cid) => useComment({ commentCid: cid }));
+      try {
+        const waitFor = testUtils.createWaitFor(rendered);
+        rendered.rerender(commentCid);
+
+        await waitFor(() => rendered.result.current.cid === commentCid);
+
+        expect(createCommentSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            cid: commentCid,
+            communityName: pageComment.communityName,
+            communityPublicKey: pageComment.communityPublicKey,
+          }),
+        );
+        await waitFor(() => commentsStore.getState().comments[commentCid]?.upvoteCount === 3);
+      } finally {
+        createCommentSpy.mockRestore();
+        rendered.unmount();
+        await testUtils.resetDatabasesAndStores();
+      }
+    });
+
     test(`onlyIfCached: true doesn't add to store`, async () => {
       let rendered;
       rendered = renderHook<any, any>((options: any) => useComment(options));
@@ -663,6 +729,51 @@ describe("comments", () => {
           await rendered.result.current.refresh();
         });
         expect(refreshComment).toHaveBeenCalledWith(commentCid, account);
+      } finally {
+        useAccountSpy.mockRestore();
+      }
+    });
+
+    test("useComment refresh forwards community identifiers to the store", async () => {
+      const commentCid = "comment cid refresh community ref";
+      const community = {
+        name: "refresh-community-ref.eth",
+        publicKey: "refresh-community-ref-public-key",
+      };
+      const account = { id: "mock-refresh-community-account", pkc: {} };
+      const refreshComment = vi.fn().mockResolvedValue({
+        cid: commentCid,
+        timestamp: 1,
+        updatedAt: 2,
+        upvoteCount: 5,
+      });
+      const useAccountSpy = vi.spyOn(accountsHooks, "useAccount").mockReturnValue(account as any);
+      try {
+        commentsStore.setState((state: any) => ({
+          ...state,
+          comments: {
+            ...state.comments,
+            [commentCid]: { cid: commentCid, timestamp: 1, updatedAt: 1, upvoteCount: 3 },
+          },
+          refreshComment,
+        }));
+
+        const rendered = renderHook<any, any>(() =>
+          useComment({ commentCid, community, onlyIfCached: true, autoUpdate: false }),
+        );
+
+        await act(async () => {
+          await rendered.result.current.refresh();
+        });
+        expect(refreshComment).toHaveBeenCalledWith(
+          commentCid,
+          account,
+          expect.objectContaining({
+            cid: commentCid,
+            communityName: community.name,
+            communityPublicKey: community.publicKey,
+          }),
+        );
       } finally {
         useAccountSpy.mockRestore();
       }

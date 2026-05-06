@@ -50,6 +50,20 @@ const getCommentAutoUpdateSubscribersCount = (commentCid: string) =>
 const hasCommentAutoUpdateSubscribers = (commentCid: string) =>
   getCommentAutoUpdateSubscribersCount(commentCid) > 0;
 
+const mergeCommentData = (
+  commentCid: string,
+  ...commentDataList: (Comment | undefined)[]
+): Comment => {
+  const mergedCommentData: Comment = { cid: commentCid };
+  for (const commentData of commentDataList) {
+    if (commentData && typeof commentData === "object") {
+      Object.assign(mergedCommentData, utils.clone(commentData));
+    }
+  }
+  mergedCommentData.cid = commentCid;
+  return mergedCommentData;
+};
+
 const releaseLiveComment = (commentCid: string, comment?: Comment) => {
   const liveComment = comment || liveComments[commentCid];
   if (liveComment) {
@@ -209,9 +223,9 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     }
 
     const liveCommentPromise = (async () => {
-      const initialComment =
-        normalizeCommentCommunityAddress(utils.clone(commentData || { cid: commentCid })) ||
-        ({ cid: commentCid } as Comment);
+      const initialComment = normalizeCommentCommunityAddress(
+        mergeCommentData(commentCid, commentData),
+      );
       const liveComment = normalizeCommentCommunityAddress(
         await account.pkc.createComment(initialComment),
       ) as Comment;
@@ -277,7 +291,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     comments: {},
     errors: {},
 
-    async addCommentToStore(commentCid: string, account: Account) {
+    async addCommentToStore(commentCid: string, account: Account, commentData?: Comment) {
       const { comments } = getState();
       const pendingKey = commentCid + account.id;
 
@@ -290,10 +304,10 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
 
       try {
         // try to find comment in database
-        comment = await getCommentFromDatabase(commentCid, account);
+        comment = await getCommentFromDatabase(commentCid, account, commentData);
 
         if (!comment) {
-          comment = await ensureLiveComment(commentCid, account, { cid: commentCid });
+          comment = await ensureLiveComment(commentCid, account, commentData);
           comment = normalizeCommentCommunityAddress(comment);
           log("commentsStore.addCommentToStore", { commentCid, comment, account });
           setState((state: CommentsState) => ({
@@ -308,7 +322,11 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
           // add comment replies pages to repliesPagesStore so they can be used in useComment
           repliesPagesStore.getState().addRepliesPageCommentsToStore(comment);
 
-          comment = await ensureLiveComment(commentCid, account, comment);
+          comment = await ensureLiveComment(
+            commentCid,
+            account,
+            mergeCommentData(commentCid, comment, commentData),
+          );
         }
 
         if (comment) {
@@ -322,7 +340,12 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
       }
     },
 
-    async startCommentAutoUpdate(commentCid: string, subscriberId: string, account: Account) {
+    async startCommentAutoUpdate(
+      commentCid: string,
+      subscriberId: string,
+      account: Account,
+      commentData?: Comment,
+    ) {
       const hadAutoUpdateSubscribers = hasCommentAutoUpdateSubscribers(commentCid);
       commentAutoUpdateSubscribers[commentCid] = {
         ...(commentAutoUpdateSubscribers[commentCid] || {}),
@@ -337,7 +360,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
       const liveComment = await ensureLiveComment(
         commentCid,
         account,
-        storedComment || ({ cid: commentCid } as Comment),
+        mergeCommentData(commentCid, storedComment, commentData),
       );
 
       if (!storedComment) {
@@ -373,12 +396,12 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
       maybeReleaseStoppedLiveComment(commentCid, liveComment);
     },
 
-    async refreshComment(commentCid: string, account: Account) {
+    async refreshComment(commentCid: string, account: Account, commentData?: Comment) {
       const storedComment = getState().comments[commentCid];
       const liveComment = await ensureLiveComment(
         commentCid,
         account,
-        storedComment || ({ cid: commentCid } as Comment),
+        mergeCommentData(commentCid, storedComment, commentData),
       );
 
       if (
@@ -397,13 +420,21 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
   };
 });
 
-const getCommentFromDatabase = async (commentCid: string, account: Account) => {
+const getCommentFromDatabase = async (
+  commentCid: string,
+  account: Account,
+  initialCommentData?: Comment,
+) => {
   const commentData: any = await commentsDatabase.getItem(commentCid);
   if (!commentData) {
     return;
   }
   try {
-    const comment = normalizeCommentCommunityAddress(await account.pkc.createComment(commentData));
+    const comment = normalizeCommentCommunityAddress(
+      await account.pkc.createComment(
+        mergeCommentData(commentCid, commentData, initialCommentData),
+      ),
+    );
     return comment;
   } catch (e) {
     // need to log this always or it could silently fail in production and cache never be used

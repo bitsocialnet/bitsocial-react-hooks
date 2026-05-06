@@ -95,6 +95,37 @@ describe("comments store", () => {
     mockAccount.pkc.createComment = createCommentOriginal;
   });
 
+  test("addCommentToStore merges community identifiers into cached createComment data", async () => {
+    const commentCid = "cached-community-ref-cid";
+    const communityData = {
+      cid: commentCid,
+      communityName: "cached-community.eth",
+      communityPublicKey: "cached-community-public-key",
+    };
+    const db = localForageLru.createInstance({ name: "bitsocialReactHooks-comments" });
+    await db.setItem(commentCid, {
+      cid: commentCid,
+      timestamp: 1,
+      content: "cached comment",
+    });
+
+    const createCommentOriginal = mockAccount.pkc.createComment.bind(mockAccount.pkc);
+    mockAccount.pkc.createComment = vi.fn((commentData: any) => createCommentOriginal(commentData));
+
+    await act(async () => {
+      await commentsStore.getState().addCommentToStore(commentCid, mockAccount, communityData);
+    });
+
+    expect(mockAccount.pkc.createComment).toHaveBeenCalledWith(
+      expect.objectContaining(communityData),
+    );
+    expect(mockAccount.pkc.createComment).toHaveBeenLastCalledWith(
+      expect.objectContaining(communityData),
+    );
+
+    mockAccount.pkc.createComment = createCommentOriginal;
+  });
+
   test("addCommentToStore clears the pending gate when cached live comment creation fails", async () => {
     const commentCid = "cached-live-fail-cid";
     const db = localForageLru.createInstance({ name: "bitsocialReactHooks-comments" });

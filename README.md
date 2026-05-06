@@ -119,7 +119,7 @@ useNotifications(): {notifications: Notification[], markAsRead: Function}
 #### Comments Hooks
 
 ```
-useComment({commentCid: string, onlyIfCached?: boolean, autoUpdate?: boolean}): Comment & {refresh: Function}
+useComment({commentCid: string, community?: CommunityIdentifier, onlyIfCached?: boolean, autoUpdate?: boolean}): Comment & {refresh: Function}
 useReplies({comment: Comment, onlyIfCached?: boolean, sortType?: string, flat?: boolean, repliesPerPage?: number, filter?: CommentsFilter, accountComments?: {newerThan: number, append?: boolean}}): {replies: Comment[], hasMore: boolean, loadMore: function, reset: function, updatedReplies: Comment[], bufferedReplies: Comment[]}
 useComments({commentCids: string[], onlyIfCached?: boolean, autoUpdate?: boolean}): {comments: Comment[], refresh: Function}
 useEditedComment({comment: Comment}): {editedComment: Comment | undefined}
@@ -256,7 +256,7 @@ await publishComment();
 #### Get a post
 
 ```jsx
-const post = useComment({ commentCid });
+const post = useComment({ commentCid, community: { name: communityAddress, publicKey: communityPublicKey } });
 
 // manual refresh is always available
 await post.refresh();
@@ -290,7 +290,7 @@ if (valid === false) {
 #### Get a comment
 
 ```jsx
-const comment = useComment({ commentCid });
+const comment = useComment({ commentCid, community: { name: communityAddress, publicKey: communityPublicKey } });
 const { comments, refresh } = useComments({ commentCids: [commentCid1, commentCid2, commentCid3] });
 await refresh();
 
