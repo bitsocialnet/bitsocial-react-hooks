@@ -3,7 +3,7 @@
 
 ### Bug Fixes
 
-* **deps:** upgrade pkc-js to 0.0.30 ([9942a82](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/9942a82def8330e49a8252653a7bc16abd6819a4))
+* **deps:** upgrade pkc-js to 0.0.33 ([3438c0d](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/3438c0d8ade34180a66b8ddbdc92ba8c970b4e5c))
 
 
 
@@ -238,6 +238,5 @@
 
 * useFeed({filter}) and useAuthorComments({filter}) are now {filter: Function, key:
 string}
-
 
 
