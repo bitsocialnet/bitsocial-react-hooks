@@ -1,6 +1,6 @@
 ---
 name: react-patterns-enforcer
-model: composer-2
+model: composer-2.5-fast
 description: Reviews React hooks and store code for anti-pattern violations specific to bitsocial-react-hooks (effect misuse, store patterns, public API consistency) and fixes them. Use after writing or modifying hooks, stores, or the public API.
 ---
 
