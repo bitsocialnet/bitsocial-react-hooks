@@ -1,9 +1,13 @@
+## [0.1.11](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.10...v0.1.11) (2026-05-20)
+
+
+
 ## [0.1.10](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.9...v0.1.10) (2026-05-15)
 
 
 ### Bug Fixes
 
-* **deps:** upgrade pkc-js to 0.0.33 ([3438c0d](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/3438c0d8ade34180a66b8ddbdc92ba8c970b4e5c))
+* **deps:** upgrade pkc-js to 0.0.30 ([9942a82](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/9942a82def8330e49a8252653a7bc16abd6819a4))
 
 
 
@@ -238,5 +242,6 @@
 
 * useFeed({filter}) and useAuthorComments({filter}) are now {filter: Function, key:
 string}
+
 
 
