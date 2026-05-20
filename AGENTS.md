@@ -32,6 +32,21 @@ This repository is its own project under the bitsocialnet org. Use `pkc`, `commu
 - Clean up only artifacts created by the current change, such as newly unused imports or dead helper code.
 - For non-trivial work, define success criteria and verify them with the narrowest reliable checks before marking the task complete.
 
+## LLM Knowledge Base Policy
+
+Use compiled context for orientation, not as source of truth.
+
+Source of truth:
+
+- Code, tests, package manifests, docs, and runtime/live evidence when relevant.
+
+Compiled context:
+
+- `AGENTS.md`, directory-specific `AGENTS.md` files, `CLAUDE.md`, and repo-managed `.codex/`, `.cursor/`, and `.claude/` workflow files.
+- `docs/agent-playbooks/**`, `docs/agent-runs/**`, `docs/agent-playbooks/known-surprises.md`, and tracked `llms.txt` / `llms-full.txt` files when present.
+
+Agents may use compiled context to navigate quickly, but must verify against source files before making behavioral claims or edits. External code graph, RAG, MCP, or wiki tools are optional local accelerators unless the developer explicitly asks to make one part of the committed workflow.
+
 ## Task Router (Read First)
 
 | Situation | Required action |
@@ -41,6 +56,7 @@ This repository is its own project under the bitsocialnet org. Use `pkc`, `commu
 | Bug report in a specific file/line | Start with git history scan from `docs/agent-playbooks/bug-investigation.md` before editing |
 | Public API changed (`src/index.ts`, `src/types.ts`) | Ensure backward compatibility; update README if signatures changed |
 | User-facing behavior/feature added or changed | Update `README.md` usage/docs in the same task before marking work complete |
+| Public docs or AI context changed (`README.md`, `docs/**/*.md`, `AGENTS.md`, or `scripts/generate-llms-files.mjs`) | Run `yarn llms:generate`; inspect and commit any resulting changes to `llms*.txt` so LLM indexes stay current |
 | Tests added or changed (`src/**/*.test.ts`, `test/`) | Run `yarn test` to verify |
 | New reviewable feature/fix/docs/chore started while on `master` | Create a short-lived `feature/*`, `fix/*`, `docs/*`, or `chore/*` branch from `master` before editing; use a separate worktree only for parallel tasks |
 | New unrelated task started while another task branch is already checked out or being worked on by another agent | Create a separate worktree from `master`, create a new short-lived task branch there, and keep each agent on its own worktree/branch/PR |

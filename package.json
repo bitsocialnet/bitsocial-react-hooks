@@ -24,6 +24,7 @@
   "scripts": {
     "prebuild": "rm -rf dist",
     "build": "node ./node_modules/typescript/bin/tsc --project config/tsconfig.json && node scripts/normalize-dist-esm.mjs && node scripts/verify-dist-esm.mjs",
+    "llms:generate": "node scripts/generate-llms-files.mjs",
     "build:watch": "node ./node_modules/typescript/bin/tsc --project config/tsconfig.json --watch",
     "knip": "knip --production --include dependencies,unlisted,binaries --no-progress",
     "knip:full": "knip --no-progress --no-exit-code",

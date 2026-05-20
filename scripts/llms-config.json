@@ -1,0 +1,32 @@
+{
+  "title": "Bitsocial React Hooks",
+  "summary": "Bitsocial React Hooks is the React hooks and Zustand store package for building Bitsocial clients.",
+  "repoUrl": "https://github.com/bitsocialnet/bitsocial-react-hooks",
+  "llmsUrl": "https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/llms.txt",
+  "llmsFullUrl": "https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/llms-full.txt",
+  "shortOutputs": ["llms.txt"],
+  "fullOutputs": ["llms-full.txt"],
+  "links": [
+    ["Repository", "https://github.com/bitsocialnet/bitsocial-react-hooks"],
+    ["npm package", "https://www.npmjs.com/package/@bitsocial/bitsocial-react-hooks"],
+    ["Bitsocial protocol", "https://bitsocial.net"]
+  ],
+  "notes": [
+    "This is a package/library repo, so README.md, src exports, tests, and package manifests are source of truth.",
+    "Hooks are thin selectors around Zustand stores; data flow belongs in stores and protocol clients.",
+    "Generated llms files are compiled context for AI contributors, not API authority."
+  ],
+  "docs": [
+    "README.md",
+    "AGENTS.md",
+    "docs/algorithms.md",
+    "docs/clients.md",
+    "docs/mock-content.md",
+    "docs/schema.md",
+    "docs/testing.md",
+    "docs/agent-playbooks/known-surprises.md",
+    "docs/agent-playbooks/bug-investigation.md",
+    "docs/agent-playbooks/skills-and-tools.md"
+  ],
+  "optionalDocs": ["CHANGELOG.md", "docs/TODO.md"]
+}
