@@ -29,7 +29,16 @@ import {
 export const COMMUNITY_UPDATE_INTERVAL_MS = 15 * 60 * 1000;
 
 let pkcGetCommunityPending: { [key: string]: boolean } = {};
-const communityUpdateIntervals: ReturnType<typeof setInterval>[] = [];
+// Key pollers by community so delete/reset can stop the matching live instance.
+const communityUpdatePollers: {
+  [communityKey: string]: {
+    community: any;
+    updateInterval: ReturnType<typeof setInterval>;
+  };
+} = {};
+
+// reset all event listeners in between tests
+const listeners: any = [];
 
 const createCommunityWithLookupFallback = async (
   pkc: any,
@@ -43,9 +52,6 @@ const createCommunityWithLookupFallback = async (
   }
   throw Error(`communitiesStore.addCommunityToStore failed getting community '${communityKey}'`);
 };
-
-// reset all event listeners in between tests
-const listeners: any = [];
 
 const updateCommunity = (
   community: Community,
@@ -71,13 +77,30 @@ const startCommunityUpdatePolling = (
     communityKey,
   }: { communityAddressOrRef: string | CommunityIdentifier; communityKey: string },
 ) => {
+  stopCommunityUpdatePolling(communityKey);
   updateCommunity(community, { communityAddressOrRef, communityKey });
-  communityUpdateIntervals.push(
-    setInterval(
+  communityUpdatePollers[communityKey] = {
+    community,
+    updateInterval: setInterval(
       () => updateCommunity(community, { communityAddressOrRef, communityKey }),
       COMMUNITY_UPDATE_INTERVAL_MS,
     ),
-  );
+  };
+};
+
+const stopCommunityUpdatePolling = (communityKey: string) => {
+  const polling = communityUpdatePollers[communityKey];
+  if (!polling) {
+    return;
+  }
+
+  clearInterval(polling.updateInterval);
+  polling.community.removeAllListeners();
+  const listenerIndex = listeners.indexOf(polling.community);
+  if (listenerIndex >= 0) {
+    listeners.splice(listenerIndex, 1);
+  }
+  delete communityUpdatePollers[communityKey];
 };
 
 export type CommunitiesState = {
@@ -419,6 +442,7 @@ const communitiesStore = createStore<CommunitiesState>(
       community.on("error", console.log);
 
       await community.delete();
+      stopCommunityUpdatePolling(communityAddress);
       await communitiesDatabase.removeItem(communityAddress);
       log("communitiesStore.deleteCommunity", { communityAddress, community, account });
       setState((state: any) => ({
@@ -433,10 +457,9 @@ const originalState = communitiesStore.getState();
 // async function because some stores have async init
 export const resetCommunitiesStore = async () => {
   pkcGetCommunityPending = {};
-  // remove all event listeners
   listeners.forEach((listener: any) => listener.removeAllListeners());
-  communityUpdateIntervals.forEach((updateInterval) => clearInterval(updateInterval));
-  communityUpdateIntervals.length = 0;
+  listeners.length = 0;
+  Object.keys(communityUpdatePollers).forEach(stopCommunityUpdatePolling);
   // destroy all component subscriptions to the store
   communitiesStore.destroy();
   // restore original state

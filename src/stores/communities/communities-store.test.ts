@@ -262,6 +262,53 @@ describe("communities store", () => {
     }
   });
 
+  test("deleteCommunity stops update polling and listeners for deleted communities", async () => {
+    vi.useFakeTimers();
+    const address = "deleted-periodic-address";
+    const pkc = await PkcJsMock();
+    const liveCommunity = await pkc.createCommunity({ address });
+    const deleteCommunity = await pkc.createCommunity({ address });
+    const updateSpy = vi.spyOn(liveCommunity, "update").mockResolvedValue(undefined);
+    const deleteSpy = vi.spyOn(deleteCommunity, "delete").mockResolvedValue(undefined);
+
+    const createCommunityOrig = mockAccount.pkc.createCommunity;
+    mockAccount.pkc.createCommunity = vi
+      .fn()
+      .mockResolvedValueOnce(liveCommunity)
+      .mockResolvedValueOnce(deleteCommunity);
+
+    try {
+      await act(async () => {
+        await communitiesStore.getState().addCommunityToStore(address, mockAccount);
+      });
+
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await communitiesStore.getState().deleteCommunity(address, mockAccount);
+      });
+
+      expect(deleteSpy).toHaveBeenCalledTimes(1);
+      expect(communitiesStore.getState().communities[address]).toBeUndefined();
+
+      liveCommunity.emit("update", liveCommunity);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(COMMUNITY_UPDATE_INTERVAL_MS);
+      });
+
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+      expect(communitiesStore.getState().communities[address]).toBeUndefined();
+      const db = localForageLru.createInstance({ name: "bitsocialReactHooks-communities" });
+      expect(await db.getItem(address)).toBeUndefined();
+    } finally {
+      mockAccount.pkc.createCommunity = createCommunityOrig;
+      updateSpy.mockRestore();
+      deleteSpy.mockRestore();
+      await resetCommunitiesDatabaseAndStore();
+      vi.useRealTimers();
+    }
+  });
+
   test("addCommunityToStore sets errors and throws when createCommunity rejects", async () => {
     const address = "create-reject-address";
     const createOrig = mockAccount.pkc.createCommunity;
