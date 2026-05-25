@@ -284,7 +284,7 @@ __metadata:
   resolution: "@bitsocial/bitsocial-react-hooks@workspace:."
   dependencies:
     "@bitsocial/bso-resolver": "npm:0.0.8"
-    "@pkcprotocol/pkc-js": "npm:0.0.35"
+    "@pkcprotocol/pkc-js": "npm:0.0.38"
     "@pkcprotocol/pkc-logger": "npm:0.1.0"
     "@testing-library/dom": "npm:10.4.1"
     "@testing-library/react": "npm:16.3.2"
@@ -3168,9 +3168,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@pkcprotocol/pkc-js@npm:0.0.35":
-  version: 0.0.35
-  resolution: "@pkcprotocol/pkc-js@npm:0.0.35"
+"@pkcprotocol/pkc-js@npm:0.0.38":
+  version: 0.0.38
+  resolution: "@pkcprotocol/pkc-js@npm:0.0.38"
   dependencies:
     "@enhances/with-resolvers": "npm:0.0.5"
     "@helia/block-brokers": "npm:5.2.4"
@@ -3219,7 +3219,7 @@ __metadata:
     typestub-ipfs-only-hash: "npm:4.0.0"
     uuid: "npm:13.0.0"
     zod: "npm:4.3.6"
-  checksum: 10c0/b218f19f8f01c422f68069f9f49e08dd3f57cfa082cb1213cc30c624e2ee6e7608480ae34152e23ba5d6b78ba21b0841f29e623632f7b97561cb1314a748d265
+  checksum: 10c0/97f94ca73911a6acc58658c3e6356f17ebf2388f88965052da8176759b297030a0933c874ab287c31e32d717bff7709a76df91d438b8bd010801be6a25fd873b
   languageName: node
   linkType: hard
 
