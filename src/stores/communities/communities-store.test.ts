@@ -414,6 +414,88 @@ describe("communities store", () => {
     mockAccount.pkc.createCommunity = createOrig;
   });
 
+  test("community error event waits before reaching store errors", async () => {
+    const address = "delayed-error-address";
+    const pkc = await PkcJsMock();
+    const community = await pkc.createCommunity({ address });
+    const updateSpy = vi.spyOn(community, "update").mockResolvedValue(undefined);
+    const createOrig = mockAccount.pkc.createCommunity;
+    mockAccount.pkc.createCommunity = vi.fn().mockResolvedValue(community);
+
+    try {
+      await act(async () => {
+        await communitiesStore.getState().addCommunityToStore(address, mockAccount);
+      });
+
+      vi.useFakeTimers();
+      const error = new Error("fetch failed");
+      act(() => {
+        community.emit("error", error);
+      });
+
+      expect(communitiesStore.getState().errors[address]).toBeUndefined();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(999);
+      });
+      expect(communitiesStore.getState().errors[address]).toBeUndefined();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(communitiesStore.getState().errors[address]).toEqual([error]);
+    } finally {
+      vi.useRealTimers();
+      mockAccount.pkc.createCommunity = createOrig;
+      updateSpy.mockRestore();
+    }
+  });
+
+  test("community update event discards earlier pending and stored errors", async () => {
+    const address = "stale-error-address";
+    const pkc = await PkcJsMock();
+    const community = await pkc.createCommunity({ address });
+    const updateSpy = vi.spyOn(community, "update").mockResolvedValue(undefined);
+    const createOrig = mockAccount.pkc.createCommunity;
+    mockAccount.pkc.createCommunity = vi.fn().mockResolvedValue(community);
+
+    try {
+      await act(async () => {
+        await communitiesStore.getState().addCommunityToStore(address, mockAccount);
+      });
+
+      vi.useFakeTimers();
+      const pendingError = new Error("pending fetch failed");
+      act(() => {
+        community.emit("error", pendingError);
+        community.emit("update", community);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+
+      expect(communitiesStore.getState().errors[address]).toBeUndefined();
+
+      const storedError = new Error("stored fetch failed");
+      act(() => {
+        community.emit("error", storedError);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(communitiesStore.getState().errors[address]).toEqual([storedError]);
+
+      act(() => {
+        community.emit("update", community);
+      });
+      expect(communitiesStore.getState().errors[address]).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+      mockAccount.pkc.createCommunity = createOrig;
+      updateSpy.mockRestore();
+    }
+  });
+
   test("createCommunity with no signer asserts address must be undefined", async () => {
     const pkc = await PkcJsMock();
     const community = await pkc.createCommunity({ address: "new-sub-address" });

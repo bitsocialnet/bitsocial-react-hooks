@@ -40,6 +40,11 @@ const communityUpdatePollers: {
 // reset all event listeners in between tests
 const listeners: any = [];
 
+const COMMUNITY_ERROR_UPDATE_GRACE_MS = 1000;
+const pendingCommunityErrorTimers: {
+  [communityKey: string]: ReturnType<typeof setTimeout>[];
+} = {};
+
 const createCommunityWithLookupFallback = async (
   pkc: any,
   communityLookupOptions: { address?: string; name?: string; publicKey?: string },
@@ -94,6 +99,7 @@ const stopCommunityUpdatePolling = (communityKey: string) => {
     return;
   }
 
+  clearPendingCommunityErrors(communityKey);
   clearInterval(polling.updateInterval);
   polling.community.removeAllListeners();
   const listenerIndex = listeners.indexOf(polling.community);
@@ -101,6 +107,43 @@ const stopCommunityUpdatePolling = (communityKey: string) => {
     listeners.splice(listenerIndex, 1);
   }
   delete communityUpdatePollers[communityKey];
+};
+
+const clearPendingCommunityErrors = (communityKey: string) => {
+  pendingCommunityErrorTimers[communityKey]?.forEach((timeout) => clearTimeout(timeout));
+  delete pendingCommunityErrorTimers[communityKey];
+};
+
+const clearStoredCommunityErrors = (state: CommunitiesState, communityKey: string) => {
+  if (!state.errors[communityKey]) {
+    return state.errors;
+  }
+  const nextErrors = { ...state.errors };
+  delete nextErrors[communityKey];
+  return nextErrors;
+};
+
+const scheduleCommunityError = (setState: Function, communityKey: string, error: Error) => {
+  const timeout = setTimeout(() => {
+    pendingCommunityErrorTimers[communityKey] = (
+      pendingCommunityErrorTimers[communityKey] || []
+    ).filter((pendingTimeout) => pendingTimeout !== timeout);
+    if ((pendingCommunityErrorTimers[communityKey] || []).length === 0) {
+      delete pendingCommunityErrorTimers[communityKey];
+    }
+    setState((state: CommunitiesState) => {
+      const communityErrors = state.errors[communityKey] || [];
+      return {
+        ...state,
+        errors: { ...state.errors, [communityKey]: [...communityErrors, error] },
+      };
+    });
+  }, COMMUNITY_ERROR_UPDATE_GRACE_MS);
+
+  pendingCommunityErrorTimers[communityKey] = [
+    ...(pendingCommunityErrorTimers[communityKey] || []),
+    timeout,
+  ];
 };
 
 export type CommunitiesState = {
@@ -229,6 +272,11 @@ const communitiesStore = createStore<CommunitiesState>(
 
         // the community has published new posts
         community.on("update", async (updatedCommunity: Community) => {
+          clearPendingCommunityErrors(communityKey);
+          setState((state: CommunitiesState) => ({
+            ...state,
+            errors: clearStoredCommunityErrors(state, communityKey),
+          }));
           updatedCommunity = utils.clone(updatedCommunity);
 
           // add fetchedAt to be able to expire the cache
@@ -243,6 +291,7 @@ const communitiesStore = createStore<CommunitiesState>(
             account,
           });
           setState((state: any) => ({
+            ...state,
             communities: { ...state.communities, [communityKey]: updatedCommunity },
           }));
 
@@ -265,11 +314,7 @@ const communitiesStore = createStore<CommunitiesState>(
         });
 
         community.on("error", (error: Error) => {
-          setState((state: CommunitiesState) => {
-            let communityErrors = state.errors[communityKey] || [];
-            communityErrors = [...communityErrors, error];
-            return { ...state, errors: { ...state.errors, [communityKey]: communityErrors } };
-          });
+          scheduleCommunityError(setState, communityKey, error);
         });
 
         // set clients on community so the frontend can display it, dont persist in db because a reload cancels updating
@@ -457,6 +502,8 @@ const originalState = communitiesStore.getState();
 // async function because some stores have async init
 export const resetCommunitiesStore = async () => {
   pkcGetCommunityPending = {};
+  Object.keys(pendingCommunityErrorTimers).forEach(clearPendingCommunityErrors);
+  // remove all event listeners
   listeners.forEach((listener: any) => listener.removeAllListeners());
   listeners.length = 0;
   Object.keys(communityUpdatePollers).forEach(stopCommunityUpdatePolling);

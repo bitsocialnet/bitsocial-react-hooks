@@ -167,6 +167,8 @@ useResolvedCommunityAddress({communityAddress: string, cache: boolean}): {resolv
 
 Pass `{ publicKey, name }` when you have both so `pkc-js` can fetch through the public key and resolve the name in the background. `communityAddress`, `communityAddresses`, and `communityRefs` are no longer accepted by these hooks.
 
+`useCommunity` only exposes community error events that are not superseded by a later `update` event. Transient fetch errors are delayed briefly before surfacing through `error` or `errors`.
+
 #### Authors Hooks
 
 ```
