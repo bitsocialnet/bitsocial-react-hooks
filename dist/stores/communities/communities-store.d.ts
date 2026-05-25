@@ -1,4 +1,5 @@
 import { Communities } from "../../types.js";
+export declare const COMMUNITY_UPDATE_INTERVAL_MS: number;
 export type CommunitiesState = {
     communities: Communities;
     errors: {

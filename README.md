@@ -413,6 +413,9 @@ const { communities } = useCommunities({
   ],
 });
 
+// fetched communities are refreshed immediately and then every 15 minutes
+// so long-lived tabs keep following community IPNS updates
+
 // use without affecting performance
 const { communities: cachedCommunities } = useCommunities({
   communities: [

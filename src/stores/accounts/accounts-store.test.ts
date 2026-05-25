@@ -121,17 +121,23 @@ describe("accounts-store", () => {
 
   describe("init edge cases", () => {
     test("IIFE returns early when BITSOCIAL_REACT_HOOKS_ACCOUNTS_STORE_INITIALIZED_ONCE is set", async () => {
-      // Flag is set from first init; reset modules and re-import to exercise early-return branch
-      vi.resetModules();
       // @ts-ignore
       expect(window.BITSOCIAL_REACT_HOOKS_ACCOUNTS_STORE_INITIALIZED_ONCE).toBe(true);
 
-      const mod = await import("./accounts-store");
-      const freshStore = mod.default;
-      // New module instance; init was skipped so store has default empty state
-      const state = freshStore.getState();
-      expect(state.accounts).toEqual({});
-      expect(state.accountIds).toEqual([]);
+      const configuredLocalforage = (await import("localforage")).default;
+      vi.resetModules();
+      vi.doMock("localforage", () => ({ default: configuredLocalforage }));
+
+      try {
+        const mod = await import("./accounts-store");
+        const freshStore = mod.default;
+        // New module instance; init was skipped so store has default empty state
+        const state = freshStore.getState();
+        expect(state.accounts).toEqual({});
+        expect(state.accountIds).toEqual([]);
+      } finally {
+        vi.doUnmock("localforage");
+      }
     });
   });
 });
