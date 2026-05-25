@@ -322,41 +322,43 @@ describe("communities", () => {
       }
     });
 
-    test("has error events", async () => {
+    test("has unsuperseded error events", async () => {
       // mock update to save community instance
       const communityUpdate = Community.prototype.update;
       const updatingCommunities: any = [];
       Community.prototype.update = function () {
         updatingCommunities.push(this);
-        return communityUpdate.bind(this)();
+        return Promise.resolve();
       };
 
-      const rendered = renderHook<any, any>((communityAddress) =>
-        useCommunity({ community: toCommunity(communityAddress) }),
-      );
-      const waitFor = testUtils.createWaitFor(rendered);
-      rendered.rerender("community address");
+      try {
+        const rendered = renderHook<any, any>((communityAddress) =>
+          useCommunity({ community: toCommunity(communityAddress) }),
+        );
+        const waitFor = testUtils.createWaitFor(rendered, { timeout: 3000 });
+        rendered.rerender("community address");
 
-      // emit error event
-      await waitFor(() => updatingCommunities.length > 0);
-      updatingCommunities[0].emit("error", Error("error 1"));
+        // emit error event
+        await waitFor(() => updatingCommunities.length > 0);
+        updatingCommunities[0].emit("error", Error("error 1"));
 
-      // first error
-      await waitFor(() => rendered.result.current.error.message === "error 1");
-      expect(rendered.result.current.error.message).toBe("error 1");
-      expect(rendered.result.current.errors[0].message).toBe("error 1");
-      expect(rendered.result.current.errors.length).toBe(1);
+        // first error
+        await waitFor(() => rendered.result.current.error.message === "error 1");
+        expect(rendered.result.current.error.message).toBe("error 1");
+        expect(rendered.result.current.errors[0].message).toBe("error 1");
+        expect(rendered.result.current.errors.length).toBe(1);
 
-      // second error
-      updatingCommunities[0].emit("error", Error("error 2"));
-      await waitFor(() => rendered.result.current.error.message === "error 2");
-      expect(rendered.result.current.error.message).toBe("error 2");
-      expect(rendered.result.current.errors[0].message).toBe("error 1");
-      expect(rendered.result.current.errors[1].message).toBe("error 2");
-      expect(rendered.result.current.errors.length).toBe(2);
-
-      // restore mock
-      Community.prototype.update = communityUpdate;
+        // second error
+        updatingCommunities[0].emit("error", Error("error 2"));
+        await waitFor(() => rendered.result.current.error.message === "error 2");
+        expect(rendered.result.current.error.message).toBe("error 2");
+        expect(rendered.result.current.errors[0].message).toBe("error 1");
+        expect(rendered.result.current.errors[1].message).toBe("error 2");
+        expect(rendered.result.current.errors.length).toBe(2);
+      } finally {
+        // restore mock
+        Community.prototype.update = communityUpdate;
+      }
     });
 
     test("pkc.createCommunity throws adds useCommunity().error", async () => {
