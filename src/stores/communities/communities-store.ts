@@ -26,7 +26,10 @@ import {
   getPkcGetCommunity,
 } from "../../lib/pkc-compat";
 
+export const COMMUNITY_UPDATE_INTERVAL_MS = 15 * 60 * 1000;
+
 let pkcGetCommunityPending: { [key: string]: boolean } = {};
+const communityUpdateIntervals: ReturnType<typeof setInterval>[] = [];
 
 const createCommunityWithLookupFallback = async (
   pkc: any,
@@ -43,6 +46,39 @@ const createCommunityWithLookupFallback = async (
 
 // reset all event listeners in between tests
 const listeners: any = [];
+
+const updateCommunity = (
+  community: Community,
+  {
+    communityAddressOrRef,
+    communityKey,
+  }: { communityAddressOrRef: string | CommunityIdentifier; communityKey: string },
+) => {
+  community.update().catch((error: unknown) =>
+    log.trace("community.update error", {
+      communityAddressOrRef,
+      communityKey,
+      community,
+      error,
+    }),
+  );
+};
+
+const startCommunityUpdatePolling = (
+  community: Community,
+  {
+    communityAddressOrRef,
+    communityKey,
+  }: { communityAddressOrRef: string | CommunityIdentifier; communityKey: string },
+) => {
+  updateCommunity(community, { communityAddressOrRef, communityKey });
+  communityUpdateIntervals.push(
+    setInterval(
+      () => updateCommunity(community, { communityAddressOrRef, communityKey }),
+      COMMUNITY_UPDATE_INTERVAL_MS,
+    ),
+  );
+};
 
 export type CommunitiesState = {
   communities: Communities;
@@ -241,9 +277,7 @@ const communitiesStore = createStore<CommunitiesState>(
         );
 
         listeners.push(community);
-        community
-          .update()
-          .catch((error: unknown) => log.trace("community.update error", { community, error }));
+        startCommunityUpdatePolling(community, { communityAddressOrRef, communityKey });
       } finally {
         pkcGetCommunityPending[pendingKey] = false;
       }
@@ -401,6 +435,8 @@ export const resetCommunitiesStore = async () => {
   pkcGetCommunityPending = {};
   // remove all event listeners
   listeners.forEach((listener: any) => listener.removeAllListeners());
+  communityUpdateIntervals.forEach((updateInterval) => clearInterval(updateInterval));
+  communityUpdateIntervals.length = 0;
   // destroy all component subscriptions to the store
   communitiesStore.destroy();
   // restore original state

@@ -121,12 +121,12 @@ describe("accounts-store", () => {
 
   describe("init edge cases", () => {
     test("IIFE returns early when BITSOCIAL_REACT_HOOKS_ACCOUNTS_STORE_INITIALIZED_ONCE is set", async () => {
-      // Flag is set from first init; reset modules and re-import to exercise early-return branch
-      vi.resetModules();
+      // Flag is set from first init; import a query-qualified store module to exercise early-return branch
+      // without resetting the localforage test driver installed by Vitest setup.
       // @ts-ignore
       expect(window.BITSOCIAL_REACT_HOOKS_ACCOUNTS_STORE_INITIALIZED_ONCE).toBe(true);
 
-      const mod = await import("./accounts-store");
+      const mod = await import("./accounts-store?init-skip");
       const freshStore = mod.default;
       // New module instance; init was skipped so store has default empty state
       const state = freshStore.getState();
