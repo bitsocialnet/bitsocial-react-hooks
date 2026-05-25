@@ -337,9 +337,6 @@ export class Community extends EventEmitter {
     update() {
         return __awaiter(this, void 0, void 0, function* () {
             this.updateCalledTimes++;
-            if (this.updateCalledTimes > 1) {
-                throw Error("with the current hooks, community.update() should be called maximum 1 times, this number might change if the hooks change and is only there to catch bugs, the real comment.update() can be called infinite times");
-            }
             if (!this.address) {
                 throw Error(`can't update without community.address`);
             }
@@ -373,6 +370,7 @@ export class Community extends EventEmitter {
         this.description = this.address + " description updated";
         // @ts-ignore
         this.updatedAt = this.updatedAt + 1;
+        this.updating = false;
         this.updatingState = "succeeded";
         this.emit("update", this);
         this.emit("updatingstatechange", "succeeded");

@@ -21,7 +21,12 @@ import accountsStore from "../accounts/index.js";
 import communitiesPagesStore from "../communities-pages/index.js";
 import { getCommunityLookupOptions, getCommunityRefKey } from "../../lib/community-ref.js";
 import { createPkcCommunity, getPkcCommunity, getPkcCommunityAddresses, getPkcCreateCommunity, getPkcGetCommunity, } from "../../lib/pkc-compat.js";
+export const COMMUNITY_UPDATE_INTERVAL_MS = 15 * 60 * 1000;
 let pkcGetCommunityPending = {};
+// Key pollers by community so delete/reset can stop the matching live instance.
+const communityUpdatePollers = {};
+// reset all event listeners in between tests
+const listeners = [];
 const COMMUNITY_ERROR_UPDATE_GRACE_MS = 1000;
 const pendingCommunityErrorTimers = {};
 const createCommunityWithLookupFallback = (pkc, communityLookupOptions, communityKey) => __awaiter(void 0, void 0, void 0, function* () {
@@ -32,8 +37,36 @@ const createCommunityWithLookupFallback = (pkc, communityLookupOptions, communit
     }
     throw Error(`communitiesStore.addCommunityToStore failed getting community '${communityKey}'`);
 });
-// reset all event listeners in between tests
-const listeners = [];
+const updateCommunity = (community, { communityAddressOrRef, communityKey, }) => {
+    community.update().catch((error) => log.trace("community.update error", {
+        communityAddressOrRef,
+        communityKey,
+        community,
+        error,
+    }));
+};
+const startCommunityUpdatePolling = (community, { communityAddressOrRef, communityKey, }) => {
+    stopCommunityUpdatePolling(communityKey);
+    updateCommunity(community, { communityAddressOrRef, communityKey });
+    communityUpdatePollers[communityKey] = {
+        community,
+        updateInterval: setInterval(() => updateCommunity(community, { communityAddressOrRef, communityKey }), COMMUNITY_UPDATE_INTERVAL_MS),
+    };
+};
+const stopCommunityUpdatePolling = (communityKey) => {
+    const polling = communityUpdatePollers[communityKey];
+    if (!polling) {
+        return;
+    }
+    clearPendingCommunityErrors(communityKey);
+    clearInterval(polling.updateInterval);
+    polling.community.removeAllListeners();
+    const listenerIndex = listeners.indexOf(polling.community);
+    if (listenerIndex >= 0) {
+        listeners.splice(listenerIndex, 1);
+    }
+    delete communityUpdatePollers[communityKey];
+};
 const clearPendingCommunityErrors = (communityKey) => {
     var _a;
     (_a = pendingCommunityErrorTimers[communityKey]) === null || _a === void 0 ? void 0 : _a.forEach((timeout) => clearTimeout(timeout));
@@ -205,9 +238,7 @@ const communitiesStore = createStore((setState, getState) => ({
                     });
                 });
                 listeners.push(community);
-                community
-                    .update()
-                    .catch((error) => log.trace("community.update error", { community, error }));
+                startCommunityUpdatePolling(community, { communityAddressOrRef, communityKey });
             }
             finally {
                 pkcGetCommunityPending[pendingKey] = false;
@@ -302,6 +333,7 @@ const communitiesStore = createStore((setState, getState) => ({
             // could fix some test issues
             community.on("error", console.log);
             yield community.delete();
+            stopCommunityUpdatePolling(communityAddress);
             yield communitiesDatabase.removeItem(communityAddress);
             log("communitiesStore.deleteCommunity", { communityAddress, community, account });
             setState((state) => ({
@@ -318,6 +350,8 @@ export const resetCommunitiesStore = () => __awaiter(void 0, void 0, void 0, fun
     Object.keys(pendingCommunityErrorTimers).forEach(clearPendingCommunityErrors);
     // remove all event listeners
     listeners.forEach((listener) => listener.removeAllListeners());
+    listeners.length = 0;
+    Object.keys(communityUpdatePollers).forEach(stopCommunityUpdatePolling);
     // destroy all component subscriptions to the store
     communitiesStore.destroy();
     // restore original state
