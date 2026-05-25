@@ -1251,7 +1251,11 @@ class Community extends EventEmitter {
     if (this._getCommunityOnFirstUpdate) {
       return this.simulateGetCommunityOnFirstUpdateEvent();
     }
+    // @ts-ignore
+    this.updating = false;
+    this.updatingState = "succeeded";
     this.emit("update", this);
+    this.emit("updatingstatechange", "succeeded");
   }
 
   async simulateGetCommunityOnFirstUpdateEvent() {
@@ -1268,6 +1272,8 @@ class Community extends EventEmitter {
       this[prop] = props[prop];
     }
     this.posts.getPage = community.posts.getPage;
+    // @ts-ignore
+    this.updating = false;
     this.updatingState = "succeeded";
     this.emit("update", this);
     this.emit("updatingstatechange", "succeeded");

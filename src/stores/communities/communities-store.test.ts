@@ -1,6 +1,9 @@
 import { act } from "@testing-library/react";
 import testUtils, { renderHook } from "../../lib/test-utils";
-import communitiesStore, { resetCommunitiesDatabaseAndStore } from "./communities-store";
+import communitiesStore, {
+  COMMUNITY_UPDATE_INTERVAL_MS,
+  resetCommunitiesDatabaseAndStore,
+} from "./communities-store";
 import localForageLru from "../../lib/localforage-lru";
 import { setPkcJs } from "../..";
 import PkcJsMock, { PKC as BasePkc } from "../../lib/pkc-js/pkc-js-mock";
@@ -93,6 +96,25 @@ describe("communities store", () => {
     }
   });
 
+  test("addCommunityToStore fails when structured lookup returns no address", async () => {
+    const communityRef = { name: "missing-address.eth", publicKey: "missing-address-public-key" };
+    const createOrig = mockAccount.pkc.createCommunity;
+    mockAccount.pkc.createCommunity = vi.fn().mockResolvedValue({});
+
+    try {
+      await expect(
+        communitiesStore.getState().addCommunityToStore(communityRef, mockAccount),
+      ).rejects.toThrow("failed getting community 'missing-address-public-key'");
+
+      expect(communitiesStore.getState().communities[communityRef.publicKey]).toBeUndefined();
+      expect(communitiesStore.getState().errors[communityRef.publicKey]?.[0].message).toBe(
+        "communitiesStore.addCommunityToStore failed getting community 'missing-address-public-key'",
+      );
+    } finally {
+      mockAccount.pkc.createCommunity = createOrig;
+    }
+  });
+
   test("refreshCommunity uses structured community lookups and stores by publicKey", async () => {
     const communityRef = { name: "refresh-name.eth", publicKey: "refresh-public-key" };
     const getOrig = mockAccount.pkc.getCommunity;
@@ -106,6 +128,26 @@ describe("communities store", () => {
       expect(mockAccount.pkc.getCommunity).toHaveBeenCalledWith(communityRef);
       expect(communitiesStore.getState().communities[communityRef.publicKey]).toBeDefined();
       expect(communitiesStore.getState().communities[communityRef.publicKey]?.fetchedAt).toEqual(
+        expect.any(Number),
+      );
+    } finally {
+      mockAccount.pkc.getCommunity = getOrig;
+    }
+  });
+
+  test("refreshCommunity refreshes string addresses", async () => {
+    const address = "refresh-string-address";
+    const getOrig = mockAccount.pkc.getCommunity;
+    mockAccount.pkc.getCommunity = vi.fn().mockImplementation(getOrig.bind(mockAccount.pkc));
+
+    try {
+      await act(async () => {
+        await communitiesStore.getState().refreshCommunity(address, mockAccount);
+      });
+
+      expect(mockAccount.pkc.getCommunity).toHaveBeenCalledWith({ address });
+      expect(communitiesStore.getState().communities[address]).toBeDefined();
+      expect(communitiesStore.getState().communities[address]?.fetchedAt).toEqual(
         expect.any(Number),
       );
     } finally {
@@ -184,6 +226,87 @@ describe("communities store", () => {
 
     mockAccount.pkc.createCommunity = createCommunityOrig;
     updateSpy.mockRestore();
+  });
+
+  test("addCommunityToStore refreshes community updates every 15 minutes", async () => {
+    vi.useFakeTimers();
+    const address = "periodic-update-address";
+    const pkc = await PkcJsMock();
+    const community = await pkc.createCommunity({ address });
+    const updateSpy = vi.spyOn(community, "update").mockResolvedValue(undefined);
+
+    const createCommunityOrig = mockAccount.pkc.createCommunity;
+    mockAccount.pkc.createCommunity = vi.fn().mockResolvedValue(community);
+
+    try {
+      await act(async () => {
+        await communitiesStore.getState().addCommunityToStore(address, mockAccount);
+      });
+
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(COMMUNITY_UPDATE_INTERVAL_MS);
+      });
+      expect(updateSpy).toHaveBeenCalledTimes(2);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(COMMUNITY_UPDATE_INTERVAL_MS);
+      });
+      expect(updateSpy).toHaveBeenCalledTimes(3);
+    } finally {
+      mockAccount.pkc.createCommunity = createCommunityOrig;
+      updateSpy.mockRestore();
+      await resetCommunitiesDatabaseAndStore();
+      vi.useRealTimers();
+    }
+  });
+
+  test("deleteCommunity stops update polling and listeners for deleted communities", async () => {
+    vi.useFakeTimers();
+    const address = "deleted-periodic-address";
+    const pkc = await PkcJsMock();
+    const liveCommunity = await pkc.createCommunity({ address });
+    const deleteCommunity = await pkc.createCommunity({ address });
+    const updateSpy = vi.spyOn(liveCommunity, "update").mockResolvedValue(undefined);
+    const deleteSpy = vi.spyOn(deleteCommunity, "delete").mockResolvedValue(undefined);
+
+    const createCommunityOrig = mockAccount.pkc.createCommunity;
+    mockAccount.pkc.createCommunity = vi
+      .fn()
+      .mockResolvedValueOnce(liveCommunity)
+      .mockResolvedValueOnce(deleteCommunity);
+
+    try {
+      await act(async () => {
+        await communitiesStore.getState().addCommunityToStore(address, mockAccount);
+      });
+
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await communitiesStore.getState().deleteCommunity(address, mockAccount);
+      });
+
+      expect(deleteSpy).toHaveBeenCalledTimes(1);
+      expect(communitiesStore.getState().communities[address]).toBeUndefined();
+
+      liveCommunity.emit("update", liveCommunity);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(COMMUNITY_UPDATE_INTERVAL_MS);
+      });
+
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+      expect(communitiesStore.getState().communities[address]).toBeUndefined();
+      const db = localForageLru.createInstance({ name: "bitsocialReactHooks-communities" });
+      expect(await db.getItem(address)).toBeUndefined();
+    } finally {
+      mockAccount.pkc.createCommunity = createCommunityOrig;
+      updateSpy.mockRestore();
+      deleteSpy.mockRestore();
+      await resetCommunitiesDatabaseAndStore();
+      vi.useRealTimers();
+    }
   });
 
   test("addCommunityToStore sets errors and throws when createCommunity rejects", async () => {
@@ -385,6 +508,18 @@ describe("communities store", () => {
 
     expect(mockAccount.pkc.createCommunity).toHaveBeenCalledWith({});
     mockAccount.pkc.createCommunity = createOrig;
+  });
+
+  test("createCommunity with signer can create a specific address", async () => {
+    const address = "signed-community-address";
+
+    await act(async () => {
+      await communitiesStore
+        .getState()
+        .createCommunity({ address, signer: { address: "signer-address" } }, mockAccount);
+    });
+
+    expect(communitiesStore.getState().communities[address]).toBeDefined();
   });
 
   test("createCommunity with address but no signer throws (branch 251)", async () => {
