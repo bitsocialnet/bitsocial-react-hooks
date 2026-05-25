@@ -22,6 +22,8 @@ import communitiesPagesStore from "../communities-pages/index.js";
 import { getCommunityLookupOptions, getCommunityRefKey } from "../../lib/community-ref.js";
 import { createPkcCommunity, getPkcCommunity, getPkcCommunityAddresses, getPkcCreateCommunity, getPkcGetCommunity, } from "../../lib/pkc-compat.js";
 let pkcGetCommunityPending = {};
+const COMMUNITY_ERROR_UPDATE_GRACE_MS = 1000;
+const pendingCommunityErrorTimers = {};
 const createCommunityWithLookupFallback = (pkc, communityLookupOptions, communityKey) => __awaiter(void 0, void 0, void 0, function* () {
     const supportsAddressLookup = "address" in communityLookupOptions;
     const community = yield createPkcCommunity(pkc, communityLookupOptions);
@@ -32,6 +34,35 @@ const createCommunityWithLookupFallback = (pkc, communityLookupOptions, communit
 });
 // reset all event listeners in between tests
 const listeners = [];
+const clearPendingCommunityErrors = (communityKey) => {
+    var _a;
+    (_a = pendingCommunityErrorTimers[communityKey]) === null || _a === void 0 ? void 0 : _a.forEach((timeout) => clearTimeout(timeout));
+    delete pendingCommunityErrorTimers[communityKey];
+};
+const clearStoredCommunityErrors = (state, communityKey) => {
+    if (!state.errors[communityKey]) {
+        return state.errors;
+    }
+    const nextErrors = Object.assign({}, state.errors);
+    delete nextErrors[communityKey];
+    return nextErrors;
+};
+const scheduleCommunityError = (setState, communityKey, error) => {
+    const timeout = setTimeout(() => {
+        pendingCommunityErrorTimers[communityKey] = (pendingCommunityErrorTimers[communityKey] || []).filter((pendingTimeout) => pendingTimeout !== timeout);
+        if ((pendingCommunityErrorTimers[communityKey] || []).length === 0) {
+            delete pendingCommunityErrorTimers[communityKey];
+        }
+        setState((state) => {
+            const communityErrors = state.errors[communityKey] || [];
+            return Object.assign(Object.assign({}, state), { errors: Object.assign(Object.assign({}, state.errors), { [communityKey]: [...communityErrors, error] }) });
+        });
+    }, COMMUNITY_ERROR_UPDATE_GRACE_MS);
+    pendingCommunityErrorTimers[communityKey] = [
+        ...(pendingCommunityErrorTimers[communityKey] || []),
+        timeout,
+    ];
+};
 const communitiesStore = createStore((setState, getState) => ({
     communities: {},
     errors: {},
@@ -122,6 +153,8 @@ const communitiesStore = createStore((setState, getState) => ({
                 }));
                 // the community has published new posts
                 community.on("update", (updatedCommunity) => __awaiter(this, void 0, void 0, function* () {
+                    clearPendingCommunityErrors(communityKey);
+                    setState((state) => (Object.assign(Object.assign({}, state), { errors: clearStoredCommunityErrors(state, communityKey) })));
                     updatedCommunity = utils.clone(updatedCommunity);
                     // add fetchedAt to be able to expire the cache
                     // NOTE: fetchedAt is undefined on owner communities because never stale
@@ -133,9 +166,7 @@ const communitiesStore = createStore((setState, getState) => ({
                         updatedCommunity,
                         account,
                     });
-                    setState((state) => ({
-                        communities: Object.assign(Object.assign({}, state.communities), { [communityKey]: updatedCommunity }),
-                    }));
+                    setState((state) => (Object.assign(Object.assign({}, state), { communities: Object.assign(Object.assign({}, state.communities), { [communityKey]: updatedCommunity }) })));
                     // if a community has a role with an account's address add it to the account.communities
                     accountsStore
                         .getState()
@@ -149,11 +180,7 @@ const communitiesStore = createStore((setState, getState) => ({
                     }));
                 });
                 community.on("error", (error) => {
-                    setState((state) => {
-                        let communityErrors = state.errors[communityKey] || [];
-                        communityErrors = [...communityErrors, error];
-                        return Object.assign(Object.assign({}, state), { errors: Object.assign(Object.assign({}, state.errors), { [communityKey]: communityErrors }) });
-                    });
+                    scheduleCommunityError(setState, communityKey, error);
                 });
                 // set clients on community so the frontend can display it, dont persist in db because a reload cancels updating
                 utils.clientsOnStateChange(community === null || community === void 0 ? void 0 : community.clients, (clientState, clientType, clientUrl, chainTicker) => {
@@ -288,6 +315,7 @@ const originalState = communitiesStore.getState();
 // async function because some stores have async init
 export const resetCommunitiesStore = () => __awaiter(void 0, void 0, void 0, function* () {
     pkcGetCommunityPending = {};
+    Object.keys(pendingCommunityErrorTimers).forEach(clearPendingCommunityErrors);
     // remove all event listeners
     listeners.forEach((listener) => listener.removeAllListeners());
     // destroy all component subscriptions to the store
