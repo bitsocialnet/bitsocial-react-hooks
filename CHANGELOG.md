@@ -1,3 +1,13 @@
+## [0.1.12](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.11...v0.1.12) (2026-05-26)
+
+
+### Bug Fixes
+
+* **communities:** ignore stale community errors ([#58](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/58)) ([a37c79e](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/a37c79e6ebae303ac723aa377a801fa3f6d5c745))
+* **communities:** refresh active communities periodically ([b6a3e98](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/b6a3e98e13dcacc571a535990c4edd86e4e8e9f9))
+
+
+
 ## [0.1.11](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.10...v0.1.11) (2026-05-20)
 
 
