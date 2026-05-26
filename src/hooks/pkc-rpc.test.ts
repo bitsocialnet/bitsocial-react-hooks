@@ -236,9 +236,11 @@ describe("pkc-rpc", () => {
       const account = accounts[activeAccountId || ""];
       const rpc = Object.values(account?.pkc?.clients?.pkcRpcClients || {})[0] as any;
       expect(rpc).toBeDefined();
-      rpc.state = "connected";
-      rpc.emit("statechange", "connected");
-      vi.advanceTimersByTime(50);
+      await act(async () => {
+        rpc.state = "connected";
+        rpc.emit("statechange", "connected");
+        vi.advanceTimersByTime(50);
+      });
       await act(async () => {
         await rendered.result.current.setPkcRpcSettings({ challenges: {} });
       });
