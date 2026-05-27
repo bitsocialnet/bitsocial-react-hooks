@@ -577,6 +577,41 @@ describe("communities store", () => {
     }
   });
 
+  test("community error timeout is ignored when pending entry was already cleared", async () => {
+    const address = "cleared-pending-error-address";
+    const pkc = await PkcJsMock();
+    const community = await pkc.createCommunity({ address });
+    const updateSpy = vi.spyOn(community, "update").mockResolvedValue(undefined);
+    const createOrig = mockAccount.pkc.createCommunity;
+    mockAccount.pkc.createCommunity = vi.fn().mockResolvedValue(community);
+    let clearTimeoutSpy: { mockRestore: () => void } | undefined;
+
+    try {
+      await act(async () => {
+        await communitiesStore.getState().addCommunityToStore(address, mockAccount);
+      });
+
+      vi.useFakeTimers();
+      clearTimeoutSpy = vi.spyOn(globalThis, "clearTimeout").mockImplementation(() => undefined);
+      const pendingError = new Error("cleared pending fetch failed");
+      act(() => {
+        community.emit("error", pendingError);
+        community.emit("update", community);
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+
+      expect(communitiesStore.getState().errors[address]).toBeUndefined();
+    } finally {
+      clearTimeoutSpy?.mockRestore();
+      vi.useRealTimers();
+      mockAccount.pkc.createCommunity = createOrig;
+      updateSpy.mockRestore();
+    }
+  });
+
   test("createCommunity with no signer asserts address must be undefined", async () => {
     const pkc = await PkcJsMock();
     const community = await pkc.createCommunity({ address: "new-sub-address" });

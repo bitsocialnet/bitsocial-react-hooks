@@ -139,11 +139,18 @@ const scheduleCommunityError = (setState: Function, communityKey: string, error:
   }
 
   const timeout = setTimeout(() => {
-    pendingCommunityErrorTimers[communityKey] = pendingCommunityErrorTimers[communityKey].filter(
+    const pendingTimeouts = pendingCommunityErrorTimers[communityKey];
+    if (!pendingTimeouts?.includes(timeout)) {
+      return;
+    }
+
+    const remainingTimeouts = pendingTimeouts.filter(
       (pendingTimeout) => pendingTimeout !== timeout,
     );
-    if (pendingCommunityErrorTimers[communityKey].length === 0) {
+    if (remainingTimeouts.length === 0) {
       delete pendingCommunityErrorTimers[communityKey];
+    } else {
+      pendingCommunityErrorTimers[communityKey] = remainingTimeouts;
     }
     setState((state: CommunitiesState) => {
       const communityErrors = state.errors[communityKey] || [];
