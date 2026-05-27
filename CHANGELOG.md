@@ -1,3 +1,12 @@
+## [0.1.13](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.12...v0.1.13) (2026-05-27)
+
+
+### Bug Fixes
+
+* **communities:** suppress retriable load errors ([33c3dc1](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/33c3dc1f870f56728e496906b0b2e60ce98128c2))
+
+
+
 ## [0.1.12](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.11...v0.1.12) (2026-05-26)
 
 
