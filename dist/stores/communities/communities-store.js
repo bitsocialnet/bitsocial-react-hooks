@@ -80,11 +80,28 @@ const clearStoredCommunityErrors = (state, communityKey) => {
     delete nextErrors[communityKey];
     return nextErrors;
 };
+const isRetriableCommunityLoadError = (error) => {
+    const details = error.details;
+    return Boolean(details &&
+        typeof details === "object" &&
+        "retriableError" in details &&
+        details.retriableError === true);
+};
 const scheduleCommunityError = (setState, communityKey, error) => {
+    if (isRetriableCommunityLoadError(error)) {
+        return;
+    }
     const timeout = setTimeout(() => {
-        pendingCommunityErrorTimers[communityKey] = (pendingCommunityErrorTimers[communityKey] || []).filter((pendingTimeout) => pendingTimeout !== timeout);
-        if ((pendingCommunityErrorTimers[communityKey] || []).length === 0) {
+        const pendingTimeouts = pendingCommunityErrorTimers[communityKey];
+        if (!(pendingTimeouts === null || pendingTimeouts === void 0 ? void 0 : pendingTimeouts.includes(timeout))) {
+            return;
+        }
+        const remainingTimeouts = pendingTimeouts.filter((pendingTimeout) => pendingTimeout !== timeout);
+        if (remainingTimeouts.length === 0) {
             delete pendingCommunityErrorTimers[communityKey];
+        }
+        else {
+            pendingCommunityErrorTimers[communityKey] = remainingTimeouts;
         }
         setState((state) => {
             const communityErrors = state.errors[communityKey] || [];
