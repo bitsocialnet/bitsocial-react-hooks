@@ -123,12 +123,26 @@ const clearStoredCommunityErrors = (state: CommunitiesState, communityKey: strin
   return nextErrors;
 };
 
+const isRetriableCommunityLoadError = (error: Error) => {
+  const details = (error as Error & { details?: unknown }).details;
+  return Boolean(
+    details &&
+    typeof details === "object" &&
+    "retriableError" in details &&
+    (details as { retriableError?: unknown }).retriableError === true,
+  );
+};
+
 const scheduleCommunityError = (setState: Function, communityKey: string, error: Error) => {
+  if (isRetriableCommunityLoadError(error)) {
+    return;
+  }
+
   const timeout = setTimeout(() => {
-    pendingCommunityErrorTimers[communityKey] = (
-      pendingCommunityErrorTimers[communityKey] || []
-    ).filter((pendingTimeout) => pendingTimeout !== timeout);
-    if ((pendingCommunityErrorTimers[communityKey] || []).length === 0) {
+    pendingCommunityErrorTimers[communityKey] = pendingCommunityErrorTimers[communityKey].filter(
+      (pendingTimeout) => pendingTimeout !== timeout,
+    );
+    if (pendingCommunityErrorTimers[communityKey].length === 0) {
       delete pendingCommunityErrorTimers[communityKey];
     }
     setState((state: CommunitiesState) => {

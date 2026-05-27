@@ -451,6 +451,87 @@ describe("communities store", () => {
     }
   });
 
+  test("community retriable error event stays out of store errors", async () => {
+    const address = "retriable-error-address";
+    const pkc = await PkcJsMock();
+    const community = await pkc.createCommunity({ address });
+    const updateSpy = vi.spyOn(community, "update").mockResolvedValue(undefined);
+    const createOrig = mockAccount.pkc.createCommunity;
+    mockAccount.pkc.createCommunity = vi.fn().mockResolvedValue(community);
+
+    try {
+      await act(async () => {
+        await communitiesStore.getState().addCommunityToStore(address, mockAccount);
+      });
+
+      vi.useFakeTimers();
+      const error = Object.assign(new Error("transient fetch failed"), {
+        details: { retriableError: true },
+      });
+      act(() => {
+        community.emit("error", error);
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(communitiesStore.getState().errors[address]).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+      mockAccount.pkc.createCommunity = createOrig;
+      updateSpy.mockRestore();
+    }
+  });
+
+  test("community non-retriable error event still reaches store errors", async () => {
+    const address = "non-retriable-error-address";
+    const pkc = await PkcJsMock();
+    const community = await pkc.createCommunity({ address });
+    const updateSpy = vi.spyOn(community, "update").mockResolvedValue(undefined);
+    const createOrig = mockAccount.pkc.createCommunity;
+    mockAccount.pkc.createCommunity = vi.fn().mockResolvedValue(community);
+
+    try {
+      await act(async () => {
+        await communitiesStore.getState().addCommunityToStore(address, mockAccount);
+      });
+
+      vi.useFakeTimers();
+      const error = Object.assign(new Error("final fetch failed"), {
+        details: { retriableError: false },
+      });
+      const laterError = Object.assign(new Error("later final fetch failed"), {
+        details: { retriableError: false },
+      });
+      act(() => {
+        community.emit("error", error);
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      expect(communitiesStore.getState().errors[address]).toBeUndefined();
+
+      act(() => {
+        community.emit("error", laterError);
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      expect(communitiesStore.getState().errors[address]).toEqual([error]);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      expect(communitiesStore.getState().errors[address]).toEqual([error, laterError]);
+    } finally {
+      vi.useRealTimers();
+      mockAccount.pkc.createCommunity = createOrig;
+      updateSpy.mockRestore();
+    }
+  });
+
   test("community update event discards earlier pending and stored errors", async () => {
     const address = "stale-error-address";
     const pkc = await PkcJsMock();
