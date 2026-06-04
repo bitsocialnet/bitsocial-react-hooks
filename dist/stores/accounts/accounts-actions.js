@@ -42,6 +42,22 @@ const getClientsSnapshotForState = (clients) => {
     }
     return Object.keys(snapshot).length > 0 ? snapshot : undefined;
 };
+const unsafeCommentUpdatePropertyNames = new Set(["__proto__", "constructor", "prototype"]);
+const applyChallengeVerificationCommentUpdateToPublication = (challengeVerification, publication) => {
+    const commentUpdate = challengeVerification === null || challengeVerification === void 0 ? void 0 : challengeVerification.commentUpdate;
+    if (!commentUpdate ||
+        typeof commentUpdate !== "object" ||
+        Array.isArray(commentUpdate) ||
+        !publication ||
+        typeof publication !== "object") {
+        return;
+    }
+    for (const key of Object.keys(commentUpdate)) {
+        if (!unsafeCommentUpdatePropertyNames.has(key)) {
+            publication[key] = commentUpdate[key];
+        }
+    }
+};
 const syncCommentClientsSnapshot = (publishSessionId, accountId, publication) => {
     const session = getPublishSession(publishSessionId);
     if ((session === null || session === void 0 ? void 0 : session.currentIndex) === undefined) {
@@ -791,6 +807,7 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
             }));
             activeComment.once("challengeverification", (challengeVerification) => __awaiter(this, void 0, void 0, function* () {
                 var _a, _b;
+                applyChallengeVerificationCommentUpdateToPublication(challengeVerification, activeComment);
                 publishCommentOptions.onChallengeVerification(challengeVerification, activeComment);
                 if (!challengeVerification.challengeSuccess && lastChallenge) {
                     // publish again automatically on fail
@@ -843,6 +860,7 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
                         });
                         // clone the comment or it bugs publishing callbacks
                         const updatingComment = yield account.pkc.createComment(normalizePublicationOptionsForPkc(account.pkc, Object.assign({}, comment)));
+                        applyChallengeVerificationCommentUpdateToPublication(challengeVerification, updatingComment);
                         accountsActionsInternal
                             .startUpdatingAccountCommentOnCommentUpdateEvents(updatingComment, account, currentIndex)
                             .catch((error) => log.error("accountsActions.publishComment startUpdatingAccountCommentOnCommentUpdateEvents error", { comment, account, accountCommentIndex, error }));
