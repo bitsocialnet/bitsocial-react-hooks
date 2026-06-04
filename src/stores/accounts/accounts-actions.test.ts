@@ -488,18 +488,24 @@ describe("accounts-actions", () => {
         const publication: any = await createComment(opts);
         vi.spyOn(publication, "simulateChallengeVerificationEvent").mockImplementation(() => {
           const cid = "moderated comment cid";
+          const commentUpdate: any = {
+            cid,
+            pendingApproval: true,
+            reason: "AI moderation reason",
+            removed: false,
+          };
+          Object.defineProperties(commentUpdate, {
+            __proto__: { value: { polluted: true }, enumerable: true },
+            constructor: { value: { polluted: true }, enumerable: true },
+            prototype: { value: { polluted: true }, enumerable: true },
+          });
           publication.cid = cid;
           publication.emit("challengeverification", {
             type: "CHALLENGEVERIFICATION",
             challengeRequestId: publication.challengeRequestId,
             challengeAnswerId: publication.challengeAnswerId,
             challengeSuccess: true,
-            commentUpdate: {
-              cid,
-              pendingApproval: true,
-              reason: "AI moderation reason",
-              removed: false,
-            },
+            commentUpdate,
           });
           publication.publishingState = "succeeded";
           publication.emit("publishingstatechange", "succeeded");
@@ -545,6 +551,10 @@ describe("accounts-actions", () => {
         reason: "AI moderation reason",
         removed: false,
       });
+      expect(Object.prototype.hasOwnProperty.call(storedComment, "__proto__")).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(storedComment, "constructor")).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(storedComment, "prototype")).toBe(false);
+      expect(({} as any).polluted).toBeUndefined();
 
       const persistedComments = await accountsDatabase.getAccountComments(account.id);
       expect(persistedComments[0]).toMatchObject({
@@ -553,6 +563,9 @@ describe("accounts-actions", () => {
         reason: "AI moderation reason",
         removed: false,
       });
+      expect(Object.prototype.hasOwnProperty.call(persistedComments[0], "__proto__")).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(persistedComments[0], "constructor")).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(persistedComments[0], "prototype")).toBe(false);
     });
 
     test("publishVote with accountName uses named account", async () => {

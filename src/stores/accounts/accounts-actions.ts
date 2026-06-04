@@ -77,9 +77,11 @@ const getClientsSnapshotForState = (clients: any): any => {
   return Object.keys(snapshot).length > 0 ? snapshot : undefined;
 };
 
+const unsafeCommentUpdatePropertyNames = new Set(["__proto__", "constructor", "prototype"]);
+
 const applyChallengeVerificationCommentUpdateToPublication = (
   challengeVerification: ChallengeVerification | undefined,
-  publication: any,
+  publication: Record<string, any> | undefined,
 ) => {
   const commentUpdate = challengeVerification?.commentUpdate;
   if (
@@ -92,7 +94,11 @@ const applyChallengeVerificationCommentUpdateToPublication = (
     return;
   }
 
-  Object.assign(publication, commentUpdate);
+  for (const key of Object.keys(commentUpdate)) {
+    if (!unsafeCommentUpdatePropertyNames.has(key)) {
+      publication[key] = commentUpdate[key];
+    }
+  }
 };
 
 const syncCommentClientsSnapshot = (
