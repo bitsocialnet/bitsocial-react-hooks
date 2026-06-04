@@ -77,6 +77,24 @@ const getClientsSnapshotForState = (clients: any): any => {
   return Object.keys(snapshot).length > 0 ? snapshot : undefined;
 };
 
+const applyChallengeVerificationCommentUpdateToPublication = (
+  challengeVerification: ChallengeVerification | undefined,
+  publication: any,
+) => {
+  const commentUpdate = challengeVerification?.commentUpdate;
+  if (
+    !commentUpdate ||
+    typeof commentUpdate !== "object" ||
+    Array.isArray(commentUpdate) ||
+    !publication ||
+    typeof publication !== "object"
+  ) {
+    return;
+  }
+
+  Object.assign(publication, commentUpdate);
+};
+
 const syncCommentClientsSnapshot = (
   publishSessionId: string,
   accountId: string,
@@ -1129,6 +1147,7 @@ export const publishComment = async (
     activeComment.once(
       "challengeverification",
       async (challengeVerification: ChallengeVerification) => {
+        applyChallengeVerificationCommentUpdateToPublication(challengeVerification, activeComment);
         publishCommentOptions.onChallengeVerification(challengeVerification, activeComment);
         if (!challengeVerification.challengeSuccess && lastChallenge) {
           // publish again automatically on fail
@@ -1203,6 +1222,10 @@ export const publishComment = async (
             // clone the comment or it bugs publishing callbacks
             const updatingComment = await account.pkc.createComment(
               normalizePublicationOptionsForPkc(account.pkc, { ...comment }),
+            );
+            applyChallengeVerificationCommentUpdateToPublication(
+              challengeVerification,
+              updatingComment,
             );
             accountsActionsInternal
               .startUpdatingAccountCommentOnCommentUpdateEvents(
