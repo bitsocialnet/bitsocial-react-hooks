@@ -478,6 +478,96 @@ describe("accounts-actions", () => {
       expect(comments.some((c: any) => c.content === "from named account")).toBe(true);
     });
 
+    test("publishComment preserves challenge commentUpdate fields on the account comment", async () => {
+      await act(async () => {
+        await accountsActions.createAccount();
+      });
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const createComment = account.pkc.createComment.bind(account.pkc);
+      vi.spyOn(account.pkc, "createComment").mockImplementation(async (opts: any) => {
+        const publication: any = await createComment(opts);
+        vi.spyOn(publication, "simulateChallengeVerificationEvent").mockImplementation(() => {
+          const cid = "moderated comment cid";
+          const commentUpdate: any = {
+            cid,
+            pendingApproval: true,
+            reason: "AI moderation reason",
+            removed: false,
+          };
+          Object.defineProperties(commentUpdate, {
+            __proto__: { value: { polluted: true }, enumerable: true },
+            constructor: { value: { polluted: true }, enumerable: true },
+            prototype: { value: { polluted: true }, enumerable: true },
+          });
+          publication.cid = cid;
+          publication.emit("challengeverification", {
+            type: "CHALLENGEVERIFICATION",
+            challengeRequestId: publication.challengeRequestId,
+            challengeAnswerId: publication.challengeAnswerId,
+            challengeSuccess: true,
+            commentUpdate,
+          });
+          publication.publishingState = "succeeded";
+          publication.emit("publishingstatechange", "succeeded");
+        });
+        return publication;
+      });
+      const onChallengeVerification = vi.fn();
+
+      await act(async () => {
+        await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "moderated comment",
+          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+          onChallengeVerification,
+        });
+      });
+
+      const startedAt = Date.now();
+      while (Date.now() - startedAt < 2000) {
+        await act(async () => {});
+        const comment = accountsStore.getState().accountsComments[account.id]?.[0];
+        if (comment?.reason === "AI moderation reason") {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+
+      const storedComment = accountsStore.getState().accountsComments[account.id]?.[0];
+      expect(onChallengeVerification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          commentUpdate: expect.objectContaining({ reason: "AI moderation reason" }),
+        }),
+        expect.objectContaining({
+          cid: "moderated comment cid",
+          pendingApproval: true,
+          reason: "AI moderation reason",
+          removed: false,
+        }),
+      );
+      expect(storedComment).toMatchObject({
+        cid: "moderated comment cid",
+        pendingApproval: true,
+        reason: "AI moderation reason",
+        removed: false,
+      });
+      expect(Object.prototype.hasOwnProperty.call(storedComment, "__proto__")).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(storedComment, "constructor")).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(storedComment, "prototype")).toBe(false);
+      expect(({} as any).polluted).toBeUndefined();
+
+      const persistedComments = await accountsDatabase.getAccountComments(account.id);
+      expect(persistedComments[0]).toMatchObject({
+        cid: "moderated comment cid",
+        pendingApproval: true,
+        reason: "AI moderation reason",
+        removed: false,
+      });
+      expect(Object.prototype.hasOwnProperty.call(persistedComments[0], "__proto__")).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(persistedComments[0], "constructor")).toBe(false);
+      expect(Object.prototype.hasOwnProperty.call(persistedComments[0], "prototype")).toBe(false);
+    });
+
     test("publishVote with accountName uses named account", async () => {
       await act(async () => {
         await accountsActions.createAccount();
