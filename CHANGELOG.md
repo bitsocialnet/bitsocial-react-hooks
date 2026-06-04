@@ -1,3 +1,12 @@
+## [0.1.14](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.13...v0.1.14) (2026-06-04)
+
+
+### Bug Fixes
+
+* **accounts:** preserve challenge comment updates ([#60](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/60)) ([73022ef](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/73022ef34db7e4020a023c22f7d2bbd1c7fed0fe))
+
+
+
 ## [0.1.13](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.12...v0.1.13) (2026-05-27)
 
 
