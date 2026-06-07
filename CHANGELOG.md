@@ -1,3 +1,17 @@
+## [0.1.15](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.14...v0.1.15) (2026-06-07)
+
+
+### Bug Fixes
+
+* **comments:** continue sparse comment updates before stopping ([#61](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/61)) ([0d20b32](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/0d20b32ad90a2e0e09936a3e24dd8722c079037b))
+
+
+### Features
+
+* **actions:** add community export hook ([#62](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/62)) ([f6a9616](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/f6a961665b10fbadc9bb3b94917b45df6aafdc77))
+
+
+
 ## [0.1.14](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.13...v0.1.14) (2026-06-04)
 
 
