@@ -16,7 +16,16 @@ import repliesPagesStore from "../replies-pages";
 let mockAccount: any;
 let accountsGetState: typeof accountsStore.getState;
 
-const createSparseComment = (commentCid: string, options: { holdMutableUpdate?: boolean } = {}) => {
+const createSparseComment = (
+  commentCid: string,
+  options: {
+    holdMutableUpdate?: boolean;
+    pendingUpdateCalls?: number[];
+    sparseUpdateCalls?: number[];
+  } = {},
+) => {
+  const pendingUpdateCalls = options.pendingUpdateCalls || (options.holdMutableUpdate ? [2] : []);
+  const sparseUpdateCalls = options.sparseUpdateCalls || [1];
   const liveComment: any = new EventEmitter();
   liveComment.cid = commentCid;
   liveComment.clients = {};
@@ -28,19 +37,23 @@ const createSparseComment = (commentCid: string, options: { holdMutableUpdate?: 
     return Promise.resolve();
   });
   liveComment.update = vi.fn().mockImplementation(() => {
+    const updateCallNumber = liveComment.update.mock.calls.length;
     liveComment.updatingState = "fetching-ipfs";
     liveComment.emit("updatingstatechange", "fetching-ipfs");
 
-    if (liveComment.update.mock.calls.length === 1) {
+    if (sparseUpdateCalls.includes(updateCallNumber)) {
       liveComment.content = "sparse body";
       liveComment.timestamp = 100;
+      delete liveComment.updatedAt;
+      delete liveComment.replyCount;
+      delete liveComment.replies;
       liveComment.updatingState = "succeeded";
       liveComment.emit("update", liveComment);
       liveComment.emit("updatingstatechange", "succeeded");
       return Promise.resolve();
     }
 
-    if (options.holdMutableUpdate) {
+    if (pendingUpdateCalls.includes(updateCallNumber)) {
       return new Promise<void>(() => {});
     }
 
@@ -624,6 +637,82 @@ describe("comments store", () => {
           }),
         ),
       );
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
+  test("stopCommentAutoUpdate clears pending sparse follow-up bookkeeping", async () => {
+    const commentCid = "stop-sparse-followup-cid";
+    const pendingComment = createSparseComment(commentCid, { holdMutableUpdate: true });
+    const refetchedComment = createSparseComment(commentCid);
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi
+      .fn()
+      .mockResolvedValueOnce(pendingComment)
+      .mockResolvedValueOnce(refetchedComment);
+
+    try {
+      await act(async () => {
+        await commentsStore.getState().startCommentAutoUpdate(commentCid, "sub-1", mockAccount);
+      });
+      await tlWaitFor(() => expect(pendingComment.update).toHaveBeenCalledTimes(2));
+
+      await act(async () => {
+        await commentsStore.getState().stopCommentAutoUpdate(commentCid, "sub-1");
+      });
+      expect(pendingComment.stop).toHaveBeenCalledTimes(1);
+      expect(listeners).not.toContain(pendingComment);
+
+      await act(async () => {
+        await commentsStore.getState().startCommentAutoUpdate(commentCid, "sub-2", mockAccount);
+      });
+      await tlWaitFor(() => expect(refetchedComment.update).toHaveBeenCalledTimes(2));
+      await tlWaitFor(() =>
+        expect(commentsStore.getState().comments[commentCid]).toEqual(
+          expect.objectContaining({
+            replyCount: 6,
+            updatedAt: 200,
+          }),
+        ),
+      );
+
+      await act(async () => {
+        await commentsStore.getState().stopCommentAutoUpdate(commentCid, "sub-2");
+      });
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
+  test("refreshComment clears pending sparse follow-up bookkeeping before stopping", async () => {
+    const commentCid = "refresh-pending-sparse-followup-cid";
+    const liveComment = createSparseComment(commentCid, {
+      pendingUpdateCalls: [2],
+      sparseUpdateCalls: [1, 3],
+    });
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      await act(async () => {
+        await commentsStore.getState().addCommentToStore(commentCid, mockAccount);
+      });
+      await tlWaitFor(() => expect(liveComment.update).toHaveBeenCalledTimes(2));
+
+      const refreshedComment = await commentsStore
+        .getState()
+        .refreshComment(commentCid, mockAccount);
+
+      expect(liveComment.update).toHaveBeenCalledTimes(4);
+      expect(refreshedComment).toEqual(
+        expect.objectContaining({
+          replyCount: 6,
+          updatedAt: 200,
+        }),
+      );
+      expect(liveComment.stop).toHaveBeenCalledTimes(2);
+      expect(listeners).not.toContain(liveComment);
     } finally {
       mockAccount.pkc.createComment = createCommentOrig;
     }

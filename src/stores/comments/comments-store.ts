@@ -111,7 +111,12 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     return normalizedComment;
   };
 
+  const clearCommentUpdateFollowup = (commentCid: string) => {
+    delete sparseCommentFollowupRequested[commentCid];
+  };
+
   const stopLiveComment = async (commentCid: string, comment?: Comment) => {
+    clearCommentUpdateFollowup(commentCid);
     const liveComment = comment || liveComments[commentCid];
     if (typeof liveComment?.stop !== "function") {
       return;
@@ -134,10 +139,6 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     void stopLiveComment(commentCid, comment).finally(() => {
       maybeReleaseStoppedLiveComment(commentCid, comment);
     });
-  };
-
-  const clearCommentUpdateFollowup = (commentCid: string) => {
-    delete sparseCommentFollowupRequested[commentCid];
   };
 
   const isSparseCommentUpdate = (comment: Comment) => !!comment?.timestamp && !comment?.updatedAt;
