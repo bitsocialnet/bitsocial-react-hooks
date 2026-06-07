@@ -8,6 +8,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 import accountsStore, { listeners } from "./accounts-store.js";
 import communitiesStore from "../communities/index.js";
 import accountsDatabase from "./accounts-database.js";
@@ -19,7 +30,7 @@ import assert from "assert";
 const log = Logger("bitsocial-react-hooks:accounts:stores");
 import * as accountsActionsInternal from "./accounts-actions-internal.js";
 import { backfillPublicationCommunityAddress, createPkcCommunity, createPkcCommunityEdit, getPkcCommunityAddresses, normalizeCommunityEditOptionsForPkc, normalizePublicationOptionsForStore, normalizePublicationOptionsForPkc, } from "../../lib/pkc-compat.js";
-import { getAccountCommentsIndex, getAccountCommunities, getCommentCidsToAccountsComments, getAccountEditPropertySummary, fetchCommentLinkDimensions, getAccountCommentDepth, addShortAddressesToAccountComment, sanitizeAccountCommentForState, sanitizeStoredAccountComment, } from "./utils.js";
+import { getAccountCommentsIndex, getAccountCommunities, getCommentCidsToAccountsComments, COMMENT_MODERATION_AUTHOR_SUMMARY_KEY, getAccountEditPropertySummary, fetchCommentLinkDimensions, getAccountCommentDepth, addShortAddressesToAccountComment, sanitizeAccountCommentForState, sanitizeStoredAccountComment, } from "./utils.js";
 import isEqual from "lodash.isequal";
 import { v4 as uuid } from "uuid";
 import utils from "../../lib/utils/index.js";
@@ -175,8 +186,16 @@ const accountEditNonPropertyNames = new Set([
 ]);
 const normalizeStoredAccountEditForSummary = (storedAccountEdit) => {
     var _a;
-    const normalizedEdit = storedAccountEdit.commentModeration
-        ? Object.assign(Object.assign(Object.assign({}, storedAccountEdit), storedAccountEdit.commentModeration), { commentModeration: undefined }) : Object.assign({}, storedAccountEdit);
+    const normalizedEdit = Object.assign({}, storedAccountEdit);
+    const commentModeration = normalizedEdit.commentModeration;
+    if (commentModeration && typeof commentModeration === "object") {
+        const { author } = commentModeration, commentModerationProperties = __rest(commentModeration, ["author"]);
+        Object.assign(normalizedEdit, commentModerationProperties);
+        if (Object.prototype.hasOwnProperty.call(commentModeration, "author")) {
+            normalizedEdit[COMMENT_MODERATION_AUTHOR_SUMMARY_KEY] = author;
+        }
+        normalizedEdit.commentModeration = undefined;
+    }
     const communityEdit = (_a = normalizedEdit.communityEdit) !== null && _a !== void 0 ? _a : normalizedEdit.communityEdit;
     if (communityEdit && typeof communityEdit === "object") {
         Object.assign(normalizedEdit, communityEdit);
@@ -199,7 +218,8 @@ export const addStoredAccountEditSummaryToState = (accountsEditsSummaries, accou
     const nextSummary = Object.assign({}, targetSummary);
     const normalizedEdit = normalizeStoredAccountEditForSummary(storedAccountEdit);
     for (const propertyName in normalizedEdit) {
-        if (normalizedEdit[propertyName] === undefined ||
+        if ((normalizedEdit[propertyName] === undefined &&
+            propertyName !== COMMENT_MODERATION_AUTHOR_SUMMARY_KEY) ||
             accountEditNonPropertyNames.has(propertyName)) {
             continue;
         }

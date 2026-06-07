@@ -7,6 +7,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 import assert from "assert";
 import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:accounts:stores");
@@ -190,11 +201,17 @@ const accountEditNonPropertyNames = new Set([
     "communityAddress",
     "timestamp",
 ]);
+export const COMMENT_MODERATION_AUTHOR_SUMMARY_KEY = "commentModeration.author";
 const normalizeAccountEditForSummary = (accountEdit) => {
     var _a;
     const normalizedAccountEdit = Object.assign({}, accountEdit);
-    if (normalizedAccountEdit.commentModeration) {
-        Object.assign(normalizedAccountEdit, normalizedAccountEdit.commentModeration);
+    const commentModeration = normalizedAccountEdit.commentModeration;
+    if (commentModeration && typeof commentModeration === "object") {
+        const { author } = commentModeration, commentModerationProperties = __rest(commentModeration, ["author"]);
+        Object.assign(normalizedAccountEdit, commentModerationProperties);
+        if (Object.prototype.hasOwnProperty.call(commentModeration, "author")) {
+            normalizedAccountEdit[COMMENT_MODERATION_AUTHOR_SUMMARY_KEY] = author;
+        }
         delete normalizedAccountEdit.commentModeration;
     }
     const communityEdit = (_a = normalizedAccountEdit.communityEdit) !== null && _a !== void 0 ? _a : normalizedAccountEdit.communityEdit;
@@ -211,7 +228,8 @@ export const getAccountEditPropertySummary = (accountEdits) => {
     for (const accountEdit of accountEdits || []) {
         const normalizedAccountEdit = normalizeAccountEditForSummary(accountEdit);
         for (const propertyName in normalizedAccountEdit) {
-            if (normalizedAccountEdit[propertyName] === undefined ||
+            if ((normalizedAccountEdit[propertyName] === undefined &&
+                propertyName !== COMMENT_MODERATION_AUTHOR_SUMMARY_KEY) ||
                 accountEditNonPropertyNames.has(propertyName)) {
                 continue;
             }

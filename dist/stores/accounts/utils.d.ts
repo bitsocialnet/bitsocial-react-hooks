@@ -5,6 +5,7 @@ export declare const sanitizeAccountCommentForState: (comment: Comment) => any;
 export declare const sanitizeStoredAccountComment: (comment: Comment) => any;
 export declare const getAccountCommentsIndex: (accountComments: AccountComment[] | undefined) => AccountCommentsIndex;
 export declare const getAccountsCommentsIndexes: (accountsComments: AccountsComments) => AccountsCommentsIndexes;
+export declare const COMMENT_MODERATION_AUTHOR_SUMMARY_KEY = "commentModeration.author";
 export declare const getAccountEditPropertySummary: (accountEdits: AccountEdit[] | undefined) => {
     [propertyName: string]: import("../../types.js").AccountEditPropertySummary;
 };

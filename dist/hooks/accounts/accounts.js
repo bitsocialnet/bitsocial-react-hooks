@@ -16,10 +16,46 @@ const log = Logger("bitsocial-react-hooks:accounts:hooks");
 import assert from "assert";
 import { useListCommunities, useCommunities } from "../communities.js";
 import { useAccountsWithCalculatedProperties, useAccountWithCalculatedProperties, useCalculatedNotifications, } from "./utils.js";
-import { getAccountEditPropertySummary } from "../../stores/accounts/utils.js";
+import { COMMENT_MODERATION_AUTHOR_SUMMARY_KEY, getAccountEditPropertySummary, } from "../../stores/accounts/utils.js";
 import { getCanonicalCommunityAddress, getEquivalentCommunityAddressGroupKey, pickPreferredEquivalentCommunityAddress, } from "../../lib/community-address.js";
 import { addCommentModeration } from "../../lib/utils/comment-moderation.js";
 import useInterval from "../utils/use-interval.js";
+const getCommentEditPropertyValue = (comment, propertyName) => {
+    var _a, _b;
+    if (propertyName !== COMMENT_MODERATION_AUTHOR_SUMMARY_KEY) {
+        return comment === null || comment === void 0 ? void 0 : comment[propertyName];
+    }
+    const commentModeration = comment === null || comment === void 0 ? void 0 : comment.commentModeration;
+    if (commentModeration &&
+        typeof commentModeration === "object" &&
+        Object.prototype.hasOwnProperty.call(commentModeration, "author")) {
+        return commentModeration.author;
+    }
+    return ((_b = (_a = comment === null || comment === void 0 ? void 0 : comment.author) === null || _a === void 0 ? void 0 : _a.community) === null || _b === void 0 ? void 0 : _b.banExpiresAt) !== undefined
+        ? { banExpiresAt: comment.author.community.banExpiresAt }
+        : undefined;
+};
+const applyEditedCommentProperty = (comment, propertyName, value) => {
+    if (propertyName !== COMMENT_MODERATION_AUTHOR_SUMMARY_KEY) {
+        comment[propertyName] = value;
+        return;
+    }
+    comment.commentModeration = comment.commentModeration ? Object.assign({}, comment.commentModeration) : {};
+    if (value === undefined) {
+        delete comment.commentModeration.author;
+    }
+    else {
+        comment.commentModeration.author = value;
+    }
+    comment.author = comment.author ? Object.assign({}, comment.author) : {};
+    comment.author.community = comment.author.community ? Object.assign({}, comment.author.community) : {};
+    if ((value === null || value === void 0 ? void 0 : value.banExpiresAt) === undefined) {
+        delete comment.author.community.banExpiresAt;
+    }
+    else {
+        comment.author.community.banExpiresAt = value.banExpiresAt;
+    }
+};
 /**
  * @param accountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, return
  * the active account id.
@@ -589,7 +625,7 @@ export function useEditedComment(options) {
             // Without a newer update we can only treat recent edits as pending. Older edits that never
             // produced any update are effectively stale and should stop shadowing the live comment.
             if (!(comment === null || comment === void 0 ? void 0 : comment.updatedAt)) {
-                if (isEqual(comment === null || comment === void 0 ? void 0 : comment[propertyName], propertyNameEdit.value)) {
+                if (isEqual(getCommentEditPropertyValue(comment, propertyName), propertyNameEdit.value)) {
                     setPropertyNameEditState("succeeded");
                 }
                 else if (propertyNameEdit.timestamp > now - expiryTime) {
@@ -610,7 +646,7 @@ export function useEditedComment(options) {
             // has been received after the edit was published so we can evaluate
             else {
                 // comment has propertyNameEdit, propertyNameEdit succeeded
-                if (isEqual(comment[propertyName], propertyNameEdit.value)) {
+                if (isEqual(getCommentEditPropertyValue(comment, propertyName), propertyNameEdit.value)) {
                     setPropertyNameEditState("succeeded");
                     continue;
                 }
@@ -646,10 +682,10 @@ export function useEditedComment(options) {
         // add pending and succeeded props so the editor can see his changes right away
         // don't add failed edits to reflect the current state of the edited comment
         for (const propertyName in editedResult.pendingEdits) {
-            editedResult.editedComment[propertyName] = editedResult.pendingEdits[propertyName];
+            applyEditedCommentProperty(editedResult.editedComment, propertyName, editedResult.pendingEdits[propertyName]);
         }
         for (const propertyName in editedResult.succeededEdits) {
-            editedResult.editedComment[propertyName] = editedResult.succeededEdits[propertyName];
+            applyEditedCommentProperty(editedResult.editedComment, propertyName, editedResult.succeededEdits[propertyName]);
         }
         editedResult.editedComment = addCommentModeration(editedResult.editedComment);
         return editedResult;

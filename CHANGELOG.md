@@ -1,3 +1,13 @@
+## [0.1.16](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.15...v0.1.16) (2026-06-07)
+
+
+### Bug Fixes
+
+* **accounts:** preserve comment moderation author edits ([#63](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/63)) ([722b244](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/722b2446277868597ea0cc6875d92919d42a4d21))
+* **deps:** resolve dependabot alerts ([e92ae1c](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/e92ae1ca08bf3624f38f0e49890d72eabd318da7))
+
+
+
 ## [0.1.15](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.14...v0.1.15) (2026-06-07)
 
 
