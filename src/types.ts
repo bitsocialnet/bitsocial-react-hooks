@@ -464,6 +464,19 @@ export interface UseCreateCommunityResult extends Result {
   createCommunity(): Promise<void>;
 }
 
+// useExportCommunity(options): result
+export interface UseExportCommunityOptions extends Options {
+  communityAddress?: string;
+  communityAddresses?: string[];
+  includePrivateKey?: boolean;
+  exportPath?: string;
+  signal?: AbortSignal;
+}
+export interface UseExportCommunityResult extends Result {
+  communityExports: CommunityExport[];
+  exportCommunity(): Promise<void>;
+}
+
 // useDeleteCommunity(options): result
 // export interface UseDeleteCommunityOptions extends Options {
 //   communityAddress?: string
@@ -578,6 +591,7 @@ export type PublishVoteOptions = { [key: string]: any };
 export type PublishCommentEditOptions = { [key: string]: any };
 export type PublishCommentModerationOptions = { [key: string]: any };
 export type PublishCommunityEditOptions = { [key: string]: any };
+export type ExportCommunityOptions = { [key: string]: any };
 export type Challenge = { [key: string]: any };
 export type ChallengeVerification = { [key: string]: any };
 export type CreateCommentOptions = { [key: string]: any };
@@ -589,6 +603,7 @@ export type CommentEdit = { [key: string]: any };
 export type CommentModeration = { [key: string]: any };
 export type CommunityEdit = { [key: string]: any };
 export type Community = { [key: string]: any };
+export type CommunityExport = { communityAddress: string; exportId: string; [key: string]: any };
 export type CommunityStats = { [key: string]: any };
 export type Notification = { [key: string]: any };
 export type Nft = { [key: string]: any };

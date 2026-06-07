@@ -50,6 +50,8 @@ import type {
   UseBlockResult,
   UseCreateCommunityOptions,
   UseCreateCommunityResult,
+  UseExportCommunityOptions,
+  UseExportCommunityResult,
   UsePublishVoteOptions,
   UsePublishVoteResult,
   UsePublishCommentEditOptions,
@@ -66,6 +68,7 @@ import type {
   CommunityEdit,
   Vote,
   Community,
+  CommunityExport,
 } from "../../types";
 
 type PublishChallengeAnswers = (challengeAnswers: string[]) => Promise<void>;
@@ -710,4 +713,50 @@ export function useCreateCommunity(options?: UseCreateCommunityOptions): UseCrea
     }),
     [state, errors, createdCommunity, options, accountName],
   );
+}
+
+export function useExportCommunity(options?: UseExportCommunityOptions): UseExportCommunityResult {
+  assert(
+    !options || typeof options === "object",
+    `useExportCommunity options argument '${options}' not an object`,
+  );
+  const { accountName, communityAddress, communityAddresses, onError, ...exportCommunityOptions } =
+    options || {};
+  const accountsActions = useAccountsStore((state) => state.accountsActions);
+  const accountId = useAccountId(accountName);
+  const [errors, setErrors] = useState<Error[]>([]);
+  const [exportingState, setExportingState] = useState<string>();
+  const [communityExports, setCommunityExports] = useState<CommunityExport[]>([]);
+  const targetCommunityAddresses =
+    communityAddresses || (communityAddress ? [communityAddress] : undefined);
+
+  let initialState = "initializing";
+  if (accountId) {
+    initialState = "ready";
+  }
+
+  const exportCommunity = async () => {
+    try {
+      setExportingState("exporting");
+      const communityExports = await accountsActions.exportCommunity(
+        targetCommunityAddresses,
+        exportCommunityOptions,
+        accountName,
+      );
+      setCommunityExports(communityExports);
+      setExportingState("succeeded");
+    } catch (e: any) {
+      setExportingState("failed");
+      setErrors((errors) => [...errors, e]);
+      onError?.(e);
+    }
+  };
+
+  return {
+    communityExports,
+    exportCommunity,
+    state: exportingState || initialState,
+    error: errors[errors.length - 1],
+    errors,
+  };
 }

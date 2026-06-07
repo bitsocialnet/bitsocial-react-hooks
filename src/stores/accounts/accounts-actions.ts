@@ -20,12 +20,15 @@ import {
   PublishCommentModerationOptions,
   PublishCommunityEditOptions,
   CreateCommunityOptions,
+  ExportCommunityOptions,
+  CommunityExport,
   Communities,
   AccountComment,
 } from "../../types";
 import * as accountsActionsInternal from "./accounts-actions-internal";
 import {
   backfillPublicationCommunityAddress,
+  createPkcCommunity,
   createPkcCommunityEdit,
   getPkcCommunityAddresses,
   normalizeCommunityEditOptionsForPkc,
@@ -747,6 +750,74 @@ export const exportAccount = async (accountName?: string) => {
   const exportedAccountJson = await accountsDatabase.getExportedAccountJson(account.id);
   log("accountsActions.exportAccount", { exportedAccountJson });
   return exportedAccountJson;
+};
+
+const getCommunityAddressesToExport = (
+  communityAddressOrAddresses: string | string[] | undefined,
+  account: Account,
+) => {
+  if (Array.isArray(communityAddressOrAddresses)) {
+    return communityAddressOrAddresses;
+  }
+  if (communityAddressOrAddresses) {
+    return [communityAddressOrAddresses];
+  }
+  return getPkcCommunityAddresses(account.pkc);
+};
+
+export const exportCommunity = async (
+  communityAddressOrAddresses?: string | string[],
+  exportCommunityOptions: ExportCommunityOptions = {},
+  accountName?: string,
+): Promise<CommunityExport[]> => {
+  const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
+  assert(
+    accounts && accountNamesToAccountIds && activeAccountId,
+    `can't use accountsStore.accountsActions before initialized`,
+  );
+  assert(
+    !exportCommunityOptions || typeof exportCommunityOptions === "object",
+    `accountsActions.exportCommunity invalid exportCommunityOptions argument '${exportCommunityOptions}'`,
+  );
+  let account = accounts[activeAccountId];
+  if (accountName) {
+    const accountId = accountNamesToAccountIds[accountName];
+    account = accounts[accountId];
+  }
+  assert(
+    account?.id,
+    `accountsActions.exportCommunity account.id '${account?.id}' doesn't exist, activeAccountId '${activeAccountId}' accountName '${accountName}'`,
+  );
+
+  const communityAddresses = getCommunityAddressesToExport(communityAddressOrAddresses, account);
+  assert(
+    communityAddresses.length > 0,
+    `accountsActions.exportCommunity no community addresses to export`,
+  );
+  for (const communityAddress of communityAddresses) {
+    assert(
+      communityAddress && typeof communityAddress === "string",
+      `accountsActions.exportCommunity invalid communityAddress '${communityAddress}'`,
+    );
+  }
+
+  const communityExports = await Promise.all(
+    [...new Set(communityAddresses)].map(async (communityAddress) => {
+      const community = await createPkcCommunity(account.pkc, { address: communityAddress });
+      assert(
+        typeof community?.export === "function",
+        `accountsActions.exportCommunity community.export missing for communityAddress '${communityAddress}'`,
+      );
+      const exportedCommunity = await community.export(exportCommunityOptions);
+      return { communityAddress, ...exportedCommunity };
+    }),
+  );
+  log("accountsActions.exportCommunity", {
+    communityAddresses,
+    exportCommunityOptions,
+    communityExports,
+  });
+  return communityExports;
 };
 
 export const subscribe = async (communityAddress: string, accountName?: string) => {

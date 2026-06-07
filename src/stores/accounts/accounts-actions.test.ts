@@ -6,7 +6,11 @@ import * as accountsActionsInternal from "./accounts-actions-internal";
 import accountsDatabase from "./accounts-database";
 import accountsStore from "./accounts-store";
 import communitiesStore from "../communities";
-import PkcJsMock, { PKC as BasePkc, Comment as BaseComment } from "../../lib/pkc-js/pkc-js-mock";
+import PkcJsMock, {
+  PKC as BasePkc,
+  Comment as BaseComment,
+  Community as BaseCommunity,
+} from "../../lib/pkc-js/pkc-js-mock";
 import { setPkcJs } from "../../lib/pkc-js";
 import * as protocolCompat from "../../lib/pkc-compat";
 
@@ -668,6 +672,136 @@ describe("accounts-actions", () => {
         sub = await accountsActions.createCommunity({ title: "My sub" }, "CreateSubAccount");
       });
       expect(sub?.address).toBeDefined();
+    });
+
+    test("exportCommunity exports one community from the active account", async () => {
+      const communityExports = await accountsActions.exportCommunity("single-export.eth", {
+        includePrivateKey: true,
+      });
+
+      expect(communityExports).toEqual([
+        {
+          communityAddress: "single-export.eth",
+          exportId: "single-export.eth export 1",
+        },
+      ]);
+    });
+
+    test("exportCommunity exports multiple communities concurrently", async () => {
+      const originalExport = BaseCommunity.prototype.export;
+      let activeExports = 0;
+      let maxActiveExports = 0;
+      BaseCommunity.prototype.export = async function (options: any) {
+        activeExports++;
+        maxActiveExports = Math.max(maxActiveExports, activeExports);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        const result = await originalExport.call(this, options);
+        activeExports--;
+        return result;
+      };
+
+      try {
+        const communityExports = await accountsActions.exportCommunity([
+          "bulk-export-1.eth",
+          "bulk-export-2.eth",
+        ]);
+
+        expect(communityExports).toEqual([
+          {
+            communityAddress: "bulk-export-1.eth",
+            exportId: "bulk-export-1.eth export 1",
+          },
+          {
+            communityAddress: "bulk-export-2.eth",
+            exportId: "bulk-export-2.eth export 1",
+          },
+        ]);
+        expect(maxActiveExports).toBe(2);
+      } finally {
+        BaseCommunity.prototype.export = originalExport;
+      }
+    });
+
+    test("exportCommunity defaults to account pkc communities", async () => {
+      await act(async () => {
+        await accountsActions.createCommunity({ title: "Export default list" });
+      });
+
+      const communityExports = await accountsActions.exportCommunity();
+
+      expect(communityExports).toEqual([
+        {
+          communityAddress: "list community address 1",
+          exportId: "list community address 1 export 1",
+        },
+        {
+          communityAddress: "list community address 2",
+          exportId: "list community address 2 export 1",
+        },
+        {
+          communityAddress: "created community address",
+          exportId: "created community address export 1",
+        },
+      ]);
+    });
+
+    test("exportCommunity with accountName uses named account", async () => {
+      await act(async () => {
+        await accountsActions.createAccount();
+        await accountsActions.createAccount("ExportSubAccount");
+      });
+
+      const communityExports = await accountsActions.exportCommunity(
+        "named-export.eth",
+        {},
+        "ExportSubAccount",
+      );
+
+      expect(communityExports).toEqual([
+        {
+          communityAddress: "named-export.eth",
+          exportId: "named-export.eth export 1",
+        },
+      ]);
+    });
+
+    test("exportCommunity validates inputs", async () => {
+      const { accounts, activeAccountId } = accountsStore.getState();
+      const account = accounts[activeAccountId || ""];
+      accountsStore.setState({
+        accounts: {
+          ...accounts,
+          [account.id]: { ...account, pkc: { communities: [] } },
+        },
+      });
+      try {
+        await expect(accountsActions.exportCommunity()).rejects.toThrow(
+          "accountsActions.exportCommunity no community addresses to export",
+        );
+      } finally {
+        accountsStore.setState({ accounts });
+      }
+      await expect(accountsActions.exportCommunity([undefined as any])).rejects.toThrow(
+        "accountsActions.exportCommunity invalid communityAddress 'undefined'",
+      );
+      await expect(
+        accountsActions.exportCommunity("bad-options.eth", "bad" as any),
+      ).rejects.toThrow(
+        "accountsActions.exportCommunity invalid exportCommunityOptions argument 'bad'",
+      );
+    });
+
+    test("exportCommunity requires community.export", async () => {
+      const createCommunity = BasePkc.prototype.createCommunity;
+      BasePkc.prototype.createCommunity = async () => ({ address: "no-export.eth" }) as any;
+
+      try {
+        await expect(accountsActions.exportCommunity("no-export.eth")).rejects.toThrow(
+          "accountsActions.exportCommunity community.export missing for communityAddress 'no-export.eth'",
+        );
+      } finally {
+        BasePkc.prototype.createCommunity = createCommunity;
+      }
     });
 
     test("publishCommunityEdit uses local owner state when pkc communities list is stale", async () => {

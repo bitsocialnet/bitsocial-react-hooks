@@ -55,6 +55,7 @@ import {
   usePublishCommentEdit,
   usePublishCommentModeration,
   usePublishCommunityEdit,
+  useExportCommunity,
 } from "./hooks/actions";
 
 // actions that don't have their own hooks yet
@@ -136,6 +137,7 @@ export {
   usePublishCommentModeration,
   usePublishCommunityEdit,
   useCreateCommunity,
+  useExportCommunity,
   // actions that don't have their own hooks yet
   createAccount,
   deleteAccount,
@@ -208,6 +210,7 @@ const hooks = {
   usePublishCommentModeration,
   usePublishCommunityEdit,
   useCreateCommunity,
+  useExportCommunity,
   // actions that don't have their own hooks yet
   createAccount,
   deleteAccount,
