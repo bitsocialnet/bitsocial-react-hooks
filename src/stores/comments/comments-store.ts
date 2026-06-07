@@ -141,6 +141,38 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     });
   };
 
+  const toCommentUpdateError = (error: unknown) =>
+    error instanceof Error ? error : Error("comment update failed");
+
+  const emitCommentError = (comment: Comment, error: Error) => {
+    const emit = (comment as any)?.emit;
+    if (typeof emit !== "function") {
+      return;
+    }
+    try {
+      emit.call(comment, "error", error);
+    } catch (emitError) {
+      if (emitError !== error) {
+        log.trace("comment.update error event error", { comment, error: emitError });
+      }
+    }
+  };
+
+  const handleCommentUpdateError = (commentCid: string, comment: Comment, error: unknown) => {
+    const updateError = toCommentUpdateError(error);
+    clearCommentUpdateFollowup(commentCid);
+
+    if (!getState().errors[commentCid]?.includes(updateError)) {
+      emitCommentError(comment, updateError);
+      if (!getState().errors[commentCid]?.includes(updateError)) {
+        addCommentError(commentCid, updateError);
+      }
+    }
+
+    maybeStopCommentAfterOneShotUpdate(commentCid, comment);
+    return updateError;
+  };
+
   const isSparseCommentUpdate = (comment: Comment) => !!comment?.timestamp && !comment?.updatedAt;
 
   // A CID-only comment update can settle after immutable IPFS data; one follow-up
@@ -294,8 +326,8 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     }
 
     comment?.update?.().catch((error: unknown) => {
-      clearCommentUpdateFollowup(commentCid);
-      log.trace("comment.update error", { commentCid, comment, error });
+      const updateError = handleCommentUpdateError(commentCid, comment, error);
+      log.trace("comment.update error", { commentCid, comment, error: updateError });
     });
   };
 

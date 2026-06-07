@@ -21,11 +21,15 @@ const createSparseComment = (
   options: {
     holdMutableUpdate?: boolean;
     pendingUpdateCalls?: number[];
+    rejectUpdateCalls?: number[];
     sparseUpdateCalls?: number[];
+    updateError?: Error;
   } = {},
 ) => {
   const pendingUpdateCalls = options.pendingUpdateCalls || (options.holdMutableUpdate ? [2] : []);
+  const rejectUpdateCalls = options.rejectUpdateCalls || [];
   const sparseUpdateCalls = options.sparseUpdateCalls || [1];
+  const updateError = options.updateError || Error("sparse follow-up failed");
   const liveComment: any = new EventEmitter();
   liveComment.cid = commentCid;
   liveComment.clients = {};
@@ -51,6 +55,10 @@ const createSparseComment = (
       liveComment.emit("update", liveComment);
       liveComment.emit("updatingstatechange", "succeeded");
       return Promise.resolve();
+    }
+
+    if (rejectUpdateCalls.includes(updateCallNumber)) {
+      return Promise.reject(updateError);
     }
 
     if (pendingUpdateCalls.includes(updateCallNumber)) {
@@ -292,6 +300,77 @@ describe("comments store", () => {
     updateSpy.mockRestore();
   });
 
+  test("comment.update catch records fallback error when comment cannot emit errors", async () => {
+    const commentCid = "update-reject-no-emit-cid";
+    const legacyComment: any = {
+      cid: commentCid,
+      timestamp: 1,
+      clients: {},
+      on: vi.fn(),
+      once: vi.fn(),
+      update: vi.fn().mockRejectedValue("update failed"),
+      stop: vi.fn().mockResolvedValue(undefined),
+      removeAllListeners: vi.fn(),
+    };
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(legacyComment);
+
+    try {
+      await act(async () => {
+        await commentsStore.getState().addCommentToStore(commentCid, mockAccount);
+      });
+
+      await tlWaitFor(() =>
+        expect(commentsStore.getState().errors[commentCid]?.[0]?.message).toBe(
+          "comment update failed",
+        ),
+      );
+      await tlWaitFor(() => expect(legacyComment.stop).toHaveBeenCalledTimes(1));
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
+  test("comment.update catch records update error when error emit throws", async () => {
+    const commentCid = "update-reject-emit-throws-cid";
+    const updateError = Error("update failed");
+    const emitError = Error("emit failed");
+    const legacyComment: any = {
+      cid: commentCid,
+      timestamp: 1,
+      clients: {},
+      emit: vi.fn(() => {
+        throw emitError;
+      }),
+      on: vi.fn(),
+      once: vi.fn(),
+      update: vi.fn().mockRejectedValue(updateError),
+      stop: vi.fn().mockResolvedValue(undefined),
+      removeAllListeners: vi.fn(),
+    };
+    const createCommentOrig = mockAccount.pkc.createComment;
+    const traceSpy = vi.spyOn(log, "trace").mockImplementation(() => {});
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(legacyComment);
+
+    try {
+      await act(async () => {
+        await commentsStore.getState().addCommentToStore(commentCid, mockAccount);
+      });
+
+      await tlWaitFor(() =>
+        expect(commentsStore.getState().errors[commentCid]?.[0]).toBe(updateError),
+      );
+      expect(traceSpy).toHaveBeenCalledWith(
+        "comment.update error event error",
+        expect.objectContaining({ comment: legacyComment, error: emitError }),
+      );
+      await tlWaitFor(() => expect(legacyComment.stop).toHaveBeenCalledTimes(1));
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+      traceSpy.mockRestore();
+    }
+  });
+
   test("comment update callback calls addRepliesPageCommentsToStore", async () => {
     const commentCid = "update-cb-cid";
     const addRepliesSpy = vi.fn();
@@ -514,6 +593,32 @@ describe("comments store", () => {
     }
   });
 
+  test("addCommentToStore stops one-shot sparse follow-up when update rejects", async () => {
+    const commentCid = "one-shot-sparse-followup-reject-cid";
+    const updateError = Error("sparse follow-up failed");
+    const liveComment = createSparseComment(commentCid, {
+      rejectUpdateCalls: [2],
+      updateError,
+    });
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      await act(async () => {
+        await commentsStore.getState().addCommentToStore(commentCid, mockAccount);
+      });
+
+      await tlWaitFor(() => expect(liveComment.update).toHaveBeenCalledTimes(2));
+      await tlWaitFor(() => expect(liveComment.stop).toHaveBeenCalledTimes(1));
+      await tlWaitFor(() =>
+        expect(commentsStore.getState().errors[commentCid]?.[0]).toBe(updateError),
+      );
+      expect(listeners).not.toContain(liveComment);
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
   test("startCommentAutoUpdate continues a sparse IPFS comment update to the mutable comment update", async () => {
     const commentCid = "auto-update-sparse-followup-cid";
     const liveComment = createSparseComment(commentCid);
@@ -601,6 +706,36 @@ describe("comments store", () => {
         ),
       );
       expect(liveComment.stop).toHaveBeenCalledTimes(2);
+      expect(listeners).not.toContain(liveComment);
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
+  test("refreshComment rejects when sparse follow-up update rejects", async () => {
+    const commentCid = "refresh-sparse-followup-reject-cid";
+    const updateError = Error("sparse refresh follow-up failed");
+    const liveComment = createSparseComment(commentCid, {
+      rejectUpdateCalls: [2],
+      updateError,
+    });
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      const refreshPromise = commentsStore.getState().refreshComment(commentCid, mockAccount);
+      const refreshTimeout = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(Error("refresh timed out")), 100);
+      });
+
+      await expect(Promise.race([refreshPromise, refreshTimeout])).rejects.toThrow(
+        "sparse refresh follow-up failed",
+      );
+      await tlWaitFor(() => expect(liveComment.update).toHaveBeenCalledTimes(2));
+      await tlWaitFor(() => expect(liveComment.stop).toHaveBeenCalledTimes(2));
+      await tlWaitFor(() =>
+        expect(commentsStore.getState().errors[commentCid]?.[0]).toBe(updateError),
+      );
       expect(listeners).not.toContain(liveComment);
     } finally {
       mockAccount.pkc.createComment = createCommentOrig;
