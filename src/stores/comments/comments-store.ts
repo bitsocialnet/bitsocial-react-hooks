@@ -19,6 +19,7 @@ const commentAutoUpdateSubscribers: {
   [commentCid: string]: { [subscriberId: string]: true };
 } = {};
 const stopCommentAfterNextUpdate: { [commentCid: string]: boolean } = {};
+const sparseCommentFollowupRequested: { [commentCid: string]: boolean } = {};
 const initializedComments = new WeakSet<object>();
 const trackedListeners = new WeakSet<object>();
 
@@ -135,6 +136,22 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     });
   };
 
+  const clearCommentUpdateFollowup = (commentCid: string) => {
+    delete sparseCommentFollowupRequested[commentCid];
+  };
+
+  const isSparseCommentUpdate = (comment: Comment) => !!comment?.timestamp && !comment?.updatedAt;
+
+  // A CID-only comment update can settle after immutable IPFS data; one follow-up
+  // update gives PKC a chance to load mutable community data such as replies.
+  const shouldRequestSparseCommentFollowup = (commentCid: string, comment: Comment) =>
+    !sparseCommentFollowupRequested[commentCid] &&
+    (stopCommentAfterNextUpdate[commentCid] || hasCommentAutoUpdateSubscribers(commentCid)) &&
+    isSparseCommentUpdate(comment);
+
+  const shouldWaitForSparseCommentFollowup = (commentCid: string, comment: Comment) =>
+    sparseCommentFollowupRequested[commentCid] && isSparseCommentUpdate(comment);
+
   const initializeComment = (commentCid: string, comment: Comment, account: Account) => {
     if (initializedComments.has(comment as object)) {
       liveComments[commentCid] = comment;
@@ -155,6 +172,27 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
           [commentCid]: { ...state.comments[commentCid], updatingState },
         },
       }));
+
+      if (
+        updatingState === "succeeded" &&
+        shouldRequestSparseCommentFollowup(commentCid, comment)
+      ) {
+        sparseCommentFollowupRequested[commentCid] = true;
+        requestCommentUpdate(commentCid, comment, {
+          stopAfterNextUpdate: !!stopCommentAfterNextUpdate[commentCid],
+        });
+        return;
+      }
+
+      if (
+        updatingState === "succeeded" &&
+        (comment.updatedAt || sparseCommentFollowupRequested[commentCid])
+      ) {
+        clearCommentUpdateFollowup(commentCid);
+      }
+      if (updatingState === "failed") {
+        clearCommentUpdateFollowup(commentCid);
+      }
 
       if (updatingState === "succeeded" || updatingState === "failed") {
         maybeStopCommentAfterOneShotUpdate(commentCid, comment);
@@ -254,15 +292,19 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
       delete stopCommentAfterNextUpdate[commentCid];
     }
 
-    comment
-      ?.update?.()
-      .catch((error: unknown) => log.trace("comment.update error", { commentCid, comment, error }));
+    comment?.update?.().catch((error: unknown) => {
+      clearCommentUpdateFollowup(commentCid);
+      log.trace("comment.update error", { commentCid, comment, error });
+    });
   };
 
   const waitForCommentUpdateCycle = (commentCid: string, comment: Comment) =>
     new Promise<Comment>((resolve, reject) => {
       const onUpdatingStateChange = (updatingState: string) => {
         if (updatingState === "succeeded") {
+          if (shouldWaitForSparseCommentFollowup(commentCid, comment)) {
+            return;
+          }
           cleanup();
           resolve(normalizeCommentCommunityAddress(utils.clone(comment)) as Comment);
           return;
@@ -455,6 +497,9 @@ export const resetCommentsStore = async () => {
   }
   for (const commentCid in stopCommentAfterNextUpdate) {
     delete stopCommentAfterNextUpdate[commentCid];
+  }
+  for (const commentCid in sparseCommentFollowupRequested) {
+    delete sparseCommentFollowupRequested[commentCid];
   }
   for (const commentCid in liveCommentPromises) {
     delete liveCommentPromises[commentCid];
