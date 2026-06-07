@@ -40,7 +40,10 @@ import {
   useAccountWithCalculatedProperties,
   useCalculatedNotifications,
 } from "./utils";
-import { getAccountEditPropertySummary } from "../../stores/accounts/utils";
+import {
+  COMMENT_MODERATION_AUTHOR_SUMMARY_KEY,
+  getAccountEditPropertySummary,
+} from "../../stores/accounts/utils";
 import {
   getCanonicalCommunityAddress,
   getEquivalentCommunityAddressGroupKey,
@@ -48,6 +51,47 @@ import {
 } from "../../lib/community-address";
 import { addCommentModeration } from "../../lib/utils/comment-moderation";
 import useInterval from "../utils/use-interval";
+
+const getCommentEditPropertyValue = (comment: any, propertyName: string) => {
+  if (propertyName !== COMMENT_MODERATION_AUTHOR_SUMMARY_KEY) {
+    return comment?.[propertyName];
+  }
+
+  const commentModeration = comment?.commentModeration;
+  if (
+    commentModeration &&
+    typeof commentModeration === "object" &&
+    Object.prototype.hasOwnProperty.call(commentModeration, "author")
+  ) {
+    return commentModeration.author;
+  }
+
+  return comment?.author?.community?.banExpiresAt !== undefined
+    ? { banExpiresAt: comment.author.community.banExpiresAt }
+    : undefined;
+};
+
+const applyEditedCommentProperty = (comment: any, propertyName: string, value: any) => {
+  if (propertyName !== COMMENT_MODERATION_AUTHOR_SUMMARY_KEY) {
+    comment[propertyName] = value;
+    return;
+  }
+
+  comment.commentModeration = comment.commentModeration ? { ...comment.commentModeration } : {};
+  if (value === undefined) {
+    delete comment.commentModeration.author;
+  } else {
+    comment.commentModeration.author = value;
+  }
+
+  comment.author = comment.author ? { ...comment.author } : {};
+  comment.author.community = comment.author.community ? { ...comment.author.community } : {};
+  if (value?.banExpiresAt === undefined) {
+    delete comment.author.community.banExpiresAt;
+  } else {
+    comment.author.community.banExpiresAt = value.banExpiresAt;
+  }
+};
 
 /**
  * @param accountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, return
@@ -857,7 +901,7 @@ export function useEditedComment(options?: UseEditedCommentOptions): UseEditedCo
       // Without a newer update we can only treat recent edits as pending. Older edits that never
       // produced any update are effectively stale and should stop shadowing the live comment.
       if (!comment?.updatedAt) {
-        if (isEqual(comment?.[propertyName], propertyNameEdit.value)) {
+        if (isEqual(getCommentEditPropertyValue(comment, propertyName), propertyNameEdit.value)) {
           setPropertyNameEditState("succeeded");
         } else if (propertyNameEdit.timestamp > now - expiryTime) {
           setPropertyNameEditState("pending");
@@ -878,7 +922,7 @@ export function useEditedComment(options?: UseEditedCommentOptions): UseEditedCo
       // has been received after the edit was published so we can evaluate
       else {
         // comment has propertyNameEdit, propertyNameEdit succeeded
-        if (isEqual(comment[propertyName], propertyNameEdit.value)) {
+        if (isEqual(getCommentEditPropertyValue(comment, propertyName), propertyNameEdit.value)) {
           setPropertyNameEditState("succeeded");
           continue;
         }
@@ -918,10 +962,18 @@ export function useEditedComment(options?: UseEditedCommentOptions): UseEditedCo
     // add pending and succeeded props so the editor can see his changes right away
     // don't add failed edits to reflect the current state of the edited comment
     for (const propertyName in editedResult.pendingEdits) {
-      editedResult.editedComment[propertyName] = editedResult.pendingEdits[propertyName];
+      applyEditedCommentProperty(
+        editedResult.editedComment,
+        propertyName,
+        editedResult.pendingEdits[propertyName],
+      );
     }
     for (const propertyName in editedResult.succeededEdits) {
-      editedResult.editedComment[propertyName] = editedResult.succeededEdits[propertyName];
+      applyEditedCommentProperty(
+        editedResult.editedComment,
+        propertyName,
+        editedResult.succeededEdits[propertyName],
+      );
     }
     editedResult.editedComment = addCommentModeration(editedResult.editedComment);
 

@@ -1,4 +1,5 @@
 import utils from "./utils";
+import { COMMENT_MODERATION_AUTHOR_SUMMARY_KEY } from "./utils";
 import { Role } from "../../types";
 import commentsStore from "../comments";
 import repliesPagesStore from "../replies-pages";
@@ -333,6 +334,27 @@ describe("accountsStore utils", () => {
       expect(summary.spoiler).toEqual({ timestamp: 15, value: true });
       expect(summary.removed).toEqual({ timestamp: 20, value: true });
       expect(summary.title).toEqual({ timestamp: 25, value: "edited title" });
+      expect((summary as any).author).toBeUndefined();
+    });
+
+    test("getAccountEditPropertySummary preserves comment moderation author ban edits", () => {
+      const summary = utils.getAccountEditPropertySummary([
+        {
+          commentCid: "cid-1",
+          timestamp: 10,
+          commentModeration: { author: { banExpiresAt: 20 } },
+        },
+        {
+          commentCid: "cid-1",
+          timestamp: 15,
+          commentModeration: { author: undefined },
+        },
+      ] as any);
+
+      expect(summary[COMMENT_MODERATION_AUTHOR_SUMMARY_KEY]).toEqual({
+        timestamp: 15,
+        value: undefined,
+      });
       expect((summary as any).author).toBeUndefined();
     });
 

@@ -177,6 +177,20 @@ describe("accounts-actions", () => {
       expect(stale.accountsEditsSummaries.acc1["cid-1"].spoiler.value).toBe(true);
     });
 
+    test("addStoredAccountEditSummaryToState preserves comment moderation author unban edits", () => {
+      const result = accountsActions.addStoredAccountEditSummaryToState({} as any, "acc1", {
+        commentCid: "cid-1",
+        timestamp: 10,
+        commentModeration: { author: undefined },
+      });
+
+      expect(result.accountsEditsSummaries.acc1["cid-1"]["commentModeration.author"]).toEqual({
+        timestamp: 10,
+        value: undefined,
+      });
+      expect(result.accountsEditsSummaries.acc1["cid-1"].author).toBeUndefined();
+    });
+
     test("addStoredAccountEditSummaryToState is a no-op when edit has no target", () => {
       const summaries = { acc1: { existing: { spoiler: { timestamp: 1, value: true } } } };
       expect(

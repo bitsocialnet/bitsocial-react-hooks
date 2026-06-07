@@ -40,6 +40,7 @@ import {
   getAccountCommunities,
   getCommentCidsToAccountsComments,
   getAccountsCommentsIndexes,
+  COMMENT_MODERATION_AUTHOR_SUMMARY_KEY,
   getAccountEditPropertySummary,
   fetchCommentLinkDimensions,
   getAccountCommentDepth,
@@ -247,9 +248,16 @@ const accountEditNonPropertyNames = new Set([
 ]);
 
 const normalizeStoredAccountEditForSummary = (storedAccountEdit: any) => {
-  const normalizedEdit = storedAccountEdit.commentModeration
-    ? { ...storedAccountEdit, ...storedAccountEdit.commentModeration, commentModeration: undefined }
-    : { ...storedAccountEdit };
+  const normalizedEdit = { ...storedAccountEdit };
+  const commentModeration = normalizedEdit.commentModeration;
+  if (commentModeration && typeof commentModeration === "object") {
+    const { author, ...commentModerationProperties } = commentModeration;
+    Object.assign(normalizedEdit, commentModerationProperties);
+    if (Object.prototype.hasOwnProperty.call(commentModeration, "author")) {
+      normalizedEdit[COMMENT_MODERATION_AUTHOR_SUMMARY_KEY] = author;
+    }
+    normalizedEdit.commentModeration = undefined;
+  }
   const communityEdit = normalizedEdit.communityEdit ?? normalizedEdit.communityEdit;
   if (communityEdit && typeof communityEdit === "object") {
     Object.assign(normalizedEdit, communityEdit);
@@ -281,7 +289,8 @@ export const addStoredAccountEditSummaryToState = (
 
   for (const propertyName in normalizedEdit) {
     if (
-      normalizedEdit[propertyName] === undefined ||
+      (normalizedEdit[propertyName] === undefined &&
+        propertyName !== COMMENT_MODERATION_AUTHOR_SUMMARY_KEY) ||
       accountEditNonPropertyNames.has(propertyName)
     ) {
       continue;

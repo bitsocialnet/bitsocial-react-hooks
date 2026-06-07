@@ -241,10 +241,17 @@ const accountEditNonPropertyNames = new Set([
   "timestamp",
 ]);
 
+export const COMMENT_MODERATION_AUTHOR_SUMMARY_KEY = "commentModeration.author";
+
 const normalizeAccountEditForSummary = (accountEdit: AccountEdit) => {
   const normalizedAccountEdit = { ...accountEdit };
-  if (normalizedAccountEdit.commentModeration) {
-    Object.assign(normalizedAccountEdit, normalizedAccountEdit.commentModeration);
+  const commentModeration = normalizedAccountEdit.commentModeration;
+  if (commentModeration && typeof commentModeration === "object") {
+    const { author, ...commentModerationProperties } = commentModeration;
+    Object.assign(normalizedAccountEdit, commentModerationProperties);
+    if (Object.prototype.hasOwnProperty.call(commentModeration, "author")) {
+      normalizedAccountEdit[COMMENT_MODERATION_AUTHOR_SUMMARY_KEY] = author;
+    }
     delete normalizedAccountEdit.commentModeration;
   }
   const communityEdit = normalizedAccountEdit.communityEdit ?? normalizedAccountEdit.communityEdit;
@@ -262,7 +269,8 @@ export const getAccountEditPropertySummary = (accountEdits: AccountEdit[] | unde
     const normalizedAccountEdit = normalizeAccountEditForSummary(accountEdit);
     for (const propertyName in normalizedAccountEdit) {
       if (
-        normalizedAccountEdit[propertyName] === undefined ||
+        (normalizedAccountEdit[propertyName] === undefined &&
+          propertyName !== COMMENT_MODERATION_AUTHOR_SUMMARY_KEY) ||
         accountEditNonPropertyNames.has(propertyName)
       ) {
         continue;
