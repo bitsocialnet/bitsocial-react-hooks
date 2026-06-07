@@ -10,6 +10,7 @@ import {
   useBlock,
   useAccount,
   useCreateCommunity,
+  useExportCommunity,
   setPkcJs,
   useAccountVote,
   useAccountComments,
@@ -553,6 +554,185 @@ describe("actions", () => {
       expect(onError).toHaveBeenCalledWith(expect.any(Error));
 
       PKC.prototype.createCommunity = createCommunity;
+    });
+  });
+
+  describe("useExportCommunity", () => {
+    let rendered: any, waitFor: Function;
+
+    beforeEach(async () => {
+      rendered = renderHook<any, any>((options = []) => {
+        const result1 = useExportCommunity(options[0]);
+        const result2 = useExportCommunity(options[1]);
+        return [result1, result2];
+      });
+      waitFor = testUtils.createWaitFor(rendered);
+    });
+
+    afterEach(async () => {
+      await testUtils.resetDatabasesAndStores();
+    });
+
+    test("can export one community", async () => {
+      const communityAddress = "export-one.eth";
+      expect(rendered.result.current[0].communityExports).toEqual([]);
+      expect(typeof rendered.result.current[0].exportCommunity).toBe("function");
+
+      rendered.rerender([{ communityAddress }]);
+      await waitFor(() => rendered.result.current[0].state === "ready");
+
+      await act(async () => {
+        await rendered.result.current[0].exportCommunity();
+      });
+
+      await waitFor(() => rendered.result.current[0].state === "succeeded");
+      expect(rendered.result.current[0].communityExports).toEqual([
+        {
+          communityAddress,
+          exportId: `${communityAddress} export 1`,
+        },
+      ]);
+      expect(rendered.result.current[0].error).toBe(undefined);
+    });
+
+    test("is initializing while the account is unavailable", () => {
+      const activeAccountId = useAccountsStore.getState().activeAccountId;
+      useAccountsStore.setState({ activeAccountId: undefined });
+
+      try {
+        const initializing = renderHook(() =>
+          useExportCommunity({ communityAddress: "initializing-export.eth" }),
+        );
+        expect(initializing.result.current.state).toBe("initializing");
+      } finally {
+        useAccountsStore.setState({ activeAccountId });
+      }
+    });
+
+    test("returns initializing and hides stale exports when the account becomes unavailable", async () => {
+      rendered.rerender([{ communityAddress: "logout-export.eth" }]);
+      await waitFor(() => rendered.result.current[0].state === "ready");
+
+      await act(async () => {
+        await rendered.result.current[0].exportCommunity();
+      });
+      await waitFor(() => rendered.result.current[0].state === "succeeded");
+
+      const activeAccountId = useAccountsStore.getState().activeAccountId;
+      try {
+        await act(async () => {
+          useAccountsStore.setState({ activeAccountId: undefined });
+        });
+
+        expect(rendered.result.current[0].state).toBe("initializing");
+        expect(rendered.result.current[0].communityExports).toEqual([]);
+      } finally {
+        useAccountsStore.setState({ activeAccountId });
+      }
+    });
+
+    test("returns ready and hides stale exports when export targets change", async () => {
+      rendered.rerender([{ communityAddress: "old-export-target.eth" }]);
+      await waitFor(() => rendered.result.current[0].state === "ready");
+
+      await act(async () => {
+        await rendered.result.current[0].exportCommunity();
+      });
+      await waitFor(() => rendered.result.current[0].state === "succeeded");
+
+      rendered.rerender([{ communityAddress: "new-export-target.eth" }]);
+
+      expect(rendered.result.current[0].state).toBe("ready");
+      expect(rendered.result.current[0].communityExports).toEqual([]);
+
+      rendered.rerender([{ communityAddress: "old-export-target.eth" }]);
+
+      expect(rendered.result.current[0].state).toBe("ready");
+      expect(rendered.result.current[0].communityExports).toEqual([]);
+    });
+
+    test("can export multiple communities", async () => {
+      const communityAddresses = ["export-many-1.eth", "export-many-2.eth"];
+      rendered.rerender([{ communityAddresses }]);
+      await waitFor(() => rendered.result.current[0].state === "ready");
+
+      await act(async () => {
+        await rendered.result.current[0].exportCommunity();
+      });
+
+      await waitFor(() => rendered.result.current[0].state === "succeeded");
+      expect(rendered.result.current[0].communityExports).toEqual([
+        {
+          communityAddress: communityAddresses[0],
+          exportId: `${communityAddresses[0]} export 1`,
+        },
+        {
+          communityAddress: communityAddresses[1],
+          exportId: `${communityAddresses[1]} export 1`,
+        },
+      ]);
+    });
+
+    test("exports listed account communities when no address is provided", async () => {
+      await act(async () => {
+        await useAccountsStore.getState().accountsActions.createCommunity({ title: "Export all" });
+      });
+
+      rendered.rerender([undefined]);
+      await waitFor(() => rendered.result.current[0].state === "ready");
+      await act(async () => {
+        await rendered.result.current[0].exportCommunity();
+      });
+
+      await waitFor(() => rendered.result.current[0].state === "succeeded");
+      expect(rendered.result.current[0].communityExports).toEqual([
+        {
+          communityAddress: "list community address 1",
+          exportId: "list community address 1 export 1",
+        },
+        {
+          communityAddress: "list community address 2",
+          exportId: "list community address 2 export 1",
+        },
+        {
+          communityAddress: "created community address",
+          exportId: "created community address export 1",
+        },
+      ]);
+    });
+
+    test("useExportCommunity onError callback when export fails", async () => {
+      const original = useAccountsStore.getState().accountsActions.exportCommunity;
+      useAccountsStore.setState((state: any) => ({
+        ...state,
+        accountsActions: {
+          ...state.accountsActions,
+          exportCommunity: async () => {
+            throw Error("store exportCommunity error");
+          },
+        },
+      }));
+
+      const onError = vi.fn();
+      rendered.rerender([{ communityAddress: "export-error.eth", onError }]);
+      await waitFor(() => rendered.result.current[0].state === "ready");
+
+      await act(async () => {
+        await rendered.result.current[0].exportCommunity();
+      });
+
+      expect(rendered.result.current[0].state).toBe("failed");
+      expect(rendered.result.current[0].errors.length).toBe(1);
+      expect(rendered.result.current[0].error.message).toBe("store exportCommunity error");
+      expect(onError).toHaveBeenCalledWith(expect.any(Error));
+
+      useAccountsStore.setState((state: any) => ({
+        ...state,
+        accountsActions: {
+          ...state.accountsActions,
+          exportCommunity: original,
+        },
+      }));
     });
   });
 

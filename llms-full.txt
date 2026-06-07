@@ -201,6 +201,13 @@ usePublishCommentEdit(options: UsePublishCommentEditOptions): UsePublishCommentE
 usePublishCommentModeration(options: UsePublishCommentModerationOptions): UsePublishCommentModerationResult
 usePublishCommunityEdit(options: UsePublishCommunityEditOptions): UsePublishCommunityEditResult
 useCreateCommunity(options: CreateCommunityOptions): {createdCommunity: Community | undefined, createCommunity: Function}
+useExportCommunity(options?: UseExportCommunityOptions): {
+  communityExports: {communityAddress: string, exportId: string}[],
+  exportCommunity: () => Promise<void>,
+  state: string,
+  error: Error | undefined,
+  errors: Error[]
+}
 ```
 
 #### States Hooks
@@ -1148,6 +1155,33 @@ const communities = useCommunities({
 });
 // or
 const _community = useCommunity({ community: { name: createdCommunity.address } });
+```
+
+#### (Desktop only) Export communities
+
+```jsx
+// Export one community.
+const { communityExports, exportCommunity, state, error } = useExportCommunity({
+  communityAddress: "your-community-address.eth",
+});
+await exportCommunity();
+
+// Export several communities at the same time.
+const exportMany = useExportCommunity({
+  communityAddresses: ["community-1.eth", "community-2.eth"],
+});
+await exportMany.exportCommunity();
+
+// Export every community listed by the active account's pkc client.
+const exportAll = useExportCommunity();
+await exportAll.exportCommunity();
+
+if (state === "succeeded") {
+  console.log("started exports", communityExports);
+}
+if (state === "failed") {
+  console.log("failed to start export", error.message);
+}
 ```
 
 #### (Desktop only) List the communities you created

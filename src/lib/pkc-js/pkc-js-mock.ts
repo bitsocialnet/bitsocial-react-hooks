@@ -296,10 +296,12 @@ export class Community extends EventEmitter {
   updating = false;
   firstUpdate = true;
   address: string | undefined;
+  publicKey: string | undefined;
   title: string | undefined;
   description: string | undefined;
   posts: Pages;
   modQueue: Pages;
+  exportRecords: any[];
   updatedAt: number | undefined;
   statsCid: string | undefined;
   state: string;
@@ -311,12 +313,14 @@ export class Community extends EventEmitter {
       createCommunityOptions?.address ||
       createCommunityOptions?.name ||
       createCommunityOptions?.publicKey;
+    this.publicKey = createCommunityOptions?.publicKey || this.address;
     this.title = createCommunityOptions?.title;
     this.description = createCommunityOptions?.description;
     this.statsCid = "statscid";
     this.state = "stopped";
     this.updatingState = "stopped";
     this.updatedAt = createCommunityOptions?.updatedAt;
+    this.exportRecords = [];
 
     this.posts = new Pages({ community: this });
     // add community.posts from createCommunityOptions
@@ -392,6 +396,27 @@ export class Community extends EventEmitter {
       delete createdOwnerCommunities[this.address];
       delete editedOwnerCommunities[this.address];
     }
+  }
+
+  get exports() {
+    return this.exportRecords.map((record) => ({ ...record }));
+  }
+
+  async export(exportCommunityOptions: any = {}) {
+    if (!this.address) {
+      throw Error(`can't community.export with no community.address`);
+    }
+    const exportRecord = {
+      exportId: `${this.address} export ${this.exportRecords.length + 1}`,
+      name: this.address,
+      publicKey: this.publicKey || this.address,
+      includePrivateKey: exportCommunityOptions.includePrivateKey === true,
+      progress: 1,
+      url: `file://${this.address}.zip`,
+    };
+    this.exportRecords.push(exportRecord);
+    this.emit("exportschange", this.exports);
+    return { exportId: exportRecord.exportId };
   }
 
   simulateUpdateEvent() {
