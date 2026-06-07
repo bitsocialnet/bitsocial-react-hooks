@@ -809,7 +809,7 @@ export const exportCommunity = async (
         `accountsActions.exportCommunity community.export missing for communityAddress '${communityAddress}'`,
       );
       const exportedCommunity = await community.export(exportCommunityOptions);
-      return { communityAddress, ...exportedCommunity };
+      return { ...exportedCommunity, communityAddress };
     }),
   );
   log("accountsActions.exportCommunity", {

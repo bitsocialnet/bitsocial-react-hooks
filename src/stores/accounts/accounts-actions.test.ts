@@ -722,6 +722,27 @@ describe("accounts-actions", () => {
       }
     });
 
+    test("exportCommunity keeps the requested communityAddress when export metadata conflicts", async () => {
+      const originalExport = BaseCommunity.prototype.export;
+      BaseCommunity.prototype.export = async function (options: any) {
+        const result = await originalExport.call(this, options);
+        return { ...result, communityAddress: "wrong-export-address.eth" };
+      };
+
+      try {
+        const communityExports = await accountsActions.exportCommunity("requested-export.eth");
+
+        expect(communityExports).toEqual([
+          {
+            communityAddress: "requested-export.eth",
+            exportId: "requested-export.eth export 1",
+          },
+        ]);
+      } finally {
+        BaseCommunity.prototype.export = originalExport;
+      }
+    });
+
     test("exportCommunity defaults to account pkc communities", async () => {
       await act(async () => {
         await accountsActions.createCommunity({ title: "Export default list" });
