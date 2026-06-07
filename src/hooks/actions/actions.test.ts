@@ -609,6 +609,43 @@ describe("actions", () => {
       }
     });
 
+    test("returns initializing and hides stale exports when the account becomes unavailable", async () => {
+      rendered.rerender([{ communityAddress: "logout-export.eth" }]);
+      await waitFor(() => rendered.result.current[0].state === "ready");
+
+      await act(async () => {
+        await rendered.result.current[0].exportCommunity();
+      });
+      await waitFor(() => rendered.result.current[0].state === "succeeded");
+
+      const activeAccountId = useAccountsStore.getState().activeAccountId;
+      try {
+        await act(async () => {
+          useAccountsStore.setState({ activeAccountId: undefined });
+        });
+
+        expect(rendered.result.current[0].state).toBe("initializing");
+        expect(rendered.result.current[0].communityExports).toEqual([]);
+      } finally {
+        useAccountsStore.setState({ activeAccountId });
+      }
+    });
+
+    test("returns ready and hides stale exports when export targets change", async () => {
+      rendered.rerender([{ communityAddress: "old-export-target.eth" }]);
+      await waitFor(() => rendered.result.current[0].state === "ready");
+
+      await act(async () => {
+        await rendered.result.current[0].exportCommunity();
+      });
+      await waitFor(() => rendered.result.current[0].state === "succeeded");
+
+      rendered.rerender([{ communityAddress: "new-export-target.eth" }]);
+
+      expect(rendered.result.current[0].state).toBe("ready");
+      expect(rendered.result.current[0].communityExports).toEqual([]);
+    });
+
     test("can export multiple communities", async () => {
       const communityAddresses = ["export-many-1.eth", "export-many-2.eth"];
       rendered.rerender([{ communityAddresses }]);

@@ -729,14 +729,23 @@ export function useExportCommunity(options?: UseExportCommunityOptions): UseExpo
   const [communityExports, setCommunityExports] = useState<CommunityExport[]>([]);
   const targetCommunityAddresses =
     communityAddresses || (communityAddress ? [communityAddress] : undefined);
+  const exportContextKey = JSON.stringify([
+    accountId || null,
+    targetCommunityAddresses || null,
+    exportCommunityOptions.includePrivateKey === true,
+    exportCommunityOptions.exportPath,
+  ]);
+  const [exportingContextKey, setExportingContextKey] = useState<string>();
 
   let initialState = "initializing";
   if (accountId) {
     initialState = "ready";
   }
+  const hasCurrentExportState = accountId && exportingContextKey === exportContextKey;
 
   const exportCommunity = async () => {
     try {
+      setExportingContextKey(exportContextKey);
       setExportingState("exporting");
       const communityExports = await accountsActions.exportCommunity(
         targetCommunityAddresses,
@@ -753,10 +762,10 @@ export function useExportCommunity(options?: UseExportCommunityOptions): UseExpo
   };
 
   return {
-    communityExports,
+    communityExports: hasCurrentExportState ? communityExports : [],
     exportCommunity,
-    state: exportingState || initialState,
-    error: errors[errors.length - 1],
-    errors,
+    state: hasCurrentExportState ? exportingState! : initialState,
+    error: hasCurrentExportState ? errors[errors.length - 1] : undefined,
+    errors: hasCurrentExportState ? errors : [],
   };
 }
