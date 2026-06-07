@@ -201,7 +201,13 @@ usePublishCommentEdit(options: UsePublishCommentEditOptions): UsePublishCommentE
 usePublishCommentModeration(options: UsePublishCommentModerationOptions): UsePublishCommentModerationResult
 usePublishCommunityEdit(options: UsePublishCommunityEditOptions): UsePublishCommunityEditResult
 useCreateCommunity(options: CreateCommunityOptions): {createdCommunity: Community | undefined, createCommunity: Function}
-useExportCommunity(options?: UseExportCommunityOptions): {communityExports: {communityAddress: string, exportId: string}[], exportCommunity: Function}
+useExportCommunity(options?: UseExportCommunityOptions): {
+  communityExports: {communityAddress: string, exportId: string}[],
+  exportCommunity: () => Promise<void>,
+  state: string,
+  error: Error | undefined,
+  errors: Error[]
+}
 ```
 
 #### States Hooks

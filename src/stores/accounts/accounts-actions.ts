@@ -814,8 +814,8 @@ export const exportCommunity = async (
   );
   log("accountsActions.exportCommunity", {
     communityAddresses,
-    exportCommunityOptions,
-    communityExports,
+    includePrivateKey: exportCommunityOptions.includePrivateKey === true,
+    communityExportCount: communityExports.length,
   });
   return communityExports;
 };

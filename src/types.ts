@@ -591,7 +591,12 @@ export type PublishVoteOptions = { [key: string]: any };
 export type PublishCommentEditOptions = { [key: string]: any };
 export type PublishCommentModerationOptions = { [key: string]: any };
 export type PublishCommunityEditOptions = { [key: string]: any };
-export type ExportCommunityOptions = { [key: string]: any };
+export interface ExportCommunityOptions {
+  includePrivateKey?: boolean;
+  exportPath?: string;
+  signal?: AbortSignal;
+  [key: string]: unknown;
+}
 export type Challenge = { [key: string]: any };
 export type ChallengeVerification = { [key: string]: any };
 export type CreateCommentOptions = { [key: string]: any };
@@ -603,7 +608,16 @@ export type CommentEdit = { [key: string]: any };
 export type CommentModeration = { [key: string]: any };
 export type CommunityEdit = { [key: string]: any };
 export type Community = { [key: string]: any };
-export type CommunityExport = { communityAddress: string; exportId: string; [key: string]: any };
+export type CommunityExport = {
+  communityAddress: string;
+  exportId: string;
+  name?: string;
+  publicKey?: string;
+  includePrivateKey?: boolean;
+  progress?: number;
+  url?: string;
+  [key: string]: unknown;
+};
 export type CommunityStats = { [key: string]: any };
 export type Notification = { [key: string]: any };
 export type Nft = { [key: string]: any };
