@@ -644,6 +644,11 @@ describe("actions", () => {
 
       expect(rendered.result.current[0].state).toBe("ready");
       expect(rendered.result.current[0].communityExports).toEqual([]);
+
+      rendered.rerender([{ communityAddress: "old-export-target.eth" }]);
+
+      expect(rendered.result.current[0].state).toBe("ready");
+      expect(rendered.result.current[0].communityExports).toEqual([]);
     });
 
     test("can export multiple communities", async () => {

@@ -735,17 +735,32 @@ export function useExportCommunity(options?: UseExportCommunityOptions): UseExpo
     exportCommunityOptions.includePrivateKey === true,
     exportCommunityOptions.exportPath,
   ]);
-  const [exportingContextKey, setExportingContextKey] = useState<string>();
+  const previousExportContextKeyRef = useRef(exportContextKey);
+  const exportContextVersionRef = useRef(0);
+  if (previousExportContextKeyRef.current !== exportContextKey) {
+    previousExportContextKeyRef.current = exportContextKey;
+    exportContextVersionRef.current += 1;
+  }
+  const [exportingContext, setExportingContext] = useState<{
+    key: string;
+    version: number;
+  }>();
 
   let initialState = "initializing";
   if (accountId) {
     initialState = "ready";
   }
-  const hasCurrentExportState = accountId && exportingContextKey === exportContextKey;
+  const hasCurrentExportState =
+    accountId &&
+    exportingContext?.key === exportContextKey &&
+    exportingContext.version === exportContextVersionRef.current;
 
   const exportCommunity = async () => {
     try {
-      setExportingContextKey(exportContextKey);
+      setExportingContext({
+        key: exportContextKey,
+        version: exportContextVersionRef.current,
+      });
       setExportingState("exporting");
       const communityExports = await accountsActions.exportCommunity(
         targetCommunityAddresses,
