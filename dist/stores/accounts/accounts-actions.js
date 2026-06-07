@@ -18,7 +18,7 @@ import chain from "../../lib/chain/index.js";
 import assert from "assert";
 const log = Logger("bitsocial-react-hooks:accounts:stores");
 import * as accountsActionsInternal from "./accounts-actions-internal.js";
-import { backfillPublicationCommunityAddress, createPkcCommunityEdit, getPkcCommunityAddresses, normalizeCommunityEditOptionsForPkc, normalizePublicationOptionsForStore, normalizePublicationOptionsForPkc, } from "../../lib/pkc-compat.js";
+import { backfillPublicationCommunityAddress, createPkcCommunity, createPkcCommunityEdit, getPkcCommunityAddresses, normalizeCommunityEditOptionsForPkc, normalizePublicationOptionsForStore, normalizePublicationOptionsForPkc, } from "../../lib/pkc-compat.js";
 import { getAccountCommentsIndex, getAccountCommunities, getCommentCidsToAccountsComments, getAccountEditPropertySummary, fetchCommentLinkDimensions, getAccountCommentDepth, addShortAddressesToAccountComment, sanitizeAccountCommentForState, sanitizeStoredAccountComment, } from "./utils.js";
 import isEqual from "lodash.isequal";
 import { v4 as uuid } from "uuid";
@@ -514,6 +514,43 @@ export const exportAccount = (accountName) => __awaiter(void 0, void 0, void 0, 
     const exportedAccountJson = yield accountsDatabase.getExportedAccountJson(account.id);
     log("accountsActions.exportAccount", { exportedAccountJson });
     return exportedAccountJson;
+});
+const getCommunityAddressesToExport = (communityAddressOrAddresses, account) => {
+    if (Array.isArray(communityAddressOrAddresses)) {
+        return communityAddressOrAddresses;
+    }
+    if (communityAddressOrAddresses) {
+        return [communityAddressOrAddresses];
+    }
+    return getPkcCommunityAddresses(account.pkc);
+};
+export const exportCommunity = (communityAddressOrAddresses_1, ...args_1) => __awaiter(void 0, [communityAddressOrAddresses_1, ...args_1], void 0, function* (communityAddressOrAddresses, exportCommunityOptions = {}, accountName) {
+    const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
+    assert(accounts && accountNamesToAccountIds && activeAccountId, `can't use accountsStore.accountsActions before initialized`);
+    assert(!exportCommunityOptions || typeof exportCommunityOptions === "object", `accountsActions.exportCommunity invalid exportCommunityOptions argument '${exportCommunityOptions}'`);
+    let account = accounts[activeAccountId];
+    if (accountName) {
+        const accountId = accountNamesToAccountIds[accountName];
+        account = accounts[accountId];
+    }
+    assert(account === null || account === void 0 ? void 0 : account.id, `accountsActions.exportCommunity account.id '${account === null || account === void 0 ? void 0 : account.id}' doesn't exist, activeAccountId '${activeAccountId}' accountName '${accountName}'`);
+    const communityAddresses = getCommunityAddressesToExport(communityAddressOrAddresses, account);
+    assert(communityAddresses.length > 0, `accountsActions.exportCommunity no community addresses to export`);
+    for (const communityAddress of communityAddresses) {
+        assert(communityAddress && typeof communityAddress === "string", `accountsActions.exportCommunity invalid communityAddress '${communityAddress}'`);
+    }
+    const communityExports = yield Promise.all([...new Set(communityAddresses)].map((communityAddress) => __awaiter(void 0, void 0, void 0, function* () {
+        const community = yield createPkcCommunity(account.pkc, { address: communityAddress });
+        assert(typeof (community === null || community === void 0 ? void 0 : community.export) === "function", `accountsActions.exportCommunity community.export missing for communityAddress '${communityAddress}'`);
+        const exportedCommunity = yield community.export(exportCommunityOptions);
+        return Object.assign(Object.assign({}, exportedCommunity), { communityAddress });
+    })));
+    log("accountsActions.exportCommunity", {
+        communityAddresses,
+        includePrivateKey: exportCommunityOptions.includePrivateKey === true,
+        communityExportCount: communityExports.length,
+    });
+    return communityExports;
 });
 export const subscribe = (communityAddress, accountName) => __awaiter(void 0, void 0, void 0, function* () {
     const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();

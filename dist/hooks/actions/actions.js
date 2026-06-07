@@ -549,4 +549,58 @@ export function useCreateCommunity(options) {
         errors,
     }), [state, errors, createdCommunity, options, accountName]);
 }
+export function useExportCommunity(options) {
+    assert(!options || typeof options === "object", `useExportCommunity options argument '${options}' not an object`);
+    const _a = options || {}, { accountName, communityAddress, communityAddresses, onError } = _a, exportCommunityOptions = __rest(_a, ["accountName", "communityAddress", "communityAddresses", "onError"]);
+    const accountsActions = useAccountsStore((state) => state.accountsActions);
+    const accountId = useAccountId(accountName);
+    const [errors, setErrors] = useState([]);
+    const [exportingState, setExportingState] = useState();
+    const [communityExports, setCommunityExports] = useState([]);
+    const targetCommunityAddresses = communityAddresses || (communityAddress ? [communityAddress] : undefined);
+    const exportContextKey = JSON.stringify([
+        accountId || null,
+        targetCommunityAddresses || null,
+        exportCommunityOptions.includePrivateKey === true,
+        exportCommunityOptions.exportPath,
+    ]);
+    const previousExportContextKeyRef = useRef(exportContextKey);
+    const exportContextVersionRef = useRef(0);
+    if (previousExportContextKeyRef.current !== exportContextKey) {
+        previousExportContextKeyRef.current = exportContextKey;
+        exportContextVersionRef.current += 1;
+    }
+    const [exportingContext, setExportingContext] = useState();
+    let initialState = "initializing";
+    if (accountId) {
+        initialState = "ready";
+    }
+    const hasCurrentExportState = accountId &&
+        (exportingContext === null || exportingContext === void 0 ? void 0 : exportingContext.key) === exportContextKey &&
+        exportingContext.version === exportContextVersionRef.current;
+    const exportCommunity = () => __awaiter(this, void 0, void 0, function* () {
+        try {
+            setExportingContext({
+                key: exportContextKey,
+                version: exportContextVersionRef.current,
+            });
+            setExportingState("exporting");
+            const communityExports = yield accountsActions.exportCommunity(targetCommunityAddresses, exportCommunityOptions, accountName);
+            setCommunityExports(communityExports);
+            setExportingState("succeeded");
+        }
+        catch (e) {
+            setExportingState("failed");
+            setErrors((errors) => [...errors, e]);
+            onError === null || onError === void 0 ? void 0 : onError(e);
+        }
+    });
+    return {
+        communityExports: hasCurrentExportState ? communityExports : [],
+        exportCommunity,
+        state: hasCurrentExportState ? exportingState : initialState,
+        error: hasCurrentExportState ? errors[errors.length - 1] : undefined,
+        errors: hasCurrentExportState ? errors : [],
+    };
+}
 //# sourceMappingURL=actions.js.map

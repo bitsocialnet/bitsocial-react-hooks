@@ -13,7 +13,7 @@ import { useFeed, useBufferedFeeds } from "./hooks/feeds/index.js";
 // authors
 import { useAuthor, useAuthorComments, useAuthorAvatar, useResolvedAuthorAddress, useAuthorAddress, setAuthorAvatarsWhitelistedTokenAddresses, resetAuthorAddressCacheForTesting, } from "./hooks/authors/index.js";
 // actions
-import { useSubscribe, useBlock, usePublishComment, usePublishVote, useCreateCommunity, usePublishCommentEdit, usePublishCommentModeration, usePublishCommunityEdit, } from "./hooks/actions/index.js";
+import { useSubscribe, useBlock, usePublishComment, usePublishVote, useCreateCommunity, usePublishCommentEdit, usePublishCommentModeration, usePublishCommunityEdit, useExportCommunity, } from "./hooks/actions/index.js";
 // actions that don't have their own hooks yet
 import { createAccount, deleteAccount, deleteComment, setAccount, setActiveAccount, setAccountsOrder, importAccount, exportAccount, deleteCommunity, } from "./stores/accounts/accounts-actions.js";
 // states
@@ -42,7 +42,7 @@ useAuthor, useAuthorComments, useAuthorAvatar, useResolvedAuthorAddress, useAuth
 // feeds
 useFeed, useBufferedFeeds, 
 // actions
-useSubscribe, useBlock, usePublishComment, usePublishVote, usePublishCommentEdit, usePublishCommentModeration, usePublishCommunityEdit, useCreateCommunity, 
+useSubscribe, useBlock, usePublishComment, usePublishVote, usePublishCommentEdit, usePublishCommentModeration, usePublishCommunityEdit, useCreateCommunity, useExportCommunity, 
 // actions that don't have their own hooks yet
 createAccount, deleteAccount, deleteComment, setAccount, setActiveAccount, setAccountsOrder, importAccount, exportAccount, deleteCommunity, 
 // states
@@ -99,6 +99,7 @@ const hooks = {
     usePublishCommentModeration,
     usePublishCommunityEdit,
     useCreateCommunity,
+    useExportCommunity,
     // actions that don't have their own hooks yet
     createAccount,
     deleteAccount,

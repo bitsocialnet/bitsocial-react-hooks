@@ -289,12 +289,14 @@ export class Community extends EventEmitter {
             (createCommunityOptions === null || createCommunityOptions === void 0 ? void 0 : createCommunityOptions.address) ||
                 (createCommunityOptions === null || createCommunityOptions === void 0 ? void 0 : createCommunityOptions.name) ||
                 (createCommunityOptions === null || createCommunityOptions === void 0 ? void 0 : createCommunityOptions.publicKey);
+        this.publicKey = (createCommunityOptions === null || createCommunityOptions === void 0 ? void 0 : createCommunityOptions.publicKey) || this.address;
         this.title = createCommunityOptions === null || createCommunityOptions === void 0 ? void 0 : createCommunityOptions.title;
         this.description = createCommunityOptions === null || createCommunityOptions === void 0 ? void 0 : createCommunityOptions.description;
         this.statsCid = "statscid";
         this.state = "stopped";
         this.updatingState = "stopped";
         this.updatedAt = createCommunityOptions === null || createCommunityOptions === void 0 ? void 0 : createCommunityOptions.updatedAt;
+        this.exportRecords = [];
         this.posts = new Pages({ community: this });
         // add community.posts from createCommunityOptions
         if ((_a = createCommunityOptions === null || createCommunityOptions === void 0 ? void 0 : createCommunityOptions.posts) === null || _a === void 0 ? void 0 : _a.pages) {
@@ -360,6 +362,27 @@ export class Community extends EventEmitter {
                 delete createdOwnerCommunities[this.address];
                 delete editedOwnerCommunities[this.address];
             }
+        });
+    }
+    get exports() {
+        return this.exportRecords.map((record) => (Object.assign({}, record)));
+    }
+    export() {
+        return __awaiter(this, arguments, void 0, function* (exportCommunityOptions = {}) {
+            if (!this.address) {
+                throw Error(`can't community.export with no community.address`);
+            }
+            const exportRecord = {
+                exportId: `${this.address} export ${this.exportRecords.length + 1}`,
+                name: this.address,
+                publicKey: this.publicKey || this.address,
+                includePrivateKey: exportCommunityOptions.includePrivateKey === true,
+                progress: 1,
+                url: `file://${this.address}.zip`,
+            };
+            this.exportRecords.push(exportRecord);
+            this.emit("exportschange", this.exports);
+            return { exportId: exportRecord.exportId };
         });
     }
     simulateUpdateEvent() {

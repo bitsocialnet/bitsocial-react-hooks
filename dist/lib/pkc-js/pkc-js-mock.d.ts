@@ -73,10 +73,12 @@ export declare class Community extends EventEmitter {
     updating: boolean;
     firstUpdate: boolean;
     address: string | undefined;
+    publicKey: string | undefined;
     title: string | undefined;
     description: string | undefined;
     posts: Pages;
     modQueue: Pages;
+    exportRecords: any[];
     updatedAt: number | undefined;
     statsCid: string | undefined;
     state: string;
@@ -84,6 +86,10 @@ export declare class Community extends EventEmitter {
     constructor(createCommunityOptions?: any);
     update(): Promise<void>;
     delete(): Promise<void>;
+    get exports(): any[];
+    export(exportCommunityOptions?: any): Promise<{
+        exportId: string;
+    }>;
     simulateUpdateEvent(): void;
     simulateFirstUpdateEvent(): Promise<void>;
     get roles(): {};

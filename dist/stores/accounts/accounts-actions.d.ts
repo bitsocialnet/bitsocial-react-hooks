@@ -1,4 +1,4 @@
-import { Account, PublishCommentOptions, PublishVoteOptions, PublishCommentEditOptions, PublishCommentModerationOptions, PublishCommunityEditOptions, CreateCommunityOptions } from "../../types.js";
+import { Account, PublishCommentOptions, PublishVoteOptions, PublishCommentEditOptions, PublishCommentModerationOptions, PublishCommunityEditOptions, CreateCommunityOptions, ExportCommunityOptions, CommunityExport } from "../../types.js";
 /** Returns state update or {} when accountComment not yet in state (no-op). Exported for coverage. */
 export declare const maybeUpdateAccountComment: (accountsComments: Record<string, any[]>, accountId: string, index: number, updater: (accountComments: any[], accountComment: any) => void) => {
     accountsComments?: undefined;
@@ -29,6 +29,7 @@ export declare const setAccount: (account: Account) => Promise<void>;
 export declare const setAccountsOrder: (newOrderedAccountNames: string[]) => Promise<void>;
 export declare const importAccount: (serializedAccount: string) => Promise<void>;
 export declare const exportAccount: (accountName?: string) => Promise<string>;
+export declare const exportCommunity: (communityAddressOrAddresses?: string | string[], exportCommunityOptions?: ExportCommunityOptions, accountName?: string) => Promise<CommunityExport[]>;
 export declare const subscribe: (communityAddress: string, accountName?: string) => Promise<void>;
 export declare const unsubscribe: (communityAddress: string, accountName?: string) => Promise<void>;
 export declare const blockAddress: (address: string, accountName?: string) => Promise<void>;

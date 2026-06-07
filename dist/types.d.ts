@@ -320,6 +320,17 @@ export interface UseCreateCommunityResult extends Result {
     createdCommunity: Community | undefined;
     createCommunity(): Promise<void>;
 }
+export interface UseExportCommunityOptions extends Options {
+    communityAddress?: string;
+    communityAddresses?: string[];
+    includePrivateKey?: boolean;
+    exportPath?: string;
+    signal?: AbortSignal;
+}
+export interface UseExportCommunityResult extends Result {
+    communityExports: CommunityExport[];
+    exportCommunity(): Promise<void>;
+}
 export interface UseSubscribeOptions extends Options {
     communityAddress?: string;
     multisubAddress?: string;
@@ -402,6 +413,12 @@ export type PublishCommentModerationOptions = {
 export type PublishCommunityEditOptions = {
     [key: string]: any;
 };
+export interface ExportCommunityOptions {
+    includePrivateKey?: boolean;
+    exportPath?: string;
+    signal?: AbortSignal;
+    [key: string]: unknown;
+}
 export type Challenge = {
     [key: string]: any;
 };
@@ -434,6 +451,16 @@ export type CommunityEdit = {
 };
 export type Community = {
     [key: string]: any;
+};
+export type CommunityExport = {
+    communityAddress: string;
+    exportId: string;
+    name?: string;
+    publicKey?: string;
+    includePrivateKey?: boolean;
+    progress?: number;
+    url?: string;
+    [key: string]: unknown;
 };
 export type CommunityStats = {
     [key: string]: any;
