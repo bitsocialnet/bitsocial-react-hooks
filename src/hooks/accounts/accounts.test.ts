@@ -21,6 +21,7 @@ import {
 } from "../..";
 import commentsStore from "../../stores/comments";
 import * as accountsActions from "../../stores/accounts/accounts-actions";
+import { COMMENT_MODERATION_AUTHOR_SUMMARY_KEY } from "../../stores/accounts/utils";
 import PkcJsMock, {
   PKC,
   Comment,
@@ -3396,6 +3397,139 @@ describe("accounts", () => {
       expect(Object.keys(rendered.result.current.editedComment.succeededEdits).length).toBe(1);
       expect(Object.keys(rendered.result.current.editedComment.pendingEdits).length).toBe(0);
       expect(Object.keys(rendered.result.current.editedComment.failedEdits).length).toBe(0);
+    });
+
+    test("comment moderation author ban is reflected by useEditedComment", async () => {
+      const commentCid = rendered.result.current.accountComments[0].cid;
+      const communityAddress = rendered.result.current.accountComments[0].communityAddress;
+      const commentModerationTimestamp = Math.ceil(Date.now() / 1000);
+      const banExpiresAt = commentModerationTimestamp + 60 * 60;
+
+      rendered.rerender(commentCid);
+      await waitFor(
+        () =>
+          rendered.result.current.comment?.cid &&
+          rendered.result.current.comment.index === undefined,
+      );
+
+      await act(async () => {
+        await accountsActions.publishCommentModeration({
+          timestamp: commentModerationTimestamp,
+          commentCid,
+          communityAddress,
+          commentModeration: { author: { banExpiresAt } },
+          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+          onChallengeVerification: () => {},
+        });
+      });
+
+      await waitFor(() => rendered.result.current.editedComment.editedComment);
+      expect(rendered.result.current.editedComment.state).toBe("pending");
+      expect(
+        rendered.result.current.editedComment.pendingEdits[COMMENT_MODERATION_AUTHOR_SUMMARY_KEY],
+      ).toEqual({ banExpiresAt });
+      expect(
+        rendered.result.current.editedComment.editedComment.commentModeration?.author?.banExpiresAt,
+      ).toBe(banExpiresAt);
+      expect(
+        rendered.result.current.editedComment.editedComment.author?.community?.banExpiresAt,
+      ).toBe(banExpiresAt);
+
+      const updatedComment = { ...commentsStore.getState().comments[commentCid] };
+      updatedComment.author = {
+        ...updatedComment.author,
+        community: { ...updatedComment.author?.community, banExpiresAt },
+      };
+      updatedComment.updatedAt = commentModerationTimestamp + 1;
+      commentsStore.setState(({ comments }) => ({
+        comments: { ...comments, [commentCid]: updatedComment },
+      }));
+
+      await waitFor(() => rendered.result.current.editedComment.state === "succeeded");
+      expect(
+        rendered.result.current.editedComment.succeededEdits[COMMENT_MODERATION_AUTHOR_SUMMARY_KEY],
+      ).toEqual({ banExpiresAt });
+    });
+
+    test("comment moderation author unban stays pending while refreshed data still has stale ban", async () => {
+      const commentCid = rendered.result.current.accountComments[0].cid;
+      const communityAddress = rendered.result.current.accountComments[0].communityAddress;
+      const commentModerationTimestamp = Math.ceil(Date.now() / 1000);
+      const banExpiresAt = commentModerationTimestamp + 60 * 60;
+
+      rendered.rerender(commentCid);
+      await waitFor(
+        () =>
+          rendered.result.current.comment?.cid &&
+          rendered.result.current.comment.index === undefined,
+      );
+
+      const staleBannedComment = { ...commentsStore.getState().comments[commentCid] };
+      staleBannedComment.commentModeration = {
+        ...staleBannedComment.commentModeration,
+        author: { banExpiresAt },
+      };
+      staleBannedComment.author = {
+        ...staleBannedComment.author,
+        community: { ...staleBannedComment.author?.community, banExpiresAt },
+      };
+      staleBannedComment.updatedAt = commentModerationTimestamp + 1;
+      commentsStore.setState(({ comments }) => ({
+        comments: { ...comments, [commentCid]: staleBannedComment },
+      }));
+
+      await act(async () => {
+        await accountsActions.publishCommentModeration({
+          timestamp: commentModerationTimestamp,
+          commentCid,
+          communityAddress,
+          commentModeration: { author: undefined },
+          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+          onChallengeVerification: () => {},
+        });
+      });
+
+      await waitFor(() => rendered.result.current.editedComment.editedComment);
+      expect(rendered.result.current.editedComment.state).toBe("pending");
+      expect(
+        Object.prototype.hasOwnProperty.call(
+          rendered.result.current.editedComment.pendingEdits,
+          COMMENT_MODERATION_AUTHOR_SUMMARY_KEY,
+        ),
+      ).toBe(true);
+      expect(
+        rendered.result.current.editedComment.pendingEdits[COMMENT_MODERATION_AUTHOR_SUMMARY_KEY],
+      ).toBeUndefined();
+      expect(
+        rendered.result.current.editedComment.editedComment.commentModeration?.author,
+      ).toBeUndefined();
+      expect(
+        rendered.result.current.editedComment.editedComment.author?.community?.banExpiresAt,
+      ).toBeUndefined();
+
+      const refreshedUnbannedComment = { ...staleBannedComment };
+      refreshedUnbannedComment.commentModeration = {
+        ...refreshedUnbannedComment.commentModeration,
+        author: undefined,
+      };
+      refreshedUnbannedComment.updatedAt = commentModerationTimestamp + 2;
+      commentsStore.setState(({ comments }) => ({
+        comments: { ...comments, [commentCid]: refreshedUnbannedComment },
+      }));
+
+      await waitFor(() => rendered.result.current.editedComment.state === "succeeded");
+      expect(
+        Object.prototype.hasOwnProperty.call(
+          rendered.result.current.editedComment.succeededEdits,
+          COMMENT_MODERATION_AUTHOR_SUMMARY_KEY,
+        ),
+      ).toBe(true);
+      expect(
+        rendered.result.current.editedComment.succeededEdits[COMMENT_MODERATION_AUTHOR_SUMMARY_KEY],
+      ).toBeUndefined();
+      expect(
+        rendered.result.current.editedComment.editedComment.author?.community?.banExpiresAt,
+      ).toBeUndefined();
     });
 
     test("edited comment failed", async () => {
