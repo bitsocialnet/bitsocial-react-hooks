@@ -387,7 +387,7 @@ export interface UsePublishCommentResult extends Result {
   challengeVerification: ChallengeVerification | undefined;
   publishComment(): Promise<void>;
   abandonPublish(): Promise<void>;
-  publishChallengeAnswers(challengeAnswers: string[]): Promise<void>;
+  publishChallengeAnswers(challengeAnswers?: string[]): Promise<void>;
 }
 
 // usePublishVote(options): result
@@ -403,7 +403,7 @@ export interface UsePublishVoteResult extends Result {
   challenge: Challenge | undefined;
   challengeVerification: ChallengeVerification | undefined;
   publishVote(): Promise<void>;
-  publishChallengeAnswers(challengeAnswers: string[]): Promise<void>;
+  publishChallengeAnswers(challengeAnswers?: string[]): Promise<void>;
 }
 
 // usePublishCommentEdit(options): result
@@ -419,7 +419,7 @@ export interface UsePublishCommentEditResult extends Result {
   challenge: Challenge | undefined;
   challengeVerification: ChallengeVerification | undefined;
   publishCommentEdit(): Promise<void>;
-  publishChallengeAnswers(challengeAnswers: string[]): Promise<void>;
+  publishChallengeAnswers(challengeAnswers?: string[]): Promise<void>;
 }
 
 // usePublishCommentModeration(options): result
@@ -435,7 +435,7 @@ export interface UsePublishCommentModerationResult extends Result {
   challenge: Challenge | undefined;
   challengeVerification: ChallengeVerification | undefined;
   publishCommentModeration(): Promise<void>;
-  publishChallengeAnswers(challengeAnswers: string[]): Promise<void>;
+  publishChallengeAnswers(challengeAnswers?: string[]): Promise<void>;
 }
 
 // usePublishCommunityEdit(options): result
@@ -452,7 +452,7 @@ export interface UsePublishCommunityEditResult extends Result {
   challenge: Challenge | undefined;
   challengeVerification: ChallengeVerification | undefined;
   publishCommunityEdit(): Promise<void>;
-  publishChallengeAnswers(challengeAnswers: string[]): Promise<void>;
+  publishChallengeAnswers(challengeAnswers?: string[]): Promise<void>;
 }
 
 // useCreateCommunity(options): result

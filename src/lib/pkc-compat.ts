@@ -237,4 +237,34 @@ export const withProtocolAliases = <T extends Record<string, any>>(
   return nextAccount as T;
 };
 
+type ChallengeAnswersInput = string[] | { challengeAnswers?: string[] } | undefined;
+
+const publishChallengeAnswersCompatMarker = Symbol.for(
+  "bitsocial-react-hooks.publishChallengeAnswersCompat",
+);
+
+export const normalizeChallengeAnswersForPkc = (challengeAnswers: ChallengeAnswersInput) => ({
+  challengeAnswers: Array.isArray(challengeAnswers)
+    ? challengeAnswers
+    : challengeAnswers?.challengeAnswers || [],
+});
+
+export const withPublishChallengeAnswersCompat = <T>(publication: T): T => {
+  const target = publication as Record<string | symbol, any> | undefined;
+  if (
+    !target ||
+    typeof target.publishChallengeAnswers !== "function" ||
+    target[publishChallengeAnswersCompatMarker]
+  ) {
+    return publication;
+  }
+
+  const publishChallengeAnswers = target.publishChallengeAnswers.bind(publication);
+  target.publishChallengeAnswers = (challengeAnswers?: ChallengeAnswersInput) =>
+    publishChallengeAnswers(normalizeChallengeAnswersForPkc(challengeAnswers));
+  target[publishChallengeAnswersCompatMarker] = true;
+
+  return publication;
+};
+
 export * from "./protocol-compat";

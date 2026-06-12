@@ -1325,7 +1325,7 @@ class Publication extends EventEmitter {
     this.emit("challenge", challengeMessage, this);
   }
 
-  async publishChallengeAnswers(challengeAnswers: string[]) {
+  async publishChallengeAnswers(_challengeAnswers?: string[] | { challengeAnswers?: string[] }) {
     await simulateLoadingTime();
     this.simulateChallengeVerificationEvent();
   }

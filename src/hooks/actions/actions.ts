@@ -71,7 +71,7 @@ import type {
   CommunityExport,
 } from "../../types";
 
-type PublishChallengeAnswers = (challengeAnswers: string[]) => Promise<void>;
+type PublishChallengeAnswers = (challengeAnswers?: string[]) => Promise<void>;
 const publishChallengeAnswersNotReady: PublishChallengeAnswers = async (challengeAnswers) => {
   throw Error(
     `can't call publishChallengeAnswers() before result.challenge is defined (before the challenge message is received)`,

@@ -561,7 +561,7 @@ class Publication extends EventEmitter {
     this.emit("challenge", challengeMessage, this);
   }
 
-  async publishChallengeAnswers(challengeAnswers: string[]) {
+  async publishChallengeAnswers(_challengeAnswers?: string[] | { challengeAnswers?: string[] }) {
     this.publishingState = "publishing-challenge-answer";
     this.emit("publishingstatechange", "publishing-challenge-answer");
 

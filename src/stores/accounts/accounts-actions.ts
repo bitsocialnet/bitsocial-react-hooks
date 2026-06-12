@@ -34,6 +34,7 @@ import {
   normalizeCommunityEditOptionsForPkc,
   normalizePublicationOptionsForStore,
   normalizePublicationOptionsForPkc,
+  withPublishChallengeAnswersCompat,
 } from "../../lib/pkc-compat";
 import {
   getAccountCommentsIndex,
@@ -1228,7 +1229,10 @@ export const publishComment = async (
     updatePublishSessionComment(publishSessionId, activeComment);
     activeComment.once("challenge", async (challenge: Challenge) => {
       lastChallenge = challenge;
-      publishCommentOptions.onChallenge(challenge, activeComment);
+      publishCommentOptions.onChallenge(
+        challenge,
+        withPublishChallengeAnswersCompat(activeComment),
+      );
     });
     activeComment.once(
       "challengeverification",
@@ -1507,7 +1511,7 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
   const publishAndRetryFailedChallengeVerification = async () => {
     vote.once("challenge", async (challenge: Challenge) => {
       lastChallenge = challenge;
-      publishVoteOptions.onChallenge(challenge, vote);
+      publishVoteOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(vote));
     });
     vote.once("challengeverification", async (challengeVerification: ChallengeVerification) => {
       publishVoteOptions.onChallengeVerification(challengeVerification, vote);
@@ -1638,7 +1642,10 @@ export const publishCommentEdit = async (
   const publishAndRetryFailedChallengeVerification = async () => {
     commentEdit.once("challenge", async (challenge: Challenge) => {
       lastChallenge = challenge;
-      publishCommentEditOptions.onChallenge(challenge, commentEdit);
+      publishCommentEditOptions.onChallenge(
+        challenge,
+        withPublishChallengeAnswersCompat(commentEdit),
+      );
     });
     commentEdit.once(
       "challengeverification",
@@ -1765,7 +1772,10 @@ export const publishCommentModeration = async (
   const publishAndRetryFailedChallengeVerification = async () => {
     commentModeration.once("challenge", async (challenge: Challenge) => {
       lastChallenge = challenge;
-      publishCommentModerationOptions.onChallenge(challenge, commentModeration);
+      publishCommentModerationOptions.onChallenge(
+        challenge,
+        withPublishChallengeAnswersCompat(commentModeration),
+      );
     });
     commentModeration.once(
       "challengeverification",
@@ -1944,7 +1954,10 @@ export const publishCommunityEdit = async (
   const publishAndRetryFailedChallengeVerification = async () => {
     communityEdit.once("challenge", async (challenge: Challenge) => {
       lastChallenge = challenge;
-      publishCommunityEditOptions.onChallenge(challenge, communityEdit);
+      publishCommunityEditOptions.onChallenge(
+        challenge,
+        withPublishChallengeAnswersCompat(communityEdit),
+      );
     });
     communityEdit.once(
       "challengeverification",

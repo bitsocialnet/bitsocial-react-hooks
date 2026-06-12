@@ -71,7 +71,7 @@ const pkcDataPath = getTmpFolderPath();
       signer,
       author: { address: signer.address },
     });
-    comment.once("challenge", () => comment.publishChallengeAnswers(["2"]));
+    comment.once("challenge", () => comment.publishChallengeAnswers({ challengeAnswers: ["2"] }));
     await comment.publish();
     console.log("test comment published");
     console.log("test server ready");
