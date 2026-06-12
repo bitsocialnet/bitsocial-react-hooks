@@ -48,7 +48,7 @@
   },
   "dependencies": {
     "@bitsocial/bso-resolver": "0.0.8",
-    "@pkcprotocol/pkc-js": "0.0.41",
+    "@pkcprotocol/pkc-js": "0.0.47",
     "@pkcprotocol/pkc-logger": "0.1.0",
     "assert": "2.0.0",
     "ethers": "5.8.0",
@@ -117,7 +117,7 @@
     "husky": "4.3.8",
     "jsdom": "27.3.0",
     "knip": "6.1.0",
-    "kubo": "0.39.0",
+    "kubo": "0.42.0",
     "lint-staged": "12.3.8",
     "oxfmt": "0.36.0",
     "oxlint": "1.51.0",
