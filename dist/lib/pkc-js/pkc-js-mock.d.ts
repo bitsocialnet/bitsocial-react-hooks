@@ -106,7 +106,9 @@ declare class Publication extends EventEmitter {
     publishingState: string | undefined;
     publish(): Promise<void>;
     simulateChallengeEvent(): void;
-    publishChallengeAnswers(challengeAnswers: string[]): Promise<void>;
+    publishChallengeAnswers(_challengeAnswers?: string[] | {
+        challengeAnswers?: string[];
+    }): Promise<void>;
     simulateChallengeVerificationEvent(): void;
     stop(): void;
 }

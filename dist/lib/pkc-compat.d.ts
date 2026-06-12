@@ -27,5 +27,12 @@ export declare const normalizeOptionsForPkcClient: <T extends Record<string, any
 export declare const getPkcClientOptions: <T extends Record<string, any> | undefined>(account: any, options: T) => T;
 export declare const normalizeAccountProtocolConfig: <T extends Record<string, any> | undefined>(account: T, defaultChainProviders?: Record<string, any>) => T;
 export declare const withProtocolAliases: <T extends Record<string, any>>(account: T, protocolClient?: any, protocolOptions?: any) => T;
+type ChallengeAnswersInput = string[] | {
+    challengeAnswers?: string[];
+} | undefined;
+export declare const normalizeChallengeAnswersForPkc: (challengeAnswers: ChallengeAnswersInput) => {
+    challengeAnswers: string[];
+};
+export declare const withPublishChallengeAnswersCompat: <T>(publication: T) => T;
 export * from "./protocol-compat.js";
 //# sourceMappingURL=pkc-compat.d.ts.map

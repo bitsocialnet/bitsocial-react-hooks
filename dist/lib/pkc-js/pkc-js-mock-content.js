@@ -1062,7 +1062,7 @@ class Publication extends EventEmitter {
             this.emit("challenge", challengeMessage, this);
         });
     }
-    publishChallengeAnswers(challengeAnswers) {
+    publishChallengeAnswers(_challengeAnswers) {
         return __awaiter(this, void 0, void 0, function* () {
             yield simulateLoadingTime();
             this.simulateChallengeVerificationEvent();

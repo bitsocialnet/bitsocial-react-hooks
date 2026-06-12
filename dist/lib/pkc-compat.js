@@ -147,5 +147,23 @@ export const withProtocolAliases = (account, protocolClient, protocolOptions) =>
     }
     return nextAccount;
 };
+const publishChallengeAnswersCompatMarker = Symbol.for("bitsocial-react-hooks.publishChallengeAnswersCompat");
+export const normalizeChallengeAnswersForPkc = (challengeAnswers) => ({
+    challengeAnswers: Array.isArray(challengeAnswers)
+        ? challengeAnswers
+        : (challengeAnswers === null || challengeAnswers === void 0 ? void 0 : challengeAnswers.challengeAnswers) || [],
+});
+export const withPublishChallengeAnswersCompat = (publication) => {
+    const target = publication;
+    if (!target ||
+        typeof target.publishChallengeAnswers !== "function" ||
+        target[publishChallengeAnswersCompatMarker]) {
+        return publication;
+    }
+    const publishChallengeAnswers = target.publishChallengeAnswers.bind(publication);
+    target.publishChallengeAnswers = (challengeAnswers) => publishChallengeAnswers(normalizeChallengeAnswersForPkc(challengeAnswers));
+    target[publishChallengeAnswersCompatMarker] = true;
+    return publication;
+};
 export * from "./protocol-compat.js";
 //# sourceMappingURL=pkc-compat.js.map

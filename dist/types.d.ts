@@ -266,7 +266,7 @@ export interface UsePublishCommentResult extends Result {
     challengeVerification: ChallengeVerification | undefined;
     publishComment(): Promise<void>;
     abandonPublish(): Promise<void>;
-    publishChallengeAnswers(challengeAnswers: string[]): Promise<void>;
+    publishChallengeAnswers(challengeAnswers?: string[]): Promise<void>;
 }
 export interface UsePublishVoteOptions extends Options {
     onChallenge?(challenge: Challenge, comment?: Comment): Promise<void>;
@@ -277,7 +277,7 @@ export interface UsePublishVoteResult extends Result {
     challenge: Challenge | undefined;
     challengeVerification: ChallengeVerification | undefined;
     publishVote(): Promise<void>;
-    publishChallengeAnswers(challengeAnswers: string[]): Promise<void>;
+    publishChallengeAnswers(challengeAnswers?: string[]): Promise<void>;
 }
 export interface UsePublishCommentEditOptions extends Options {
     onChallenge?(challenge: Challenge, comment?: Comment): Promise<void>;
@@ -288,7 +288,7 @@ export interface UsePublishCommentEditResult extends Result {
     challenge: Challenge | undefined;
     challengeVerification: ChallengeVerification | undefined;
     publishCommentEdit(): Promise<void>;
-    publishChallengeAnswers(challengeAnswers: string[]): Promise<void>;
+    publishChallengeAnswers(challengeAnswers?: string[]): Promise<void>;
 }
 export interface UsePublishCommentModerationOptions extends Options {
     onChallenge?(challenge: Challenge, comment?: Comment): Promise<void>;
@@ -299,7 +299,7 @@ export interface UsePublishCommentModerationResult extends Result {
     challenge: Challenge | undefined;
     challengeVerification: ChallengeVerification | undefined;
     publishCommentModeration(): Promise<void>;
-    publishChallengeAnswers(challengeAnswers: string[]): Promise<void>;
+    publishChallengeAnswers(challengeAnswers?: string[]): Promise<void>;
 }
 export interface UsePublishCommunityEditOptions extends Options {
     communityAddress?: string;
@@ -311,7 +311,7 @@ export interface UsePublishCommunityEditResult extends Result {
     challenge: Challenge | undefined;
     challengeVerification: ChallengeVerification | undefined;
     publishCommunityEdit(): Promise<void>;
-    publishChallengeAnswers(challengeAnswers: string[]): Promise<void>;
+    publishChallengeAnswers(challengeAnswers?: string[]): Promise<void>;
 }
 export interface UseCreateCommunityOptions extends Options {
     [createCommunityOption: string]: any;

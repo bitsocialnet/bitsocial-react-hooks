@@ -1,3 +1,13 @@
+## [0.1.17](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.16...v0.1.17) (2026-06-12)
+
+
+### Bug Fixes
+
+* **actions:** adapt challenge answers for pkc-js ([20d89f0](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/20d89f07363f54c38b83e0f9425bd77174854f9f))
+* **deps:** upgrade pkc-js and kubo ([9cb56c2](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/9cb56c298fbf02bde4ef1a881eee60687ae2a1dd))
+
+
+
 ## [0.1.16](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.15...v0.1.16) (2026-06-07)
 
 

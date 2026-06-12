@@ -29,7 +29,7 @@ import chain from "../../lib/chain/index.js";
 import assert from "assert";
 const log = Logger("bitsocial-react-hooks:accounts:stores");
 import * as accountsActionsInternal from "./accounts-actions-internal.js";
-import { backfillPublicationCommunityAddress, createPkcCommunity, createPkcCommunityEdit, getPkcCommunityAddresses, normalizeCommunityEditOptionsForPkc, normalizePublicationOptionsForStore, normalizePublicationOptionsForPkc, } from "../../lib/pkc-compat.js";
+import { backfillPublicationCommunityAddress, createPkcCommunity, createPkcCommunityEdit, getPkcCommunityAddresses, normalizeCommunityEditOptionsForPkc, normalizePublicationOptionsForStore, normalizePublicationOptionsForPkc, withPublishChallengeAnswersCompat, } from "../../lib/pkc-compat.js";
 import { getAccountCommentsIndex, getAccountCommunities, getCommentCidsToAccountsComments, COMMENT_MODERATION_AUTHOR_SUMMARY_KEY, getAccountEditPropertySummary, fetchCommentLinkDimensions, getAccountCommentDepth, addShortAddressesToAccountComment, sanitizeAccountCommentForState, sanitizeStoredAccountComment, } from "./utils.js";
 import isEqual from "lodash.isequal";
 import { v4 as uuid } from "uuid";
@@ -860,7 +860,7 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
             updatePublishSessionComment(publishSessionId, activeComment);
             activeComment.once("challenge", (challenge) => __awaiter(this, void 0, void 0, function* () {
                 lastChallenge = challenge;
-                publishCommentOptions.onChallenge(challenge, activeComment);
+                publishCommentOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(activeComment));
             }));
             activeComment.once("challengeverification", (challengeVerification) => __awaiter(this, void 0, void 0, function* () {
                 var _a, _b;
@@ -1056,7 +1056,7 @@ export const publishVote = (publishVoteOptions, accountName) => __awaiter(void 0
         var _a;
         vote.once("challenge", (challenge) => __awaiter(void 0, void 0, void 0, function* () {
             lastChallenge = challenge;
-            publishVoteOptions.onChallenge(challenge, vote);
+            publishVoteOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(vote));
         }));
         vote.once("challengeverification", (challengeVerification) => __awaiter(void 0, void 0, void 0, function* () {
             publishVoteOptions.onChallengeVerification(challengeVerification, vote);
@@ -1136,7 +1136,7 @@ export const publishCommentEdit = (publishCommentEditOptions, accountName) => __
         var _a;
         commentEdit.once("challenge", (challenge) => __awaiter(void 0, void 0, void 0, function* () {
             lastChallenge = challenge;
-            publishCommentEditOptions.onChallenge(challenge, commentEdit);
+            publishCommentEditOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(commentEdit));
         }));
         commentEdit.once("challengeverification", (challengeVerification) => __awaiter(void 0, void 0, void 0, function* () {
             publishCommentEditOptions.onChallengeVerification(challengeVerification, commentEdit);
@@ -1223,7 +1223,7 @@ export const publishCommentModeration = (publishCommentModerationOptions, accoun
         var _a;
         commentModeration.once("challenge", (challenge) => __awaiter(void 0, void 0, void 0, function* () {
             lastChallenge = challenge;
-            publishCommentModerationOptions.onChallenge(challenge, commentModeration);
+            publishCommentModerationOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(commentModeration));
         }));
         commentModeration.once("challengeverification", (challengeVerification) => __awaiter(void 0, void 0, void 0, function* () {
             publishCommentModerationOptions.onChallengeVerification(challengeVerification, commentModeration);
@@ -1346,7 +1346,7 @@ export const publishCommunityEdit = (communityAddress, publishCommunityEditOptio
         var _a;
         communityEdit.once("challenge", (challenge) => __awaiter(void 0, void 0, void 0, function* () {
             lastChallenge = challenge;
-            publishCommunityEditOptions.onChallenge(challenge, communityEdit);
+            publishCommunityEditOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(communityEdit));
         }));
         communityEdit.once("challengeverification", (challengeVerification) => __awaiter(void 0, void 0, void 0, function* () {
             publishCommunityEditOptions.onChallengeVerification(challengeVerification, communityEdit);
