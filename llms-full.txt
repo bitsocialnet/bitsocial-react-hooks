@@ -1526,6 +1526,7 @@ For very large non-source artifacts such as CI logs, debug traces, generated JSO
 | New unrelated task started while another task branch is already checked out or being worked on by another agent | Create a separate worktree from `master`, create a new short-lived task branch there, and keep each agent on its own worktree/branch/PR |
 | User wants a tracked issue/PR for work already done | Use the `make-closed-issue` skill to create the issue, push the task branch, and open a PR that closes it on merge |
 | Open PR needs feedback triage or merge readiness check | Use the `review-and-merge-pr` skill to inspect CI/reviewer feedback, fix valid findings, and merge only after verification |
+| Before pushing or opening a PR with code, docs, or AI workflow changes | Run the advisory `code-quality-review` skill on the current diff; treat findings as suggestions, not blockers, and address only high-confidence improvements |
 | Repo AI workflow files changed (`.codex/**`, `.cursor/**`, `.claude/**`) | Keep the Codex, Cursor, and Claude copies aligned when they represent the same workflow; update `AGENTS.md` if the default agent policy changes |
 | GitHub operation needed | Use `gh` CLI, not GitHub MCP |
 | User asks for commit/issue phrasing | Use `docs/agent-playbooks/commit-issue-format.md` |
@@ -3162,6 +3163,40 @@ Avoid GitHub MCP and browser MCP servers for this project because they add signi
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/CHANGELOG.md
 
 ```markdown
+## [0.1.17](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.16...v0.1.17) (2026-06-12)
+
+
+### Bug Fixes
+
+* **actions:** adapt challenge answers for pkc-js ([20d89f0](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/20d89f07363f54c38b83e0f9425bd77174854f9f))
+* **deps:** upgrade pkc-js and kubo ([9cb56c2](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/9cb56c298fbf02bde4ef1a881eee60687ae2a1dd))
+
+
+
+## [0.1.16](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.15...v0.1.16) (2026-06-07)
+
+
+### Bug Fixes
+
+* **accounts:** preserve comment moderation author edits ([#63](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/63)) ([722b244](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/722b2446277868597ea0cc6875d92919d42a4d21))
+* **deps:** resolve dependabot alerts ([e92ae1c](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/e92ae1ca08bf3624f38f0e49890d72eabd318da7))
+
+
+
+## [0.1.15](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.14...v0.1.15) (2026-06-07)
+
+
+### Bug Fixes
+
+* **comments:** continue sparse comment updates before stopping ([#61](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/61)) ([0d20b32](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/0d20b32ad90a2e0e09936a3e24dd8722c079037b))
+
+
+### Features
+
+* **actions:** add community export hook ([#62](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/62)) ([f6a9616](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/f6a961665b10fbadc9bb3b94917b45df6aafdc77))
+
+
+
 ## [0.1.14](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.13...v0.1.14) (2026-06-04)
 
 

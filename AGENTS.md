@@ -63,6 +63,7 @@ For very large non-source artifacts such as CI logs, debug traces, generated JSO
 | New unrelated task started while another task branch is already checked out or being worked on by another agent | Create a separate worktree from `master`, create a new short-lived task branch there, and keep each agent on its own worktree/branch/PR |
 | User wants a tracked issue/PR for work already done | Use the `make-closed-issue` skill to create the issue, push the task branch, and open a PR that closes it on merge |
 | Open PR needs feedback triage or merge readiness check | Use the `review-and-merge-pr` skill to inspect CI/reviewer feedback, fix valid findings, and merge only after verification |
+| Before pushing or opening a PR with code, docs, or AI workflow changes | Run the advisory `code-quality-review` skill on the current diff; treat findings as suggestions, not blockers, and address only high-confidence improvements |
 | Repo AI workflow files changed (`.codex/**`, `.cursor/**`, `.claude/**`) | Keep the Codex, Cursor, and Claude copies aligned when they represent the same workflow; update `AGENTS.md` if the default agent policy changes |
 | GitHub operation needed | Use `gh` CLI, not GitHub MCP |
 | User asks for commit/issue phrasing | Use `docs/agent-playbooks/commit-issue-format.md` |
