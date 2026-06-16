@@ -341,7 +341,7 @@ __metadata:
     ethers: "npm:5.8.0"
     husky: "npm:4.3.8"
     jsdom: "npm:27.3.0"
-    knip: "npm:6.16.1"
+    knip: "npm:6.17.0"
     kubo: "npm:0.42.0"
     lint-staged: "npm:12.3.8"
     localforage: "npm:1.10.0"
@@ -8801,9 +8801,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"knip@npm:6.16.1":
-  version: 6.16.1
-  resolution: "knip@npm:6.16.1"
+"knip@npm:6.17.0":
+  version: 6.17.0
+  resolution: "knip@npm:6.17.0"
   dependencies:
     fdir: "npm:^6.5.0"
     formatly: "npm:^0.3.0"
@@ -8821,7 +8821,7 @@ __metadata:
   bin:
     knip: bin/knip.js
     knip-bun: bin/knip-bun.js
-  checksum: 10c0/b723ee43f2a5170d5330d3d6cbd54452620ca76e2bffc11d8c8615d5f42c3aa60e9f7763f768210c0b97babff046df668479cb7f4ca78e3e7a8312ef12530370
+  checksum: 10c0/9f21315be447803f2a3c0121cb4c9391348767686a83831fd5f728819f5a2f26669683a3990c54bb461e43f0287cab046007b60b32d7050f588c0463b0e4b7bf
   languageName: node
   linkType: hard
 
