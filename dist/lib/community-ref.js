@@ -15,9 +15,6 @@ export const getCommunityLookupOptions = (communityRefOrAddress) => {
     if (legacyCommunityAddress) {
         return { address: legacyCommunityAddress };
     }
-    if (!communityRefOrAddress.publicKey && communityRefOrAddress.name) {
-        return { address: communityRefOrAddress.name };
-    }
     const options = {};
     if (communityRefOrAddress.name) {
         options.name = communityRefOrAddress.name;
@@ -56,12 +53,13 @@ export const isCommunityRef = (value) => {
         return false;
     }
     const communityRef = value;
+    const hasAddress = typeof communityRef.address === "string" && communityRef.address.length > 0;
     const hasName = typeof communityRef.name === "string" && communityRef.name.length > 0;
     const hasPublicKey = typeof communityRef.publicKey === "string" && communityRef.publicKey.length > 0;
-    return hasName || hasPublicKey;
+    return hasAddress || hasName || hasPublicKey;
 };
 export function assertCommunityRef(value, label) {
-    assert(isCommunityRef(value), `${label} must be an object with name or publicKey`);
+    assert(isCommunityRef(value), `${label} must be an object with address, name, or publicKey`);
 }
 export const doesAddressMatchCommunityRef = (communityAddress, communityRef, community) => {
     if (typeof communityAddress !== "string") {

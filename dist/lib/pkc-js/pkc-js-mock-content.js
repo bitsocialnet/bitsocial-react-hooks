@@ -697,6 +697,16 @@ const getCommentsPage = (pageCid, communityOrComment) => __awaiter(void 0, void 
 });
 // array of communities probably created by the user
 const createdCommunities = {};
+const communityLookupKeys = ["address", "name", "publicKey"];
+const isLookupOnlyCommunityOptions = (createCommunityOptions) => {
+    const createCommunityOptionKeys = Object.keys(createCommunityOptions || {});
+    const hasLookupIdentifier = Boolean((createCommunityOptions === null || createCommunityOptions === void 0 ? void 0 : createCommunityOptions.address) ||
+        (createCommunityOptions === null || createCommunityOptions === void 0 ? void 0 : createCommunityOptions.name) ||
+        (createCommunityOptions === null || createCommunityOptions === void 0 ? void 0 : createCommunityOptions.publicKey));
+    return (hasLookupIdentifier &&
+        createCommunityOptionKeys.length > 0 &&
+        createCommunityOptionKeys.every((key) => communityLookupKeys.includes(key)));
+};
 class NameResolverClient extends EventEmitter {
     constructor() {
         super(...arguments);
@@ -756,8 +766,8 @@ class PKC extends EventEmitter {
             const communityIdentifier = (createCommunityOptions === null || createCommunityOptions === void 0 ? void 0 : createCommunityOptions.address) ||
                 (createCommunityOptions === null || createCommunityOptions === void 0 ? void 0 : createCommunityOptions.name) ||
                 (createCommunityOptions === null || createCommunityOptions === void 0 ? void 0 : createCommunityOptions.publicKey);
-            // if the only argument is {address}, the user didn't create the sub, it's a fetched sub
-            if ((createCommunityOptions === null || createCommunityOptions === void 0 ? void 0 : createCommunityOptions.address) && Object.keys(createCommunityOptions).length === 1) {
+            // if only lookup identifiers are provided, the user didn't create the sub, it's a fetched sub
+            if (isLookupOnlyCommunityOptions(createCommunityOptions)) {
                 return new Community(createCommunityOptions);
             }
             const signer = yield this.createSigner();
@@ -956,8 +966,8 @@ class Community extends EventEmitter {
         Object.defineProperty(this, "updating", { enumerable: false, writable: true });
         // @ts-ignore
         this.updating = false;
-        // if the only argument is {address}, it means the first update should use getCommunity()
-        if ((createCommunityOptions === null || createCommunityOptions === void 0 ? void 0 : createCommunityOptions.address) && Object.keys(createCommunityOptions).length === 1) {
+        // if only lookup identifiers are provided, it means the first update should use getCommunity()
+        if (isLookupOnlyCommunityOptions(createCommunityOptions)) {
             this._getCommunityOnFirstUpdate = true;
         }
     }

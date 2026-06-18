@@ -1,3 +1,12 @@
+## [0.1.19](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.18...v0.1.19) (2026-06-18)
+
+
+### Bug Fixes
+
+* resolve community name lookups ([ffef83c](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/ffef83cc7b27a59fca4b0788732ff0bfc213496e))
+
+
+
 ## [0.1.18](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.17...v0.1.18) (2026-06-15)
 
 

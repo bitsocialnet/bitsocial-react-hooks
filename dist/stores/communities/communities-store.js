@@ -118,6 +118,7 @@ const communitiesStore = createStore((setState, getState) => ({
     errors: {},
     addCommunityToStore(communityAddressOrRef, account) {
         return __awaiter(this, void 0, void 0, function* () {
+            var _a, _b;
             const communityLookupOptions = getCommunityLookupOptions(communityAddressOrRef);
             const communityKey = typeof communityAddressOrRef === "string"
                 ? communityAddressOrRef
@@ -148,7 +149,22 @@ const communitiesStore = createStore((setState, getState) => ({
                 let fetchedAt;
                 if (!community) {
                     const communityData = yield communitiesDatabase.getItem(communityKey);
-                    if (communityData) {
+                    const lookupName = "name" in communityLookupOptions ? communityLookupOptions.name : undefined;
+                    const lookupPublicKey = "publicKey" in communityLookupOptions ? communityLookupOptions.publicKey : undefined;
+                    const lookupAddress = "address" in communityLookupOptions ? communityLookupOptions.address : undefined;
+                    const hasCachedPosts = Object.keys(((_a = communityData === null || communityData === void 0 ? void 0 : communityData.posts) === null || _a === void 0 ? void 0 : _a.pageCids) || {}).length > 0 ||
+                        Object.keys(((_b = communityData === null || communityData === void 0 ? void 0 : communityData.posts) === null || _b === void 0 ? void 0 : _b.pages) || {}).length > 0;
+                    const isUnresolvedNameCache = communityData &&
+                        lookupName &&
+                        !lookupPublicKey &&
+                        !lookupAddress &&
+                        !communityData.publicKey &&
+                        !communityData.updatedAt &&
+                        !communityData.updateCid &&
+                        !communityData.title &&
+                        !communityData.description &&
+                        !hasCachedPosts;
+                    if (communityData && !isUnresolvedNameCache) {
                         fetchedAt = communityData.fetchedAt;
                         delete communityData.fetchedAt; // not part of pkc-js schema
                         try {
@@ -190,7 +206,7 @@ const communitiesStore = createStore((setState, getState) => ({
                         Error(`communitiesStore.addCommunityToStore failed getting community '${communityKey}'`));
                 }
                 // success getting community
-                const firstCommunityState = utils.clone(Object.assign(Object.assign({}, community), { fetchedAt }));
+                const firstCommunityState = utils.clone(Object.assign(Object.assign({}, community), (fetchedAt !== undefined ? { fetchedAt } : undefined)));
                 yield communitiesDatabase.setItem(communityKey, firstCommunityState);
                 log("communitiesStore.addCommunityToStore", {
                     communityAddressOrRef,

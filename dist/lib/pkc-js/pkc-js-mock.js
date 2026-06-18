@@ -92,12 +92,14 @@ export class PKC extends EventEmitter {
             }
             // only address provided, so could be a previously created owner community
             // add props from previously created sub
-            else if (createdOwnerCommunities[createCommunityOptions.address] &&
-                JSON.stringify(Object.keys(createCommunityOptions)) === '["address"]') {
-                for (const prop in createdOwnerCommunities[createCommunityOptions.address]) {
-                    if (createdOwnerCommunities[createCommunityOptions.address][prop]) {
-                        createCommunityOptions[prop] =
-                            createdOwnerCommunities[createCommunityOptions.address][prop];
+            else if ((createdOwnerCommunities[createCommunityOptions.address] &&
+                JSON.stringify(Object.keys(createCommunityOptions)) === '["address"]') ||
+                (createdOwnerCommunities[createCommunityOptions.name] &&
+                    JSON.stringify(Object.keys(createCommunityOptions)) === '["name"]')) {
+                const ownerCommunityAddress = createCommunityOptions.address || createCommunityOptions.name;
+                for (const prop in createdOwnerCommunities[ownerCommunityAddress]) {
+                    if (createdOwnerCommunities[ownerCommunityAddress][prop]) {
+                        createCommunityOptions[prop] = createdOwnerCommunities[ownerCommunityAddress][prop];
                     }
                 }
             }
