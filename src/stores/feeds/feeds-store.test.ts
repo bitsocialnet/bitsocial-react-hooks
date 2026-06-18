@@ -12,7 +12,7 @@ import PkcJsMock from "../../lib/pkc-js/pkc-js-mock";
 const communityGetPageCommentCount = 100;
 
 const toCommunities = (communityKeys: string[]) =>
-  communityKeys.map((communityKey) => ({ name: communityKey }));
+  communityKeys.map((communityKey) => ({ address: communityKey }) as any);
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -760,7 +760,7 @@ describe("feeds store", () => {
     });
 
     expect(refreshSpy).toHaveBeenCalledWith(
-      { name: communityAddresses[0] },
+      { address: communityAddresses[0] },
       expect.objectContaining({ id: mockAccount.id }),
     );
 

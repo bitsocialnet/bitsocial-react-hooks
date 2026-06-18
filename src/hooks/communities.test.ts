@@ -16,10 +16,10 @@ import PkcJsMock, { PKC, Community } from "../lib/pkc-js/pkc-js-mock";
 import * as chain from "../lib/chain";
 
 const toCommunity = (communityAddress?: string) =>
-  communityAddress ? { name: communityAddress } : undefined;
+  communityAddress ? ({ address: communityAddress } as any) : undefined;
 
 const toCommunities = (communityAddresses?: string[]) =>
-  communityAddresses?.map((communityAddress) => ({ name: communityAddress }));
+  communityAddresses?.map((communityAddress) => ({ address: communityAddress }) as any);
 
 describe("communities", () => {
   beforeAll(async () => {

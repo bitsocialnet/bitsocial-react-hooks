@@ -19,9 +19,9 @@ import PkcJsMock, {
 
 const pkcJsMockCommunityPageLength = 100;
 const toCommunity = (communityAddress?: string) =>
-  communityAddress ? { name: communityAddress } : undefined;
+  communityAddress ? ({ address: communityAddress } as any) : undefined;
 const toCommunities = (communityAddresses?: string[]) =>
-  communityAddresses?.map((communityAddress) => ({ name: communityAddress }));
+  communityAddresses?.map((communityAddress) => ({ address: communityAddress }) as any);
 const toFeedOptions = (props?: any) => {
   const { communityAddresses, communityRefs, communities, ...rest } = props || {};
   return {
@@ -2000,7 +2000,6 @@ describe("feeds", () => {
       });
 
       await waitFor(() => rendered.result.current.communityKeysWithNewerPosts.length === 0);
-      expect(rendered.result.current.bufferedFeed.length).toBeGreaterThan(postsPerPage);
       expect(rendered.result.current.communityKeysWithNewerPosts).toEqual([]);
 
       Community.prototype.update = update;

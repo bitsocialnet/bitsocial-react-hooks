@@ -19,7 +19,7 @@ import accountsStore from "../accounts";
 const mockAccountId = "mock-account-id";
 
 const toCommunities = (communityKeys: string[]) =>
-  communityKeys.map((communityKey) => ({ name: communityKey }));
+  communityKeys.map((communityKey) => ({ address: communityKey }) as any);
 
 const makeMockAccounts = (overrides: any = {}) => ({
   [mockAccountId]: {

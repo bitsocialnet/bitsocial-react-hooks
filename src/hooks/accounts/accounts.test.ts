@@ -35,9 +35,9 @@ import communitiesStore from "../../stores/communities";
 import chain from "../../lib/chain";
 
 const toCommunity = (communityAddress?: string) =>
-  communityAddress ? { name: communityAddress } : undefined;
+  communityAddress ? ({ address: communityAddress } as any) : undefined;
 const toCommunities = (communityAddresses?: string[]) =>
-  communityAddresses?.map((communityAddress) => ({ name: communityAddress }));
+  communityAddresses?.map((communityAddress) => ({ address: communityAddress }) as any);
 
 describe("accounts", () => {
   beforeAll(async () => {

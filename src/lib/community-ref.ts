@@ -32,9 +32,6 @@ export const getCommunityLookupOptions = (communityRefOrAddress: CommunityLookup
   if (legacyCommunityAddress) {
     return { address: legacyCommunityAddress };
   }
-  if (!communityRefOrAddress.publicKey && communityRefOrAddress.name) {
-    return { address: communityRefOrAddress.name };
-  }
 
   const options: { name?: string; publicKey?: string } = {};
   if (communityRefOrAddress.name) {
@@ -85,24 +82,25 @@ export const getUniqueSortedCommunityRefs = (communityRefs?: CommunityLookupRef[
     .map(([, communityRef]) => communityRef);
 };
 
-export const isCommunityRef = (value: unknown): value is CommunityIdentifier => {
+export const isCommunityRef = (value: unknown): value is CommunityLookupRef => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return false;
   }
 
-  const communityRef = value as { name?: unknown; publicKey?: unknown };
+  const communityRef = value as { address?: unknown; name?: unknown; publicKey?: unknown };
+  const hasAddress = typeof communityRef.address === "string" && communityRef.address.length > 0;
   const hasName = typeof communityRef.name === "string" && communityRef.name.length > 0;
   const hasPublicKey =
     typeof communityRef.publicKey === "string" && communityRef.publicKey.length > 0;
 
-  return hasName || hasPublicKey;
+  return hasAddress || hasName || hasPublicKey;
 };
 
 export function assertCommunityRef(
   value: unknown,
   label: string,
-): asserts value is CommunityIdentifier {
-  assert(isCommunityRef(value), `${label} must be an object with name or publicKey`);
+): asserts value is CommunityLookupRef {
+  assert(isCommunityRef(value), `${label} must be an object with address, name, or publicKey`);
 }
 
 export const doesAddressMatchCommunityRef = (

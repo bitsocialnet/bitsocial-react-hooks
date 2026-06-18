@@ -229,7 +229,27 @@ const communitiesStore = createStore<CommunitiesState>(
         let fetchedAt: number | undefined;
         if (!community) {
           const communityData: any = await communitiesDatabase.getItem(communityKey);
-          if (communityData) {
+          const lookupName =
+            "name" in communityLookupOptions ? communityLookupOptions.name : undefined;
+          const lookupPublicKey =
+            "publicKey" in communityLookupOptions ? communityLookupOptions.publicKey : undefined;
+          const lookupAddress =
+            "address" in communityLookupOptions ? communityLookupOptions.address : undefined;
+          const hasCachedPosts =
+            Object.keys(communityData?.posts?.pageCids || {}).length > 0 ||
+            Object.keys(communityData?.posts?.pages || {}).length > 0;
+          const isUnresolvedNameCache =
+            communityData &&
+            lookupName &&
+            !lookupPublicKey &&
+            !lookupAddress &&
+            !communityData.publicKey &&
+            !communityData.updatedAt &&
+            !communityData.updateCid &&
+            !communityData.title &&
+            !communityData.description &&
+            !hasCachedPosts;
+          if (communityData && !isUnresolvedNameCache) {
             fetchedAt = communityData.fetchedAt;
             delete communityData.fetchedAt; // not part of pkc-js schema
             try {
@@ -279,7 +299,10 @@ const communitiesStore = createStore<CommunitiesState>(
         }
 
         // success getting community
-        const firstCommunityState = utils.clone({ ...community, fetchedAt });
+        const firstCommunityState = utils.clone({
+          ...community,
+          ...(fetchedAt !== undefined ? { fetchedAt } : undefined),
+        });
         await communitiesDatabase.setItem(communityKey, firstCommunityState);
         log("communitiesStore.addCommunityToStore", {
           communityAddressOrRef,

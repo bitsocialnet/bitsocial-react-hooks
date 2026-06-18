@@ -33,9 +33,9 @@ const ethChainProviderUrl3 = "https://ethchainprovider3.com";
 const timestamp = Math.floor(Date.now() / 1000) - 60 * 60;
 const updatedAt = Math.floor(Date.now() / 1000);
 const toCommunity = (communityAddress?: string) =>
-  communityAddress ? { name: communityAddress } : undefined;
+  communityAddress ? ({ address: communityAddress } as any) : undefined;
 const toCommunities = (communityAddresses?: string[]) =>
-  communityAddresses?.map((communityAddress) => ({ name: communityAddress }));
+  communityAddresses?.map((communityAddress) => ({ address: communityAddress }) as any);
 
 const simulateLoadingTime = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -1021,7 +1021,7 @@ describe("states", () => {
       ).toThrow(/communities.*not an array/);
       expect(() =>
         renderHook(() => useCommunitiesStates({ communities: [{ name: "valid" }, 123 as any] })),
-      ).toThrow(/must be an object with name or publicKey/);
+      ).toThrow(/must be an object with address, name, or publicKey/);
     });
 
     test("fetch feed", { retry: 5 }, async () => {

@@ -155,10 +155,53 @@ describe("communities store", () => {
     }
   });
 
+  test("addCommunityToStore ignores placeholder cache entries for name lookups", async () => {
+    const name = "blog.bitsocial.bso";
+    const db = localForageLru.createInstance({ name: "bitsocialReactHooks-communities" });
+    await db.setItem(name, { address: name, fetchedAt: 1781773422 });
+
+    const createOrig = mockAccount.pkc.createCommunity;
+    mockAccount.pkc.createCommunity = vi.fn().mockImplementation(createOrig.bind(mockAccount.pkc));
+
+    try {
+      await act(async () => {
+        await communitiesStore.getState().addCommunityToStore({ name }, mockAccount);
+      });
+
+      expect(mockAccount.pkc.createCommunity).toHaveBeenCalledWith({ name });
+      expect(mockAccount.pkc.createCommunity).not.toHaveBeenCalledWith({ address: name });
+    } finally {
+      mockAccount.pkc.createCommunity = createOrig;
+    }
+  });
+
+  test("addCommunityToStore uses name-keyed cache entries with community metadata", async () => {
+    const name = "cached-title.bso";
+    const db = localForageLru.createInstance({ name: "bitsocialReactHooks-communities" });
+    await db.setItem(name, { address: name, fetchedAt: 1781773422, title: "Cached title" });
+
+    const createOrig = mockAccount.pkc.createCommunity;
+    mockAccount.pkc.createCommunity = vi.fn().mockImplementation(createOrig.bind(mockAccount.pkc));
+
+    try {
+      await act(async () => {
+        await communitiesStore.getState().addCommunityToStore({ name }, mockAccount);
+      });
+
+      expect(mockAccount.pkc.createCommunity).toHaveBeenCalledWith({
+        address: name,
+        title: "Cached title",
+      });
+      expect(communitiesStore.getState().communities[name]?.title).toBe("Cached title");
+    } finally {
+      mockAccount.pkc.createCommunity = createOrig;
+    }
+  });
+
   test("cached community create failure logs to console", async () => {
     const address = "cached-fail-address";
     const db = localForageLru.createInstance({ name: "bitsocialReactHooks-communities" });
-    await db.setItem(address, { address, invalid: "data" });
+    await db.setItem(address, { address, invalid: "data", updatedAt: 1781773422 });
 
     const createCommunityOriginal = mockAccount.pkc.createCommunity;
     mockAccount.pkc.createCommunity = vi.fn().mockRejectedValue(new Error("create failed"));
