@@ -906,6 +906,21 @@ const getCommentsPage = async (pageCid: string, communityOrComment: any) => {
 
 // array of communities probably created by the user
 const createdCommunities: any = {};
+const communityLookupKeys = ["address", "name", "publicKey"];
+
+const isLookupOnlyCommunityOptions = (createCommunityOptions?: any) => {
+  const createCommunityOptionKeys = Object.keys(createCommunityOptions || {});
+  const hasLookupIdentifier = Boolean(
+    createCommunityOptions?.address ||
+    createCommunityOptions?.name ||
+    createCommunityOptions?.publicKey,
+  );
+  return (
+    hasLookupIdentifier &&
+    createCommunityOptionKeys.length > 0 &&
+    createCommunityOptionKeys.every((key) => communityLookupKeys.includes(key))
+  );
+};
 
 class NameResolverClient extends EventEmitter {
   state = "stopped";
@@ -971,8 +986,8 @@ class PKC extends EventEmitter {
       createCommunityOptions?.name ||
       createCommunityOptions?.publicKey;
 
-    // if the only argument is {address}, the user didn't create the sub, it's a fetched sub
-    if (createCommunityOptions?.address && Object.keys(createCommunityOptions).length === 1) {
+    // if only lookup identifiers are provided, the user didn't create the sub, it's a fetched sub
+    if (isLookupOnlyCommunityOptions(createCommunityOptions)) {
       return new Community(createCommunityOptions);
     }
 
@@ -1204,8 +1219,8 @@ class Community extends EventEmitter {
     // @ts-ignore
     this.updating = false;
 
-    // if the only argument is {address}, it means the first update should use getCommunity()
-    if (createCommunityOptions?.address && Object.keys(createCommunityOptions).length === 1) {
+    // if only lookup identifiers are provided, it means the first update should use getCommunity()
+    if (isLookupOnlyCommunityOptions(createCommunityOptions)) {
       this._getCommunityOnFirstUpdate = true;
     }
   }
