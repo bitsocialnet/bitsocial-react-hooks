@@ -51,6 +51,7 @@ import {
 } from "../../lib/community-address";
 import { addCommentModeration } from "../../lib/utils/comment-moderation";
 import useInterval from "../utils/use-interval";
+import PkcJs from "../../lib/pkc-js";
 
 const getCommentEditPropertyValue = (comment: any, propertyName: string) => {
   if (propertyName !== COMMENT_MODERATION_AUTHOR_SUMMARY_KEY) {
@@ -419,6 +420,35 @@ const getAccountHistorySortType = (
   return order === "desc" ? "new" : "old";
 };
 
+const getAccountCommentWithAccountAuthor = (
+  accountComment: AccountComment,
+  account?: Account,
+  accountId?: string,
+): AccountComment => {
+  const accountAuthor = account?.author;
+  if (
+    !accountId ||
+    accountComment.accountId !== accountId ||
+    !accountAuthor?.address ||
+    accountComment.author?.address
+  ) {
+    return accountComment;
+  }
+
+  const accountShortAddress =
+    accountAuthor.shortAddress || PkcJs.PKC.getShortAddress({ address: accountAuthor.address });
+
+  return {
+    ...accountComment,
+    author: {
+      ...accountAuthor,
+      ...accountComment.author,
+      address: accountAuthor.address,
+      ...(accountShortAddress ? { shortAddress: accountShortAddress } : {}),
+    },
+  };
+};
+
 export function useAccountComments(options?: UseAccountCommentsOptions): UseAccountCommentsResult {
   assert(
     !options || typeof options === "object",
@@ -448,6 +478,7 @@ export function useAccountComments(options?: UseAccountCommentsOptions): UseAcco
   const commentCidToAccountComment = useAccountsStore(
     (state) => state.commentCidsToAccountsComments[commentCid || ""],
   );
+  const account = useAccountsStore((state) => state.accounts[accountId || ""]);
   const accountComments = useAccountsStore((state) => state.accountsComments[accountId || ""]);
   const [accountCommentStates, setAccountCommentStates] = useState<string[]>([]);
   const accountHistorySortType = getAccountHistorySortType(sortType, order);
@@ -538,10 +569,10 @@ export function useAccountComments(options?: UseAccountCommentsOptions): UseAcco
   const filteredAccountCommentsWithStates = useMemo(() => {
     const states = getAccountCommentsStates(filteredAccountComments);
     return filteredAccountComments.map((comment, i) => ({
-      ...comment,
+      ...getAccountCommentWithAccountAuthor(comment, account, accountId || undefined),
       state: states[i],
     }));
-  }, [filteredAccountComments, accountCommentStates]);
+  }, [filteredAccountComments, accountCommentStates, account, accountId]);
 
   if (options) {
     log("useAccountComments", {
@@ -587,10 +618,13 @@ export function useAccountComment(options?: UseAccountCommentOptions): UseAccoun
   const commentCidToAccountComment = useAccountsStore(
     (state) => state.commentCidsToAccountsComments[commentCid || ""],
   );
+  const account = useAccountsStore((state) => state.accounts[accountId || ""]);
   const accountComments = useAccountsStore((state) => state.accountsComments[accountId || ""]);
   const normalizedCommentIndex = commentIndex === undefined ? undefined : Number(commentIndex);
   const resolvedCommentIndex =
-    typeof normalizedCommentIndex === "number" && !Number.isNaN(normalizedCommentIndex)
+    typeof normalizedCommentIndex === "number" &&
+    Number.isInteger(normalizedCommentIndex) &&
+    normalizedCommentIndex >= 0
       ? normalizedCommentIndex
       : commentCidToAccountComment?.accountId === accountId
         ? commentCidToAccountComment.accountCommentIndex
@@ -601,24 +635,26 @@ export function useAccountComment(options?: UseAccountCommentOptions): UseAccoun
     }
     return accountComments?.[resolvedCommentIndex];
   }, [accountComments, resolvedCommentIndex]);
-  const accountComment = (storedAccountComment || {}) as Partial<AccountComment> & {
-    error?: Error;
-    errors?: Error[];
-  };
   const state = storedAccountComment
     ? getAccountCommentsStates([storedAccountComment])[0]
     : "initializing";
 
-  return useMemo(
-    () =>
-      ({
-        ...accountComment,
-        state,
-        error: accountComment.error,
-        errors: accountComment.errors || [],
-      }) as UseAccountCommentResult,
-    [accountComment, state],
-  );
+  return useMemo(() => {
+    const accountComment = (
+      storedAccountComment
+        ? getAccountCommentWithAccountAuthor(storedAccountComment, account, accountId || undefined)
+        : {}
+    ) as Partial<AccountComment> & {
+      error?: Error;
+      errors?: Error[];
+    };
+    return {
+      ...accountComment,
+      state,
+      error: accountComment.error,
+      errors: accountComment.errors || [],
+    } as UseAccountCommentResult;
+  }, [storedAccountComment, account, accountId, state]);
 }
 
 /**

@@ -964,6 +964,7 @@ for (const accountComment of accountComments) {
   console.log("comment", accountComment.index, "is status", accountComment.state);
 }
 // `state` becomes `failed` as soon as a pending local publish records terminal failure (`publishingState === "failed"` and `state === "stopped"`) or a publish error, instead of waiting for the 20-minute fallback.
+// local account comments returned by useAccountComment and useAccountComments include the account author's address and shortAddress when an older cached account comment is missing author identity fields.
 // note: accountComment.index can change after deletions; prefer commentCid for stable identifiers
 
 // all my own votes
