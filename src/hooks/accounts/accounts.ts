@@ -442,9 +442,9 @@ const getAccountCommentWithAccountAuthor = (
     ...accountComment,
     author: {
       ...accountAuthor,
-      ...(accountShortAddress ? { shortAddress: accountShortAddress } : {}),
       ...accountComment.author,
       address: accountAuthor.address,
+      ...(accountShortAddress ? { shortAddress: accountShortAddress } : {}),
     },
   };
 };

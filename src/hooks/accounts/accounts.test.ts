@@ -1678,7 +1678,7 @@ describe("accounts", () => {
               if (index === 0) {
                 return {
                   ...accountComment,
-                  author: { displayName: "Anonymous" },
+                  author: { displayName: "Anonymous", shortAddress: "stale-short-address" },
                 };
               }
               if (index === 1) {
@@ -1708,6 +1708,7 @@ describe("accounts", () => {
       const restoredComment = rendered2.result.current.accountComment;
       expect(restoredComment.author.address).toBe(accountAuthor.address);
       expect(typeof restoredComment.author.shortAddress).toBe("string");
+      expect(restoredComment.author.shortAddress).not.toBe("stale-short-address");
       expect(restoredComment.author.displayName).toBe("Anonymous");
       expect(restoredComment.author.avatar).toBe("account-avatar.png");
       expect(restoredComment.author.flair).toEqual({ label: "account flair" });
