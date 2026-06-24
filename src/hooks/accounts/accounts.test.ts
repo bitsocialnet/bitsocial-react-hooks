@@ -1655,6 +1655,74 @@ describe("accounts", () => {
       expect(rendered2.result.current.index).toBe(undefined);
     });
 
+    test("account comment hooks restore missing local author identity from the owning account", async () => {
+      const accountId = accountsStore.getState().activeAccountId!;
+      accountsStore.setState((state: any) => ({
+        ...state,
+        accounts: {
+          ...state.accounts,
+          [accountId]: {
+            ...state.accounts[accountId],
+            author: {
+              ...state.accounts[accountId].author,
+              displayName: "Account Author",
+              avatar: "account-avatar.png",
+              flair: { label: "account flair" },
+            },
+          },
+        },
+        accountsComments: {
+          ...state.accountsComments,
+          [accountId]: state.accountsComments[accountId].map(
+            (accountComment: any, index: number) => {
+              if (index === 0) {
+                return {
+                  ...accountComment,
+                  author: { displayName: "Anonymous" },
+                };
+              }
+              if (index === 1) {
+                return {
+                  ...accountComment,
+                  author: { address: "existing author address", displayName: "Existing Author" },
+                };
+              }
+              return accountComment;
+            },
+          ),
+        },
+      }));
+
+      const accountAuthor = accountsStore.getState().accounts[accountId].author;
+      const rendered2 = renderHook(() => {
+        const accountComment = useAccountComment({ commentIndex: 0 });
+        const accountComments = useAccountComments({ commentIndices: [0, 1] });
+        return { accountComment, accountComments };
+      });
+      const waitForRestoredAuthor = testUtils.createWaitFor(rendered2);
+
+      await waitForRestoredAuthor(
+        () => rendered2.result.current.accountComment.author?.address === accountAuthor.address,
+      );
+
+      const restoredComment = rendered2.result.current.accountComment;
+      expect(restoredComment.author.address).toBe(accountAuthor.address);
+      expect(typeof restoredComment.author.shortAddress).toBe("string");
+      expect(restoredComment.author.displayName).toBe("Anonymous");
+      expect(restoredComment.author.avatar).toBe("account-avatar.png");
+      expect(restoredComment.author.flair).toEqual({ label: "account flair" });
+
+      const [restoredListComment, existingAuthorComment] =
+        rendered2.result.current.accountComments.accountComments;
+      expect(restoredListComment.author.address).toBe(accountAuthor.address);
+      expect(restoredListComment.author.displayName).toBe("Anonymous");
+      expect(existingAuthorComment.author.address).toBe("existing author address");
+      expect(existingAuthorComment.author.displayName).toBe("Existing Author");
+      expect(
+        accountsStore.getState().accountsComments[accountId][0].author.address,
+      ).toBeUndefined();
+    });
+
     test(`get all account comments`, async () => {
       expect(rendered.result.current.accountComments.length).toBe(3);
       expect(rendered.result.current.accountComments[0].content).toBe("content 1");
@@ -3924,6 +3992,21 @@ describe("accounts", () => {
       const rendered = renderHook(() => useAccountComment({ commentIndex: 99999 }));
       const waitFor = testUtils.createWaitFor(rendered);
       await waitFor(() => rendered.result.current.state !== undefined);
+      expect(rendered.result.current.errors).toEqual([]);
+    });
+
+    test("useAccountComment ignores negative and fractional indexes", async () => {
+      const rendered = renderHook<any, any>((props) => useAccountComment(props));
+      const waitFor = testUtils.createWaitFor(rendered);
+
+      rendered.rerender({ commentIndex: -1 });
+      await waitFor(() => rendered.result.current.state !== undefined);
+      expect(rendered.result.current.content).toBeUndefined();
+      expect(rendered.result.current.errors).toEqual([]);
+
+      rendered.rerender({ commentIndex: 0.5 });
+      await waitFor(() => rendered.result.current.state !== undefined);
+      expect(rendered.result.current.content).toBeUndefined();
       expect(rendered.result.current.errors).toEqual([]);
     });
 

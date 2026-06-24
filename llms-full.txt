@@ -994,6 +994,7 @@ for (const accountComment of accountComments) {
   console.log("comment", accountComment.index, "is status", accountComment.state);
 }
 // `state` becomes `failed` as soon as a pending local publish records terminal failure (`publishingState === "failed"` and `state === "stopped"`) or a publish error, instead of waiting for the 20-minute fallback.
+// local account comments returned by useAccountComment and useAccountComments include the account author's address and shortAddress when an older cached account comment is missing author identity fields.
 // note: accountComment.index can change after deletions; prefer commentCid for stable identifiers
 
 // all my own votes
@@ -3163,6 +3164,19 @@ Avoid GitHub MCP and browser MCP servers for this project because they add signi
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/CHANGELOG.md
 
 ```markdown
+## [0.1.19](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.18...v0.1.19) (2026-06-18)
+
+
+### Bug Fixes
+
+* resolve community name lookups ([ffef83c](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/ffef83cc7b27a59fca4b0788732ff0bfc213496e))
+
+
+
+## [0.1.18](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.17...v0.1.18) (2026-06-15)
+
+
+
 ## [0.1.17](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.16...v0.1.17) (2026-06-12)
 
 
