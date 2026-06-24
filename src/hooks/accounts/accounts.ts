@@ -626,7 +626,7 @@ export function useAccountComment(options?: UseAccountCommentOptions): UseAccoun
     Number.isInteger(normalizedCommentIndex) &&
     normalizedCommentIndex >= 0
       ? normalizedCommentIndex
-      : commentCidToAccountComment?.accountId === accountId
+      : commentCidToAccountComment && commentCidToAccountComment.accountId === accountId
         ? commentCidToAccountComment.accountCommentIndex
         : undefined;
   const storedAccountComment = useMemo(() => {
