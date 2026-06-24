@@ -1,3 +1,12 @@
+## [0.1.21](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.20...v0.1.21) (2026-06-24)
+
+
+### Bug Fixes
+
+* **accounts:** handle empty account comment lookups ([#65](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/65)) ([eb1bd79](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/eb1bd797180c620eed611cffd879abdb5c793578))
+
+
+
 ## [0.1.20](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.19...v0.1.20) (2026-06-24)
 
 
