@@ -3996,6 +3996,13 @@ describe("accounts", () => {
       expect(rendered.result.current.errors).toEqual([]);
     });
 
+    test("useAccountComment without lookup options returns empty initializing result", () => {
+      const rendered = renderHook(() => useAccountComment());
+      expect(rendered.result.current.content).toBeUndefined();
+      expect(rendered.result.current.state).toBe("initializing");
+      expect(rendered.result.current.errors).toEqual([]);
+    });
+
     test("useAccountComment ignores negative and fractional indexes", async () => {
       const rendered = renderHook<any, any>((props) => useAccountComment(props));
       const waitFor = testUtils.createWaitFor(rendered);
