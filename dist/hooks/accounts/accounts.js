@@ -20,6 +20,7 @@ import { COMMENT_MODERATION_AUTHOR_SUMMARY_KEY, getAccountEditPropertySummary, }
 import { getCanonicalCommunityAddress, getEquivalentCommunityAddressGroupKey, pickPreferredEquivalentCommunityAddress, } from "../../lib/community-address.js";
 import { addCommentModeration } from "../../lib/utils/comment-moderation.js";
 import useInterval from "../utils/use-interval.js";
+import PkcJs from "../../lib/pkc-js/index.js";
 const getCommentEditPropertyValue = (comment, propertyName) => {
     var _a, _b;
     if (propertyName !== COMMENT_MODERATION_AUTHOR_SUMMARY_KEY) {
@@ -294,6 +295,18 @@ const getAccountHistorySortType = (sortType, order) => {
     }
     return order === "desc" ? "new" : "old";
 };
+const getAccountCommentWithAccountAuthor = (accountComment, account, accountId) => {
+    var _a;
+    const accountAuthor = account === null || account === void 0 ? void 0 : account.author;
+    if (!accountId ||
+        accountComment.accountId !== accountId ||
+        !(accountAuthor === null || accountAuthor === void 0 ? void 0 : accountAuthor.address) ||
+        ((_a = accountComment.author) === null || _a === void 0 ? void 0 : _a.address)) {
+        return accountComment;
+    }
+    const accountShortAddress = accountAuthor.shortAddress || PkcJs.PKC.getShortAddress({ address: accountAuthor.address });
+    return Object.assign(Object.assign({}, accountComment), { author: Object.assign(Object.assign(Object.assign(Object.assign({}, accountAuthor), accountComment.author), { address: accountAuthor.address }), (accountShortAddress ? { shortAddress: accountShortAddress } : {})) });
+};
 export function useAccountComments(options) {
     assert(!options || typeof options === "object", `useAccountComments options argument '${options}' not an object`);
     const { accountName, filter, commentCid, commentIndices, communityAddress, parentCid, newerThan, page, pageSize, sortType, order, } = options || {};
@@ -301,6 +314,7 @@ export function useAccountComments(options) {
     const accountId = useAccountId(accountName);
     const accountCommentsIndexes = useAccountsStore((state) => state.accountsCommentsIndexes[accountId || ""]);
     const commentCidToAccountComment = useAccountsStore((state) => state.commentCidsToAccountsComments[commentCid || ""]);
+    const account = useAccountsStore((state) => state.accounts[accountId || ""]);
     const accountComments = useAccountsStore((state) => state.accountsComments[accountId || ""]);
     const [accountCommentStates, setAccountCommentStates] = useState([]);
     const accountHistorySortType = getAccountHistorySortType(sortType, order);
@@ -379,8 +393,8 @@ export function useAccountComments(options) {
     }, delay, immediate);
     const filteredAccountCommentsWithStates = useMemo(() => {
         const states = getAccountCommentsStates(filteredAccountComments);
-        return filteredAccountComments.map((comment, i) => (Object.assign(Object.assign({}, comment), { state: states[i] })));
-    }, [filteredAccountComments, accountCommentStates]);
+        return filteredAccountComments.map((comment, i) => (Object.assign(Object.assign({}, getAccountCommentWithAccountAuthor(comment, account, accountId || undefined)), { state: states[i] })));
+    }, [filteredAccountComments, accountCommentStates, account, accountId]);
     if (options) {
         log("useAccountComments", {
             accountId,
@@ -414,9 +428,12 @@ export function useAccountComment(options) {
     const { commentIndex, commentCid, accountName } = opts;
     const accountId = useAccountId(accountName);
     const commentCidToAccountComment = useAccountsStore((state) => state.commentCidsToAccountsComments[commentCid || ""]);
+    const account = useAccountsStore((state) => state.accounts[accountId || ""]);
     const accountComments = useAccountsStore((state) => state.accountsComments[accountId || ""]);
     const normalizedCommentIndex = commentIndex === undefined ? undefined : Number(commentIndex);
-    const resolvedCommentIndex = typeof normalizedCommentIndex === "number" && !Number.isNaN(normalizedCommentIndex)
+    const resolvedCommentIndex = typeof normalizedCommentIndex === "number" &&
+        Number.isInteger(normalizedCommentIndex) &&
+        normalizedCommentIndex >= 0
         ? normalizedCommentIndex
         : (commentCidToAccountComment === null || commentCidToAccountComment === void 0 ? void 0 : commentCidToAccountComment.accountId) === accountId
             ? commentCidToAccountComment.accountCommentIndex
@@ -427,11 +444,15 @@ export function useAccountComment(options) {
         }
         return accountComments === null || accountComments === void 0 ? void 0 : accountComments[resolvedCommentIndex];
     }, [accountComments, resolvedCommentIndex]);
-    const accountComment = (storedAccountComment || {});
     const state = storedAccountComment
         ? getAccountCommentsStates([storedAccountComment])[0]
         : "initializing";
-    return useMemo(() => (Object.assign(Object.assign({}, accountComment), { state, error: accountComment.error, errors: accountComment.errors || [] })), [accountComment, state]);
+    return useMemo(() => {
+        const accountComment = (storedAccountComment
+            ? getAccountCommentWithAccountAuthor(storedAccountComment, account, accountId || undefined)
+            : {});
+        return Object.assign(Object.assign({}, accountComment), { state, error: accountComment.error, errors: accountComment.errors || [] });
+    }, [storedAccountComment, account, accountId, state]);
 }
 /**
  * Returns the own user's votes stored locally, even those not yet published by the community owner.

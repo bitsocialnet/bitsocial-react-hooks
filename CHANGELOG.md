@@ -1,3 +1,12 @@
+## [0.1.20](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.19...v0.1.20) (2026-06-24)
+
+
+### Bug Fixes
+
+* **accounts:** enrich local account comment authors ([cac2376](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/cac237656b25ac5611fa861528845463f761998d))
+
+
+
 ## [0.1.19](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.18...v0.1.19) (2026-06-18)
 
 
