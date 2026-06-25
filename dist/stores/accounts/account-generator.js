@@ -24,6 +24,14 @@ export const DEFAULT_ETH_RPC_URLS = [
     "https://1rpc.io/eth",
     "https://eth-pokt.nodies.app",
 ];
+export const DEFAULT_HTTP_ROUTER_URLS = [
+    "https://peers.pleb.bot",
+    "https://routing.lol",
+    "https://peers.forumindex.com",
+    "https://peers.plebpubsub.xyz",
+    "https://routerofbitsocial.xyz",
+    "https://bsotracker.online",
+];
 // default chain providers
 const chainProviders = {
     eth: {
@@ -91,12 +99,7 @@ export const getDefaultPkcOptions = () => {
             "https://pubsubprovider.xyz/api/v0",
             "https://plebpubsub.xyz/api/v0",
             "https://rannithepleb.com/api/v0",
-        ], httpRoutersOptions: [
-            "https://routing.lol",
-            "https://peers.pleb.bot",
-            "https://peers.plebpubsub.xyz",
-            "https://peers.forumindex.com",
-        ] }, overwritePkcOptions));
+        ], httpRoutersOptions: [...DEFAULT_HTTP_ROUTER_URLS] }, overwritePkcOptions));
 };
 // the gateway to use in <img src> for nft avatars
 // @ts-ignore
