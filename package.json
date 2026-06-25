@@ -13,7 +13,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.1.21",
+  "version": "0.1.22",
   "packageManager": "yarn@4.13.0",
   "files": [
     "CHANGELOG.md",
@@ -48,7 +48,7 @@
   },
   "dependencies": {
     "@bitsocial/bso-resolver": "0.0.8",
-    "@pkcprotocol/pkc-js": "0.0.48",
+    "@pkcprotocol/pkc-js": "0.0.53",
     "@pkcprotocol/pkc-logger": "0.1.0",
     "assert": "2.0.0",
     "ethers": "5.8.0",

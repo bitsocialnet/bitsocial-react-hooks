@@ -1,6 +1,7 @@
 import accountGenerator, {
   DEFAULT_ETH_RPC_URL,
   DEFAULT_ETH_RPC_URLS,
+  DEFAULT_HTTP_ROUTER_URLS,
   getDefaultChainProviders,
   getDefaultPkcOptions,
 } from "./account-generator";
@@ -24,6 +25,15 @@ describe("account-generator", () => {
         expect(chainProviders).toBeDefined();
         expect(chainProviders.eth).toBeDefined();
         expect(chainProviders.matic).toBeDefined();
+        expect(opts.httpRoutersOptions).toEqual(DEFAULT_HTTP_ROUTER_URLS);
+        expect(DEFAULT_HTTP_ROUTER_URLS).toEqual([
+          "https://peers.pleb.bot",
+          "https://routing.lol",
+          "https://peers.forumindex.com",
+          "https://peers.plebpubsub.xyz",
+          "https://routerofbitsocial.xyz",
+          "https://bsotracker.online",
+        ]);
         expect(opts.resolveAuthorAddresses).toBe(false);
         expect(opts.validatePages).toBe(false);
       } finally {
