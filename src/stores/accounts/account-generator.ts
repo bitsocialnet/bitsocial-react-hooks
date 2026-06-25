@@ -21,6 +21,14 @@ export const DEFAULT_ETH_RPC_URLS = [
   "https://1rpc.io/eth",
   "https://eth-pokt.nodies.app",
 ];
+export const DEFAULT_HTTP_ROUTER_URLS = [
+  "https://peers.pleb.bot",
+  "https://routing.lol",
+  "https://peers.forumindex.com",
+  "https://peers.plebpubsub.xyz",
+  "https://routerofbitsocial.xyz",
+  "https://bsotracker.online",
+];
 
 // default chain providers
 const chainProviders: ChainProviders = {
@@ -101,12 +109,7 @@ export const getDefaultPkcOptions = () => {
       "https://plebpubsub.xyz/api/v0",
       "https://rannithepleb.com/api/v0",
     ],
-    httpRoutersOptions: [
-      "https://routing.lol",
-      "https://peers.pleb.bot",
-      "https://peers.plebpubsub.xyz",
-      "https://peers.forumindex.com",
-    ],
+    httpRoutersOptions: [...DEFAULT_HTTP_ROUTER_URLS],
     ...overwritePkcOptions,
   });
 };

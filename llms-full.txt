@@ -923,6 +923,7 @@ const account = useAccount() // or useAccount('Account 2') to use an account oth
 // `account.author.wallets` only auto-generates an `eth` wallet by default.
 // `account.chainProviders` is the canonical chain config for wallets, NFT lookups, and other chain reads.
 // Defaults use multiple explicit Ethereum RPCs for `.eth` / `.bso` author-name resolution.
+// Defaults use multiple HTTP routers for IPFS/IPNS delegated routing.
 // `account.nameResolversChainProviders` optionally overrides only the RPCs used for that resolution.
 console.log(account.author.wallets.eth)
 
@@ -935,6 +936,15 @@ const ethResolverRpcUrls = [
   'https://eth-pokt.nodies.app',
 ]
 
+const httpRoutersOptions = [
+  'https://peers.pleb.bot',
+  'https://routing.lol',
+  'https://peers.forumindex.com',
+  'https://peers.plebpubsub.xyz',
+  'https://routerofbitsocial.xyz',
+  'https://bsotracker.online',
+]
+
 const author: {...account.author, displayName: 'John'}
 const editedAccount = {
   ...account,
@@ -942,6 +952,10 @@ const editedAccount = {
   chainProviders: {
     ...account.chainProviders,
     eth: { urls: [...ethResolverRpcUrls, 'ethers.js'], chainId: 1 },
+  },
+  pkcOptions: {
+    ...account.pkcOptions,
+    httpRoutersOptions,
   },
   nameResolversChainProviders: {
     eth: { urls: ethResolverRpcUrls, chainId: 1 },
@@ -3164,6 +3178,24 @@ Avoid GitHub MCP and browser MCP servers for this project because they add signi
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/CHANGELOG.md
 
 ```markdown
+## [0.1.21](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.20...v0.1.21) (2026-06-24)
+
+
+### Bug Fixes
+
+* **accounts:** handle empty account comment lookups ([#65](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/65)) ([eb1bd79](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/eb1bd797180c620eed611cffd879abdb5c793578))
+
+
+
+## [0.1.20](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.19...v0.1.20) (2026-06-24)
+
+
+### Bug Fixes
+
+* **accounts:** enrich local account comment authors ([cac2376](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/cac237656b25ac5611fa861528845463f761998d))
+
+
+
 ## [0.1.19](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.18...v0.1.19) (2026-06-18)
 
 

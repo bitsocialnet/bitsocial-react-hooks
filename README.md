@@ -893,6 +893,7 @@ const account = useAccount() // or useAccount('Account 2') to use an account oth
 // `account.author.wallets` only auto-generates an `eth` wallet by default.
 // `account.chainProviders` is the canonical chain config for wallets, NFT lookups, and other chain reads.
 // Defaults use multiple explicit Ethereum RPCs for `.eth` / `.bso` author-name resolution.
+// Defaults use multiple HTTP routers for IPFS/IPNS delegated routing.
 // `account.nameResolversChainProviders` optionally overrides only the RPCs used for that resolution.
 console.log(account.author.wallets.eth)
 
@@ -905,6 +906,15 @@ const ethResolverRpcUrls = [
   'https://eth-pokt.nodies.app',
 ]
 
+const httpRoutersOptions = [
+  'https://peers.pleb.bot',
+  'https://routing.lol',
+  'https://peers.forumindex.com',
+  'https://peers.plebpubsub.xyz',
+  'https://routerofbitsocial.xyz',
+  'https://bsotracker.online',
+]
+
 const author: {...account.author, displayName: 'John'}
 const editedAccount = {
   ...account,
@@ -912,6 +922,10 @@ const editedAccount = {
   chainProviders: {
     ...account.chainProviders,
     eth: { urls: [...ethResolverRpcUrls, 'ethers.js'], chainId: 1 },
+  },
+  pkcOptions: {
+    ...account.pkcOptions,
+    httpRoutersOptions,
   },
   nameResolversChainProviders: {
     eth: { urls: ethResolverRpcUrls, chainId: 1 },
