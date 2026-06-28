@@ -1,3 +1,12 @@
+## [0.1.25](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.24...v0.1.25) (2026-06-28)
+
+
+### Bug Fixes
+
+* **feeds:** replay queued feed recalculations ([0350baa](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/0350baaff9ce739ae80bbda4a8e64439ec75e014))
+
+
+
 ## [0.1.24](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.23...v0.1.24) (2026-06-28)
 
 

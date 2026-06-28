@@ -27,6 +27,7 @@ export const defaultPostsPerPage = 25;
 const communityPostsLeftBeforeNextPage = 50;
 // don't updateFeeds more than once per updateFeedsMinIntervalTime
 let updateFeedsPending = false;
+let updateFeedsAgain = false;
 const updateFeedsMinIntervalTime = 100;
 const feedsStore = createStore((setState, getState) => ({
     feedsOptions: {},
@@ -168,6 +169,7 @@ const feedsStore = createStore((setState, getState) => ({
     // recalculate all feeds using new communities.post.pages, communitiesPagesStore and page numbers
     updateFeeds() {
         if (updateFeedsPending) {
+            updateFeedsAgain = true;
             return;
         }
         updateFeedsPending = true;
@@ -176,7 +178,7 @@ const feedsStore = createStore((setState, getState) => ({
         setTimeout(() => __awaiter(this, void 0, void 0, function* () {
             // get state from all stores
             const previousState = getState();
-            const { feedsOptions } = previousState;
+            const { feedsOptions, updateFeeds } = previousState;
             const { communities } = communitiesStore.getState();
             const { communitiesPages } = communitiesPagesStore.getState();
             const { accounts } = accountsStore.getState();
@@ -210,8 +212,13 @@ const feedsStore = createStore((setState, getState) => ({
                 communitiesPages,
                 feedsCommunityKeysWithNewerPosts,
             });
-            // TODO: if updateFeeds was called while updateFeedsPending = true, maybe we should recall updateFeeds here
             updateFeedsPending = false;
+            // If a community/page update arrived during this calculation, run one
+            // more pass so feedsHaveMore and loadedFeeds cannot stay on stale input.
+            if (updateFeedsAgain) {
+                updateFeedsAgain = false;
+                updateFeeds();
+            }
         }), timeUntilNextUpdate);
     },
 }));
@@ -444,6 +451,7 @@ export const resetFeedsStore = () => __awaiter(void 0, void 0, void 0, function*
     previousAccountsCommentsCount = 0;
     previousAccountsCommentsCids = "";
     updateFeedsPending = false;
+    updateFeedsAgain = false;
     // destroy all component subscriptions to the store
     feedsStore.destroy();
     // restore original state
