@@ -465,6 +465,23 @@ describe("feeds store", () => {
     }));
   });
 
+  test("updateFeedsAgain when updateFeeds called twice quickly", async () => {
+    await new Promise((r) => setTimeout(r, 300));
+    const updateFeedsSpy = vi.spyOn(useFeedsStore.getState(), "updateFeeds");
+
+    try {
+      act(() => {
+        useFeedsStore.getState().updateFeeds();
+        useFeedsStore.getState().updateFeeds();
+      });
+
+      await waitFor(() => updateFeedsSpy.mock.calls.length >= 3);
+      expect(updateFeedsSpy).toHaveBeenCalledTimes(3);
+    } finally {
+      updateFeedsSpy.mockRestore();
+    }
+  });
+
   test("updateFeedsOnAccountsBlockedAddressesChange calls updateFeeds when blocked address is in feed", async () => {
     const communityAddresses = ["community address 1"];
     const feedName = JSON.stringify([mockAccount?.id, "new", communityAddresses]);
