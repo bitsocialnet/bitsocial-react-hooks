@@ -48,7 +48,7 @@
   },
   "dependencies": {
     "@bitsocial/bso-resolver": "0.0.8",
-    "@pkcprotocol/pkc-js": "0.0.68",
+    "@pkcprotocol/pkc-js": "0.0.71",
     "@pkcprotocol/pkc-logger": "0.1.0",
     "assert": "2.0.0",
     "ethers": "5.8.0",
