@@ -11,6 +11,8 @@ import useRepliesStore, {
   feedOptionsToFeedName,
   getRepliesFirstPageSkipValidation,
 } from "../stores/replies";
+import useAccountsStore from "../stores/accounts";
+import { addOptimisticVoteCountsToComments } from "../lib/utils/optimistic-vote-counts";
 
 /** Pure helper to append an error to the errors array; used for deterministic coverage of reset/loadMore catch paths. */
 export function appendErrorToErrors(prevErrors: Error[], e: Error): Error[] {
@@ -56,6 +58,9 @@ export function useReplies(options?: UseRepliesOptions): UseRepliesResult {
 
   // add replies to store
   const account = useAccount({ accountName });
+  const accountVotes = useAccountsStore((state: any) =>
+    account?.id ? state.accountsVotes[account.id] : undefined,
+  );
   const feedOptions = {
     commentCid: comment?.cid,
     commentDepth: comment?.depth,
@@ -169,14 +174,25 @@ export function useReplies(options?: UseRepliesOptions): UseRepliesResult {
   }
 
   const state = !hasMore ? "succeeded" : "fetching";
-  const normalizedReplies = useMemo(() => addCommentModerationToComments(replies), [replies]);
+  const normalizedReplies = useMemo(
+    () => addOptimisticVoteCountsToComments(addCommentModerationToComments(replies), accountVotes),
+    [replies, accountVotes],
+  );
   const normalizedBufferedReplies = useMemo(
-    () => addCommentModerationToComments(bufferedReplies),
-    [bufferedReplies],
+    () =>
+      addOptimisticVoteCountsToComments(
+        addCommentModerationToComments(bufferedReplies),
+        accountVotes,
+      ),
+    [bufferedReplies, accountVotes],
   );
   const normalizedUpdatedReplies = useMemo(
-    () => addCommentModerationToComments(updatedReplies),
-    [updatedReplies],
+    () =>
+      addOptimisticVoteCountsToComments(
+        addCommentModerationToComments(updatedReplies),
+        accountVotes,
+      ),
+    [updatedReplies, accountVotes],
   );
 
   return useMemo(

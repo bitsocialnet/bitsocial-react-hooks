@@ -6,6 +6,7 @@ import * as accountsActionsInternal from "./accounts-actions-internal";
 import accountsDatabase from "./accounts-database";
 import accountsStore from "./accounts-store";
 import communitiesStore from "../communities";
+import commentsStore from "../comments";
 import PkcJsMock, {
   PKC as BasePkc,
   Comment as BaseComment,
@@ -599,14 +600,53 @@ describe("accounts-actions", () => {
         onChallenge: (ch: any, v: any) => v.publishChallengeAnswers(),
         onChallengeVerification: () => {},
       };
+      commentsStore.setState((state: any) => ({
+        comments: {
+          ...state.comments,
+          [opts.commentCid]: {
+            cid: opts.commentCid,
+            timestamp: 100,
+            updatedAt: 123,
+            upvoteCount: 3,
+            downvoteCount: 1,
+          },
+        },
+      }));
+      const voteAccountId = accountsStore.getState().accountNamesToAccountIds["VoteAccount"];
+      accountsStore.setState((state: any) => ({
+        accountsComments: {
+          ...state.accountsComments,
+          [voteAccountId]: [
+            {
+              cid: opts.commentCid,
+              timestamp: 100,
+              updatedAt: 456,
+              upvoteCount: 3,
+              downvoteCount: 1,
+            },
+          ],
+        },
+        commentCidsToAccountsComments: {
+          ...state.commentCidsToAccountsComments,
+          [opts.commentCid]: { accountId: voteAccountId, accountCommentIndex: 0 },
+        },
+      }));
 
       await act(async () => {
         await accountsActions.publishVote(opts, "VoteAccount");
       });
 
       const { accountsVotes } = accountsStore.getState();
-      const voteAccountId = accountsStore.getState().accountNamesToAccountIds["VoteAccount"];
-      expect(accountsVotes[voteAccountId]?.["comment cid"]).toBeDefined();
+      expect(accountsVotes[voteAccountId]?.["comment cid"]).toMatchObject({
+        _optimisticVoteBase: 0,
+        _optimisticVoteObservedAt: 456,
+        _optimisticVoteTransitions: [
+          {
+            vote: 1,
+            timestamp: expect.any(Number),
+          },
+        ],
+      });
     });
 
     test("publishCommentEdit with accountName uses named account", async () => {

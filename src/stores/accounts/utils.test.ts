@@ -4,6 +4,7 @@ import { Role } from "../../types";
 import commentsStore from "../comments";
 import repliesPagesStore from "../replies-pages";
 import communitiesPagesStore from "../communities-pages";
+import repliesCommentsStore from "../replies/replies-comments-store";
 import PkcJsModule, { setPkcJs, restorePkcJs } from "../../lib/pkc-js";
 import PkcJsMock from "../../lib/pkc-js/pkc-js-mock";
 
@@ -670,6 +671,51 @@ describe("accountsStore utils", () => {
       communitiesPagesStore.setState((s: any) => ({ comments: s.comments }));
       const result = utils.getAccountCommentDepth({ parentCid: "nonexistent" } as any);
       expect(result).toBeUndefined();
+    });
+  });
+
+  describe("getFreshestLoadedComment", () => {
+    test("returns the freshest matching comment across comment page stores", () => {
+      const commentCid = "freshest-loaded-comment";
+      const previousComments = commentsStore.getState().comments;
+      const previousRepliesPagesComments = repliesPagesStore.getState().comments;
+      const previousCommunitiesPagesComments = communitiesPagesStore.getState().comments;
+      const previousRepliesComments = repliesCommentsStore.getState().comments;
+      commentsStore.setState({
+        comments: { ...previousComments, [commentCid]: { cid: commentCid, updatedAt: 1 } },
+      });
+      repliesPagesStore.setState({
+        comments: {
+          ...previousRepliesPagesComments,
+          [commentCid]: { cid: commentCid, updatedAt: 3 },
+        },
+      });
+      communitiesPagesStore.setState({
+        comments: {
+          ...previousCommunitiesPagesComments,
+          [commentCid]: { cid: commentCid, updatedAt: 2 },
+        },
+      });
+      repliesCommentsStore.setState({
+        comments: {
+          ...previousRepliesComments,
+          [commentCid]: { cid: commentCid, updatedAt: 4 },
+        },
+      });
+
+      try {
+        expect(utils.getFreshestLoadedComment(commentCid)?.updatedAt).toBe(4);
+        expect(
+          utils.getFreshestLoadedComment(commentCid, { cid: commentCid, updatedAt: 5 } as any)
+            ?.updatedAt,
+        ).toBe(5);
+        expect(utils.getFreshestLoadedComment("missing-comment")).toBeUndefined();
+      } finally {
+        commentsStore.setState({ comments: previousComments });
+        repliesPagesStore.setState({ comments: previousRepliesPagesComments });
+        communitiesPagesStore.setState({ comments: previousCommunitiesPagesComments });
+        repliesCommentsStore.setState({ comments: previousRepliesComments });
+      }
     });
   });
 
