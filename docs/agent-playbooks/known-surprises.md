@@ -28,6 +28,16 @@ If uncertain, ask the developer before adding an entry.
 
 ## Entries
 
+### GitHub Projects are not used for repository workflow
+
+- **Date:** 2026-07-23
+- **Observed by:** Codex
+- **Context:** finalizing a merged pull request with the `review-and-merge-pr` skill
+- **What was surprising:** the skill still referenced an organization project and project item even though this repository no longer uses GitHub Projects.
+- **Impact:** agents can waste time querying a nonexistent project or report a successful merge as incomplete.
+- **Mitigation:** keep pull-request review and merge workflows independent of GitHub issues and Projects; only create or manage an issue when the user explicitly requests one.
+- **Status:** confirmed
+
 ### Agent model names are toolchain-specific
 
 - **Date:** 2026-04-08

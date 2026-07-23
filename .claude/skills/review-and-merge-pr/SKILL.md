@@ -1,6 +1,6 @@
 ---
 name: review-and-merge-pr
-description: Review an open GitHub pull request, inspect feedback from CI, review bots, and human reviewers, decide which findings are valid, implement fixes on the PR branch, merge the PR into master when it is ready, and finalize the linked GitHub issue and project status after merge. Use when the user says "check the PR", "address review comments", "review PR feedback", or "merge this PR".
+description: Review an open GitHub pull request, inspect feedback from CI, review bots, and human reviewers, decide which findings are valid, implement fixes on the PR branch, and merge the PR into master when it is ready. Use when the user says "check the PR", "address review comments", "review PR feedback", or "merge this PR".
 ---
 
 # Review And Merge Pr
@@ -9,6 +9,7 @@ description: Review an open GitHub pull request, inspect feedback from CI, revie
 
 Use this skill after a feature branch already has an open PR into `master`.
 Stay on the PR branch, treat review bots as input rather than authority, and only merge once the branch is verified and the remaining comments are either fixed or explicitly declined with a reason.
+Do not create or update GitHub issues or projects as part of this workflow.
 
 ## Workflow
 
@@ -16,7 +17,7 @@ Stay on the PR branch, treat review bots as input rather than authority, and onl
 
 Prefer the PR for the current branch when the branch is not `master`.
 If the current branch is `master`, inspect open PRs and choose the one that matches the user request.
-If there is no open PR yet, stop and use `make-closed-issue` first.
+If there is no open PR yet, stop and report that this skill requires an existing PR.
 
 Useful commands:
 
@@ -113,38 +114,7 @@ Preferred merge command:
 gh pr merge <pr-number> --repo bitsocialnet/bitsocial-react-hooks --squash --delete-branch
 ```
 
-### 7. Finalize the linked issue and project item
-
-After merge, inspect the PR's linked closing issue.
-If the merge did not close the issue automatically, close it manually.
-Then ensure the linked issue is on the `bitsocial-react-hooks` project and its status is `Done`.
-
-Useful commands:
-
-```bash
-ISSUE_NUMBER=$(gh pr view <pr-number> --repo bitsocialnet/bitsocial-react-hooks --json closingIssuesReferences --jq '.closingIssuesReferences[0].number // empty')
-
-if [ -n "$ISSUE_NUMBER" ]; then
-  ISSUE_STATE=$(gh issue view "$ISSUE_NUMBER" --repo bitsocialnet/bitsocial-react-hooks --json state --jq '.state')
-  if [ "$ISSUE_STATE" != "CLOSED" ]; then
-    gh issue close "$ISSUE_NUMBER" --repo bitsocialnet/bitsocial-react-hooks
-  fi
-
-  ITEM_ID=$(gh project item-list 6 --owner bitsocialnet --limit 1000 --format json --jq ".items[] | select(.content.number == $ISSUE_NUMBER) | .id" | head -n1)
-  if [ -z "$ITEM_ID" ]; then
-    ITEM_JSON=$(gh project item-add 6 --owner bitsocialnet --url "https://github.com/bitsocialnet/bitsocial-react-hooks/issues/$ISSUE_NUMBER" --format json)
-    ITEM_ID=$(echo "$ITEM_JSON" | jq -r '.id')
-  fi
-
-  FIELD_JSON=$(gh project field-list 6 --owner bitsocialnet --format json)
-  STATUS_FIELD_ID=$(echo "$FIELD_JSON" | jq -r '.fields[] | select(.name=="Status") | .id')
-  DONE_OPTION_ID=$(echo "$FIELD_JSON" | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Done") | .id')
-
-  gh project item-edit --id "$ITEM_ID" --project-id PVT_kwDODohK7M4BQoZJ --field-id "$STATUS_FIELD_ID" --single-select-option-id "$DONE_OPTION_ID"
-fi
-```
-
-### 8. Clean up local state after merge
+### 7. Clean up local state after merge
 
 After the PR is merged:
 
@@ -162,7 +132,7 @@ git worktree list
 git worktree remove /path/to/worktree
 ```
 
-### 9. Report the outcome
+### 8. Report the outcome
 
 Tell the user:
 
@@ -170,6 +140,4 @@ Tell the user:
 - which findings were declined and why
 - which verification commands ran
 - whether the PR was merged
-- whether the linked issue was confirmed closed
-- whether the linked project item was confirmed `Done`
 - whether the feature branch, local `pr/<number>` alias, and any worktree were cleaned up
