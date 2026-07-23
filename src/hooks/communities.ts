@@ -80,6 +80,7 @@ export function useCommunity(options?: UseCommunityOptions): UseCommunityResult 
   const storedCommunity = useCommunitiesStore((state: any) => state.communities[communityKey]);
   const addCommunityToStore = useCommunitiesStore((state: any) => state.addCommunityToStore);
   const errors = useCommunitiesStore((state: any) => state.errors[communityKey]);
+  const syncStatus = useCommunitiesStore((state: any) => state.syncStatuses[communityKey]);
   const communityEditSummary = useAccountsStore((state: any) => {
     const accountEditsSummaries = state.accountsEditsSummaries[accountId] || {};
     const candidateCommunityKeys = [
@@ -169,10 +170,14 @@ export function useCommunity(options?: UseCommunityOptions): UseCommunityResult 
     () => ({
       ...mergedCommunity,
       state,
+      syncState: syncStatus?.syncState || (onlyIfCached ? "stopped" : "initializing"),
+      hasCachedData: typeof mergedCommunity?.updatedAt === "number",
+      lastFetchAttemptAt: syncStatus?.lastFetchAttemptAt,
+      lastSuccessfulFetchAt: syncStatus?.lastSuccessfulFetchAt,
       error: errors?.[errors.length - 1],
       errors: errors || [],
     }),
-    [mergedCommunity, communityKey, errors],
+    [mergedCommunity, communityKey, errors, onlyIfCached, syncStatus],
   );
 }
 
