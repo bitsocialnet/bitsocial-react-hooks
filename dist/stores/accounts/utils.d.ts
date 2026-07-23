@@ -23,6 +23,7 @@ export declare const getInitAccountCommentsToUpdate: (accountsComments: Accounts
     accountId: string;
 }[];
 export declare const getAccountCommentDepth: (comment: Comment) => number | undefined;
+export declare const getFreshestLoadedComment: (commentCid: string, ...additionalCandidates: (Comment | undefined)[]) => Comment | undefined;
 export declare const addShortAddressesToAccountComment: (comment: Comment) => Comment;
 declare const utils: {
     getAccountCommunities: (account: Account, communities: Communities) => any;
@@ -43,6 +44,7 @@ declare const utils: {
         accountId: string;
     }[];
     getAccountCommentDepth: (comment: Comment) => number | undefined;
+    getFreshestLoadedComment: (commentCid: string, ...additionalCandidates: (Comment | undefined)[]) => Comment | undefined;
     addShortAddressesToAccountComment: (comment: Comment) => Comment;
     promiseAny: <T>(promises: Promise<T>[]) => Promise<T>;
 };

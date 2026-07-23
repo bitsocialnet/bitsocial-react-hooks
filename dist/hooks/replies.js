@@ -15,6 +15,8 @@ const log = Logger("bitsocial-react-hooks:replies:hooks");
 import assert from "assert";
 import { addCommentModerationToComments } from "../lib/utils/comment-moderation.js";
 import useRepliesStore, { feedOptionsToFeedName, getRepliesFirstPageSkipValidation, } from "../stores/replies/index.js";
+import useAccountsStore from "../stores/accounts/index.js";
+import { addOptimisticVoteCountsToComments } from "../lib/utils/optimistic-vote-counts.js";
 /** Pure helper to append an error to the errors array; used for deterministic coverage of reset/loadMore catch paths. */
 export function appendErrorToErrors(prevErrors, e) {
     return [...prevErrors, e];
@@ -32,6 +34,7 @@ export function useReplies(options) {
     const [errors, setErrors] = useState([]);
     // add replies to store
     const account = useAccount({ accountName });
+    const accountVotes = useAccountsStore((state) => (account === null || account === void 0 ? void 0 : account.id) ? state.accountsVotes[account.id] : undefined);
     const feedOptions = {
         commentCid: comment === null || comment === void 0 ? void 0 : comment.cid,
         commentDepth: comment === null || comment === void 0 ? void 0 : comment.depth,
@@ -128,9 +131,9 @@ export function useReplies(options) {
         });
     }
     const state = !hasMore ? "succeeded" : "fetching";
-    const normalizedReplies = useMemo(() => addCommentModerationToComments(replies), [replies]);
-    const normalizedBufferedReplies = useMemo(() => addCommentModerationToComments(bufferedReplies), [bufferedReplies]);
-    const normalizedUpdatedReplies = useMemo(() => addCommentModerationToComments(updatedReplies), [updatedReplies]);
+    const normalizedReplies = useMemo(() => addOptimisticVoteCountsToComments(addCommentModerationToComments(replies), accountVotes), [replies, accountVotes]);
+    const normalizedBufferedReplies = useMemo(() => addOptimisticVoteCountsToComments(addCommentModerationToComments(bufferedReplies), accountVotes), [bufferedReplies, accountVotes]);
+    const normalizedUpdatedReplies = useMemo(() => addOptimisticVoteCountsToComments(addCommentModerationToComments(updatedReplies), accountVotes), [updatedReplies, accountVotes]);
     return useMemo(() => ({
         replies: normalizedReplies,
         bufferedReplies: normalizedBufferedReplies,

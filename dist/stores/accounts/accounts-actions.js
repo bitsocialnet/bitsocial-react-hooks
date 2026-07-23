@@ -30,10 +30,11 @@ import assert from "assert";
 const log = Logger("bitsocial-react-hooks:accounts:stores");
 import * as accountsActionsInternal from "./accounts-actions-internal.js";
 import { backfillPublicationCommunityAddress, createPkcCommunity, createPkcCommunityEdit, getPkcCommunityAddresses, normalizeCommunityEditOptionsForPkc, normalizePublicationOptionsForStore, normalizePublicationOptionsForPkc, withPublishChallengeAnswersCompat, } from "../../lib/pkc-compat.js";
-import { getAccountCommentsIndex, getAccountCommunities, getCommentCidsToAccountsComments, COMMENT_MODERATION_AUTHOR_SUMMARY_KEY, getAccountEditPropertySummary, fetchCommentLinkDimensions, getAccountCommentDepth, addShortAddressesToAccountComment, sanitizeAccountCommentForState, sanitizeStoredAccountComment, } from "./utils.js";
+import { getAccountCommentsIndex, getAccountCommunities, getCommentCidsToAccountsComments, COMMENT_MODERATION_AUTHOR_SUMMARY_KEY, getAccountEditPropertySummary, fetchCommentLinkDimensions, getAccountCommentDepth, addShortAddressesToAccountComment, sanitizeAccountCommentForState, sanitizeStoredAccountComment, getFreshestLoadedComment, } from "./utils.js";
 import isEqual from "lodash.isequal";
 import { v4 as uuid } from "uuid";
 import utils from "../../lib/utils/index.js";
+import { addOptimisticVoteMetadata } from "../../lib/utils/optimistic-vote-counts.js";
 // Active publish-session tracking for pending comments (Task 3)
 const activePublishSessions = new Map();
 const abandonedPublishSessionIds = new Set();
@@ -1032,6 +1033,7 @@ export const deleteComment = (commentCidOrAccountCommentIndex, accountName) => _
     log("accountsActions.deleteComment", { accountId: account.id, accountCommentIndex });
 });
 export const publishVote = (publishVoteOptions, accountName) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
     const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
     assert(accounts && accountNamesToAccountIds && activeAccountId, `can't use accountsStore.accountActions before initialized`);
     let account = accounts[activeAccountId];
@@ -1049,7 +1051,12 @@ export const publishVote = (publishVoteOptions, accountName) => __awaiter(void 0
     delete createVoteOptions.onChallengeVerification;
     delete createVoteOptions.onError;
     delete createVoteOptions.onPublishingStateChange;
-    const storedCreateVoteOptions = normalizePublicationOptionsForStore(createVoteOptions);
+    const accountsState = accountsStore.getState();
+    const accountCommentInfo = accountsState.commentCidsToAccountsComments[createVoteOptions.commentCid];
+    const accountComment = accountCommentInfo
+        ? (_a = accountsState.accountsComments[accountCommentInfo.accountId]) === null || _a === void 0 ? void 0 : _a[accountCommentInfo.accountCommentIndex]
+        : undefined;
+    const storedCreateVoteOptions = addOptimisticVoteMetadata(normalizePublicationOptionsForStore(createVoteOptions), (_b = accountsState.accountsVotes[account.id]) === null || _b === void 0 ? void 0 : _b[createVoteOptions.commentCid], getFreshestLoadedComment(createVoteOptions.commentCid, accountComment));
     let vote = backfillPublicationCommunityAddress(yield account.pkc.createVote(createVoteOptions), createVoteOptions);
     let lastChallenge;
     const publishAndRetryFailedChallengeVerification = () => __awaiter(void 0, void 0, void 0, function* () {

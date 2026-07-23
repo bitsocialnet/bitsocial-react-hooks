@@ -24,7 +24,9 @@ const log = Logger("bitsocial-react-hooks:accounts:stores");
 import commentsStore from "../comments/index.js";
 import repliesPagesStore from "../replies-pages/index.js";
 import communitiesPagesStore from "../communities-pages/index.js";
+import repliesCommentsStore from "../replies/replies-comments-store.js";
 import PkcJs from "../../lib/pkc-js/index.js";
+import { getCommentVoteCountsVersion } from "../../lib/utils/optimistic-vote-counts.js";
 const getAuthorAddressRolesFromCommunities = (authorAddress, communities) => {
     var _a, _b;
     const roles = {};
@@ -401,6 +403,18 @@ export const getAccountCommentDepth = (comment) => {
     // if can't find the parent comment depth anywhere, don't include it with the account comment
     // it will be added automatically when challenge verification is received
 };
+export const getFreshestLoadedComment = (commentCid, ...additionalCandidates) => {
+    const candidates = [
+        commentsStore.getState().comments[commentCid],
+        repliesPagesStore.getState().comments[commentCid],
+        communitiesPagesStore.getState().comments[commentCid],
+        repliesCommentsStore.getState().comments[commentCid],
+        ...additionalCandidates,
+    ];
+    return candidates.reduce((freshest, candidate) => getCommentVoteCountsVersion(candidate) > getCommentVoteCountsVersion(freshest)
+        ? candidate
+        : freshest, undefined);
+};
 export const addShortAddressesToAccountComment = (comment) => {
     comment = Object.assign({}, comment);
     try {
@@ -430,6 +444,7 @@ const utils = {
     fetchCommentLinkDimensions,
     getInitAccountCommentsToUpdate,
     getAccountCommentDepth,
+    getFreshestLoadedComment,
     addShortAddressesToAccountComment,
     promiseAny,
 };

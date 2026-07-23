@@ -21,6 +21,7 @@ import useCommunitiesPagesStore from "../stores/communities-pages/index.js";
 import useRepliesPagesStore from "../stores/replies-pages/index.js";
 import shallow from "zustand/shallow";
 import { assertCommunityRef } from "../lib/community-ref.js";
+import { addOptimisticVoteCounts, addOptimisticVoteCountsToComments, } from "../lib/utils/optimistic-vote-counts.js";
 export function getCommentFreshness(comment) {
     var _a, _b;
     if (!comment)
@@ -117,6 +118,7 @@ export function useComment(options) {
         var _a;
         return (_a = state.accountsComments[(accountCommentInfo === null || accountCommentInfo === void 0 ? void 0 : accountCommentInfo.accountId) || ""]) === null || _a === void 0 ? void 0 : _a[Number(accountCommentInfo === null || accountCommentInfo === void 0 ? void 0 : accountCommentInfo.accountCommentIndex)];
     });
+    const accountVote = useAccountsStore((state) => { var _a; return (account === null || account === void 0 ? void 0 : account.id) && commentCid ? (_a = state.accountsVotes[account.id]) === null || _a === void 0 ? void 0 : _a[commentCid] : undefined; });
     const createCommentData = useMemo(() => getCommentCreateCommentData(commentCid, community, communitiesPagesComment, repliesPagesComment), [
         commentCid,
         community === null || community === void 0 ? void 0 : community.name,
@@ -204,6 +206,7 @@ export function useComment(options) {
             ? frozenCommentForCurrentCid
             : frozenCommentForCurrentCid || selectedComment;
     comment = addCommentModeration(comment);
+    comment = addOptimisticVoteCounts(comment, accountVote);
     const { state, replyCount } = getCommentStateAndReplyCount(comment);
     if (account && commentCid) {
         log("useComment", {
@@ -247,6 +250,7 @@ export function useComments(options) {
     assert(!options || typeof options === "object", `useComments options argument '${options}' not an object`);
     const { commentCids = [], accountName, onlyIfCached, autoUpdate = true } = options !== null && options !== void 0 ? options : {};
     const account = useAccount({ accountName });
+    const accountVotes = useAccountsStore((state) => (account === null || account === void 0 ? void 0 : account.id) ? state.accountsVotes[account.id] : undefined);
     const commentsStoreComments = useCommentsStore((state) => commentCids.map((commentCid) => state.comments[commentCid || ""]), shallow);
     const communitiesPagesComments = useCommunitiesPagesStore((state) => commentCids.map((commentCid) => state.comments[commentCid || ""]), shallow);
     const addCommentToStore = useCommentsStore((state) => state.addCommentToStore);
@@ -331,7 +335,7 @@ export function useComments(options) {
     }, [autoUpdate, commentsKey, freezeSettledForCurrentKey, liveComments, liveCommentsSettled]);
     const frozenCommentsForCurrentSelection = frozenCommentsKey === commentsKey ? frozenComments : undefined;
     const comments = autoUpdate ? liveComments : frozenCommentsForCurrentSelection || liveComments;
-    const normalizedComments = useMemo(() => addCommentModerationToComments(comments), [comments]);
+    const normalizedComments = useMemo(() => addOptimisticVoteCountsToComments(addCommentModerationToComments(comments), accountVotes), [comments, accountVotes]);
     // succeed if no comments are undefined
     const state = getCommentsState(normalizedComments);
     const refresh = useCallback(() => __awaiter(this, void 0, void 0, function* () {
