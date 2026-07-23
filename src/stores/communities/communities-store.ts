@@ -591,8 +591,11 @@ const communitiesStore = createStore<CommunitiesState>(
       setState((state: CommunitiesState) => {
         const syncStatuses = { ...state.syncStatuses };
         delete syncStatuses[communityAddress];
+        const errors = { ...state.errors };
+        delete errors[communityAddress];
         return {
           communities: { ...state.communities, [communityAddress]: undefined },
+          errors,
           syncStatuses,
         };
       });

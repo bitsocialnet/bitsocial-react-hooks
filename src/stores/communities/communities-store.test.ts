@@ -701,6 +701,9 @@ describe("communities store", () => {
 
     expect(community.address).toBeDefined();
     expect(communitiesStore.getState().communities[community.address]?.title).toBe("created title");
+    communitiesStore.setState((state) => ({
+      errors: { ...state.errors, [community.address]: [new Error("stale error")] },
+    }));
 
     await act(async () => {
       await communitiesStore
@@ -715,6 +718,7 @@ describe("communities store", () => {
     });
 
     expect(communitiesStore.getState().communities[community.address]).toBeUndefined();
+    expect(communitiesStore.getState().errors[community.address]).toBeUndefined();
     expect(communitiesStore.getState().syncStatuses[community.address]).toBeUndefined();
   });
 
