@@ -30,24 +30,45 @@ export const addOptimisticVoteMetadata = (
   const hasPreviousTransitionHistory =
     previousTransitions.length > 0 &&
     typeof previousAccountVote?.[optimisticVoteObservedAtKey] === "number";
+  const recoveredPreviousTransitions: OptimisticVoteTransition[] =
+    !hasPreviousTransitionHistory &&
+    previousAccountVote &&
+    typeof previousAccountVote.timestamp === "number"
+      ? [
+          {
+            vote: normalizeVote(previousAccountVote.vote),
+            timestamp: previousAccountVote.timestamp,
+          },
+        ]
+      : [];
+  const transitions = hasPreviousTransitionHistory
+    ? previousTransitions
+    : recoveredPreviousTransitions;
   const observedAt = hasPreviousTransitionHistory
     ? previousAccountVote[optimisticVoteObservedAtKey]
     : currentVersion || Math.max((accountVote.timestamp || 1) - 1, 0);
   const baseVote = hasPreviousTransitionHistory
     ? normalizeVote(previousAccountVote?.[optimisticVoteBaseKey])
-    : normalizeVote(previousAccountVote?.vote);
+    : recoveredPreviousTransitions.length > 0
+      ? 0
+      : normalizeVote(previousAccountVote?.vote);
+  const lastTransition = transitions[transitions.length - 1];
   const transition: OptimisticVoteTransition = {
     vote: normalizeVote(accountVote.vote),
     // A displayed comment can only include this vote after both the vote was
     // published and every comment copy used to establish the initial baseline.
-    timestamp: Math.max(accountVote.timestamp || 0, observedAt + 1),
+    timestamp: Math.max(
+      accountVote.timestamp || 0,
+      observedAt + 1,
+      lastTransition ? lastTransition.timestamp + 1 : 0,
+    ),
   };
 
   return {
     ...accountVote,
     [optimisticVoteBaseKey]: baseVote,
     [optimisticVoteObservedAtKey]: observedAt,
-    [optimisticVoteTransitionsKey]: [...previousTransitions, transition],
+    [optimisticVoteTransitionsKey]: [...transitions, transition],
   };
 };
 

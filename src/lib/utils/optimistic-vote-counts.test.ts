@@ -34,13 +34,27 @@ describe("optimistic vote counts", () => {
     });
   });
 
-  test("uses the previous canonical vote as the base", () => {
+  test("recovers a persisted vote transition for differently aged comment copies", () => {
     const result = addOptimisticVoteMetadata(
       { commentCid: comment.cid, vote: -1, timestamp: 101 },
-      { commentCid: comment.cid, vote: 1, timestamp: 50 },
+      { commentCid: comment.cid, vote: 1, timestamp: 99 },
       comment,
     );
-    expect(result[optimisticVoteBaseKey]).toBe(1);
+    expect(result[optimisticVoteBaseKey]).toBe(0);
+    expect(result[optimisticVoteTransitionsKey]).toEqual([
+      { vote: 1, timestamp: 99 },
+      { vote: -1, timestamp: 101 },
+    ]);
+    expect(addOptimisticVoteCounts({ ...comment, updatedAt: 98 }, result)).toMatchObject({
+      upvoteCount: 3,
+      downvoteCount: 3,
+    });
+    expect(
+      addOptimisticVoteCounts({ ...comment, updatedAt: 100, upvoteCount: 4 }, result),
+    ).toMatchObject({
+      upvoteCount: 3,
+      downvoteCount: 3,
+    });
   });
 
   test("carries the original baseline and transition history through rapid vote changes", () => {
@@ -56,6 +70,23 @@ describe("optimistic vote counts", () => {
     );
     expect(result[optimisticVoteBaseKey]).toBe(0);
     expect(result[optimisticVoteObservedAtKey]).toBe(100);
+    expect(result[optimisticVoteTransitionsKey]).toEqual([
+      { vote: 1, timestamp: 101 },
+      { vote: -1, timestamp: 102 },
+    ]);
+  });
+
+  test("orders rapid transitions that share a publication timestamp", () => {
+    const firstVote = addOptimisticVoteMetadata(
+      { commentCid: comment.cid, vote: 1, timestamp: 101 },
+      undefined,
+      comment,
+    );
+    const result = addOptimisticVoteMetadata(
+      { commentCid: comment.cid, vote: -1, timestamp: 101 },
+      firstVote,
+      comment,
+    );
     expect(result[optimisticVoteTransitionsKey]).toEqual([
       { vote: 1, timestamp: 101 },
       { vote: -1, timestamp: 102 },
