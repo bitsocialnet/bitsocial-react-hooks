@@ -199,11 +199,24 @@ export interface UseEditedCommentResult extends Result {
 }
 
 // useCommunity(options): result
+export type CommunitySyncState =
+  | "initializing"
+  | "loading"
+  | "retrying"
+  | "succeeded"
+  | "failed"
+  | "stopped";
+
 export interface UseCommunityOptions extends Options {
   community?: CommunityIdentifier;
   onlyIfCached?: boolean;
 }
-export interface UseCommunityResult extends Result, Community {}
+export interface UseCommunityResult extends Result, Community {
+  syncState: CommunitySyncState;
+  hasCachedData: boolean;
+  lastFetchAttemptAt: number | undefined;
+  lastSuccessfulFetchAt: number | undefined;
+}
 
 // useCommunities(options): result
 export interface UseCommunitiesOptions extends Options {

@@ -162,11 +162,16 @@ export interface UseEditedCommentResult extends Result {
         [failedEditPropertyName: string]: any;
     };
 }
+export type CommunitySyncState = "initializing" | "loading" | "retrying" | "succeeded" | "failed" | "stopped";
 export interface UseCommunityOptions extends Options {
     community?: CommunityIdentifier;
     onlyIfCached?: boolean;
 }
 export interface UseCommunityResult extends Result, Community {
+    syncState: CommunitySyncState;
+    hasCachedData: boolean;
+    lastFetchAttemptAt: number | undefined;
+    lastSuccessfulFetchAt: number | undefined;
 }
 export interface UseCommunitiesOptions extends Options {
     communities?: CommunityIdentifier[];

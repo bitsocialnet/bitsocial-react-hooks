@@ -1,9 +1,17 @@
-import { Communities } from "../../types.js";
+import { Communities, CommunitySyncState } from "../../types.js";
 export declare const COMMUNITY_UPDATE_INTERVAL_MS: number;
+interface CommunitySyncStatus {
+    syncState: CommunitySyncState;
+    lastFetchAttemptAt?: number;
+    lastSuccessfulFetchAt?: number;
+}
 export type CommunitiesState = {
     communities: Communities;
     errors: {
         [communityAddress: string]: Error[];
+    };
+    syncStatuses: {
+        [communityAddress: string]: CommunitySyncStatus;
     };
     addCommunityToStore: Function;
     refreshCommunity: Function;

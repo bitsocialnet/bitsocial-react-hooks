@@ -31,6 +31,7 @@ describe("communities store", () => {
     const { result } = renderHook(() => communitiesStore.getState());
     expect(result.current.communities).toEqual({});
     expect(result.current.errors).toEqual({});
+    expect(result.current.syncStatuses).toEqual({});
     expect(typeof result.current.addCommunityToStore).toBe("function");
   });
 
@@ -367,6 +368,7 @@ describe("communities store", () => {
 
     expect(communitiesStore.getState().errors[address]).toHaveLength(1);
     expect(communitiesStore.getState().errors[address][0].message).toBe("create failed");
+    expect(communitiesStore.getState().syncStatuses[address]?.syncState).toBe("failed");
     mockAccount.pkc.createCommunity = createOrig;
   });
 
@@ -699,6 +701,9 @@ describe("communities store", () => {
 
     expect(community.address).toBeDefined();
     expect(communitiesStore.getState().communities[community.address]?.title).toBe("created title");
+    communitiesStore.setState((state) => ({
+      errors: { ...state.errors, [community.address]: [new Error("stale error")] },
+    }));
 
     await act(async () => {
       await communitiesStore
@@ -713,6 +718,8 @@ describe("communities store", () => {
     });
 
     expect(communitiesStore.getState().communities[community.address]).toBeUndefined();
+    expect(communitiesStore.getState().errors[community.address]).toBeUndefined();
+    expect(communitiesStore.getState().syncStatuses[community.address]).toBeUndefined();
   });
 
   test("clientsOnStateChange with chainTicker branch", async () => {
@@ -741,6 +748,37 @@ describe("communities store", () => {
     }));
     storedCb!();
     expect(communitiesStore.getState().communities[address]?.clients?.type?.ETH).toBeDefined();
+
+    (utils.default as any).clientsOnStateChange = origClientsOnStateChange;
+  });
+
+  test("clientsOnStateChange without chainTicker updates the client state", async () => {
+    const address = "client-state-address";
+    let storedCb: ((...args: any[]) => void) | null = null;
+
+    const utils = await import("../../lib/utils");
+    const origClientsOnStateChange = utils.default.clientsOnStateChange;
+    (utils.default as any).clientsOnStateChange = (_clients: any, cb: any) => {
+      storedCb = () => cb("fetching-ipns", "type", "url");
+    };
+
+    await act(async () => {
+      await communitiesStore.getState().addCommunityToStore(address, mockAccount);
+    });
+
+    communitiesStore.setState((state: any) => ({
+      communities: {
+        ...state.communities,
+        [address]: {
+          ...state.communities[address],
+          clients: { type: {} },
+        },
+      },
+    }));
+    storedCb!();
+    expect(communitiesStore.getState().communities[address]?.clients?.type?.url).toEqual({
+      state: "fetching-ipns",
+    });
 
     (utils.default as any).clientsOnStateChange = origClientsOnStateChange;
   });

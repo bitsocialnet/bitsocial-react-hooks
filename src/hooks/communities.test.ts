@@ -152,6 +152,10 @@ describe("communities", () => {
       testUtils.createWaitFor(rendered);
 
       rendered.rerender({ community: { name: "community address 1" }, onlyIfCached: true });
+      expect(rendered.result.current.syncState).toBe("stopped");
+      expect(rendered.result.current.hasCachedData).toBe(false);
+      expect(rendered.result.current.lastFetchAttemptAt).toBeUndefined();
+      expect(rendered.result.current.lastSuccessfulFetchAt).toBeUndefined();
       // TODO: find better way to wait
       await new Promise((r) => setTimeout(r, 20));
       // community not added to store
@@ -240,21 +244,71 @@ describe("communities", () => {
       );
     });
 
-    test("has updating state", async () => {
-      const rendered = renderHook<any, any>((communityAddress) =>
-        useCommunity({ community: toCommunity(communityAddress) }),
-      );
-      const waitFor = testUtils.createWaitFor(rendered);
-      rendered.rerender("community address");
+    test("exposes community sync lifecycle separately from cached data state", async () => {
+      const communityUpdate = Community.prototype.update;
+      const updatingCommunities: Community[] = [];
+      let now = 1_800_000_000_000;
+      const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => now);
+      Community.prototype.update = async function () {
+        updatingCommunities.push(this);
+      };
 
-      await waitFor(
-        () =>
-          rendered.result.current.state === "fetching-ipns" ||
-          rendered.result.current.state === "succeeded",
-      );
+      try {
+        const rendered = renderHook<any, any>((communityAddress) =>
+          useCommunity({ community: toCommunity(communityAddress) }),
+        );
+        const waitFor = testUtils.createWaitFor(rendered);
+        rendered.rerender("community address");
 
-      await waitFor(() => rendered.result.current.state === "succeeded");
-      expect(rendered.result.current.state).toBe("succeeded");
+        expect(rendered.result.current.syncState).toBe("initializing");
+        expect(rendered.result.current.hasCachedData).toBe(false);
+        await waitFor(() => updatingCommunities.length > 0);
+        expect(rendered.result.current.lastFetchAttemptAt).toBeUndefined();
+
+        now += 1_000;
+        updatingCommunities[0].emit("updatingstatechange", "fetching-ipns");
+        await waitFor(() => rendered.result.current.syncState === "loading");
+        expect(rendered.result.current.lastFetchAttemptAt).toBe(1_800_000_001);
+
+        now += 1_000;
+        updatingCommunities[0].emit("updatingstatechange", "fetching-ipfs");
+        await act(async () => {});
+        expect(rendered.result.current.syncState).toBe("loading");
+        expect(rendered.result.current.lastFetchAttemptAt).toBe(1_800_000_001);
+
+        updatingCommunities[0].emit("updatingstatechange", "waiting-retry");
+        await waitFor(() => rendered.result.current.syncState === "retrying");
+
+        now += 1_000;
+        updatingCommunities[0].emit("updatingstatechange", "fetching-ipns");
+        await waitFor(() => rendered.result.current.syncState === "loading");
+        expect(rendered.result.current.lastFetchAttemptAt).toBe(1_800_000_003);
+
+        updatingCommunities[0].updatedAt = 1_799_999_000;
+        updatingCommunities[0].emit("update", updatingCommunities[0]);
+        now += 1_000;
+        updatingCommunities[0].emit("updatingstatechange", "succeeded");
+        await waitFor(() => rendered.result.current.syncState === "succeeded");
+        expect(rendered.result.current.state).toBe("succeeded");
+        expect(rendered.result.current.hasCachedData).toBe(true);
+        expect(rendered.result.current.lastSuccessfulFetchAt).toBe(1_800_000_004);
+
+        updatingCommunities[0].emit("updatingstatechange", "waiting-retry");
+        await waitFor(() => rendered.result.current.syncState === "retrying");
+        expect(rendered.result.current.state).toBe("succeeded");
+
+        updatingCommunities[0].emit("updatingstatechange", "publishing-ipns");
+        await waitFor(() => rendered.result.current.syncState === "loading");
+
+        updatingCommunities[0].emit("updatingstatechange", "stopped");
+        await waitFor(() => rendered.result.current.syncState === "stopped");
+
+        updatingCommunities[0].emit("updatingstatechange", "failed");
+        await waitFor(() => rendered.result.current.syncState === "failed");
+      } finally {
+        Community.prototype.update = communityUpdate;
+        nowSpy.mockRestore();
+      }
     });
 
     test("overlays local community edit summary from the active account", async () => {
@@ -379,6 +433,7 @@ describe("communities", () => {
       expect(rendered.result.current.error.message).toBe("pkc.createCommunity error");
       expect(rendered.result.current.errors[0].message).toBe("pkc.createCommunity error");
       expect(rendered.result.current.errors.length).toBe(1);
+      expect(rendered.result.current.syncState).toBe("failed");
 
       // restore mock
       PKC.prototype.createCommunity = createCommunity;

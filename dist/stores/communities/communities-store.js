@@ -29,6 +29,24 @@ const communityUpdatePollers = {};
 const listeners = [];
 const COMMUNITY_ERROR_UPDATE_GRACE_MS = 1000;
 const pendingCommunityErrorTimers = {};
+const getNowSeconds = () => Math.floor(Date.now() / 1000);
+const normalizeCommunitySyncState = (updatingState) => {
+    if (updatingState === "waiting-retry") {
+        return "retrying";
+    }
+    if (updatingState === "succeeded" || updatingState === "failed" || updatingState === "stopped") {
+        return updatingState;
+    }
+    return "loading";
+};
+const updateCommunitySyncStatus = (setState, communityKey, syncState) => {
+    setState((state) => {
+        const previousStatus = state.syncStatuses[communityKey];
+        const timestamp = getNowSeconds();
+        const shouldRecordAttempt = syncState === "loading" && (previousStatus === null || previousStatus === void 0 ? void 0 : previousStatus.syncState) !== "loading";
+        return Object.assign(Object.assign({}, state), { syncStatuses: Object.assign(Object.assign({}, state.syncStatuses), { [communityKey]: Object.assign(Object.assign(Object.assign(Object.assign({}, previousStatus), { syncState }), (shouldRecordAttempt ? { lastFetchAttemptAt: timestamp } : undefined)), (syncState === "succeeded" ? { lastSuccessfulFetchAt: timestamp } : undefined)) }) });
+    });
+};
 const createCommunityWithLookupFallback = (pkc, communityLookupOptions, communityKey) => __awaiter(void 0, void 0, void 0, function* () {
     const supportsAddressLookup = "address" in communityLookupOptions;
     const community = yield createPkcCommunity(pkc, communityLookupOptions);
@@ -116,6 +134,7 @@ const scheduleCommunityError = (setState, communityKey, error) => {
 const communitiesStore = createStore((setState, getState) => ({
     communities: {},
     errors: {},
+    syncStatuses: {},
     addCommunityToStore(communityAddressOrRef, account) {
         return __awaiter(this, void 0, void 0, function* () {
             var _a, _b;
@@ -134,6 +153,7 @@ const communitiesStore = createStore((setState, getState) => ({
             }
             // start trying to get community
             pkcGetCommunityPending[pendingKey] = true;
+            updateCommunitySyncStatus(setState, communityKey, "initializing");
             let errorGettingCommunity;
             try {
                 // try to find community in owner communities
@@ -241,6 +261,7 @@ const communitiesStore = createStore((setState, getState) => ({
                     communitiesPagesStore.getState().addCommunityPageCommentsToStore(updatedCommunity);
                 }));
                 community.on("updatingstatechange", (updatingState) => {
+                    updateCommunitySyncStatus(setState, communityKey, normalizeCommunitySyncState(updatingState));
                     setState((state) => ({
                         communities: Object.assign(Object.assign({}, state.communities), { [communityKey]: Object.assign(Object.assign({}, state.communities[communityKey]), { updatingState }) }),
                     }));
@@ -272,6 +293,10 @@ const communitiesStore = createStore((setState, getState) => ({
                 });
                 listeners.push(community);
                 startCommunityUpdatePolling(community, { communityAddressOrRef, communityKey });
+            }
+            catch (error) {
+                updateCommunitySyncStatus(setState, communityKey, "failed");
+                throw error;
             }
             finally {
                 pkcGetCommunityPending[pendingKey] = false;
@@ -369,9 +394,17 @@ const communitiesStore = createStore((setState, getState) => ({
             stopCommunityUpdatePolling(communityAddress);
             yield communitiesDatabase.removeItem(communityAddress);
             log("communitiesStore.deleteCommunity", { communityAddress, community, account });
-            setState((state) => ({
-                communities: Object.assign(Object.assign({}, state.communities), { [communityAddress]: undefined }),
-            }));
+            setState((state) => {
+                const syncStatuses = Object.assign({}, state.syncStatuses);
+                delete syncStatuses[communityAddress];
+                const errors = Object.assign({}, state.errors);
+                delete errors[communityAddress];
+                return {
+                    communities: Object.assign(Object.assign({}, state.communities), { [communityAddress]: undefined }),
+                    errors,
+                    syncStatuses,
+                };
+            });
         });
     },
 }));

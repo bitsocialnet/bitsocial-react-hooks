@@ -66,6 +66,7 @@ export function useCommunity(options) {
     const storedCommunity = useCommunitiesStore((state) => state.communities[communityKey]);
     const addCommunityToStore = useCommunitiesStore((state) => state.addCommunityToStore);
     const errors = useCommunitiesStore((state) => state.errors[communityKey]);
+    const syncStatus = useCommunitiesStore((state) => state.syncStatuses[communityKey]);
     const communityEditSummary = useAccountsStore((state) => {
         const accountEditsSummaries = state.accountsEditsSummaries[accountId] || {};
         const candidateCommunityKeys = [
@@ -129,7 +130,7 @@ export function useCommunity(options) {
     if (mergedCommunity === null || mergedCommunity === void 0 ? void 0 : mergedCommunity.updatedAt) {
         state = "succeeded";
     }
-    return useMemo(() => (Object.assign(Object.assign({}, mergedCommunity), { state, error: errors === null || errors === void 0 ? void 0 : errors[errors.length - 1], errors: errors || [] })), [mergedCommunity, communityKey, errors]);
+    return useMemo(() => (Object.assign(Object.assign({}, mergedCommunity), { state, syncState: (syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.syncState) || (onlyIfCached ? "stopped" : "initializing"), hasCachedData: typeof (mergedCommunity === null || mergedCommunity === void 0 ? void 0 : mergedCommunity.updatedAt) === "number", lastFetchAttemptAt: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastFetchAttemptAt, lastSuccessfulFetchAt: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastSuccessfulFetchAt, error: errors === null || errors === void 0 ? void 0 : errors[errors.length - 1], errors: errors || [] })), [mergedCommunity, communityKey, errors, onlyIfCached, syncStatus]);
 }
 /**
  * @param community - The community identifier, e.g. {name: 'memes.eth'} or {publicKey: '12D3KooW...'}
