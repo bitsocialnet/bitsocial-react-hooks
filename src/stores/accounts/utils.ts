@@ -17,7 +17,9 @@ const log = Logger("bitsocial-react-hooks:accounts:stores");
 import commentsStore from "../comments";
 import repliesPagesStore from "../replies-pages";
 import communitiesPagesStore from "../communities-pages";
+import repliesCommentsStore from "../replies/replies-comments-store";
 import PkcJs from "../../lib/pkc-js";
+import { getCommentVoteCountsVersion } from "../../lib/utils/optimistic-vote-counts";
 
 const getAuthorAddressRolesFromCommunities = (authorAddress: string, communities: Communities) => {
   const roles: { [communityAddress: string]: Role } = {};
@@ -484,6 +486,26 @@ export const getAccountCommentDepth = (comment: Comment) => {
   // it will be added automatically when challenge verification is received
 };
 
+export const getFreshestLoadedComment = (
+  commentCid: string,
+  ...additionalCandidates: (Comment | undefined)[]
+): Comment | undefined => {
+  const candidates = [
+    commentsStore.getState().comments[commentCid],
+    repliesPagesStore.getState().comments[commentCid],
+    communitiesPagesStore.getState().comments[commentCid],
+    repliesCommentsStore.getState().comments[commentCid],
+    ...additionalCandidates,
+  ];
+  return candidates.reduce<Comment | undefined>(
+    (freshest, candidate) =>
+      getCommentVoteCountsVersion(candidate) > getCommentVoteCountsVersion(freshest)
+        ? candidate
+        : freshest,
+    undefined,
+  );
+};
+
 export const addShortAddressesToAccountComment = (comment: Comment) => {
   comment = { ...comment };
   try {
@@ -512,6 +534,7 @@ const utils = {
   fetchCommentLinkDimensions,
   getInitAccountCommentsToUpdate,
   getAccountCommentDepth,
+  getFreshestLoadedComment,
   addShortAddressesToAccountComment,
   promiseAny,
 };

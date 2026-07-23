@@ -24,6 +24,10 @@ import useCommunitiesPagesStore from "../stores/communities-pages";
 import useRepliesPagesStore from "../stores/replies-pages";
 import shallow from "zustand/shallow";
 import { assertCommunityRef } from "../lib/community-ref";
+import {
+  addOptimisticVoteCounts,
+  addOptimisticVoteCountsToComments,
+} from "../lib/utils/optimistic-vote-counts";
 
 export function getCommentFreshness(comment: Comment | undefined): number {
   if (!comment) return 0;
@@ -150,6 +154,9 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
         Number(accountCommentInfo?.accountCommentIndex)
       ],
   );
+  const accountVote = useAccountsStore((state: any) =>
+    account?.id && commentCid ? state.accountsVotes[account.id]?.[commentCid] : undefined,
+  );
   const createCommentData = useMemo(
     () =>
       getCommentCreateCommentData(
@@ -270,6 +277,7 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
       ? frozenCommentForCurrentCid
       : frozenCommentForCurrentCid || selectedComment;
   comment = addCommentModeration(comment);
+  comment = addOptimisticVoteCounts(comment, accountVote);
 
   const { state, replyCount } = getCommentStateAndReplyCount(comment);
 
@@ -330,6 +338,9 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
   );
   const { commentCids = [], accountName, onlyIfCached, autoUpdate = true } = options ?? {};
   const account = useAccount({ accountName });
+  const accountVotes = useAccountsStore((state: any) =>
+    account?.id ? state.accountsVotes[account.id] : undefined,
+  );
   const commentsStoreComments: (Comment | undefined)[] = useCommentsStore(
     (state: any) => commentCids.map((commentCid) => state.comments[commentCid || ""]),
     shallow,
@@ -443,7 +454,10 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
   const frozenCommentsForCurrentSelection =
     frozenCommentsKey === commentsKey ? frozenComments : undefined;
   const comments = autoUpdate ? liveComments : frozenCommentsForCurrentSelection || liveComments;
-  const normalizedComments = useMemo(() => addCommentModerationToComments(comments), [comments]);
+  const normalizedComments = useMemo(
+    () => addOptimisticVoteCountsToComments(addCommentModerationToComments(comments), accountVotes),
+    [comments, accountVotes],
+  );
 
   // succeed if no comments are undefined
   const state = getCommentsState(normalizedComments);

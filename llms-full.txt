@@ -675,6 +675,10 @@ if (vote === 0) console.log("user voted 0");
 if (vote === undefined) console.log(`user didn't vote yet`);
 ```
 
+`useComment`, `useComments`, and `useReplies` apply the selected account's pending vote to
+`upvoteCount` and `downvoteCount` immediately. The optimistic adjustment is replaced by the next
+canonical comment update.
+
 #### Create a comment edit
 
 ```jsx

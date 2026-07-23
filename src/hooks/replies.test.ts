@@ -187,6 +187,33 @@ describe("replies", () => {
       expect(rendered.result.current.replies[0]?.commentModeration?.purged).toBe(true);
     });
 
+    test("optimistically includes the active account vote in reply counts", async () => {
+      rendered.rerender({ commentCid: "comment cid 1" });
+      await waitFor(() => rendered.result.current.replies.length > 0);
+
+      const reply = rendered.result.current.replies[0];
+      const accountId = accountsStore.getState().activeAccountId;
+      act(() => {
+        accountsStore.setState((state: any) => ({
+          accountsVotes: {
+            ...state.accountsVotes,
+            [accountId]: {
+              ...state.accountsVotes[accountId],
+              [reply.cid]: {
+                commentCid: reply.cid,
+                vote: 1,
+                timestamp: (reply.updatedAt || reply.timestamp || 0) + 1,
+                _optimisticVoteBase: 0,
+                _optimisticVoteObservedAt: reply.updatedAt || reply.timestamp || 0,
+              },
+            },
+          },
+        }));
+      });
+      await waitFor(() => rendered.result.current.replies[0].upvoteCount === reply.upvoteCount + 1);
+      expect(rendered.result.current.replies[0].downvoteCount).toBe(reply.downvoteCount);
+    });
+
     test("validateOptimistically false skips skipValidation (branch 125)", async () => {
       const comment = {
         cid: "comment cid 1",
