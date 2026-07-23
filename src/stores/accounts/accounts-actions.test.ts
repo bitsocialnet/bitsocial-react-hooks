@@ -640,6 +640,12 @@ describe("accounts-actions", () => {
       expect(accountsVotes[voteAccountId]?.["comment cid"]).toMatchObject({
         _optimisticVoteBase: 0,
         _optimisticVoteObservedAt: 456,
+        _optimisticVoteTransitions: [
+          {
+            vote: 1,
+            timestamp: expect.any(Number),
+          },
+        ],
       });
     });
 

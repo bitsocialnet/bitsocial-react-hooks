@@ -205,6 +205,12 @@ describe("replies", () => {
                 timestamp: (reply.updatedAt || reply.timestamp || 0) + 1,
                 _optimisticVoteBase: 0,
                 _optimisticVoteObservedAt: reply.updatedAt || reply.timestamp || 0,
+                _optimisticVoteTransitions: [
+                  {
+                    vote: 1,
+                    timestamp: (reply.updatedAt || reply.timestamp || 0) + 1,
+                  },
+                ],
               },
             },
           },
