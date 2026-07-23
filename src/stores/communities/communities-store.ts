@@ -11,6 +11,7 @@ import {
   Communities,
   Account,
   CommunityIdentifier,
+  CommunitySyncState,
   CreateCommunityOptions,
 } from "../../types";
 import utils from "../../lib/utils";
@@ -44,6 +45,48 @@ const COMMUNITY_ERROR_UPDATE_GRACE_MS = 1000;
 const pendingCommunityErrorTimers: {
   [communityKey: string]: ReturnType<typeof setTimeout>[];
 } = {};
+
+interface CommunitySyncStatus {
+  syncState: CommunitySyncState;
+  lastFetchAttemptAt?: number;
+  lastSuccessfulFetchAt?: number;
+}
+
+const getNowSeconds = () => Math.floor(Date.now() / 1000);
+
+const normalizeCommunitySyncState = (updatingState: string): CommunitySyncState => {
+  if (updatingState === "waiting-retry") {
+    return "retrying";
+  }
+  if (updatingState === "succeeded" || updatingState === "failed" || updatingState === "stopped") {
+    return updatingState;
+  }
+  return "loading";
+};
+
+const updateCommunitySyncStatus = (
+  setState: Function,
+  communityKey: string,
+  syncState: CommunitySyncState,
+) => {
+  setState((state: CommunitiesState) => {
+    const previousStatus = state.syncStatuses[communityKey];
+    const timestamp = getNowSeconds();
+    const shouldRecordAttempt = syncState === "loading" && previousStatus?.syncState !== "loading";
+    return {
+      ...state,
+      syncStatuses: {
+        ...state.syncStatuses,
+        [communityKey]: {
+          ...previousStatus,
+          syncState,
+          ...(shouldRecordAttempt ? { lastFetchAttemptAt: timestamp } : undefined),
+          ...(syncState === "succeeded" ? { lastSuccessfulFetchAt: timestamp } : undefined),
+        },
+      },
+    };
+  });
+};
 
 const createCommunityWithLookupFallback = async (
   pkc: any,
@@ -170,6 +213,7 @@ const scheduleCommunityError = (setState: Function, communityKey: string, error:
 export type CommunitiesState = {
   communities: Communities;
   errors: { [communityAddress: string]: Error[] };
+  syncStatuses: { [communityAddress: string]: CommunitySyncStatus };
   addCommunityToStore: Function;
   refreshCommunity: Function;
   editCommunity: Function;
@@ -181,6 +225,7 @@ const communitiesStore = createStore<CommunitiesState>(
   (setState: Function, getState: Function) => ({
     communities: {},
     errors: {},
+    syncStatuses: {},
 
     async addCommunityToStore(
       communityAddressOrRef: string | CommunityIdentifier,
@@ -210,6 +255,7 @@ const communitiesStore = createStore<CommunitiesState>(
 
       // start trying to get community
       pkcGetCommunityPending[pendingKey] = true;
+      updateCommunitySyncStatus(setState, communityKey, "initializing");
       let errorGettingCommunity: any;
       try {
         // try to find community in owner communities
@@ -349,6 +395,11 @@ const communitiesStore = createStore<CommunitiesState>(
         });
 
         community.on("updatingstatechange", (updatingState: string) => {
+          updateCommunitySyncStatus(
+            setState,
+            communityKey,
+            normalizeCommunitySyncState(updatingState),
+          );
           setState((state: CommunitiesState) => ({
             communities: {
               ...state.communities,
@@ -390,6 +441,9 @@ const communitiesStore = createStore<CommunitiesState>(
 
         listeners.push(community);
         startCommunityUpdatePolling(community, { communityAddressOrRef, communityKey });
+      } catch (error) {
+        updateCommunitySyncStatus(setState, communityKey, "failed");
+        throw error;
       } finally {
         pkcGetCommunityPending[pendingKey] = false;
       }
@@ -534,9 +588,14 @@ const communitiesStore = createStore<CommunitiesState>(
       stopCommunityUpdatePolling(communityAddress);
       await communitiesDatabase.removeItem(communityAddress);
       log("communitiesStore.deleteCommunity", { communityAddress, community, account });
-      setState((state: any) => ({
-        communities: { ...state.communities, [communityAddress]: undefined },
-      }));
+      setState((state: CommunitiesState) => {
+        const syncStatuses = { ...state.syncStatuses };
+        delete syncStatuses[communityAddress];
+        return {
+          communities: { ...state.communities, [communityAddress]: undefined },
+          syncStatuses,
+        };
+      });
     },
   }),
 );

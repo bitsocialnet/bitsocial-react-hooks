@@ -129,7 +129,7 @@ useValidateComment({comment: Comment, validateReplies?: boolean}): {valid: boole
 #### Communities Hooks
 
 ```
-useCommunity({community: {name?: string, publicKey?: string}, onlyIfCached?: boolean}): Community
+useCommunity({community: {name?: string, publicKey?: string}, onlyIfCached?: boolean}): Community & {syncState: "initializing" | "loading" | "retrying" | "succeeded" | "failed" | "stopped", hasCachedData: boolean, lastFetchAttemptAt: number | undefined, lastSuccessfulFetchAt: number | undefined}
 useCommunities({communities?: CommunityIdentifier[], onlyIfCached?: boolean}): {communities: Communities[]}
 useCommunityStats({community: {name?: string, publicKey?: string}, onlyIfCached?: boolean}): CommunityStats
 useResolvedCommunityAddress({communityAddress: string, cache: boolean}): {resolvedAddress: string | undefined} // use {cache: false} when checking the user's own community address
@@ -138,6 +138,13 @@ useResolvedCommunityAddress({communityAddress: string, cache: boolean}): {resolv
 Pass `{ publicKey, name }` when you have both so `pkc-js` can fetch through the public key and resolve the name in the background. `communityAddress`, `communityAddresses`, and `communityRefs` are no longer accepted by these hooks.
 
 `useCommunity` only exposes community error events that are not superseded by a later `update` event. Transient fetch errors are delayed briefly before surfacing through `error` or `errors`.
+
+`useCommunity().state` remains `succeeded` when cached community data is available, even
+while a refresh is running. Use `syncState` for the current refresh lifecycle:
+`loading` covers active name, IPNS, and IPFS work, while `retrying` means a transient
+failure is being retried. `lastFetchAttemptAt` and `lastSuccessfulFetchAt` are Unix
+timestamps in seconds. A successful fetch only proves that a valid community record was
+reachable; it does not prove that the community operator is currently online.
 
 #### Authors Hooks
 
@@ -409,6 +416,12 @@ const { authorComments, lastCommentCid, hasMore, loadMore } = useAuthorComments(
 
 ```jsx
 const community = useCommunity({ community: { name: communityAddress, publicKey: communityPublicKey } });
+const {
+  syncState,
+  hasCachedData,
+  lastFetchAttemptAt,
+  lastSuccessfulFetchAt,
+} = community;
 const communityStats = useCommunityStats({
   community: { name: communityAddress, publicKey: communityPublicKey },
 });
