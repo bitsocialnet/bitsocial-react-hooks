@@ -32,13 +32,15 @@ export const addOptimisticVoteMetadata = (
     typeof previousAccountVote?.[optimisticVoteObservedAtKey] === "number";
   const observedAt = hasPreviousTransitionHistory
     ? previousAccountVote[optimisticVoteObservedAtKey]
-    : currentVersion || accountVote.timestamp || 0;
+    : currentVersion || Math.max((accountVote.timestamp || 1) - 1, 0);
   const baseVote = hasPreviousTransitionHistory
     ? normalizeVote(previousAccountVote?.[optimisticVoteBaseKey])
     : normalizeVote(previousAccountVote?.vote);
   const transition: OptimisticVoteTransition = {
     vote: normalizeVote(accountVote.vote),
-    timestamp: accountVote.timestamp || observedAt,
+    // A displayed comment can only include this vote after both the vote was
+    // published and every comment copy used to establish the initial baseline.
+    timestamp: Math.max(accountVote.timestamp || 0, observedAt + 1),
   };
 
   return {
@@ -66,13 +68,11 @@ export const addOptimisticVoteCounts = (
 
   const commentVersion = getCommentVoteCountsVersion(comment);
   let baseVote = normalizeVote(accountVote[optimisticVoteBaseKey]);
-  if (commentVersion > accountVote[optimisticVoteObservedAtKey]) {
-    // A transition can only be reflected by a canonical comment version at or
-    // after that vote publication's timestamp.
-    for (const transition of accountVote[optimisticVoteTransitionsKey]) {
-      if (typeof transition?.timestamp === "number" && transition.timestamp <= commentVersion) {
-        baseVote = normalizeVote(transition.vote);
-      }
+  // Each transition timestamp already includes the initial baseline, so every
+  // displayed copy can reconcile directly against its own canonical version.
+  for (const transition of accountVote[optimisticVoteTransitionsKey]) {
+    if (typeof transition?.timestamp === "number" && transition.timestamp <= commentVersion) {
+      baseVote = normalizeVote(transition.vote);
     }
   }
   const vote = normalizeVote(accountVote.vote);

@@ -83,13 +83,24 @@ describe("optimistic vote counts", () => {
     ]);
   });
 
-  test("falls back to the vote timestamp when the comment is not loaded", () => {
+  test("uses the version before the vote when the comment is not loaded", () => {
     const result = addOptimisticVoteMetadata(
       { commentCid: comment.cid, vote: 1, timestamp: 101 },
       undefined,
       undefined,
     );
-    expect(result[optimisticVoteObservedAtKey]).toBe(101);
+    expect(result[optimisticVoteObservedAtKey]).toBe(100);
+    expect(result[optimisticVoteTransitionsKey]).toEqual([{ vote: 1, timestamp: 101 }]);
+  });
+
+  test("moves a transition after a fresher baseline when timestamps are skewed", () => {
+    const result = addOptimisticVoteMetadata(
+      { commentCid: comment.cid, vote: 1, timestamp: 101 },
+      undefined,
+      { ...comment, updatedAt: 200 },
+    );
+    expect(result[optimisticVoteObservedAtKey]).toBe(200);
+    expect(result[optimisticVoteTransitionsKey]).toEqual([{ vote: 1, timestamp: 201 }]);
   });
 
   test.each([
@@ -159,6 +170,10 @@ describe("optimistic vote counts", () => {
     };
 
     expect(addOptimisticVoteCounts(comment, accountVote)).toMatchObject({
+      upvoteCount: 4,
+      downvoteCount: 2,
+    });
+    expect(addOptimisticVoteCounts({ ...comment, updatedAt: 150 }, accountVote)).toMatchObject({
       upvoteCount: 4,
       downvoteCount: 2,
     });
