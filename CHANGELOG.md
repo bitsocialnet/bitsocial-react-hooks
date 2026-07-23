@@ -1,4 +1,14 @@
-## [0.1.30](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.29...v0.1.30) (2026-07-14)
+## [0.1.31](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.30...v0.1.31) (2026-07-23)
+
+
+### Bug Fixes
+
+* **comments:** show vote counts optimistically ([#75](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/75)) ([cca63b2](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/cca63b2a6d318a985fa24844d55925f11a615a28))
+
+
+### Features
+
+* **communities:** expose sync lifecycle state ([#73](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/73)) ([448ab3b](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/448ab3b93793daae1fe591a139d3d9813d88d0e5))
 
 
 
