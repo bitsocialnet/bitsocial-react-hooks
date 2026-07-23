@@ -48,10 +48,12 @@ import {
   addShortAddressesToAccountComment,
   sanitizeAccountCommentForState,
   sanitizeStoredAccountComment,
+  getFreshestLoadedComment,
 } from "./utils";
 import isEqual from "lodash.isequal";
 import { v4 as uuid } from "uuid";
 import utils from "../../lib/utils";
+import { addOptimisticVoteMetadata } from "../../lib/utils/optimistic-vote-counts";
 
 type PublishSession = {
   accountId: string;
@@ -1501,7 +1503,19 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
   delete createVoteOptions.onChallengeVerification;
   delete createVoteOptions.onError;
   delete createVoteOptions.onPublishingStateChange;
-  const storedCreateVoteOptions = normalizePublicationOptionsForStore(createVoteOptions);
+  const accountsState = accountsStore.getState();
+  const accountCommentInfo =
+    accountsState.commentCidsToAccountsComments[createVoteOptions.commentCid];
+  const accountComment = accountCommentInfo
+    ? accountsState.accountsComments[accountCommentInfo.accountId]?.[
+        accountCommentInfo.accountCommentIndex
+      ]
+    : undefined;
+  const storedCreateVoteOptions = addOptimisticVoteMetadata(
+    normalizePublicationOptionsForStore(createVoteOptions),
+    accountsState.accountsVotes[account.id]?.[createVoteOptions.commentCid],
+    getFreshestLoadedComment(createVoteOptions.commentCid, accountComment),
+  );
 
   let vote = backfillPublicationCommunityAddress(
     await account.pkc.createVote(createVoteOptions),

@@ -116,6 +116,47 @@ describe("comments", () => {
       PKC.prototype.getComment = getComment;
     });
 
+    test("optimistically includes the active account vote in comment counts", async () => {
+      const commentCid = "instant vote comment cid";
+      const rendered = renderHook(() => useComment({ commentCid, onlyIfCached: true }));
+      const waitFor = testUtils.createWaitFor(rendered);
+
+      await waitFor(() => Boolean(accountsStore.getState().activeAccountId));
+      const accountId = accountsStore.getState().activeAccountId;
+      act(() => {
+        commentsStore.setState((state: any) => ({
+          comments: {
+            ...state.comments,
+            [commentCid]: {
+              cid: commentCid,
+              timestamp: 100,
+              updatedAt: 100,
+              upvoteCount: 3,
+              downvoteCount: 1,
+            },
+          },
+        }));
+        accountsStore.setState((state: any) => ({
+          accountsVotes: {
+            ...state.accountsVotes,
+            [accountId]: {
+              ...state.accountsVotes[accountId],
+              [commentCid]: {
+                commentCid,
+                vote: 1,
+                timestamp: 101,
+                _optimisticVoteBase: 0,
+                _optimisticVoteObservedAt: 100,
+                _optimisticVoteTransitions: [{ vote: 1, timestamp: 101 }],
+              },
+            },
+          },
+        }));
+      });
+      await waitFor(() => rendered.result.current.upvoteCount === 4);
+      expect(rendered.result.current.downvoteCount).toBe(1);
+    });
+
     test("useComment forwards community identifiers to pkc.createComment", async () => {
       const commentCid = "comment cid with community ref";
       const community = {
@@ -231,6 +272,51 @@ describe("comments", () => {
       expect(rendered.result.current.comments[0].upvoteCount).toBe(3);
       expect(rendered.result.current.comments[1].upvoteCount).toBe(3);
       expect(rendered.result.current.comments[2].upvoteCount).toBe(3);
+    });
+
+    test("useComments reacts immediately to an active account vote", async () => {
+      const commentCid = "instant vote comments cid";
+      const rendered = renderHook(() =>
+        useComments({ commentCids: [commentCid], onlyIfCached: true }),
+      );
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => Boolean(accountsStore.getState().activeAccountId));
+      const accountId = accountsStore.getState().activeAccountId;
+
+      act(() => {
+        commentsStore.setState({
+          comments: {
+            [commentCid]: {
+              cid: commentCid,
+              timestamp: 100,
+              updatedAt: 100,
+              upvoteCount: 3,
+              downvoteCount: 1,
+            },
+          },
+        });
+        accountsStore.setState((state: any) => ({
+          accountsVotes: {
+            ...state.accountsVotes,
+            [accountId]: {
+              ...state.accountsVotes[accountId],
+              [commentCid]: {
+                commentCid,
+                vote: -1,
+                _optimisticVoteBase: 1,
+                _optimisticVoteObservedAt: 100,
+                _optimisticVoteTransitions: [{ vote: -1, timestamp: 101 }],
+              },
+            },
+          },
+        }));
+      });
+
+      await waitFor(
+        () =>
+          rendered.result.current.comments[0]?.upvoteCount === 2 &&
+          rendered.result.current.comments[0]?.downvoteCount === 2,
+      );
     });
 
     test("useComment and useComments mirror moderation flags into commentModeration", async () => {
