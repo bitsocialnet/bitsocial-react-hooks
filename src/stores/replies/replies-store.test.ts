@@ -459,4 +459,46 @@ describe("replies store", () => {
       initialFeed.map((reply: any) => reply.cid),
     );
   });
+
+  test("updates feeds when an account reply purge state changes without changing its cid", async () => {
+    const commentCid = "purge-state-update-cid";
+    const feedOptions = { sortType: "new", commentCid, accountId: mockAccount.id };
+    const feedName = feedOptionsToFeedName(feedOptions);
+    const comment = new MockComment({ cid: commentCid });
+
+    act(() => {
+      rendered.result.current.addFeedToStoreOrUpdateComment(comment, feedOptions);
+    });
+    await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length > 0);
+
+    act(() => {
+      accountsStore.setState({
+        accountsComments: {
+          [mockAccount.id]: [{ cid: "same-reply-cid", purged: false }],
+        },
+      } as any);
+      accountsStore.setState({
+        accountsComments: {
+          [mockAccount.id]: [{ cid: "same-reply-cid", purged: false }],
+        },
+      } as any);
+    });
+
+    const originalUpdateFeeds = useRepliesStore.getState().updateFeeds;
+    const updateFeeds = vi.fn();
+    useRepliesStore.setState({ updateFeeds });
+
+    try {
+      act(() => {
+        accountsStore.setState({
+          accountsComments: {
+            [mockAccount.id]: [{ cid: "same-reply-cid", purged: true }],
+          },
+        } as any);
+      });
+      expect(updateFeeds).toHaveBeenCalledTimes(1);
+    } finally {
+      useRepliesStore.setState({ updateFeeds: originalUpdateFeeds });
+    }
+  });
 });

@@ -537,26 +537,35 @@ const updateFeedsOnFeedsCommentsChange = (repliesCommentsStoreState: any) => {
 
 let previousAccountsCommentsCount = 0;
 let previousAccountsCommentsCids = "";
+let previousAccountsCommentsPurged = "";
 const updateFeedsOnAccountsCommentsChange = (accountsStoreState: any) => {
   const { accountsComments } = accountsStoreState;
-  const accountsCommentsCount = Object.values(accountsComments as Comment[][]).reduce(
+  const accountCommentsArrays = Object.values(accountsComments as Comment[][]);
+  const accountsCommentsCount = accountCommentsArrays.reduce(
     (count, accountComments) => count + accountComments.length,
     0,
   );
+  const accountsCommentsCids = accountCommentsArrays.reduce(
+    (cids, accountComments) => cids + String(accountComments.map((comment) => comment.cid || "")),
+    "",
+  );
+  const accountsCommentsPurged = accountCommentsArrays.reduce(
+    (purged, accountComments) =>
+      purged + String(accountComments.map((comment) => comment.purged === true)),
+    "",
+  );
 
   // no changes, do nothing
-  if (accountsCommentsCount === previousAccountsCommentsCount) {
-    // if cids haven't changed (account comments receive cids after pending), do nothing
-    const accountsCommentsCids = Object.values(accountsComments as Comment[][]).reduce(
-      (cids, accountComments) => cids + String(accountComments.map((comment) => comment.cid || "")),
-      "",
-    );
-    if (accountsCommentsCids === previousAccountsCommentsCids) {
-      return;
-    }
-    previousAccountsCommentsCids = accountsCommentsCids;
+  if (
+    accountsCommentsCount === previousAccountsCommentsCount &&
+    accountsCommentsCids === previousAccountsCommentsCids &&
+    accountsCommentsPurged === previousAccountsCommentsPurged
+  ) {
+    return;
   }
   previousAccountsCommentsCount = accountsCommentsCount;
+  previousAccountsCommentsCids = accountsCommentsCids;
+  previousAccountsCommentsPurged = accountsCommentsPurged;
 
   // TODO: only update the feeds that are relevant to the new accountComment.parentCid/postCid
   repliesStore.getState().updateFeeds();
@@ -617,6 +626,7 @@ export const resetRepliesStore = async () => {
   previousRepliesPages = {};
   previousAccountsCommentsCount = 0;
   previousAccountsCommentsCids = "";
+  previousAccountsCommentsPurged = "";
   updateFeedsPending = false;
   // destroy all component subscriptions to the store
   repliesStore.destroy();
