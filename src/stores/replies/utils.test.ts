@@ -401,7 +401,7 @@ describe("replies utils", () => {
       expect(loadedFeeds[feedName][1].cid).toBe("append-cid");
     });
 
-    test("does not append published account replies after the canonical feed is exhausted", () => {
+    test("keeps published account replies after the canonical feed is exhausted", () => {
       const feedName = "feed1";
       const recentTs = Math.floor(Date.now() / 1000) - 100;
       const feedsOptions = {
@@ -413,7 +413,7 @@ describe("replies utils", () => {
         },
       };
       const accountReply = {
-        cid: "purged-cid",
+        cid: "published-cid",
         index: 1,
         parentCid: "c1",
         postCid: "p1",
@@ -426,8 +426,8 @@ describe("replies utils", () => {
       });
       const loadedFeeds = { [feedName]: [] };
       const changed = addAccountsComments(feedsOptions, loadedFeeds, { [feedName]: false });
-      expect(changed).toBe(false);
-      expect(loadedFeeds[feedName]).toEqual([]);
+      expect(changed).toBe(true);
+      expect(loadedFeeds[feedName]).toEqual([accountReply]);
     });
 
     test("keeps a just-published account reply while the canonical feed is older than the reply", () => {
@@ -464,7 +464,7 @@ describe("replies utils", () => {
       expect(loadedFeeds[feedName]).toEqual([accountReply]);
     });
 
-    test("does not append published account replies after the canonical feed refreshes after the reply", () => {
+    test("does not append explicitly purged account replies after the canonical feed refreshes after the reply", () => {
       const feedName = "feed1";
       const recentTs = Math.floor(Date.now() / 1000) - 100;
       const feedsOptions = {
@@ -481,6 +481,7 @@ describe("replies utils", () => {
         parentCid: "c1",
         postCid: "p1",
         communityAddress: "sub1",
+        purged: true,
         timestamp: recentTs,
       };
       (accountsStore as any).getState = () => ({
@@ -498,7 +499,7 @@ describe("replies utils", () => {
       expect(loadedFeeds[feedName]).toEqual([]);
     });
 
-    test("does not append published account replies without timestamps after the canonical feed is exhausted", () => {
+    test("does not append account replies without timestamps after the canonical feed is exhausted", () => {
       const feedName = "feed1";
       const recentTs = Math.floor(Date.now() / 1000) - 100;
       const feedsOptions = {
@@ -531,7 +532,7 @@ describe("replies utils", () => {
       expect(loadedFeeds[feedName]).toEqual([]);
     });
 
-    test("does not append stopped cid account replies after the canonical feed is exhausted", () => {
+    test("keeps stopped cid account replies while canonical pages are still propagating", () => {
       const feedName = "feed1";
       const recentTs = Math.floor(Date.now() / 1000) - 100;
       const feedsOptions = {
@@ -543,22 +544,29 @@ describe("replies utils", () => {
         },
       };
       const accountReply = {
-        cid: "purged-cid",
+        cid: "published-cid",
         index: 1,
         parentCid: "c1",
         postCid: "p1",
         communityAddress: "sub1",
+        pendingApproval: false,
         timestamp: recentTs,
         publishingState: "stopped",
+        state: "updating",
       };
       (accountsStore as any).getState = () => ({
         accountsComments: { [mockAccountId]: [accountReply] },
         accounts: { [mockAccountId]: { pkc: {} } },
       });
       const loadedFeeds = { [feedName]: [] };
-      const changed = addAccountsComments(feedsOptions, loadedFeeds, { [feedName]: false });
-      expect(changed).toBe(false);
-      expect(loadedFeeds[feedName]).toEqual([]);
+      const changed = addAccountsComments(
+        feedsOptions,
+        loadedFeeds,
+        { [feedName]: false },
+        { [feedName]: recentTs + 1 },
+      );
+      expect(changed).toBe(true);
+      expect(loadedFeeds[feedName]).toEqual([accountReply]);
     });
 
     test("keeps actively publishing cid replies visible after the canonical feed is exhausted", () => {
@@ -647,7 +655,7 @@ describe("replies utils", () => {
       expect(loadedFeeds[feedName]).toEqual([accountReply]);
     });
 
-    test("prunes previously appended published account replies after the canonical feed is exhausted", () => {
+    test("prunes previously appended purged account replies after the canonical feed is exhausted", () => {
       const feedName = "feed1";
       const recentTs = Math.floor(Date.now() / 1000) - 100;
       const feedsOptions = {
@@ -664,6 +672,7 @@ describe("replies utils", () => {
         parentCid: "c1",
         postCid: "p1",
         communityAddress: "sub1",
+        purged: true,
         timestamp: recentTs,
       };
       (accountsStore as any).getState = () => ({
@@ -676,7 +685,7 @@ describe("replies utils", () => {
       expect(loadedFeeds[feedName]).toEqual([]);
     });
 
-    test("keeps previously appended published account replies until the canonical feed refreshes after the reply", () => {
+    test("keeps previously appended purged account replies until the canonical feed refreshes after the reply", () => {
       const feedName = "feed1";
       const recentTs = Math.floor(Date.now() / 1000) - 100;
       const feedsOptions = {
@@ -693,6 +702,7 @@ describe("replies utils", () => {
         parentCid: "c1",
         postCid: "p1",
         communityAddress: "sub1",
+        purged: true,
         timestamp: recentTs,
       };
       (accountsStore as any).getState = () => ({
