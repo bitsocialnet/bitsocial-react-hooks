@@ -1,3 +1,12 @@
+## [0.1.32](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.31...v0.1.32) (2026-07-24)
+
+
+### Bug Fixes
+
+* **replies:** keep published replies during propagation ([#78](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/78)) ([2522732](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/2522732dc0bb2f41562903fa74d1e2e3e3cd391e))
+
+
+
 ## [0.1.31](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.30...v0.1.31) (2026-07-23)
 
 
