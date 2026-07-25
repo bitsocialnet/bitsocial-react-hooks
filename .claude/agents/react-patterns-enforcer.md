@@ -1,6 +1,5 @@
 ---
 name: react-patterns-enforcer
-model: sonnet
 description: Reviews React hooks and store code for anti-pattern violations specific to bitsocial-react-hooks (effect misuse, store patterns, public API consistency) and fixes them. Use after writing or modifying hooks, stores, or the public API.
 ---
 
