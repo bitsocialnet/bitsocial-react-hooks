@@ -1,3 +1,12 @@
+## [0.1.33](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.32...v0.1.33) (2026-07-29)
+
+
+### Bug Fixes
+
+* **accounts:** speed up account backup imports ([#80](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/80)) ([036aace](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/036aace0bc60551c99f185dc4c2e0d3a747029a0))
+
+
+
 ## [0.1.32](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.31...v0.1.32) (2026-07-24)
 
 
