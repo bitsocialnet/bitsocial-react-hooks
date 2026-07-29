@@ -12,8 +12,22 @@ export declare const getDefaultPkcOptions: () => {
     resolveAuthorNames: any;
     resolveAuthorAddresses: any;
 };
+export declare const getDefaultAccountFields: () => {
+    subscriptions: never[];
+    blockedAddresses: {};
+    blockedCids: {};
+    communities: {};
+    mediaIpfsGatewayUrl: string;
+};
 declare const accountGenerator: {
     generateDefaultAccount: () => Promise<{
+        communities: {
+            [communityAddress: string]: AccountCommunity;
+        };
+        subscriptions: never[];
+        blockedAddresses: {};
+        blockedCids: {};
+        mediaIpfsGatewayUrl: string;
         id: string;
         version: number;
         name: string;
@@ -36,14 +50,14 @@ declare const accountGenerator: {
             resolveAuthorNames: any;
             resolveAuthorAddresses: any;
         };
+    }>;
+    getDefaultAccountFields: () => {
         subscriptions: never[];
         blockedAddresses: {};
         blockedCids: {};
-        communities: {
-            [communityAddress: string]: AccountCommunity;
-        };
+        communities: {};
         mediaIpfsGatewayUrl: string;
-    }>;
+    };
     getDefaultPkcOptions: () => {
         resolveAuthorNames: any;
         resolveAuthorAddresses: any;

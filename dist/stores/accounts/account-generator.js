@@ -104,6 +104,13 @@ export const getDefaultPkcOptions = () => {
 // the gateway to use in <img src> for nft avatars
 // @ts-ignore
 const defaultMediaIpfsGatewayUrl = window.defaultMediaIpfsGatewayUrl || "https://ipfs.io";
+export const getDefaultAccountFields = () => ({
+    subscriptions: [],
+    blockedAddresses: {},
+    blockedCids: {},
+    communities: {},
+    mediaIpfsGatewayUrl: defaultMediaIpfsGatewayUrl,
+});
 const generateDefaultAccount = () => __awaiter(void 0, void 0, void 0, function* () {
     const pkcOptions = getDefaultPkcOptions();
     const chainProviders = getDefaultChainProviders();
@@ -124,20 +131,10 @@ const generateDefaultAccount = () => __awaiter(void 0, void 0, void 0, function*
     const accountName = yield getNextAvailableDefaultAccountName();
     // communities where the account has a role, like moderator, admin, owner, etc.
     const communities = {};
-    const account = normalizeAccountProtocolConfig(withProtocolAliases({
-        id: uuid(),
-        version: accountsDatabase.accountVersion,
-        name: accountName,
-        author,
+    const account = normalizeAccountProtocolConfig(withProtocolAliases(Object.assign(Object.assign({ id: uuid(), version: accountsDatabase.accountVersion, name: accountName, author,
         signer,
         chainProviders,
-        pkcOptions,
-        subscriptions: [],
-        blockedAddresses: {},
-        blockedCids: {},
-        communities,
-        mediaIpfsGatewayUrl: defaultMediaIpfsGatewayUrl,
-    }, pkc, pkcOptions), chainProviders);
+        pkcOptions }, getDefaultAccountFields()), { communities }), pkc, pkcOptions), chainProviders);
     return account;
 });
 const getNextAvailableDefaultAccountName = () => __awaiter(void 0, void 0, void 0, function* () {
@@ -165,6 +162,7 @@ const getNextAvailableDefaultAccountName = () => __awaiter(void 0, void 0, void 
 });
 const accountGenerator = {
     generateDefaultAccount,
+    getDefaultAccountFields,
     getDefaultPkcOptions,
 };
 export default accountGenerator;

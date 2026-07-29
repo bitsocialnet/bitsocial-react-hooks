@@ -30,7 +30,7 @@ import assert from "assert";
 const log = Logger("bitsocial-react-hooks:accounts:stores");
 import * as accountsActionsInternal from "./accounts-actions-internal.js";
 import { backfillPublicationCommunityAddress, createPkcCommunity, createPkcCommunityEdit, getPkcCommunityAddresses, normalizeCommunityEditOptionsForPkc, normalizePublicationOptionsForStore, normalizePublicationOptionsForPkc, withPublishChallengeAnswersCompat, } from "../../lib/pkc-compat.js";
-import { getAccountCommentsIndex, getAccountCommunities, getCommentCidsToAccountsComments, COMMENT_MODERATION_AUTHOR_SUMMARY_KEY, getAccountEditPropertySummary, fetchCommentLinkDimensions, getAccountCommentDepth, addShortAddressesToAccountComment, sanitizeAccountCommentForState, sanitizeStoredAccountComment, getFreshestLoadedComment, } from "./utils.js";
+import { getAccountCommentsIndex, getAccountCommunities, getCommentCidsToAccountsComments, COMMENT_MODERATION_AUTHOR_SUMMARY_KEY, getAccountEditPropertySummary, fetchCommentLinkDimensions, getAccountCommentDepth, addShortAddressesToAccountComment, sanitizeAccountCommentForState, sanitizeStoredAccountComment, getFreshestLoadedComment, getInitAccountCommentsToUpdate, } from "./utils.js";
 import isEqual from "lodash.isequal";
 import { v4 as uuid } from "uuid";
 import utils from "../../lib/utils/index.js";
@@ -447,7 +447,7 @@ export const setAccountsOrder = (newOrderedAccountNames) => __awaiter(void 0, vo
     accountsStore.setState({ accountIds });
 });
 export const importAccount = (serializedAccount) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
+    var _a, _b, _c, _d;
     const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
     assert(accounts && accountNamesToAccountIds && activeAccountId, `can't use accountsStore.accountActions before initialized`);
     let imported;
@@ -463,32 +463,34 @@ export const importAccount = (serializedAccount) => __awaiter(void 0, void 0, vo
     if (accountNamesToAccountIds[imported.account.name]) {
         imported.account.name += " 2";
     }
-    // generate new account
-    const generatedAccount = yield accountGenerator.generateDefaultAccount();
-    // use generatedAccount to init properties like .pkc and .id on a new account
-    // overwrite account.id to avoid duplicate ids
-    const newAccount = Object.assign(Object.assign(Object.assign({}, generatedAccount), imported.account), { communities, id: generatedAccount.id });
-    // add account to database
-    yield accountsDatabase.addAccount(newAccount);
-    // add account comments, votes, edits to database
-    for (const accountComment of imported.accountComments || []) {
-        yield accountsDatabase.addAccountComment(newAccount.id, accountComment);
+    // Always assign a new local id so importing the same backup cannot overwrite an existing account.
+    const accountToImport = Object.assign(Object.assign(Object.assign({}, accountGenerator.getDefaultAccountFields()), imported.account), { communities, id: uuid() });
+    // Hydrate the imported identity once, then persist its history in bulk instead of replaying
+    // every record through the single-publication write path.
+    const newAccount = yield accountsDatabase.addAccount(accountToImport, {
+        returnHydratedAccount: true,
+    });
+    assert(newAccount, `accountsActions.importAccount failed to hydrate imported account`);
+    let importedHistory;
+    let accountIds;
+    let newAccountNamesToAccountIds;
+    try {
+        importedHistory = yield accountsDatabase.importAccountHistory(newAccount.id, {
+            accountComments: imported.accountComments || [],
+            accountVotes: imported.accountVotes || [],
+            accountEdits: imported.accountEdits || [],
+        });
+        [accountIds, newAccountNamesToAccountIds] = yield Promise.all([
+            accountsDatabase.accountsMetadataDatabase.getItem("accountIds"),
+            accountsDatabase.accountsMetadataDatabase.getItem("accountNamesToAccountIds"),
+        ]);
     }
-    for (const accountVote of imported.accountVotes || []) {
-        yield accountsDatabase.addAccountVote(newAccount.id, accountVote);
+    catch (error) {
+        yield accountsDatabase.removeAccount(newAccount);
+        void ((_d = (_c = newAccount.pkc) === null || _c === void 0 ? void 0 : _c.destroy) === null || _d === void 0 ? void 0 : _d.call(_c));
+        throw error;
     }
-    for (const accountEdit of imported.accountEdits || []) {
-        yield accountsDatabase.addAccountEdit(newAccount.id, accountEdit);
-    }
-    // set new state
-    // get new state data from database because it's easier
-    const [accountComments, accountVotes, accountEditsSummary, accountIds, newAccountNamesToAccountIds,] = yield Promise.all([
-        accountsDatabase.getAccountComments(newAccount.id),
-        accountsDatabase.getAccountVotes(newAccount.id),
-        accountsDatabase.getAccountEditsSummary(newAccount.id),
-        accountsDatabase.accountsMetadataDatabase.getItem("accountIds"),
-        accountsDatabase.accountsMetadataDatabase.getItem("accountNamesToAccountIds"),
-    ]);
+    const { accountComments, accountVotes, accountEditsSummary } = importedHistory;
     accountsStore.setState((state) => ({
         accounts: Object.assign(Object.assign({}, state.accounts), { [newAccount.id]: newAccount }),
         accountIds,
@@ -509,8 +511,11 @@ export const importAccount = (serializedAccount) => __awaiter(void 0, void 0, vo
         accountVotes,
         accountEditsSummary,
     });
-    // start looking for updates for all accounts comments in database
-    for (const accountComment of accountComments) {
+    // Match normal startup: refresh only the ten newest comments instead of opening a watcher
+    // for the entire imported history at once.
+    for (const { accountComment } of getInitAccountCommentsToUpdate({
+        [newAccount.id]: accountComments,
+    })) {
         accountsStore
             .getState()
             .accountsActionsInternal.startUpdatingAccountCommentOnCommentUpdateEvents(accountComment, newAccount, accountComment.index)

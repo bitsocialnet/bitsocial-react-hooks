@@ -82,19 +82,12 @@ const migrate = () => __awaiter(void 0, void 0, void 0, function* () {
     }
     yield Promise.all(promises);
 });
-const getAccounts = (accountIds) => __awaiter(void 0, void 0, void 0, function* () {
-    validator.validateAccountsDatabaseGetAccountsArguments(accountIds);
+const getAccountsFromStoredAccounts = (storedAccounts) => __awaiter(void 0, void 0, void 0, function* () {
     const accounts = {};
-    const promises = [];
-    for (const accountId of accountIds) {
-        promises.push(accountsDatabase.getItem(accountId));
-    }
-    const accountsArray = yield Promise.all(promises);
-    for (const [i, accountId] of accountIds.entries()) {
-        assert(accountsArray[i], `accountId '${accountId}' not found in database`);
-        accounts[accountId] = normalizeAccountProtocolConfig(yield migrateAccount(accountsArray[i]), getDefaultChainProviders());
+    for (const [accountId, storedAccount] of Object.entries(storedAccounts)) {
+        accounts[accountId] = normalizeAccountProtocolConfig(yield migrateAccount(storedAccount), getDefaultChainProviders());
         // protocol options aren't saved to database if they are default
-        if (!accounts[accountId].pkcOptions && !accounts[accountId].pkcOptions) {
+        if (!accounts[accountId].pkcOptions) {
             accounts[accountId].pkcOptions = getDefaultPkcOptions();
         }
         const protocolOptions = Object.assign(Object.assign({}, (accounts[accountId].pkcOptions || accounts[accountId].pkcOptions)), overwritePkcOptions);
@@ -105,6 +98,16 @@ const getAccounts = (accountIds) => __awaiter(void 0, void 0, void 0, function* 
         accounts[accountId] = withProtocolAliases(accounts[accountId], pkc, protocolOptions);
     }
     return accounts;
+});
+const getAccounts = (accountIds) => __awaiter(void 0, void 0, void 0, function* () {
+    validator.validateAccountsDatabaseGetAccountsArguments(accountIds);
+    const accountsArray = yield Promise.all(accountIds.map((accountId) => accountsDatabase.getItem(accountId)));
+    const storedAccounts = {};
+    for (const [index, accountId] of accountIds.entries()) {
+        assert(accountsArray[index], `accountId '${accountId}' not found in database`);
+        storedAccounts[accountId] = accountsArray[index];
+    }
+    return getAccountsFromStoredAccounts(storedAccounts);
 });
 const accountVersion = 5;
 const migrateAccount = (account) => __awaiter(void 0, void 0, void 0, function* () {
@@ -181,6 +184,39 @@ const getDatabaseAsArray = (database) => __awaiter(void 0, void 0, void 0, funct
     const items = yield Promise.all(promises);
     return items;
 });
+const replaceDatabaseArray = (database, items, metadata) => __awaiter(void 0, void 0, void 0, function* () {
+    yield database.clear();
+    yield Promise.all([
+        ...items.map((item, index) => database.setItem(String(index), item)),
+        database.setItem("length", items.length),
+        ...Object.entries(metadata).map(([key, value]) => database.setItem(key, value)),
+    ]);
+});
+const getDatabaseSnapshot = (database) => __awaiter(void 0, void 0, void 0, function* () {
+    const keys = yield database.keys();
+    return Promise.all(keys.map((key) => __awaiter(void 0, void 0, void 0, function* () { return [key, yield database.getItem(key)]; })));
+});
+const restoreDatabaseSnapshot = (database, snapshot) => __awaiter(void 0, void 0, void 0, function* () {
+    yield database.clear();
+    yield Promise.all(snapshot.map(([key, value]) => database.setItem(key, value)));
+});
+export const replaceDatabaseArraysWithRollback = (replacements) => __awaiter(void 0, void 0, void 0, function* () {
+    const snapshots = yield Promise.all(replacements.map(({ database }) => getDatabaseSnapshot(database)));
+    const replacementResults = yield Promise.allSettled(replacements.map(({ database, items, metadata }) => replaceDatabaseArray(database, items, metadata)));
+    const replacementFailure = replacementResults.find((result) => result.status === "rejected");
+    if (!replacementFailure) {
+        return;
+    }
+    const rollbackResults = yield Promise.allSettled(replacements.map(({ database }, index) => restoreDatabaseSnapshot(database, snapshots[index])));
+    const rollbackFailure = rollbackResults.find((result) => result.status === "rejected");
+    if (rollbackFailure) {
+        const rollbackError = new Error(`importAccountHistory failed and could not restore previous history`);
+        rollbackError.cause = replacementFailure.reason;
+        rollbackError.rollbackError = rollbackFailure.reason;
+        throw rollbackError;
+    }
+    throw replacementFailure.reason;
+});
 const removeFunctionsAndSensitiveFields = (publication) => {
     const sanitizedPublication = {};
     for (const key in publication) {
@@ -215,17 +251,31 @@ const rebuildEditsTargetIndexes = (edits) => {
     }
     return targetToIndices;
 };
-const addAccount = (account) => __awaiter(void 0, void 0, void 0, function* () {
+const addAccount = (account, options) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     validator.validateAccountsDatabaseAddAccountArguments(account);
-    let accountIds = yield accountsMetadataDatabase.getItem("accountIds");
+    let [accountIds, accountNamesToAccountIds] = yield Promise.all([
+        accountsMetadataDatabase.getItem("accountIds"),
+        accountsMetadataDatabase.getItem("accountNamesToAccountIds"),
+    ]);
+    if (!accountNamesToAccountIds) {
+        accountNamesToAccountIds = {};
+    }
     // handle no duplicate names
+    const existingAccountId = accountNamesToAccountIds[account.name];
+    if (existingAccountId && existingAccountId !== account.id) {
+        const existingAccount = yield accountsDatabase.getItem(existingAccountId);
+        if ((existingAccount === null || existingAccount === void 0 ? void 0 : existingAccount.name) === account.name) {
+            throw Error(`account name '${account.name}' already exists in database`);
+        }
+        delete accountNamesToAccountIds[account.name];
+    }
     if (accountIds === null || accountIds === void 0 ? void 0 : accountIds.length) {
-        const accounts = yield getAccounts(accountIds);
-        for (const accountId of accountIds) {
-            if (accountId !== account.id && accounts[accountId].name === account.name) {
-                throw Error(`account name '${account.name}' already exists in database`);
-            }
+        const storedAccounts = yield Promise.all(accountIds
+            .filter((accountId) => accountId !== account.id)
+            .map((accountId) => accountsDatabase.getItem(accountId)));
+        if (storedAccounts.some((storedAccount) => (storedAccount === null || storedAccount === void 0 ? void 0 : storedAccount.name) === account.name)) {
+            throw Error(`account name '${account.name}' already exists in database`);
         }
     }
     // handle updating accounts database
@@ -241,16 +291,23 @@ const addAccount = (account) => __awaiter(void 0, void 0, void 0, function* () {
         delete accountToPutInDatabase.chainProviders;
     }
     // make sure accountToPutInDatabase protocol options are valid
-    if (protocolOptions) {
+    let hydratedAccount;
+    if (options === null || options === void 0 ? void 0 : options.returnHydratedAccount) {
+        hydratedAccount = (yield getAccountsFromStoredAccounts({
+            [accountToPutInDatabase.id]: accountToPutInDatabase,
+        }))[accountToPutInDatabase.id];
+    }
+    else if (protocolOptions) {
         const pkc = yield PkcJs.PKC(getPkcClientOptions(accountToPutInDatabase, protocolOptions));
         pkc.on("error", () => { });
         void ((_a = pkc.destroy) === null || _a === void 0 ? void 0 : _a.call(pkc)); // gc; errors intentionally unhandled to avoid uncounted callback
     }
     yield accountsDatabase.setItem(accountToPutInDatabase.id, accountToPutInDatabase);
     // handle updating accountNamesToAccountIds database
-    let accountNamesToAccountIds = yield accountsMetadataDatabase.getItem("accountNamesToAccountIds");
-    if (!accountNamesToAccountIds) {
-        accountNamesToAccountIds = {};
+    for (const [accountName, accountId] of Object.entries(accountNamesToAccountIds)) {
+        if (accountId === account.id && accountName !== account.name) {
+            delete accountNamesToAccountIds[accountName];
+        }
     }
     accountNamesToAccountIds[account.name] = account.id;
     yield accountsMetadataDatabase.setItem("accountNamesToAccountIds", accountNamesToAccountIds);
@@ -266,6 +323,7 @@ const addAccount = (account) => __awaiter(void 0, void 0, void 0, function* () {
     if (accountIds.length === 1) {
         yield accountsMetadataDatabase.setItem("activeAccountId", account.id);
     }
+    return hydratedAccount;
 });
 const removeAccount = (account) => __awaiter(void 0, void 0, void 0, function* () {
     assert((account === null || account === void 0 ? void 0 : account.id) && typeof (account === null || account === void 0 ? void 0 : account.id) === "string", `accountsDatabase.removeAccount invalid account.id '${account.id}'`);
@@ -652,6 +710,68 @@ const getAccountsEditsSummaries = (accountIds) => __awaiter(void 0, void 0, void
     const accountsEditsSummaries = yield Promise.all(accountIds.map((accountId) => getAccountEditsSummary(accountId)));
     return Object.fromEntries(accountIds.map((accountId, index) => [accountId, accountsEditsSummaries[index]]));
 });
+/**
+ * Replaces all comments, votes, and edits for an account. If any store replacement fails,
+ * every history store is restored to its exact pre-call state before the error is rethrown.
+ */
+const importAccountHistory = (accountId_1, _a) => __awaiter(void 0, [accountId_1, _a], void 0, function* (accountId, { accountComments = [], accountVotes = [], accountEdits = [], }) {
+    const storedComments = accountComments.map((comment) => sanitizeStoredAccountComment(comment));
+    const storedVotes = accountVotes.map((vote) => {
+        assert((vote === null || vote === void 0 ? void 0 : vote.commentCid) && typeof vote.commentCid === "string", `addAccountVote createVoteOptions.commentCid '${vote === null || vote === void 0 ? void 0 : vote.commentCid}' not a string`);
+        return removeFunctionsAndSensitiveFields(vote);
+    });
+    const storedEdits = accountEdits.map((edit) => {
+        const editTarget = getAccountEditTarget(edit);
+        assert(typeof editTarget === "string", `addAccountEdit target '${editTarget}' not a string`);
+        return removeFunctionsAndSensitiveFields(edit);
+    });
+    const latestVoteIndexByCommentCid = rebuildVotesLatestIndex(storedVotes);
+    const editTargetToIndices = rebuildEditsTargetIndexes(storedEdits);
+    const accountEditsSummary = getAccountsEditsSummary(Object.fromEntries(Object.entries(editTargetToIndices).map(([target, indices]) => [
+        target,
+        indices.map((index) => storedEdits[index]).filter(Boolean),
+    ])));
+    const historyDatabases = [
+        getAccountCommentsDatabase(accountId),
+        getAccountVotesDatabase(accountId),
+        getAccountEditsDatabase(accountId),
+    ];
+    yield replaceDatabaseArraysWithRollback([
+        {
+            database: historyDatabases[0],
+            items: storedComments,
+            metadata: { [storageVersionKey]: commentStorageVersion },
+        },
+        {
+            database: historyDatabases[1],
+            items: storedVotes,
+            metadata: {
+                [votesLatestIndexKey]: latestVoteIndexByCommentCid,
+                [storageVersionKey]: voteStorageVersion,
+            },
+        },
+        {
+            database: historyDatabases[2],
+            items: storedEdits,
+            metadata: {
+                [editsTargetToIndicesKey]: editTargetToIndices,
+                [editsSummaryKey]: accountEditsSummary,
+                [storageVersionKey]: editStorageVersion,
+            },
+        },
+    ]);
+    const accountCommentsWithIndexes = storedComments.map((comment, index) => (Object.assign(Object.assign({}, comment), { index,
+        accountId })));
+    const accountVotesByCommentCid = Object.fromEntries(Object.entries(latestVoteIndexByCommentCid).map(([commentCid, index]) => [
+        commentCid,
+        storedVotes[index],
+    ]));
+    return {
+        accountComments: accountCommentsWithIndexes,
+        accountVotes: accountVotesByCommentCid,
+        accountEditsSummary,
+    };
+});
 const database = {
     accountsDatabase,
     accountsMetadataDatabase,
@@ -676,6 +796,7 @@ const database = {
     getAccountEditsSummary,
     addAccountEdit,
     deleteAccountEdit,
+    importAccountHistory,
     accountVersion,
     migrate,
     getAccountsDatabaseName,

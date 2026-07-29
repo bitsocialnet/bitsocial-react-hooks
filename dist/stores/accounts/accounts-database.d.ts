@@ -1,4 +1,9 @@
 import { Accounts, CreateCommentOptions, Account, Comment, AccountsComments, AccountCommentReply, AccountsCommentsReplies, AccountEditsSummary } from "../../types.js";
+export declare const replaceDatabaseArraysWithRollback: (replacements: {
+    database: any;
+    items: any[];
+    metadata: Record<string, any>;
+}[]) => Promise<void>;
 declare const database: {
     accountsDatabase: LocalForage;
     accountsMetadataDatabase: LocalForage;
@@ -9,7 +14,9 @@ declare const database: {
     getAccountComments: (accountId: string) => Promise<any[]>;
     addAccountComment: (accountId: string, comment: CreateCommentOptions | Comment, accountCommentIndex?: number) => Promise<void>;
     deleteAccountComment: (accountId: string, accountCommentIndex: number) => Promise<void>;
-    addAccount: (account: Account) => Promise<void>;
+    addAccount: (account: Account, options?: {
+        returnHydratedAccount?: boolean;
+    }) => Promise<Account | undefined>;
     removeAccount: (account: Account) => Promise<void>;
     getExportedAccountJson: (accountId: string) => Promise<string>;
     getAccounts: (accountIds: string[]) => Promise<Accounts>;
@@ -25,6 +32,17 @@ declare const database: {
     getAccountEditsSummary: (accountId: string) => Promise<AccountEditsSummary>;
     addAccountEdit: (accountId: string, createEditOptions: CreateCommentOptions) => Promise<void>;
     deleteAccountEdit: (accountId: string, editToDelete: CreateCommentOptions) => Promise<boolean>;
+    importAccountHistory: (accountId: string, { accountComments, accountVotes, accountEdits, }: {
+        accountComments?: Comment[];
+        accountVotes?: CreateCommentOptions[];
+        accountEdits?: CreateCommentOptions[];
+    }) => Promise<{
+        accountComments: any[];
+        accountVotes: {
+            [k: string]: Record<string, any>;
+        };
+        accountEditsSummary: AccountEditsSummary;
+    }>;
     accountVersion: number;
     migrate: () => Promise<void>;
     getAccountsDatabaseName: (databaseName: string) => string;
