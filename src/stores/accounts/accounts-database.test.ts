@@ -376,6 +376,29 @@ describe("accounts-database", () => {
       await accountsDatabase.addAccount(updated);
       const stored = await accountsDatabase.accountsDatabase.getItem(acc.id);
       expect(stored.name).toBe("Updated");
+      const accountNamesToAccountIds = await accountsDatabase.accountsMetadataDatabase.getItem(
+        "accountNamesToAccountIds",
+      );
+      expect(accountNamesToAccountIds).toEqual({ Updated: "update-acc" });
+    });
+
+    test("ignores stale name mappings when a vacated name is reused", async () => {
+      const existing = makeAccount({ id: "existing", name: "Current" });
+      await accountsDatabase.addAccount(existing);
+      await accountsDatabase.accountsMetadataDatabase.setItem("accountNamesToAccountIds", {
+        Current: "existing",
+        Vacated: "existing",
+      });
+
+      await accountsDatabase.addAccount(makeAccount({ id: "replacement", name: "Vacated" }));
+
+      const accountNamesToAccountIds = await accountsDatabase.accountsMetadataDatabase.getItem(
+        "accountNamesToAccountIds",
+      );
+      expect(accountNamesToAccountIds).toEqual({
+        Current: "existing",
+        Vacated: "replacement",
+      });
     });
 
     test("rejects duplicate name", async () => {

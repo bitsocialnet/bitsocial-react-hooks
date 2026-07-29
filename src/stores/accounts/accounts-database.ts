@@ -288,10 +288,17 @@ const addAccount = async (account: Account, options?: { returnHydratedAccount?: 
     accountsMetadataDatabase.getItem<string[]>("accountIds"),
     accountsMetadataDatabase.getItem<AccountNamesToAccountIds>("accountNamesToAccountIds"),
   ]);
+  if (!accountNamesToAccountIds) {
+    accountNamesToAccountIds = {};
+  }
   // handle no duplicate names
-  const existingAccountId = accountNamesToAccountIds?.[account.name];
+  const existingAccountId = accountNamesToAccountIds[account.name];
   if (existingAccountId && existingAccountId !== account.id) {
-    throw Error(`account name '${account.name}' already exists in database`);
+    const existingAccount = await accountsDatabase.getItem<Account>(existingAccountId);
+    if (existingAccount?.name === account.name) {
+      throw Error(`account name '${account.name}' already exists in database`);
+    }
+    delete accountNamesToAccountIds[account.name];
   }
 
   // handle updating accounts database
@@ -327,8 +334,10 @@ const addAccount = async (account: Account, options?: { returnHydratedAccount?: 
   await accountsDatabase.setItem(accountToPutInDatabase.id, accountToPutInDatabase);
 
   // handle updating accountNamesToAccountIds database
-  if (!accountNamesToAccountIds) {
-    accountNamesToAccountIds = {};
+  for (const [accountName, accountId] of Object.entries(accountNamesToAccountIds)) {
+    if (accountId === account.id && accountName !== account.name) {
+      delete accountNamesToAccountIds[accountName];
+    }
   }
   accountNamesToAccountIds[account.name] = account.id;
   await accountsMetadataDatabase.setItem("accountNamesToAccountIds", accountNamesToAccountIds);

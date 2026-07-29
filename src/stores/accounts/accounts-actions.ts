@@ -648,6 +648,7 @@ export const importAccount = async (serializedAccount: string) => {
 
   // Always assign a new local id so importing the same backup cannot overwrite an existing account.
   const accountToImport = {
+    ...accountGenerator.getDefaultAccountFields(),
     ...imported.account,
     communities,
     id: uuid(),

@@ -960,6 +960,9 @@ describe("accounts-actions", () => {
       const exported = JSON.parse(await accountsActions.exportAccount("Portable"));
       const originalId = exported.account.id;
       const originalSigner = exported.account.signer;
+      delete exported.account.subscriptions;
+      delete exported.account.blockedAddresses;
+      delete exported.account.blockedCids;
       const generateDefaultAccountSpy = vi.spyOn(accountGenerator, "generateDefaultAccount");
       const importAccountHistorySpy = vi.spyOn(accountsDatabase, "importAccountHistory");
       try {
@@ -973,6 +976,9 @@ describe("accounts-actions", () => {
         expect(importedAccount.id).not.toBe(originalId);
         expect(importedAccount.signer).toEqual(originalSigner);
         expect(importedAccount.author.address).toBe(exported.account.author.address);
+        expect(importedAccount.subscriptions).toEqual([]);
+        expect(importedAccount.blockedAddresses).toEqual({});
+        expect(importedAccount.blockedCids).toEqual({});
         expect(importedAccount.pkc).toBeDefined();
       } finally {
         generateDefaultAccountSpy.mockRestore();
