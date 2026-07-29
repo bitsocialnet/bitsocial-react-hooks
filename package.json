@@ -14,7 +14,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.1.32",
+  "version": "0.1.33",
   "packageManager": "yarn@4.13.0",
   "files": [
     "CHANGELOG.md",
