@@ -118,6 +118,14 @@ export const getDefaultPkcOptions = () => {
 // @ts-ignore
 const defaultMediaIpfsGatewayUrl = window.defaultMediaIpfsGatewayUrl || "https://ipfs.io";
 
+export const getDefaultAccountFields = () => ({
+  subscriptions: [],
+  blockedAddresses: {},
+  blockedCids: {},
+  communities: {},
+  mediaIpfsGatewayUrl: defaultMediaIpfsGatewayUrl,
+});
+
 const generateDefaultAccount = async () => {
   const pkcOptions = getDefaultPkcOptions();
   const chainProviders = getDefaultChainProviders();
@@ -159,11 +167,8 @@ const generateDefaultAccount = async () => {
         signer,
         chainProviders,
         pkcOptions,
-        subscriptions: [],
-        blockedAddresses: {},
-        blockedCids: {},
+        ...getDefaultAccountFields(),
         communities,
-        mediaIpfsGatewayUrl: defaultMediaIpfsGatewayUrl,
       },
       pkc,
       pkcOptions,
@@ -201,6 +206,7 @@ const getNextAvailableDefaultAccountName = async () => {
 
 const accountGenerator = {
   generateDefaultAccount,
+  getDefaultAccountFields,
   getDefaultPkcOptions,
 };
 

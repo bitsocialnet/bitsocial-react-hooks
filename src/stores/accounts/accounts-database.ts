@@ -103,22 +103,15 @@ const migrate = async () => {
   await Promise.all(promises);
 };
 
-const getAccounts = async (accountIds: string[]) => {
-  validator.validateAccountsDatabaseGetAccountsArguments(accountIds);
+const getAccountsFromStoredAccounts = async (storedAccounts: Accounts) => {
   const accounts: Accounts = {};
-  const promises = [];
-  for (const accountId of accountIds) {
-    promises.push(accountsDatabase.getItem(accountId));
-  }
-  const accountsArray: any = await Promise.all(promises);
-  for (const [i, accountId] of accountIds.entries()) {
-    assert(accountsArray[i], `accountId '${accountId}' not found in database`);
+  for (const [accountId, storedAccount] of Object.entries(storedAccounts)) {
     accounts[accountId] = normalizeAccountProtocolConfig(
-      await migrateAccount(accountsArray[i]),
+      await migrateAccount(storedAccount),
       getDefaultChainProviders(),
     );
     // protocol options aren't saved to database if they are default
-    if (!accounts[accountId].pkcOptions && !accounts[accountId].pkcOptions) {
+    if (!accounts[accountId].pkcOptions) {
       accounts[accountId].pkcOptions = getDefaultPkcOptions();
     }
     const protocolOptions = {
@@ -134,6 +127,19 @@ const getAccounts = async (accountIds: string[]) => {
     accounts[accountId] = withProtocolAliases(accounts[accountId], pkc, protocolOptions);
   }
   return accounts;
+};
+
+const getAccounts = async (accountIds: string[]) => {
+  validator.validateAccountsDatabaseGetAccountsArguments(accountIds);
+  const accountsArray: any = await Promise.all(
+    accountIds.map((accountId) => accountsDatabase.getItem(accountId)),
+  );
+  const storedAccounts: Accounts = {};
+  for (const [index, accountId] of accountIds.entries()) {
+    assert(accountsArray[index], `accountId '${accountId}' not found in database`);
+    storedAccounts[accountId] = accountsArray[index];
+  }
+  return getAccountsFromStoredAccounts(storedAccounts);
 };
 
 const accountVersion = 5;
@@ -229,6 +235,64 @@ const getDatabaseAsArray = async (database: any) => {
   return items;
 };
 
+const replaceDatabaseArray = async (database: any, items: any[], metadata: Record<string, any>) => {
+  await database.clear();
+  await Promise.all([
+    ...items.map((item, index) => database.setItem(String(index), item)),
+    database.setItem("length", items.length),
+    ...Object.entries(metadata).map(([key, value]) => database.setItem(key, value)),
+  ]);
+};
+
+const getDatabaseSnapshot = async (database: any) => {
+  const keys: string[] = await database.keys();
+  return Promise.all(keys.map(async (key) => [key, await database.getItem(key)] as [string, any]));
+};
+
+const restoreDatabaseSnapshot = async (database: any, snapshot: [string, any][]) => {
+  await database.clear();
+  await Promise.all(snapshot.map(([key, value]) => database.setItem(key, value)));
+};
+
+export const replaceDatabaseArraysWithRollback = async (
+  replacements: {
+    database: any;
+    items: any[];
+    metadata: Record<string, any>;
+  }[],
+) => {
+  const snapshots = await Promise.all(
+    replacements.map(({ database }) => getDatabaseSnapshot(database)),
+  );
+  const replacementResults = await Promise.allSettled(
+    replacements.map(({ database, items, metadata }) =>
+      replaceDatabaseArray(database, items, metadata),
+    ),
+  );
+  const replacementFailure = replacementResults.find(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (!replacementFailure) {
+    return;
+  }
+
+  const rollbackResults = await Promise.allSettled(
+    replacements.map(({ database }, index) => restoreDatabaseSnapshot(database, snapshots[index])),
+  );
+  const rollbackFailure = rollbackResults.find(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (rollbackFailure) {
+    const rollbackError = new Error(
+      `importAccountHistory failed and could not restore previous history`,
+    );
+    (rollbackError as any).cause = replacementFailure.reason;
+    (rollbackError as any).rollbackError = rollbackFailure.reason;
+    throw rollbackError;
+  }
+  throw replacementFailure.reason;
+};
+
 const removeFunctionsAndSensitiveFields = (publication: CreateCommentOptions) => {
   const sanitizedPublication: Record<string, any> = {};
   for (const key in publication) {
@@ -267,17 +331,32 @@ const rebuildEditsTargetIndexes = (edits: any[]) => {
   return targetToIndices;
 };
 
-const addAccount = async (account: Account) => {
+const addAccount = async (account: Account, options?: { returnHydratedAccount?: boolean }) => {
   validator.validateAccountsDatabaseAddAccountArguments(account);
-  let accountIds: string[] | null = await accountsMetadataDatabase.getItem("accountIds");
-
+  let [accountIds, accountNamesToAccountIds] = await Promise.all([
+    accountsMetadataDatabase.getItem<string[]>("accountIds"),
+    accountsMetadataDatabase.getItem<AccountNamesToAccountIds>("accountNamesToAccountIds"),
+  ]);
+  if (!accountNamesToAccountIds) {
+    accountNamesToAccountIds = {};
+  }
   // handle no duplicate names
+  const existingAccountId = accountNamesToAccountIds[account.name];
+  if (existingAccountId && existingAccountId !== account.id) {
+    const existingAccount = await accountsDatabase.getItem<Account>(existingAccountId);
+    if (existingAccount?.name === account.name) {
+      throw Error(`account name '${account.name}' already exists in database`);
+    }
+    delete accountNamesToAccountIds[account.name];
+  }
   if (accountIds?.length) {
-    const accounts: Accounts = await getAccounts(accountIds);
-    for (const accountId of accountIds) {
-      if (accountId !== account.id && accounts[accountId].name === account.name) {
-        throw Error(`account name '${account.name}' already exists in database`);
-      }
+    const storedAccounts = await Promise.all(
+      accountIds
+        .filter((accountId) => accountId !== account.id)
+        .map((accountId) => accountsDatabase.getItem<Account>(accountId)),
+    );
+    if (storedAccounts.some((storedAccount) => storedAccount?.name === account.name)) {
+      throw Error(`account name '${account.name}' already exists in database`);
     }
   }
 
@@ -299,7 +378,14 @@ const addAccount = async (account: Account) => {
     delete accountToPutInDatabase.chainProviders;
   }
   // make sure accountToPutInDatabase protocol options are valid
-  if (protocolOptions) {
+  let hydratedAccount: Account | undefined;
+  if (options?.returnHydratedAccount) {
+    hydratedAccount = (
+      await getAccountsFromStoredAccounts({
+        [accountToPutInDatabase.id]: accountToPutInDatabase,
+      })
+    )[accountToPutInDatabase.id];
+  } else if (protocolOptions) {
     const pkc = await PkcJs.PKC(getPkcClientOptions(accountToPutInDatabase, protocolOptions));
     pkc.on("error", () => {});
     void pkc.destroy?.(); // gc; errors intentionally unhandled to avoid uncounted callback
@@ -307,10 +393,10 @@ const addAccount = async (account: Account) => {
   await accountsDatabase.setItem(accountToPutInDatabase.id, accountToPutInDatabase);
 
   // handle updating accountNamesToAccountIds database
-  let accountNamesToAccountIds: AccountNamesToAccountIds | null =
-    await accountsMetadataDatabase.getItem("accountNamesToAccountIds");
-  if (!accountNamesToAccountIds) {
-    accountNamesToAccountIds = {};
+  for (const [accountName, accountId] of Object.entries(accountNamesToAccountIds)) {
+    if (accountId === account.id && accountName !== account.name) {
+      delete accountNamesToAccountIds[accountName];
+    }
   }
   accountNamesToAccountIds[account.name] = account.id;
   await accountsMetadataDatabase.setItem("accountNamesToAccountIds", accountNamesToAccountIds);
@@ -328,6 +414,7 @@ const addAccount = async (account: Account) => {
   if (accountIds.length === 1) {
     await accountsMetadataDatabase.setItem("activeAccountId", account.id);
   }
+  return hydratedAccount;
 };
 
 const removeAccount = async (account: Account) => {
@@ -821,6 +908,96 @@ const getAccountsEditsSummaries = async (accountIds: string[]) => {
   );
 };
 
+/**
+ * Replaces all comments, votes, and edits for an account. If any store replacement fails,
+ * every history store is restored to its exact pre-call state before the error is rethrown.
+ */
+const importAccountHistory = async (
+  accountId: string,
+  {
+    accountComments = [],
+    accountVotes = [],
+    accountEdits = [],
+  }: {
+    accountComments?: Comment[];
+    accountVotes?: CreateCommentOptions[];
+    accountEdits?: CreateCommentOptions[];
+  },
+) => {
+  const storedComments = accountComments.map((comment) => sanitizeStoredAccountComment(comment));
+  const storedVotes = accountVotes.map((vote) => {
+    assert(
+      vote?.commentCid && typeof vote.commentCid === "string",
+      `addAccountVote createVoteOptions.commentCid '${vote?.commentCid}' not a string`,
+    );
+    return removeFunctionsAndSensitiveFields(vote);
+  });
+  const storedEdits = accountEdits.map((edit) => {
+    const editTarget = getAccountEditTarget(edit as AccountEdit);
+    assert(typeof editTarget === "string", `addAccountEdit target '${editTarget}' not a string`);
+    return removeFunctionsAndSensitiveFields(edit);
+  });
+
+  const latestVoteIndexByCommentCid = rebuildVotesLatestIndex(storedVotes);
+  const editTargetToIndices = rebuildEditsTargetIndexes(storedEdits);
+  const accountEditsSummary = getAccountsEditsSummary(
+    Object.fromEntries(
+      Object.entries(editTargetToIndices).map(([target, indices]) => [
+        target,
+        indices.map((index) => storedEdits[index]).filter(Boolean),
+      ]),
+    ),
+  );
+
+  const historyDatabases = [
+    getAccountCommentsDatabase(accountId),
+    getAccountVotesDatabase(accountId),
+    getAccountEditsDatabase(accountId),
+  ];
+  await replaceDatabaseArraysWithRollback([
+    {
+      database: historyDatabases[0],
+      items: storedComments,
+      metadata: { [storageVersionKey]: commentStorageVersion },
+    },
+    {
+      database: historyDatabases[1],
+      items: storedVotes,
+      metadata: {
+        [votesLatestIndexKey]: latestVoteIndexByCommentCid,
+        [storageVersionKey]: voteStorageVersion,
+      },
+    },
+    {
+      database: historyDatabases[2],
+      items: storedEdits,
+      metadata: {
+        [editsTargetToIndicesKey]: editTargetToIndices,
+        [editsSummaryKey]: accountEditsSummary,
+        [storageVersionKey]: editStorageVersion,
+      },
+    },
+  ]);
+
+  const accountCommentsWithIndexes = storedComments.map((comment, index) => ({
+    ...comment,
+    index,
+    accountId,
+  }));
+  const accountVotesByCommentCid = Object.fromEntries(
+    Object.entries(latestVoteIndexByCommentCid).map(([commentCid, index]) => [
+      commentCid,
+      storedVotes[index],
+    ]),
+  );
+
+  return {
+    accountComments: accountCommentsWithIndexes,
+    accountVotes: accountVotesByCommentCid,
+    accountEditsSummary,
+  };
+};
+
 const database = {
   accountsDatabase,
   accountsMetadataDatabase,
@@ -845,6 +1022,7 @@ const database = {
   getAccountEditsSummary,
   addAccountEdit,
   deleteAccountEdit,
+  importAccountHistory,
   accountVersion,
   migrate,
   getAccountsDatabaseName,

@@ -49,6 +49,7 @@ import {
   sanitizeAccountCommentForState,
   sanitizeStoredAccountComment,
   getFreshestLoadedComment,
+  getInitAccountCommentsToUpdate,
 } from "./utils";
 import isEqual from "lodash.isequal";
 import { v4 as uuid } from "uuid";
@@ -640,53 +641,44 @@ export const importAccount = async (serializedAccount: string) => {
     imported.account,
     communitiesStore.getState().communities,
   );
-
   // if imported.account.name already exists, add ' 2', don't overwrite
   if (accountNamesToAccountIds[imported.account.name]) {
     imported.account.name += " 2";
   }
 
-  // generate new account
-  const generatedAccount = await accountGenerator.generateDefaultAccount();
-  // use generatedAccount to init properties like .pkc and .id on a new account
-  // overwrite account.id to avoid duplicate ids
-  const newAccount = {
-    ...generatedAccount,
+  // Always assign a new local id so importing the same backup cannot overwrite an existing account.
+  const accountToImport = {
+    ...accountGenerator.getDefaultAccountFields(),
     ...imported.account,
     communities,
-    id: generatedAccount.id,
+    id: uuid(),
   };
 
-  // add account to database
-  await accountsDatabase.addAccount(newAccount);
-
-  // add account comments, votes, edits to database
-  for (const accountComment of imported.accountComments || []) {
-    await accountsDatabase.addAccountComment(newAccount.id, accountComment);
+  // Hydrate the imported identity once, then persist its history in bulk instead of replaying
+  // every record through the single-publication write path.
+  const newAccount = await accountsDatabase.addAccount(accountToImport, {
+    returnHydratedAccount: true,
+  });
+  assert(newAccount, `accountsActions.importAccount failed to hydrate imported account`);
+  let importedHistory;
+  let accountIds;
+  let newAccountNamesToAccountIds;
+  try {
+    importedHistory = await accountsDatabase.importAccountHistory(newAccount.id, {
+      accountComments: imported.accountComments || [],
+      accountVotes: imported.accountVotes || [],
+      accountEdits: imported.accountEdits || [],
+    });
+    [accountIds, newAccountNamesToAccountIds] = await Promise.all<any>([
+      accountsDatabase.accountsMetadataDatabase.getItem("accountIds"),
+      accountsDatabase.accountsMetadataDatabase.getItem("accountNamesToAccountIds"),
+    ]);
+  } catch (error) {
+    await accountsDatabase.removeAccount(newAccount);
+    void newAccount.pkc?.destroy?.();
+    throw error;
   }
-  for (const accountVote of imported.accountVotes || []) {
-    await accountsDatabase.addAccountVote(newAccount.id, accountVote);
-  }
-  for (const accountEdit of imported.accountEdits || []) {
-    await accountsDatabase.addAccountEdit(newAccount.id, accountEdit);
-  }
-
-  // set new state
-
-  // get new state data from database because it's easier
-  const [
-    accountComments,
-    accountVotes,
-    accountEditsSummary,
-    accountIds,
-    newAccountNamesToAccountIds,
-  ] = await Promise.all<any>([
-    accountsDatabase.getAccountComments(newAccount.id),
-    accountsDatabase.getAccountVotes(newAccount.id),
-    accountsDatabase.getAccountEditsSummary(newAccount.id),
-    accountsDatabase.accountsMetadataDatabase.getItem("accountIds"),
-    accountsDatabase.accountsMetadataDatabase.getItem("accountNamesToAccountIds"),
-  ]);
+  const { accountComments, accountVotes, accountEditsSummary } = importedHistory;
 
   accountsStore.setState((state) => ({
     accounts: { ...state.accounts, [newAccount.id]: newAccount },
@@ -719,8 +711,11 @@ export const importAccount = async (serializedAccount: string) => {
     accountEditsSummary,
   });
 
-  // start looking for updates for all accounts comments in database
-  for (const accountComment of accountComments) {
+  // Match normal startup: refresh only the ten newest comments instead of opening a watcher
+  // for the entire imported history at once.
+  for (const { accountComment } of getInitAccountCommentsToUpdate({
+    [newAccount.id]: accountComments,
+  })) {
     accountsStore
       .getState()
       .accountsActionsInternal.startUpdatingAccountCommentOnCommentUpdateEvents(
