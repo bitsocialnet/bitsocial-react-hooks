@@ -474,6 +474,34 @@ describe("accounts-database", () => {
         setPkcJs(PkcJsMock);
       }
     });
+
+    test("returns one hydrated account client for import without destroying it", async () => {
+      const acc = makeAccount({ id: "hydrated-import", name: "HydratedImport" });
+      const destroySpy = vi.fn().mockResolvedValue(undefined);
+      const OrigPkc = (await import("../../lib/pkc-js")).default.PKC;
+      const WrapperPkc = async (opts: any) => {
+        const pkc = await OrigPkc(opts);
+        pkc.destroy = destroySpy;
+        return pkc;
+      };
+      setPkcJs(WrapperPkc);
+      try {
+        const hydratedAccount = await accountsDatabase.addAccount(acc, {
+          returnHydratedAccount: true,
+        });
+        expect(hydratedAccount).toMatchObject({
+          id: acc.id,
+          name: acc.name,
+          author: acc.author,
+          signer: acc.signer,
+        });
+        expect(hydratedAccount?.pkc).toBeDefined();
+        expect(hydratedAccount?.pkcOptions).toEqual(getDefaultPkcOptions());
+        expect(destroySpy).not.toHaveBeenCalled();
+      } finally {
+        setPkcJs(PkcJsMock);
+      }
+    });
   });
 
   describe("removeAccount", () => {
@@ -761,6 +789,115 @@ describe("accounts-database", () => {
       expect(edits["legacy-community.eth"][0].description).toBe("legacy");
       expect(summary["community.eth"].title.value).toBe("community");
       expect(summary["legacy-community.eth"].description.value).toBe("legacy");
+    });
+  });
+
+  describe("importAccountHistory", () => {
+    test("persists and returns compact comments plus indexed vote and edit state in bulk", async () => {
+      const acc = makeAccount({ id: "bulk-history", name: "BulkHistory" });
+      await accountsDatabase.addAccount(acc);
+      const accountComments = [
+        {
+          cid: "comment-1",
+          content: "first",
+          communityAddress: "community.eth",
+          timestamp: 1,
+          signer: { privateKey: "secret" },
+          raw: { oversized: true },
+          replies: {
+            pages: { best: { comments: [{ cid: "cached-reply" }] } },
+            pageCids: { best: "page-1" },
+          },
+        },
+        {
+          cid: "comment-2",
+          content: "second",
+          communityAddress: "community.eth",
+          timestamp: 2,
+        },
+      ] as any;
+      const accountVotes = [
+        {
+          commentCid: "vote-target",
+          communityAddress: "community.eth",
+          vote: 1,
+          signer: { privateKey: "secret" },
+        },
+        {
+          commentCid: "vote-target",
+          communityAddress: "community.eth",
+          vote: -1,
+        },
+      ] as any;
+      const accountEdits = [
+        {
+          commentCid: "edit-target",
+          communityAddress: "community.eth",
+          content: "first edit",
+          timestamp: 1,
+        },
+        {
+          commentCid: "edit-target",
+          communityAddress: "community.eth",
+          content: "second edit",
+          timestamp: 2,
+        },
+      ] as any;
+
+      const imported = await accountsDatabase.importAccountHistory(acc.id, {
+        accountComments,
+        accountVotes,
+        accountEdits,
+      });
+
+      expect(imported.accountComments).toEqual([
+        expect.objectContaining({ cid: "comment-1", index: 0, accountId: acc.id }),
+        expect.objectContaining({ cid: "comment-2", index: 1, accountId: acc.id }),
+      ]);
+      expect(imported.accountComments[0].signer).toBeUndefined();
+      expect(imported.accountComments[0].raw).toBeUndefined();
+      expect(imported.accountComments[0].replies?.pages).toBeUndefined();
+      expect(imported.accountComments[0].replies?.pageCids).toEqual({ best: "page-1" });
+      expect(imported.accountVotes["vote-target"].vote).toBe(-1);
+      expect(imported.accountVotes["vote-target"].signer).toBeUndefined();
+      expect(imported.accountEditsSummary["edit-target"].content).toEqual({
+        timestamp: 2,
+        value: "second edit",
+      });
+
+      const exported = JSON.parse(await accountsDatabase.getExportedAccountJson(acc.id));
+      expect(exported.accountComments).toHaveLength(2);
+      expect(exported.accountVotes).toHaveLength(2);
+      expect(exported.accountEdits).toHaveLength(2);
+      expect(await accountsDatabase.getAccountVotes(acc.id)).toEqual(imported.accountVotes);
+      expect(await accountsDatabase.getAccountEditsSummary(acc.id)).toEqual(
+        imported.accountEditsSummary,
+      );
+    });
+
+    test("supports empty history", async () => {
+      const acc = makeAccount({ id: "bulk-empty", name: "BulkEmpty" });
+      await accountsDatabase.addAccount(acc);
+      await expect(accountsDatabase.importAccountHistory(acc.id, {})).resolves.toEqual({
+        accountComments: [],
+        accountVotes: {},
+        accountEditsSummary: {},
+      });
+    });
+
+    test("rejects invalid vote and edit targets before writing history", async () => {
+      const acc = makeAccount({ id: "bulk-invalid", name: "BulkInvalid" });
+      await accountsDatabase.addAccount(acc);
+      await expect(
+        accountsDatabase.importAccountHistory(acc.id, {
+          accountVotes: [{} as any],
+        }),
+      ).rejects.toThrow("addAccountVote createVoteOptions.commentCid 'undefined' not a string");
+      await expect(
+        accountsDatabase.importAccountHistory(acc.id, {
+          accountEdits: [{} as any],
+        }),
+      ).rejects.toThrow("addAccountEdit target 'undefined' not a string");
     });
   });
 

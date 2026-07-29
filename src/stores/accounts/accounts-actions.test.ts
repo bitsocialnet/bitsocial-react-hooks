@@ -5,6 +5,7 @@ import * as accountsActions from "./accounts-actions";
 import * as accountsActionsInternal from "./accounts-actions-internal";
 import accountsDatabase from "./accounts-database";
 import accountsStore from "./accounts-store";
+import accountGenerator from "./account-generator";
 import communitiesStore from "../communities";
 import commentsStore from "../comments";
 import PkcJsMock, {
@@ -950,6 +951,122 @@ describe("accounts-actions", () => {
       const { accountNamesToAccountIds } = accountsStore.getState();
       expect(accountNamesToAccountIds["Second"]).toBeDefined();
       expect(accountNamesToAccountIds["Second 2"]).toBeDefined();
+    });
+
+    test("imports the existing identity without generating disposable credentials", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("Portable");
+      });
+      const exported = JSON.parse(await accountsActions.exportAccount("Portable"));
+      const originalId = exported.account.id;
+      const originalSigner = exported.account.signer;
+      const generateDefaultAccountSpy = vi.spyOn(accountGenerator, "generateDefaultAccount");
+      const importAccountHistorySpy = vi.spyOn(accountsDatabase, "importAccountHistory");
+      try {
+        await act(async () => {
+          await accountsActions.importAccount(JSON.stringify(exported));
+        });
+        const { accounts, accountNamesToAccountIds } = accountsStore.getState();
+        const importedAccount = accounts[accountNamesToAccountIds["Portable 2"]];
+        expect(generateDefaultAccountSpy).not.toHaveBeenCalled();
+        expect(importAccountHistorySpy).toHaveBeenCalledTimes(1);
+        expect(importedAccount.id).not.toBe(originalId);
+        expect(importedAccount.signer).toEqual(originalSigner);
+        expect(importedAccount.author.address).toBe(exported.account.author.address);
+        expect(importedAccount.pkc).toBeDefined();
+      } finally {
+        generateDefaultAccountSpy.mockRestore();
+        importAccountHistorySpy.mockRestore();
+      }
+    });
+
+    test("round-trips a 100 KiB backup with hundreds of history records through one bulk write", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("Stress Source");
+      });
+      const backup = JSON.parse(await accountsActions.exportAccount("Stress Source"));
+      backup.account.name = "Stress Backup";
+      backup.accountComments = Array.from({ length: 120 }, (_, index) => ({
+        cid: `comment-${index}`,
+        communityAddress: "community.eth",
+        content: `synthetic comment ${index}`,
+        timestamp: 1_000 + index,
+      }));
+      backup.accountVotes = Array.from({ length: 120 }, (_, index) => ({
+        commentCid: `vote-target-${index % 30}`,
+        communityAddress: "community.eth",
+        vote: index % 2 === 0 ? 1 : -1,
+      }));
+      backup.accountEdits = Array.from({ length: 120 }, (_, index) => ({
+        commentCid: `edit-target-${index % 12}`,
+        communityAddress: "community.eth",
+        content: `synthetic edit ${index}`,
+        timestamp: 1_000 + index,
+      }));
+      backup.fixturePadding = "";
+      const targetBytes = 100 * 1024;
+      const paddingLength = targetBytes - JSON.stringify(backup).length;
+      expect(paddingLength).toBeGreaterThan(0);
+      backup.fixturePadding = "x".repeat(paddingLength);
+      const serializedBackup = JSON.stringify(backup);
+      expect(serializedBackup).toHaveLength(targetBytes);
+
+      const addCommentSpy = vi.spyOn(accountsDatabase, "addAccountComment");
+      const addVoteSpy = vi.spyOn(accountsDatabase, "addAccountVote");
+      const addEditSpy = vi.spyOn(accountsDatabase, "addAccountEdit");
+      const bulkImportSpy = vi.spyOn(accountsDatabase, "importAccountHistory");
+      const startUpdatingSpy = vi
+        .spyOn(accountsActionsInternal, "startUpdatingAccountCommentOnCommentUpdateEvents")
+        .mockResolvedValue(undefined);
+      try {
+        await act(async () => {
+          await accountsActions.importAccount(serializedBackup);
+        });
+        expect(bulkImportSpy).toHaveBeenCalledTimes(1);
+        expect(addCommentSpy).not.toHaveBeenCalled();
+        expect(addVoteSpy).not.toHaveBeenCalled();
+        expect(addEditSpy).not.toHaveBeenCalled();
+        expect(startUpdatingSpy).toHaveBeenCalledTimes(10);
+
+        const roundTripped = JSON.parse(await accountsActions.exportAccount("Stress Backup"));
+        expect(roundTripped.accountComments).toHaveLength(120);
+        expect(roundTripped.accountVotes).toHaveLength(120);
+        expect(roundTripped.accountEdits).toHaveLength(120);
+      } finally {
+        addCommentSpy.mockRestore();
+        addVoteSpy.mockRestore();
+        addEditSpy.mockRestore();
+        bulkImportSpy.mockRestore();
+        startUpdatingSpy.mockRestore();
+      }
+    });
+
+    test("starts update watchers for only the ten newest imported comments", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("History");
+      });
+      const exported = JSON.parse(await accountsActions.exportAccount("History"));
+      exported.account.name = "Imported History";
+      exported.accountComments = Array.from({ length: 15 }, (_, index) => ({
+        cid: `comment-${index}`,
+        communityAddress: "community.eth",
+        content: `comment ${index}`,
+        timestamp: 1_000 + index,
+      }));
+      const startUpdatingSpy = vi
+        .spyOn(accountsActionsInternal, "startUpdatingAccountCommentOnCommentUpdateEvents")
+        .mockResolvedValue(undefined);
+      try {
+        await act(async () => {
+          await accountsActions.importAccount(JSON.stringify(exported));
+        });
+        expect(startUpdatingSpy).toHaveBeenCalledTimes(10);
+        expect(startUpdatingSpy.mock.calls.map(([comment]) => comment.timestamp)).toEqual([
+          1_014, 1_013, 1_012, 1_011, 1_010, 1_009, 1_008, 1_007, 1_006, 1_005,
+        ]);
+      } finally {
+        startUpdatingSpy.mockRestore();
+      }
     });
 
     test("deleteCommunity with accountName uses named account", async () => {
