@@ -244,6 +244,55 @@ const replaceDatabaseArray = async (database: any, items: any[], metadata: Recor
   ]);
 };
 
+const getDatabaseSnapshot = async (database: any) => {
+  const keys: string[] = await database.keys();
+  return Promise.all(keys.map(async (key) => [key, await database.getItem(key)] as [string, any]));
+};
+
+const restoreDatabaseSnapshot = async (database: any, snapshot: [string, any][]) => {
+  await database.clear();
+  await Promise.all(snapshot.map(([key, value]) => database.setItem(key, value)));
+};
+
+export const replaceDatabaseArraysWithRollback = async (
+  replacements: {
+    database: any;
+    items: any[];
+    metadata: Record<string, any>;
+  }[],
+) => {
+  const snapshots = await Promise.all(
+    replacements.map(({ database }) => getDatabaseSnapshot(database)),
+  );
+  const replacementResults = await Promise.allSettled(
+    replacements.map(({ database, items, metadata }) =>
+      replaceDatabaseArray(database, items, metadata),
+    ),
+  );
+  const replacementFailure = replacementResults.find(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (!replacementFailure) {
+    return;
+  }
+
+  const rollbackResults = await Promise.allSettled(
+    replacements.map(({ database }, index) => restoreDatabaseSnapshot(database, snapshots[index])),
+  );
+  const rollbackFailure = rollbackResults.find(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (rollbackFailure) {
+    const rollbackError = new Error(
+      `importAccountHistory failed and could not restore previous history`,
+    );
+    (rollbackError as any).cause = replacementFailure.reason;
+    (rollbackError as any).rollbackError = rollbackFailure.reason;
+    throw rollbackError;
+  }
+  throw replacementFailure.reason;
+};
+
 const removeFunctionsAndSensitiveFields = (publication: CreateCommentOptions) => {
   const sanitizedPublication: Record<string, any> = {};
   for (const key in publication) {
@@ -849,6 +898,10 @@ const getAccountsEditsSummaries = async (accountIds: string[]) => {
   );
 };
 
+/**
+ * Replaces all comments, votes, and edits for an account. If any store replacement fails,
+ * every history store is restored to its exact pre-call state before the error is rethrown.
+ */
 const importAccountHistory = async (
   accountId: string,
   {
@@ -886,19 +939,34 @@ const importAccountHistory = async (
     ),
   );
 
-  await Promise.all([
-    replaceDatabaseArray(getAccountCommentsDatabase(accountId), storedComments, {
-      [storageVersionKey]: commentStorageVersion,
-    }),
-    replaceDatabaseArray(getAccountVotesDatabase(accountId), storedVotes, {
-      [votesLatestIndexKey]: latestVoteIndexByCommentCid,
-      [storageVersionKey]: voteStorageVersion,
-    }),
-    replaceDatabaseArray(getAccountEditsDatabase(accountId), storedEdits, {
-      [editsTargetToIndicesKey]: editTargetToIndices,
-      [editsSummaryKey]: accountEditsSummary,
-      [storageVersionKey]: editStorageVersion,
-    }),
+  const historyDatabases = [
+    getAccountCommentsDatabase(accountId),
+    getAccountVotesDatabase(accountId),
+    getAccountEditsDatabase(accountId),
+  ];
+  await replaceDatabaseArraysWithRollback([
+    {
+      database: historyDatabases[0],
+      items: storedComments,
+      metadata: { [storageVersionKey]: commentStorageVersion },
+    },
+    {
+      database: historyDatabases[1],
+      items: storedVotes,
+      metadata: {
+        [votesLatestIndexKey]: latestVoteIndexByCommentCid,
+        [storageVersionKey]: voteStorageVersion,
+      },
+    },
+    {
+      database: historyDatabases[2],
+      items: storedEdits,
+      metadata: {
+        [editsTargetToIndicesKey]: editTargetToIndices,
+        [editsSummaryKey]: accountEditsSummary,
+        [storageVersionKey]: editStorageVersion,
+      },
+    },
   ]);
 
   const accountCommentsWithIndexes = storedComments.map((comment, index) => ({

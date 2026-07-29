@@ -1,4 +1,4 @@
-import accountsDatabase from "./accounts-database";
+import accountsDatabase, { replaceDatabaseArraysWithRollback } from "./accounts-database";
 import { setPkcJs, restorePkcJs } from "../../lib/pkc-js";
 import PkcJsMock from "../../lib/pkc-js/pkc-js-mock";
 import localForage from "localforage";
@@ -816,6 +816,37 @@ describe("accounts-database", () => {
   });
 
   describe("importAccountHistory", () => {
+    test("reports both replacement and rollback failures", async () => {
+      const values = new Map<string, any>([
+        ["0", { phase: "old" }],
+        ["length", 1],
+      ]);
+      const database = {
+        clear: vi.fn(async () => values.clear()),
+        keys: vi.fn(async () => [...values.keys()]),
+        getItem: vi.fn(async (key: string) => values.get(key)),
+        setItem: vi.fn(async (key: string, value: any) => {
+          if (value?.phase === "new") {
+            throw new Error("simulated replacement failure");
+          }
+          if (value?.phase === "old") {
+            throw new Error("simulated rollback failure");
+          }
+          values.set(key, value);
+        }),
+      };
+
+      const error = await replaceDatabaseArraysWithRollback([
+        { database, items: [{ phase: "new" }], metadata: {} },
+      ]).catch((caughtError) => caughtError);
+
+      expect(error.message).toBe(
+        "importAccountHistory failed and could not restore previous history",
+      );
+      expect(error.cause.message).toBe("simulated replacement failure");
+      expect(error.rollbackError.message).toBe("simulated rollback failure");
+    });
+
     test("persists and returns compact comments plus indexed vote and edit state in bulk", async () => {
       const acc = makeAccount({ id: "bulk-history", name: "BulkHistory" });
       await accountsDatabase.addAccount(acc);
@@ -921,6 +952,57 @@ describe("accounts-database", () => {
           accountEdits: [{} as any],
         }),
       ).rejects.toThrow("addAccountEdit target 'undefined' not a string");
+    });
+
+    test("restores every history store if one bulk replacement fails", async () => {
+      const acc = makeAccount({ id: "bulk-rollback", name: "BulkRollback" });
+      await accountsDatabase.addAccount(acc);
+      const commentsDb = createPerAccountDatabase("accountComments", acc.id);
+      const votesDb = createPerAccountDatabase("accountVotes", acc.id);
+      const editsDb = createPerAccountDatabase("accountEdits", acc.id);
+      const oldComment = { cid: "old-comment", content: "old", timestamp: 1 };
+      const oldVote = { commentCid: "old-vote", vote: 1 };
+      const oldEdit = { commentCid: "old-edit", content: "old", timestamp: 1 };
+      await Promise.all([
+        commentsDb.setItem("0", oldComment),
+        commentsDb.setItem("length", 1),
+        commentsDb.setItem("__storageVersion", 2),
+        votesDb.setItem("0", oldVote),
+        votesDb.setItem("length", 1),
+        votesDb.setItem("__commentCidToLatestIndex", { "old-vote": 0 }),
+        votesDb.setItem("__storageVersion", 1),
+        editsDb.setItem("0", oldEdit),
+        editsDb.setItem("length", 1),
+        editsDb.setItem("__targetToIndices", { "old-edit": [0] }),
+        editsDb.setItem("__summary", {
+          "old-edit": { content: { timestamp: 1, value: "old" } },
+        }),
+        editsDb.setItem("__storageVersion", 1),
+      ]);
+
+      await expect(
+        accountsDatabase.importAccountHistory(acc.id, {
+          accountComments: [{ cid: "new-comment", content: "new", timestamp: 2 }] as any,
+          accountVotes: [
+            {
+              commentCid: "new-vote",
+              vote: -1,
+              uncloneable: { callback: () => {} },
+            },
+          ] as any,
+          accountEdits: [{ commentCid: "new-edit", content: "new", timestamp: 2 }] as any,
+        }),
+      ).rejects.toBeDefined();
+
+      const exported = JSON.parse(await accountsDatabase.getExportedAccountJson(acc.id));
+      expect(exported.accountComments).toEqual([oldComment]);
+      expect(exported.accountVotes).toEqual([oldVote]);
+      expect(exported.accountEdits).toEqual([oldEdit]);
+      expect(await votesDb.getItem("__commentCidToLatestIndex")).toEqual({ "old-vote": 0 });
+      expect(await editsDb.getItem("__targetToIndices")).toEqual({ "old-edit": [0] });
+      expect(await editsDb.getItem("__summary")).toEqual({
+        "old-edit": { content: { timestamp: 1, value: "old" } },
+      });
     });
   });
 

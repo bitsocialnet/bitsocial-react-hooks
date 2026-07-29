@@ -986,6 +986,44 @@ describe("accounts-actions", () => {
       }
     });
 
+    test("rolls back a newly registered account when history import fails", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("Rollback Source");
+      });
+      const backup = JSON.parse(await accountsActions.exportAccount("Rollback Source"));
+      backup.account.name = "Rollback Import";
+      const accountIdsBefore =
+        await accountsDatabase.accountsMetadataDatabase.getItem("accountIds");
+      const accountNamesBefore = await accountsDatabase.accountsMetadataDatabase.getItem(
+        "accountNamesToAccountIds",
+      );
+      const accountKeysBefore = await accountsDatabase.accountsDatabase.keys();
+      const importAccountHistorySpy = vi
+        .spyOn(accountsDatabase, "importAccountHistory")
+        .mockRejectedValueOnce(new Error("simulated history import failure"));
+      const removeAccountSpy = vi.spyOn(accountsDatabase, "removeAccount");
+
+      try {
+        await expect(accountsActions.importAccount(JSON.stringify(backup))).rejects.toThrow(
+          "simulated history import failure",
+        );
+        expect(removeAccountSpy).toHaveBeenCalledTimes(1);
+        expect(await accountsDatabase.accountsMetadataDatabase.getItem("accountIds")).toEqual(
+          accountIdsBefore,
+        );
+        expect(
+          await accountsDatabase.accountsMetadataDatabase.getItem("accountNamesToAccountIds"),
+        ).toEqual(accountNamesBefore);
+        expect(await accountsDatabase.accountsDatabase.keys()).toEqual(accountKeysBefore);
+        expect(
+          accountsStore.getState().accountNamesToAccountIds["Rollback Import"],
+        ).toBeUndefined();
+      } finally {
+        importAccountHistorySpy.mockRestore();
+        removeAccountSpy.mockRestore();
+      }
+    });
+
     test("round-trips a 100 KiB backup with hundreds of history records through one bulk write", async () => {
       await act(async () => {
         await accountsActions.createAccount("Stress Source");

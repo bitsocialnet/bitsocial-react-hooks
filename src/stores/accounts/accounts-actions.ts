@@ -660,19 +660,25 @@ export const importAccount = async (serializedAccount: string) => {
     returnHydratedAccount: true,
   });
   assert(newAccount, `accountsActions.importAccount failed to hydrate imported account`);
-  const [
-    { accountComments, accountVotes, accountEditsSummary },
-    accountIds,
-    newAccountNamesToAccountIds,
-  ] = await Promise.all<any>([
-    accountsDatabase.importAccountHistory(newAccount.id, {
+  let importedHistory;
+  let accountIds;
+  let newAccountNamesToAccountIds;
+  try {
+    importedHistory = await accountsDatabase.importAccountHistory(newAccount.id, {
       accountComments: imported.accountComments || [],
       accountVotes: imported.accountVotes || [],
       accountEdits: imported.accountEdits || [],
-    }),
-    accountsDatabase.accountsMetadataDatabase.getItem("accountIds"),
-    accountsDatabase.accountsMetadataDatabase.getItem("accountNamesToAccountIds"),
-  ]);
+    });
+    [accountIds, newAccountNamesToAccountIds] = await Promise.all<any>([
+      accountsDatabase.accountsMetadataDatabase.getItem("accountIds"),
+      accountsDatabase.accountsMetadataDatabase.getItem("accountNamesToAccountIds"),
+    ]);
+  } catch (error) {
+    await accountsDatabase.removeAccount(newAccount);
+    void newAccount.pkc?.destroy?.();
+    throw error;
+  }
+  const { accountComments, accountVotes, accountEditsSummary } = importedHistory;
 
   accountsStore.setState((state) => ({
     accounts: { ...state.accounts, [newAccount.id]: newAccount },
