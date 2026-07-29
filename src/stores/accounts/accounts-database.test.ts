@@ -410,6 +410,19 @@ describe("accounts-database", () => {
       );
     });
 
+    test("rejects duplicate name when its metadata mapping is missing", async () => {
+      const existing = makeAccount({ id: "missing-map-existing", name: "MissingMap" });
+      await accountsDatabase.addAccount(existing);
+      await accountsDatabase.accountsMetadataDatabase.setItem("accountNamesToAccountIds", {});
+
+      await expect(
+        accountsDatabase.addAccount(
+          makeAccount({ id: "missing-map-replacement", name: "MissingMap" }),
+        ),
+      ).rejects.toThrow("account name 'MissingMap' already exists in database");
+      expect(await accountsDatabase.accountsDatabase.getItem("missing-map-replacement")).toBeNull();
+    });
+
     test("strips default pkc options from stored account", async () => {
       const acc = makeAccount({ pkcOptions: getDefaultPkcOptions() });
       await accountsDatabase.addAccount(acc);

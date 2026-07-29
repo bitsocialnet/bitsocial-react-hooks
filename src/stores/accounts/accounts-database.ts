@@ -349,6 +349,16 @@ const addAccount = async (account: Account, options?: { returnHydratedAccount?: 
     }
     delete accountNamesToAccountIds[account.name];
   }
+  if (accountIds?.length) {
+    const storedAccounts = await Promise.all(
+      accountIds
+        .filter((accountId) => accountId !== account.id)
+        .map((accountId) => accountsDatabase.getItem<Account>(accountId)),
+    );
+    if (storedAccounts.some((storedAccount) => storedAccount?.name === account.name)) {
+      throw Error(`account name '${account.name}' already exists in database`);
+    }
+  }
 
   // handle updating accounts database
   const accountToPutInDatabase: any = normalizeAccountProtocolConfig({
