@@ -493,6 +493,7 @@ const onError = (error, comment) => console.error(error)
 
 const onPendingComment = (accountCommentIndex, pendingComment) => {
   // render or navigate to the pending comment immediately, before local persistence finishes
+  // this runs again with the corrected index if another local deletion shifts the comment while saving
   history.push(`/profile/c/${accountCommentIndex}`, {pendingComment})
 }
 
@@ -515,7 +516,8 @@ console.log(index)
 // pending comment state
 console.log(state)
 
-// onPendingComment is called as soon as the provisional comment and index exist.
+// onPendingComment is called as soon as the provisional comment and index exist,
+// and again with a corrected index if another local deletion shifts it while saving.
 // Use it to immediately redirect the user to a page displaying the comment
 // with a "pending" label. The index result is also defined after the pending
 // comment has been stored locally.

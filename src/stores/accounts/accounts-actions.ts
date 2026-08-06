@@ -1151,26 +1151,32 @@ export const publishComment = async (
   createdAccountComment = addShortAddressesToAccountComment(
     sanitizeAccountCommentForState(createdAccountComment),
   );
-  const reportOnPendingCommentError = (error: unknown) => {
+  const reportOnPendingCommentError = (error: unknown, pendingCommentIndex: number) => {
     log.error("accountsActions.publishComment onPendingComment callback error", {
       accountId: account.id,
-      accountCommentIndex,
+      accountCommentIndex: pendingCommentIndex,
       error,
     });
   };
-  try {
-    const pendingCommentSnapshot = utils.clone(createdAccountComment) as AccountComment;
-    void Promise.resolve(
-      publishCommentOptions.onPendingComment?.(accountCommentIndex, pendingCommentSnapshot),
-    ).catch(reportOnPendingCommentError);
-  } catch (error) {
-    reportOnPendingCommentError(error);
-  }
+  const notifyPendingComment = (pendingCommentIndex: number, pendingComment: AccountComment) => {
+    try {
+      const pendingCommentSnapshot = utils.clone(pendingComment) as AccountComment;
+      void Promise.resolve(
+        publishCommentOptions.onPendingComment?.(pendingCommentIndex, pendingCommentSnapshot),
+      ).catch((error) => reportOnPendingCommentError(error, pendingCommentIndex));
+    } catch (error) {
+      reportOnPendingCommentError(error, pendingCommentIndex);
+    }
+  };
+  notifyPendingComment(accountCommentIndex, createdAccountComment);
   const pendingCommentIndex = await saveCreatedAccountComment(createdAccountComment);
   if (pendingCommentIndex === undefined) {
     return createdAccountComment;
   }
   createdAccountComment = { ...createdAccountComment, index: pendingCommentIndex };
+  if (pendingCommentIndex !== accountCommentIndex) {
+    notifyPendingComment(pendingCommentIndex, createdAccountComment);
+  }
   publishCommentOptions._onPendingCommentIndex?.(pendingCommentIndex, createdAccountComment);
 
   let comment: any;

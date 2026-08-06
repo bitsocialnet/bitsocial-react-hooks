@@ -387,6 +387,7 @@ export interface UseAuthorAddressResult extends Result {
 
 // usePublishComment(options): result
 export interface UsePublishCommentOptions extends Options {
+  /** Called immediately with the provisional comment, then again if persistence shifts its index. */
   onPendingComment?(accountCommentIndex: number, comment: AccountComment): void;
   onChallenge?(challenge: Challenge, comment?: Comment): Promise<void>;
   onChallengeVerification?(

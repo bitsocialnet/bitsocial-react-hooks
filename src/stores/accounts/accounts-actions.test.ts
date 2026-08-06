@@ -1872,10 +1872,12 @@ describe("accounts-actions", () => {
         return originalAddAccountComment(...args);
       });
       const onPendingCommentIndex = vi.fn();
+      const onPendingComment = vi.fn();
 
       const publishPromise = accountsActions.publishComment({
         communityAddress: "sub.eth",
         content: "shifted pending comment",
+        onPendingComment,
         _onPendingCommentIndex: onPendingCommentIndex,
         onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
         onChallengeVerification: () => {},
@@ -1885,6 +1887,16 @@ describe("accounts-actions", () => {
       releasePersistence();
       const publishedComment = await publishPromise;
 
+      expect(onPendingComment).toHaveBeenNthCalledWith(
+        1,
+        1,
+        expect.objectContaining({ content: "shifted pending comment", index: 1 }),
+      );
+      expect(onPendingComment).toHaveBeenNthCalledWith(
+        2,
+        0,
+        expect.objectContaining({ content: "shifted pending comment", index: 0 }),
+      );
       expect(onPendingCommentIndex).toHaveBeenCalledWith(
         0,
         expect.objectContaining({ content: "shifted pending comment", index: 0 }),
