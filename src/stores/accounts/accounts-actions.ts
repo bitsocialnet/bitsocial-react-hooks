@@ -1170,6 +1170,7 @@ export const publishComment = async (
   if (pendingCommentIndex === undefined) {
     return createdAccountComment;
   }
+  createdAccountComment = { ...createdAccountComment, index: pendingCommentIndex };
   publishCommentOptions._onPendingCommentIndex?.(pendingCommentIndex, createdAccountComment);
 
   let comment: any;

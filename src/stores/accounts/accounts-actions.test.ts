@@ -1883,11 +1883,14 @@ describe("accounts-actions", () => {
       await persistenceStarted;
       await accountsActions.deleteComment(0);
       releasePersistence();
-      await publishPromise;
+      const publishedComment = await publishPromise;
 
       expect(onPendingCommentIndex).toHaveBeenCalledWith(
         0,
-        expect.objectContaining({ content: "shifted pending comment" }),
+        expect.objectContaining({ content: "shifted pending comment", index: 0 }),
+      );
+      expect(publishedComment).toEqual(
+        expect.objectContaining({ content: "shifted pending comment", index: 0 }),
       );
       expect(accountsStore.getState().accountsComments[account.id][0]).toEqual(
         expect.objectContaining({ content: "shifted pending comment", index: 0 }),
