@@ -550,7 +550,6 @@ console.log(state)
 // with a "pending" label. The index result is also defined after the pending
 // comment has been stored locally.
 if (index !== undefined) {
-  history.push(`/profile/c/${index}`)
   // on the "pending" comment page, you can get the pending comment by doing
   // const accountComment = useAccountComment({commentIndex: index})
   // after accountComment.cid gets defined, it means the comment was published successfully

@@ -1092,7 +1092,9 @@ export const publishComment = async (
   let accountCommentIndex = accountsComments[account.id].length;
   const publishSessionId = createPublishSession(account.id, accountCommentIndex);
   let savedOnce = false;
-  const saveCreatedAccountComment = async (accountComment: AccountComment) => {
+  const saveCreatedAccountComment = async (
+    accountComment: AccountComment,
+  ): Promise<number | undefined> => {
     if (isPublishSessionAbandoned(publishSessionId)) {
       return;
     }
@@ -1114,15 +1116,20 @@ export const publishComment = async (
       persistedAccountComment,
       isUpdate ? currentIndex : undefined,
     );
+    const currentSession = getPublishSession(publishSessionId);
+    if (!currentSession || isPublishSessionAbandoned(publishSessionId)) {
+      return;
+    }
+    const persistedIndex = currentSession.currentIndex;
     savedOnce = true;
     accountsStore.setState(({ accountsComments, accountsCommentsIndexes }) => {
       const accountComments = [...accountsComments[account.id]];
-      if (isUpdate && !accountComments[currentIndex]) {
+      if (isUpdate && !accountComments[persistedIndex]) {
         return {};
       }
-      accountComments[currentIndex] = {
+      accountComments[persistedIndex] = {
         ...liveAccountComment,
-        index: currentIndex,
+        index: persistedIndex,
         accountId: account.id,
       };
       return {
@@ -1133,6 +1140,7 @@ export const publishComment = async (
         },
       };
     });
+    return persistedIndex;
   };
   let createdAccountComment = {
     ...storedCreateCommentOptions,
@@ -1151,14 +1159,18 @@ export const publishComment = async (
     });
   };
   try {
+    const pendingCommentSnapshot = utils.clone(createdAccountComment) as AccountComment;
     void Promise.resolve(
-      publishCommentOptions.onPendingComment?.(accountCommentIndex, createdAccountComment),
+      publishCommentOptions.onPendingComment?.(accountCommentIndex, pendingCommentSnapshot),
     ).catch(reportOnPendingCommentError);
   } catch (error) {
     reportOnPendingCommentError(error);
   }
-  await saveCreatedAccountComment(createdAccountComment);
-  publishCommentOptions._onPendingCommentIndex?.(accountCommentIndex, createdAccountComment);
+  const pendingCommentIndex = await saveCreatedAccountComment(createdAccountComment);
+  if (pendingCommentIndex === undefined) {
+    return createdAccountComment;
+  }
+  publishCommentOptions._onPendingCommentIndex?.(pendingCommentIndex, createdAccountComment);
 
   let comment: any;
   (async () => {

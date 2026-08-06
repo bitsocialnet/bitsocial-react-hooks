@@ -72,6 +72,11 @@ import type {
 } from "../../types";
 
 type PublishChallengeAnswers = (challengeAnswers?: string[]) => Promise<void>;
+type DeferredAbandon = {
+  promise: Promise<void>;
+  resolve: () => void;
+  reject: (error: unknown) => void;
+};
 const publishChallengeAnswersNotReady: PublishChallengeAnswers = async (challengeAnswers) => {
   throw Error(
     `can't call publishChallengeAnswers() before result.challenge is defined (before the challenge message is received)`,
@@ -211,6 +216,7 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
   const indexRef = useRef<number | undefined>(undefined);
   const publishRequestIdRef = useRef(0);
   const activePublishRequestIdRef = useRef<number | undefined>(undefined);
+  const deferredAbandonsRef = useRef(new Map<number, DeferredAbandon>());
   const guardActive = () => activePublishRequestIdRef.current !== undefined;
   useEffect(
     () => () => {
@@ -218,14 +224,6 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
     },
     [],
   );
-  publishCommentOptions._onPendingCommentIndex = withGuardActive(
-    guardActive,
-    (pendingIndex: number) => {
-      indexRef.current = pendingIndex;
-      setIndex(pendingIndex);
-    },
-  );
-
   let initialState = "initializing";
   if (accountId && options) initialState = "ready";
 
@@ -264,9 +262,26 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
     const requestId = publishRequestIdRef.current + 1;
     publishRequestIdRef.current = requestId;
     activePublishRequestIdRef.current = requestId;
+    indexRef.current = undefined;
+    setIndex(undefined);
     const originalOnPendingComment = publishCommentOptions.onPendingComment;
     const activePublishCommentOptions = {
       ...publishCommentOptions,
+      _onPendingCommentIndex: (pendingIndex: number) => {
+        const deferredAbandon = deferredAbandonsRef.current.get(requestId);
+        if (deferredAbandon) {
+          deferredAbandonsRef.current.delete(requestId);
+          void accountsActions
+            .deleteComment(pendingIndex, accountName)
+            .then(deferredAbandon.resolve, deferredAbandon.reject);
+          return;
+        }
+        if (activePublishRequestIdRef.current !== requestId) {
+          return;
+        }
+        indexRef.current = pendingIndex;
+        setIndex(pendingIndex);
+      },
       onPendingComment: withGuardActive(
         () => activePublishRequestIdRef.current === requestId,
         (pendingIndex, pendingComment) => originalOnPendingComment?.(pendingIndex, pendingComment),
@@ -283,6 +298,11 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
       indexRef.current = index;
       setIndex(index);
     } catch (e: any) {
+      const deferredAbandon = deferredAbandonsRef.current.get(requestId);
+      if (deferredAbandon) {
+        deferredAbandonsRef.current.delete(requestId);
+        deferredAbandon.resolve();
+      }
       handlePublishErrorWhenAbandoned(
         activePublishRequestIdRef,
         requestId,
@@ -294,17 +314,29 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
   };
 
   const abandonPublish = async () => {
+    const requestId = activePublishRequestIdRef.current;
     activePublishRequestIdRef.current = undefined;
     const idx = indexRef.current;
-    if (idx !== undefined) {
-      await accountsActions.deleteComment(idx, accountName);
-    }
     indexRef.current = undefined;
     setChallenge(undefined);
     setChallengeVerification(undefined);
     setPublishChallengeAnswers(undefined);
     setIndex(undefined);
     setPublishingState(undefined);
+    if (idx !== undefined) {
+      await accountsActions.deleteComment(idx, accountName);
+      return;
+    }
+    if (requestId !== undefined) {
+      let resolve!: () => void;
+      let reject!: (error: unknown) => void;
+      const promise = new Promise<void>((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+      });
+      deferredAbandonsRef.current.set(requestId, { promise, resolve, reject });
+      await promise;
+    }
   };
 
   return useMemo(

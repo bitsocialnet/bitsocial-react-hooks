@@ -1846,6 +1846,54 @@ describe("accounts-actions", () => {
       }
     });
 
+    test("publishComment reports the shifted index after an earlier deletion", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      await accountsActions.publishComment({
+        communityAddress: "sub.eth",
+        content: "earlier comment",
+        onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      });
+
+      const originalAddAccountComment = accountsDatabase.addAccountComment.bind(accountsDatabase);
+      let markPersistenceStarted!: () => void;
+      let releasePersistence!: () => void;
+      const persistenceStarted = new Promise<void>((resolve) => {
+        markPersistenceStarted = resolve;
+      });
+      const persistenceBlocked = new Promise<void>((resolve) => {
+        releasePersistence = resolve;
+      });
+      vi.spyOn(accountsDatabase, "addAccountComment").mockImplementation(async (...args) => {
+        if (args[1]?.content === "shifted pending comment") {
+          markPersistenceStarted();
+          await persistenceBlocked;
+        }
+        return originalAddAccountComment(...args);
+      });
+      const onPendingCommentIndex = vi.fn();
+
+      const publishPromise = accountsActions.publishComment({
+        communityAddress: "sub.eth",
+        content: "shifted pending comment",
+        _onPendingCommentIndex: onPendingCommentIndex,
+        onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      });
+      await persistenceStarted;
+      await accountsActions.deleteComment(0);
+      releasePersistence();
+      await publishPromise;
+
+      expect(onPendingCommentIndex).toHaveBeenCalledWith(
+        0,
+        expect.objectContaining({ content: "shifted pending comment" }),
+      );
+      expect(accountsStore.getState().accountsComments[account.id][0]).toEqual(
+        expect.objectContaining({ content: "shifted pending comment", index: 0 }),
+      );
+    });
+
     test("publishComment persists when onPendingComment throws", async () => {
       const account = Object.values(accountsStore.getState().accounts)[0];
       const callbackError = new Error("pending callback failed");
@@ -1873,6 +1921,29 @@ describe("accounts-actions", () => {
           index: 0,
         }),
       );
+    });
+
+    test("publishComment isolates persisted data from pending callback mutations", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      let pendingSnapshot: any;
+
+      await accountsActions.publishComment({
+        communityAddress: "sub.eth",
+        content: "original pending content",
+        onPendingComment: (_index, pendingComment) => {
+          pendingSnapshot = pendingComment;
+          pendingComment.content = "mutated callback content";
+        },
+        onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      });
+
+      expect(pendingSnapshot.content).toBe("mutated callback content");
+      expect(accountsStore.getState().accountsComments[account.id][0].content).toBe(
+        "original pending content",
+      );
+      const persistedComments = await accountsDatabase.getAccountComments(account.id);
+      expect(persistedComments[0].content).toBe("original pending content");
     });
 
     test("publishComment persists when async onPendingComment rejects", async () => {
