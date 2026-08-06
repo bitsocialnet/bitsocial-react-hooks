@@ -217,44 +217,52 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
   const publishRequestIdRef = useRef(0);
   const activePublishRequestIdRef = useRef<number | undefined>(undefined);
   const deferredAbandonsRef = useRef(new Map<number, DeferredAbandon>());
-  const guardActive = () => activePublishRequestIdRef.current !== undefined;
-  useEffect(
-    () => () => {
-      activePublishRequestIdRef.current = undefined;
-    },
-    [],
-  );
+  const mountedRef = useRef(true);
+  const guardActiveHook = () =>
+    mountedRef.current && activePublishRequestIdRef.current !== undefined;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
   let initialState = "initializing";
   if (accountId && options) initialState = "ready";
 
   const originalOnError = publishCommentOptions.onError;
   const onError = async (error: Error) => {
-    setErrors((errors) => [...errors, error]);
+    if (activePublishRequestIdRef.current === undefined) return;
+    if (mountedRef.current) {
+      setErrors((errors) => [...errors, error]);
+    }
     (originalOnError ?? noop)(error);
   };
   publishCommentOptions.onError = onError;
 
   const originalOnChallenge = publishCommentOptions.onChallenge;
-  publishCommentOptions.onChallenge = withGuardActive(
-    guardActive,
-    async (challenge: Challenge, comment: Comment) => {
+  publishCommentOptions.onChallenge = async (challenge: Challenge, comment: Comment) => {
+    if (activePublishRequestIdRef.current === undefined) return;
+    if (mountedRef.current) {
       setPublishChallengeAnswers(() => comment?.publishChallengeAnswers.bind(comment));
       setChallenge(challenge);
-      (originalOnChallenge ?? noop)(challenge, comment);
-    },
-  );
+    }
+    (originalOnChallenge ?? noop)(challenge, comment);
+  };
 
   const originalOnChallengeVerification = publishCommentOptions.onChallengeVerification;
-  publishCommentOptions.onChallengeVerification = withGuardActive(
-    guardActive,
-    async (challengeVerification: ChallengeVerification, comment: Comment) => {
+  publishCommentOptions.onChallengeVerification = async (
+    challengeVerification: ChallengeVerification,
+    comment: Comment,
+  ) => {
+    if (activePublishRequestIdRef.current === undefined) return;
+    if (mountedRef.current) {
       setChallengeVerification(challengeVerification);
-      (originalOnChallengeVerification ?? noop)(challengeVerification, comment);
-    },
-  );
+    }
+    (originalOnChallengeVerification ?? noop)(challengeVerification, comment);
+  };
 
   publishCommentOptions.onPublishingStateChange = withGuardActive(
-    guardActive,
+    guardActiveHook,
     (publishingState: string) => setPublishingState(publishingState),
   );
 
@@ -280,7 +288,9 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
           return;
         }
         indexRef.current = pendingIndex;
-        setIndex(pendingIndex);
+        if (mountedRef.current) {
+          setIndex(pendingIndex);
+        }
       },
       onPendingComment: withGuardActive(
         () => activePublishRequestIdRef.current === requestId,
@@ -296,20 +306,26 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
         return;
       }
       indexRef.current = index;
-      setIndex(index);
+      if (mountedRef.current) {
+        setIndex(index);
+      }
     } catch (e: any) {
       const deferredAbandon = deferredAbandonsRef.current.get(requestId);
       if (deferredAbandon) {
         deferredAbandonsRef.current.delete(requestId);
         deferredAbandon.resolve();
       }
-      handlePublishErrorWhenAbandoned(
-        activePublishRequestIdRef,
-        requestId,
-        e,
-        setErrors,
-        originalOnError,
-      );
+      if (!mountedRef.current && activePublishRequestIdRef.current === requestId) {
+        (originalOnError ?? noop)(e);
+      } else {
+        handlePublishErrorWhenAbandoned(
+          activePublishRequestIdRef,
+          requestId,
+          e,
+          setErrors,
+          originalOnError,
+        );
+      }
     }
   };
 
@@ -318,11 +334,13 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
     activePublishRequestIdRef.current = undefined;
     const idx = indexRef.current;
     indexRef.current = undefined;
-    setChallenge(undefined);
-    setChallengeVerification(undefined);
-    setPublishChallengeAnswers(undefined);
-    setIndex(undefined);
-    setPublishingState(undefined);
+    if (mountedRef.current) {
+      setChallenge(undefined);
+      setChallengeVerification(undefined);
+      setPublishChallengeAnswers(undefined);
+      setIndex(undefined);
+      setPublishingState(undefined);
+    }
     if (idx !== undefined) {
       await accountsActions.deleteComment(idx, accountName);
       return;

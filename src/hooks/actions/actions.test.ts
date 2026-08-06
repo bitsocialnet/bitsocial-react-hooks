@@ -1060,17 +1060,20 @@ describe("actions", () => {
       ]);
     });
 
-    test("onPendingComment does not run after the hook unmounts", async () => {
+    test("publish callbacks continue after the hook unmounts", async () => {
       const originalPublishComment = useAccountsStore.getState().accountsActions.publishComment;
+      const originalDeleteComment = useAccountsStore.getState().accountsActions.deleteComment;
       let forwardedOptions: any;
       let resolvePublish!: (value: { index: number }) => void;
       const pendingPublish = new Promise<{ index: number }>((resolve) => {
         resolvePublish = resolve;
       });
+      const deleteComment = vi.fn(async () => {});
       useAccountsStore.setState((state: any) => ({
         ...state,
         accountsActions: {
           ...state.accountsActions,
+          deleteComment,
           publishComment: (options: any) => {
             forwardedOptions = options;
             return pendingPublish;
@@ -1078,12 +1081,18 @@ describe("actions", () => {
         },
       }));
       const onPendingComment = vi.fn();
+      let abandonPromise: Promise<void> | undefined;
+      let abandonPublish: (() => Promise<void>) | undefined;
+      const onChallenge = vi.fn(() => {
+        abandonPromise = abandonPublish?.();
+      });
 
       try {
         rendered.rerender({
           communityAddress: "12D3KooW... actions.test unmount pending callback",
           content: "unmount pending callback",
           onPendingComment,
+          onChallenge,
         });
         await waitFor(() => rendered.result.current.state === "ready");
         let publishPromise!: Promise<void>;
@@ -1091,10 +1100,16 @@ describe("actions", () => {
           publishPromise = rendered.result.current.publishComment();
         });
         await waitFor(() => forwardedOptions);
+        abandonPublish = rendered.result.current.abandonPublish;
 
         rendered.unmount();
         forwardedOptions.onPendingComment(0, { content: "too late" });
-        expect(onPendingComment).not.toHaveBeenCalled();
+        forwardedOptions._onPendingCommentIndex(0, { content: "too late" });
+        forwardedOptions.onChallenge({ type: "CHALLENGE" }, { content: "too late" });
+        expect(onPendingComment).toHaveBeenCalledWith(0, { content: "too late" });
+        expect(onChallenge).toHaveBeenCalledWith({ type: "CHALLENGE" }, { content: "too late" });
+        await abandonPromise;
+        expect(deleteComment).toHaveBeenCalledWith(0, undefined);
 
         resolvePublish({ index: 0 });
         await publishPromise;
@@ -1104,6 +1119,7 @@ describe("actions", () => {
           accountsActions: {
             ...state.accountsActions,
             publishComment: originalPublishComment,
+            deleteComment: originalDeleteComment,
           },
         }));
       }
