@@ -521,10 +521,16 @@ const onChallengeVerification = (challengeVerification, comment) => {
 
 const onError = (error, comment) => console.error(error)
 
+const onPendingComment = (accountCommentIndex, pendingComment) => {
+  // render or navigate to the pending comment immediately, before local persistence finishes
+  history.push(`/profile/c/${accountCommentIndex}`, {pendingComment})
+}
+
 const publishCommentOptions = {
   content: 'hello',
   title: 'hello',
   communityAddress: '12D3KooW...',
+  onPendingComment,
   onChallenge,
   onChallengeVerification,
   onError
@@ -539,9 +545,10 @@ console.log(index)
 // pending comment state
 console.log(state)
 
-// after publishComment is called, the account comment index gets defined
-// it is recommended to immediately redirect the user to a page displaying
-// the user's comment with a "pending" label
+// onPendingComment is called as soon as the provisional comment and index exist.
+// Use it to immediately redirect the user to a page displaying the comment
+// with a "pending" label. The index result is also defined after the pending
+// comment has been stored locally.
 if (index !== undefined) {
   history.push(`/profile/c/${index}`)
   // on the "pending" comment page, you can get the pending comment by doing
@@ -3208,6 +3215,24 @@ Avoid GitHub MCP and browser MCP servers for this project because they add signi
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/CHANGELOG.md
 
 ```markdown
+## [0.1.33](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.32...v0.1.33) (2026-07-29)
+
+
+### Bug Fixes
+
+* **accounts:** speed up account backup imports ([#80](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/80)) ([036aace](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/036aace0bc60551c99f185dc4c2e0d3a747029a0))
+
+
+
+## [0.1.32](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.31...v0.1.32) (2026-07-24)
+
+
+### Bug Fixes
+
+* **replies:** keep published replies during propagation ([#78](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/78)) ([2522732](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/2522732dc0bb2f41562903fa74d1e2e3e3cd391e))
+
+
+
 ## [0.1.31](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.30...v0.1.31) (2026-07-23)
 
 

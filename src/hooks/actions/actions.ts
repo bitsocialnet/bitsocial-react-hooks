@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import useAccountsStore from "../../stores/accounts";
 import Logger from "@pkcprotocol/pkc-logger";
@@ -212,6 +212,12 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
   const publishRequestIdRef = useRef(0);
   const activePublishRequestIdRef = useRef<number | undefined>(undefined);
   const guardActive = () => activePublishRequestIdRef.current !== undefined;
+  useEffect(
+    () => () => {
+      activePublishRequestIdRef.current = undefined;
+    },
+    [],
+  );
   publishCommentOptions._onPendingCommentIndex = withGuardActive(
     guardActive,
     (pendingIndex: number) => {
@@ -258,8 +264,19 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
     const requestId = publishRequestIdRef.current + 1;
     publishRequestIdRef.current = requestId;
     activePublishRequestIdRef.current = requestId;
+    const originalOnPendingComment = publishCommentOptions.onPendingComment;
+    const activePublishCommentOptions = {
+      ...publishCommentOptions,
+      onPendingComment: withGuardActive(
+        () => activePublishRequestIdRef.current === requestId,
+        (pendingIndex, pendingComment) => originalOnPendingComment?.(pendingIndex, pendingComment),
+      ),
+    };
     try {
-      const { index } = await accountsActions.publishComment(publishCommentOptions, accountName);
+      const { index } = await accountsActions.publishComment(
+        activePublishCommentOptions,
+        accountName,
+      );
       if (activePublishRequestIdRef.current !== requestId) {
         return;
       }

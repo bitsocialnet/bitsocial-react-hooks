@@ -1790,6 +1790,134 @@ describe("accounts-actions", () => {
       vi.restoreAllMocks();
     });
 
+    test("publishComment reports the pending comment before persistence completes", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const originalAddAccountComment = accountsDatabase.addAccountComment.bind(accountsDatabase);
+      const events: string[] = [];
+      let markPersistenceStarted!: () => void;
+      let releasePersistence!: () => void;
+      const persistenceStarted = new Promise<void>((resolve) => {
+        markPersistenceStarted = resolve;
+      });
+      const persistenceBlocked = new Promise<void>((resolve) => {
+        releasePersistence = resolve;
+      });
+
+      vi.spyOn(accountsDatabase, "addAccountComment").mockImplementation(async (...args) => {
+        events.push("persistence");
+        markPersistenceStarted();
+        await persistenceBlocked;
+        return originalAddAccountComment(...args);
+      });
+      const createCommentSpy = vi.spyOn(account.pkc, "createComment");
+      const onPendingComment = vi.fn(() => {
+        events.push("pending");
+      });
+
+      const publishPromise = accountsActions.publishComment({
+        communityAddress: "sub.eth",
+        content: "pending-before-persistence",
+        onPendingComment,
+        onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      });
+
+      await persistenceStarted;
+      try {
+        expect(events).toEqual(["pending", "persistence"]);
+        expect(onPendingComment).toHaveBeenCalledTimes(1);
+        expect(onPendingComment.mock.calls[0][0]).toBe(0);
+        expect(onPendingComment.mock.calls[0][1]).toEqual(
+          expect.objectContaining({
+            accountId: account.id,
+            communityAddress: "sub.eth",
+            content: "pending-before-persistence",
+            index: 0,
+          }),
+        );
+        expect(
+          createCommentSpy.mock.calls.every(
+            ([createCommentOptions]) => !("onPendingComment" in createCommentOptions),
+          ),
+        ).toBe(true);
+      } finally {
+        releasePersistence();
+        await publishPromise;
+      }
+    });
+
+    test("publishComment persists when onPendingComment throws", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const callbackError = new Error("pending callback failed");
+
+      await expect(
+        accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "persist after pending callback error",
+          onPendingComment: () => {
+            throw callbackError;
+          },
+          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+          onChallengeVerification: () => {},
+        }),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          accountId: account.id,
+          content: "persist after pending callback error",
+          index: 0,
+        }),
+      );
+      expect(accountsStore.getState().accountsComments[account.id][0]).toEqual(
+        expect.objectContaining({
+          content: "persist after pending callback error",
+          index: 0,
+        }),
+      );
+    });
+
+    test("publishComment persists when async onPendingComment rejects", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+
+      await expect(
+        accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "persist after async pending callback error",
+          onPendingComment: async () => {
+            throw new Error("async pending callback failed");
+          },
+          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+          onChallengeVerification: () => {},
+        }),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          accountId: account.id,
+          content: "persist after async pending callback error",
+          index: 0,
+        }),
+      );
+      expect(accountsStore.getState().accountsComments[account.id][0]).toEqual(
+        expect.objectContaining({
+          content: "persist after async pending callback error",
+          index: 0,
+        }),
+      );
+    });
+
+    test.each([true, false, 0, ""])(
+      "publishComment rejects non-function onPendingComment %j",
+      async (onPendingComment) => {
+        await expect(
+          accountsActions.publishComment({
+            communityAddress: "sub.eth",
+            content: "invalid pending callback",
+            onPendingComment,
+            onChallenge: () => {},
+            onChallengeVerification: () => {},
+          }),
+        ).rejects.toThrow("publishComment publishCommentOptions.onPendingComment not a function");
+      },
+    );
+
     test("deleteComment abandons pending publish session, no-op mutation when session removed", async () => {
       const rendered = renderHook(() => {
         const { accountsComments, activeAccountId } = accountsStore.getState();

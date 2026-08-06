@@ -1067,6 +1067,7 @@ export const publishComment = async (
   delete createCommentOptions.onChallenge;
   delete createCommentOptions.onChallengeVerification;
   delete createCommentOptions.onError;
+  delete createCommentOptions.onPendingComment;
   delete createCommentOptions.onPublishingStateChange;
   delete createCommentOptions._onPendingCommentIndex;
   const storedCreateCommentOptions = normalizePublicationOptionsForStore(createCommentOptions);
@@ -1142,6 +1143,20 @@ export const publishComment = async (
   createdAccountComment = addShortAddressesToAccountComment(
     sanitizeAccountCommentForState(createdAccountComment),
   );
+  const reportOnPendingCommentError = (error: unknown) => {
+    log.error("accountsActions.publishComment onPendingComment callback error", {
+      accountId: account.id,
+      accountCommentIndex,
+      error,
+    });
+  };
+  try {
+    void Promise.resolve(
+      publishCommentOptions.onPendingComment?.(accountCommentIndex, createdAccountComment),
+    ).catch(reportOnPendingCommentError);
+  } catch (error) {
+    reportOnPendingCommentError(error);
+  }
   await saveCreatedAccountComment(createdAccountComment);
   publishCommentOptions._onPendingCommentIndex?.(accountCommentIndex, createdAccountComment);
 

@@ -491,10 +491,16 @@ const onChallengeVerification = (challengeVerification, comment) => {
 
 const onError = (error, comment) => console.error(error)
 
+const onPendingComment = (accountCommentIndex, pendingComment) => {
+  // render or navigate to the pending comment immediately, before local persistence finishes
+  history.push(`/profile/c/${accountCommentIndex}`, {pendingComment})
+}
+
 const publishCommentOptions = {
   content: 'hello',
   title: 'hello',
   communityAddress: '12D3KooW...',
+  onPendingComment,
   onChallenge,
   onChallengeVerification,
   onError
@@ -509,9 +515,10 @@ console.log(index)
 // pending comment state
 console.log(state)
 
-// after publishComment is called, the account comment index gets defined
-// it is recommended to immediately redirect the user to a page displaying
-// the user's comment with a "pending" label
+// onPendingComment is called as soon as the provisional comment and index exist.
+// Use it to immediately redirect the user to a page displaying the comment
+// with a "pending" label. The index result is also defined after the pending
+// comment has been stored locally.
 if (index !== undefined) {
   history.push(`/profile/c/${index}`)
   // on the "pending" comment page, you can get the pending comment by doing
