@@ -1301,6 +1301,7 @@ describe("actions", () => {
       expect(rendered.result.current.errors.length).toBe(1);
       expect(onError).toHaveBeenCalledWith(expect.any(Error));
       expect(onError).toHaveBeenCalledTimes(1);
+      await expect(rendered.result.current.abandonPublish()).resolves.toBeUndefined();
 
       useAccountsStore.setState((state: any) => ({
         ...state,

@@ -315,16 +315,22 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
         deferredAbandonsRef.current.delete(requestId);
         deferredAbandon.resolve();
       }
-      if (!mountedRef.current && activePublishRequestIdRef.current === requestId) {
-        (originalOnError ?? noop)(e);
-      } else {
-        handlePublishErrorWhenAbandoned(
-          activePublishRequestIdRef,
-          requestId,
-          e,
-          setErrors,
-          originalOnError,
-        );
+      try {
+        if (!mountedRef.current && activePublishRequestIdRef.current === requestId) {
+          (originalOnError ?? noop)(e);
+        } else {
+          handlePublishErrorWhenAbandoned(
+            activePublishRequestIdRef,
+            requestId,
+            e,
+            setErrors,
+            originalOnError,
+          );
+        }
+      } finally {
+        if (activePublishRequestIdRef.current === requestId) {
+          activePublishRequestIdRef.current = undefined;
+        }
       }
     }
   };
