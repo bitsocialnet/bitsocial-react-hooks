@@ -18,7 +18,7 @@ var __rest = (this && this.__rest) || function (s, e) {
         }
     return t;
 };
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import useAccountsStore from "../../stores/accounts/index.js";
 import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:actions:hooks");
@@ -161,60 +161,129 @@ export function usePublishComment(options) {
     const indexRef = useRef(undefined);
     const publishRequestIdRef = useRef(0);
     const activePublishRequestIdRef = useRef(undefined);
-    const guardActive = () => activePublishRequestIdRef.current !== undefined;
-    publishCommentOptions._onPendingCommentIndex = withGuardActive(guardActive, (pendingIndex) => {
-        indexRef.current = pendingIndex;
-        setIndex(pendingIndex);
-    });
+    const deferredAbandonsRef = useRef(new Map());
+    const mountedRef = useRef(true);
+    const guardActiveHook = () => mountedRef.current && activePublishRequestIdRef.current !== undefined;
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
     let initialState = "initializing";
     if (accountId && options)
         initialState = "ready";
     const originalOnError = publishCommentOptions.onError;
     const onError = (error) => __awaiter(this, void 0, void 0, function* () {
-        setErrors((errors) => [...errors, error]);
+        if (activePublishRequestIdRef.current === undefined)
+            return;
+        if (mountedRef.current) {
+            setErrors((errors) => [...errors, error]);
+        }
         (originalOnError !== null && originalOnError !== void 0 ? originalOnError : noop)(error);
     });
     publishCommentOptions.onError = onError;
     const originalOnChallenge = publishCommentOptions.onChallenge;
-    publishCommentOptions.onChallenge = withGuardActive(guardActive, (challenge, comment) => __awaiter(this, void 0, void 0, function* () {
-        setPublishChallengeAnswers(() => comment === null || comment === void 0 ? void 0 : comment.publishChallengeAnswers.bind(comment));
-        setChallenge(challenge);
+    publishCommentOptions.onChallenge = (challenge, comment) => __awaiter(this, void 0, void 0, function* () {
+        if (activePublishRequestIdRef.current === undefined)
+            return;
+        if (mountedRef.current) {
+            setPublishChallengeAnswers(() => comment === null || comment === void 0 ? void 0 : comment.publishChallengeAnswers.bind(comment));
+            setChallenge(challenge);
+        }
         (originalOnChallenge !== null && originalOnChallenge !== void 0 ? originalOnChallenge : noop)(challenge, comment);
-    }));
+    });
     const originalOnChallengeVerification = publishCommentOptions.onChallengeVerification;
-    publishCommentOptions.onChallengeVerification = withGuardActive(guardActive, (challengeVerification, comment) => __awaiter(this, void 0, void 0, function* () {
-        setChallengeVerification(challengeVerification);
+    publishCommentOptions.onChallengeVerification = (challengeVerification, comment) => __awaiter(this, void 0, void 0, function* () {
+        if (activePublishRequestIdRef.current === undefined)
+            return;
+        if (mountedRef.current) {
+            setChallengeVerification(challengeVerification);
+        }
         (originalOnChallengeVerification !== null && originalOnChallengeVerification !== void 0 ? originalOnChallengeVerification : noop)(challengeVerification, comment);
-    }));
-    publishCommentOptions.onPublishingStateChange = withGuardActive(guardActive, (publishingState) => setPublishingState(publishingState));
+    });
+    publishCommentOptions.onPublishingStateChange = withGuardActive(guardActiveHook, (publishingState) => setPublishingState(publishingState));
     const publishComment = () => __awaiter(this, void 0, void 0, function* () {
         const requestId = publishRequestIdRef.current + 1;
         publishRequestIdRef.current = requestId;
         activePublishRequestIdRef.current = requestId;
+        indexRef.current = undefined;
+        setIndex(undefined);
+        const originalOnPendingComment = publishCommentOptions.onPendingComment;
+        const activePublishCommentOptions = Object.assign(Object.assign({}, publishCommentOptions), { _onPendingCommentIndex: (pendingIndex) => {
+                const deferredAbandon = deferredAbandonsRef.current.get(requestId);
+                if (deferredAbandon) {
+                    deferredAbandonsRef.current.delete(requestId);
+                    void accountsActions
+                        .deleteComment(pendingIndex, accountName)
+                        .then(deferredAbandon.resolve, deferredAbandon.reject);
+                    return;
+                }
+                if (activePublishRequestIdRef.current !== requestId) {
+                    return;
+                }
+                indexRef.current = pendingIndex;
+                if (mountedRef.current) {
+                    setIndex(pendingIndex);
+                }
+            }, onPendingComment: withGuardActive(() => activePublishRequestIdRef.current === requestId, (pendingIndex, pendingComment) => originalOnPendingComment === null || originalOnPendingComment === void 0 ? void 0 : originalOnPendingComment(pendingIndex, pendingComment)) });
         try {
-            const { index } = yield accountsActions.publishComment(publishCommentOptions, accountName);
+            const { index } = yield accountsActions.publishComment(activePublishCommentOptions, accountName);
             if (activePublishRequestIdRef.current !== requestId) {
                 return;
             }
             indexRef.current = index;
-            setIndex(index);
+            if (mountedRef.current) {
+                setIndex(index);
+            }
         }
         catch (e) {
-            handlePublishErrorWhenAbandoned(activePublishRequestIdRef, requestId, e, setErrors, originalOnError);
+            const deferredAbandon = deferredAbandonsRef.current.get(requestId);
+            if (deferredAbandon) {
+                deferredAbandonsRef.current.delete(requestId);
+                deferredAbandon.resolve();
+            }
+            try {
+                if (!mountedRef.current && activePublishRequestIdRef.current === requestId) {
+                    (originalOnError !== null && originalOnError !== void 0 ? originalOnError : noop)(e);
+                }
+                else {
+                    handlePublishErrorWhenAbandoned(activePublishRequestIdRef, requestId, e, setErrors, originalOnError);
+                }
+            }
+            finally {
+                if (activePublishRequestIdRef.current === requestId) {
+                    activePublishRequestIdRef.current = undefined;
+                }
+            }
         }
     });
     const abandonPublish = () => __awaiter(this, void 0, void 0, function* () {
+        const requestId = activePublishRequestIdRef.current;
         activePublishRequestIdRef.current = undefined;
         const idx = indexRef.current;
+        indexRef.current = undefined;
+        if (mountedRef.current) {
+            setChallenge(undefined);
+            setChallengeVerification(undefined);
+            setPublishChallengeAnswers(undefined);
+            setIndex(undefined);
+            setPublishingState(undefined);
+        }
         if (idx !== undefined) {
             yield accountsActions.deleteComment(idx, accountName);
+            return;
         }
-        indexRef.current = undefined;
-        setChallenge(undefined);
-        setChallengeVerification(undefined);
-        setPublishChallengeAnswers(undefined);
-        setIndex(undefined);
-        setPublishingState(undefined);
+        if (requestId !== undefined) {
+            let resolve;
+            let reject;
+            const promise = new Promise((resolvePromise, rejectPromise) => {
+                resolve = resolvePromise;
+                reject = rejectPromise;
+            });
+            deferredAbandonsRef.current.set(requestId, { promise, resolve, reject });
+            yield promise;
+        }
     });
     return useMemo(() => ({
         index,

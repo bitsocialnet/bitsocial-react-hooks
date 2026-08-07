@@ -739,6 +739,7 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
     delete createCommentOptions.onChallenge;
     delete createCommentOptions.onChallengeVerification;
     delete createCommentOptions.onError;
+    delete createCommentOptions.onPendingComment;
     delete createCommentOptions.onPublishingStateChange;
     delete createCommentOptions._onPendingCommentIndex;
     const storedCreateCommentOptions = normalizePublicationOptionsForStore(createCommentOptions);
@@ -774,23 +775,54 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
             return;
         }
         yield accountsDatabase.addAccountComment(account.id, persistedAccountComment, isUpdate ? currentIndex : undefined);
+        const currentSession = getPublishSession(publishSessionId);
+        if (!currentSession || isPublishSessionAbandoned(publishSessionId)) {
+            return;
+        }
+        const persistedIndex = currentSession.currentIndex;
         savedOnce = true;
         accountsStore.setState(({ accountsComments, accountsCommentsIndexes }) => {
             const accountComments = [...accountsComments[account.id]];
-            if (isUpdate && !accountComments[currentIndex]) {
+            if (isUpdate && !accountComments[persistedIndex]) {
                 return {};
             }
-            accountComments[currentIndex] = Object.assign(Object.assign({}, liveAccountComment), { index: currentIndex, accountId: account.id });
+            accountComments[persistedIndex] = Object.assign(Object.assign({}, liveAccountComment), { index: persistedIndex, accountId: account.id });
             return {
                 accountsComments: Object.assign(Object.assign({}, accountsComments), { [account.id]: accountComments }),
                 accountsCommentsIndexes: Object.assign(Object.assign({}, accountsCommentsIndexes), { [account.id]: getAccountCommentsIndex(accountComments) }),
             };
         });
+        return persistedIndex;
     });
     let createdAccountComment = Object.assign(Object.assign({}, storedCreateCommentOptions), { depth, index: accountCommentIndex, accountId: account.id });
     createdAccountComment = addShortAddressesToAccountComment(sanitizeAccountCommentForState(createdAccountComment));
-    yield saveCreatedAccountComment(createdAccountComment);
-    (_c = publishCommentOptions._onPendingCommentIndex) === null || _c === void 0 ? void 0 : _c.call(publishCommentOptions, accountCommentIndex, createdAccountComment);
+    const reportOnPendingCommentError = (error, pendingCommentIndex) => {
+        log.error("accountsActions.publishComment onPendingComment callback error", {
+            accountId: account.id,
+            accountCommentIndex: pendingCommentIndex,
+            error,
+        });
+    };
+    const notifyPendingComment = (pendingCommentIndex, pendingComment) => {
+        var _a;
+        try {
+            const pendingCommentSnapshot = utils.clone(pendingComment);
+            void Promise.resolve((_a = publishCommentOptions.onPendingComment) === null || _a === void 0 ? void 0 : _a.call(publishCommentOptions, pendingCommentIndex, pendingCommentSnapshot)).catch((error) => reportOnPendingCommentError(error, pendingCommentIndex));
+        }
+        catch (error) {
+            reportOnPendingCommentError(error, pendingCommentIndex);
+        }
+    };
+    notifyPendingComment(accountCommentIndex, createdAccountComment);
+    const pendingCommentIndex = yield saveCreatedAccountComment(createdAccountComment);
+    if (pendingCommentIndex === undefined) {
+        return createdAccountComment;
+    }
+    createdAccountComment = Object.assign(Object.assign({}, createdAccountComment), { index: pendingCommentIndex });
+    if (pendingCommentIndex !== accountCommentIndex) {
+        notifyPendingComment(pendingCommentIndex, createdAccountComment);
+    }
+    (_c = publishCommentOptions._onPendingCommentIndex) === null || _c === void 0 ? void 0 : _c.call(publishCommentOptions, pendingCommentIndex, createdAccountComment);
     let comment;
     (() => __awaiter(void 0, void 0, void 0, function* () {
         // fetch comment.link dimensions
