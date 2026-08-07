@@ -102,8 +102,9 @@ for (const pkcOptionsType in pkcOptionsTypes) {
         );
         expect(account.pkc && typeof account.pkc === "object").to.equal(true);
         expect(account.pkcOptions && typeof account.pkcOptions === "object").to.equal(true);
-        expect(account.pkcOptions.ipfsGatewayUrls?.length).to.be.greaterThan(0);
-        expect(account.pkcOptions.pubsubKuboRpcClientsOptions?.length).to.be.greaterThan(0);
+        expect(account.pkcOptions.libp2pJsClientsOptions).to.deep.equal([{ key: "libp2pjs" }]);
+        expect(account.pkcOptions.ipfsGatewayUrls).to.equal(undefined);
+        expect(account.pkcOptions.pubsubKuboRpcClientsOptions).to.equal(undefined);
         expect(account.pkcOptions.ipfsHttpClientOptions).to.equal(undefined);
 
         // wait for short address
