@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import useAccountsStore from "../../stores/accounts";
 import Logger from "@pkcprotocol/pkc-logger";
@@ -72,6 +72,11 @@ import type {
 } from "../../types";
 
 type PublishChallengeAnswers = (challengeAnswers?: string[]) => Promise<void>;
+type DeferredAbandon = {
+  promise: Promise<void>;
+  resolve: () => void;
+  reject: (error: unknown) => void;
+};
 const publishChallengeAnswersNotReady: PublishChallengeAnswers = async (challengeAnswers) => {
   throw Error(
     `can't call publishChallengeAnswers() before result.challenge is defined (before the challenge message is received)`,
@@ -211,46 +216,53 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
   const indexRef = useRef<number | undefined>(undefined);
   const publishRequestIdRef = useRef(0);
   const activePublishRequestIdRef = useRef<number | undefined>(undefined);
-  const guardActive = () => activePublishRequestIdRef.current !== undefined;
-  publishCommentOptions._onPendingCommentIndex = withGuardActive(
-    guardActive,
-    (pendingIndex: number) => {
-      indexRef.current = pendingIndex;
-      setIndex(pendingIndex);
-    },
-  );
-
+  const deferredAbandonsRef = useRef(new Map<number, DeferredAbandon>());
+  const mountedRef = useRef(true);
+  const guardActiveHook = () =>
+    mountedRef.current && activePublishRequestIdRef.current !== undefined;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
   let initialState = "initializing";
   if (accountId && options) initialState = "ready";
 
   const originalOnError = publishCommentOptions.onError;
   const onError = async (error: Error) => {
-    setErrors((errors) => [...errors, error]);
+    if (activePublishRequestIdRef.current === undefined) return;
+    if (mountedRef.current) {
+      setErrors((errors) => [...errors, error]);
+    }
     (originalOnError ?? noop)(error);
   };
   publishCommentOptions.onError = onError;
 
   const originalOnChallenge = publishCommentOptions.onChallenge;
-  publishCommentOptions.onChallenge = withGuardActive(
-    guardActive,
-    async (challenge: Challenge, comment: Comment) => {
+  publishCommentOptions.onChallenge = async (challenge: Challenge, comment: Comment) => {
+    if (activePublishRequestIdRef.current === undefined) return;
+    if (mountedRef.current) {
       setPublishChallengeAnswers(() => comment?.publishChallengeAnswers.bind(comment));
       setChallenge(challenge);
-      (originalOnChallenge ?? noop)(challenge, comment);
-    },
-  );
+    }
+    (originalOnChallenge ?? noop)(challenge, comment);
+  };
 
   const originalOnChallengeVerification = publishCommentOptions.onChallengeVerification;
-  publishCommentOptions.onChallengeVerification = withGuardActive(
-    guardActive,
-    async (challengeVerification: ChallengeVerification, comment: Comment) => {
+  publishCommentOptions.onChallengeVerification = async (
+    challengeVerification: ChallengeVerification,
+    comment: Comment,
+  ) => {
+    if (activePublishRequestIdRef.current === undefined) return;
+    if (mountedRef.current) {
       setChallengeVerification(challengeVerification);
-      (originalOnChallengeVerification ?? noop)(challengeVerification, comment);
-    },
-  );
+    }
+    (originalOnChallengeVerification ?? noop)(challengeVerification, comment);
+  };
 
   publishCommentOptions.onPublishingStateChange = withGuardActive(
-    guardActive,
+    guardActiveHook,
     (publishingState: string) => setPublishingState(publishingState),
   );
 
@@ -258,36 +270,97 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
     const requestId = publishRequestIdRef.current + 1;
     publishRequestIdRef.current = requestId;
     activePublishRequestIdRef.current = requestId;
+    indexRef.current = undefined;
+    setIndex(undefined);
+    const originalOnPendingComment = publishCommentOptions.onPendingComment;
+    const activePublishCommentOptions = {
+      ...publishCommentOptions,
+      _onPendingCommentIndex: (pendingIndex: number) => {
+        const deferredAbandon = deferredAbandonsRef.current.get(requestId);
+        if (deferredAbandon) {
+          deferredAbandonsRef.current.delete(requestId);
+          void accountsActions
+            .deleteComment(pendingIndex, accountName)
+            .then(deferredAbandon.resolve, deferredAbandon.reject);
+          return;
+        }
+        if (activePublishRequestIdRef.current !== requestId) {
+          return;
+        }
+        indexRef.current = pendingIndex;
+        if (mountedRef.current) {
+          setIndex(pendingIndex);
+        }
+      },
+      onPendingComment: withGuardActive(
+        () => activePublishRequestIdRef.current === requestId,
+        (pendingIndex, pendingComment) => originalOnPendingComment?.(pendingIndex, pendingComment),
+      ),
+    };
     try {
-      const { index } = await accountsActions.publishComment(publishCommentOptions, accountName);
+      const { index } = await accountsActions.publishComment(
+        activePublishCommentOptions,
+        accountName,
+      );
       if (activePublishRequestIdRef.current !== requestId) {
         return;
       }
       indexRef.current = index;
-      setIndex(index);
+      if (mountedRef.current) {
+        setIndex(index);
+      }
     } catch (e: any) {
-      handlePublishErrorWhenAbandoned(
-        activePublishRequestIdRef,
-        requestId,
-        e,
-        setErrors,
-        originalOnError,
-      );
+      const deferredAbandon = deferredAbandonsRef.current.get(requestId);
+      if (deferredAbandon) {
+        deferredAbandonsRef.current.delete(requestId);
+        deferredAbandon.resolve();
+      }
+      try {
+        if (!mountedRef.current && activePublishRequestIdRef.current === requestId) {
+          (originalOnError ?? noop)(e);
+        } else {
+          handlePublishErrorWhenAbandoned(
+            activePublishRequestIdRef,
+            requestId,
+            e,
+            setErrors,
+            originalOnError,
+          );
+        }
+      } finally {
+        if (activePublishRequestIdRef.current === requestId) {
+          activePublishRequestIdRef.current = undefined;
+        }
+      }
     }
   };
 
   const abandonPublish = async () => {
+    const requestId = activePublishRequestIdRef.current;
     activePublishRequestIdRef.current = undefined;
     const idx = indexRef.current;
+    indexRef.current = undefined;
+    if (mountedRef.current) {
+      setChallenge(undefined);
+      setChallengeVerification(undefined);
+      setPublishChallengeAnswers(undefined);
+      setIndex(undefined);
+      setPublishingState(undefined);
+    }
     if (idx !== undefined) {
       await accountsActions.deleteComment(idx, accountName);
+      return;
     }
-    indexRef.current = undefined;
-    setChallenge(undefined);
-    setChallengeVerification(undefined);
-    setPublishChallengeAnswers(undefined);
-    setIndex(undefined);
-    setPublishingState(undefined);
+    if (requestId !== undefined) {
+      let resolve!: () => void;
+      let reject!: (error: unknown) => void;
+      const promise = new Promise<void>((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+      });
+      deferredAbandonsRef.current.set(requestId, { promise, resolve, reject });
+      await promise;
+    }
   };
 
   return useMemo(

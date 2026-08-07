@@ -767,12 +767,14 @@ describe("actions", () => {
     });
 
     test(`can publish comment`, async () => {
+      const onPendingComment = vi.fn();
       const onChallenge = vi.fn();
       const onChallengeVerification = vi.fn();
       const publishCommentOptions = {
         communityAddress: "12D3KooW... acions.test",
         parentCid: "Qm... acions.test",
         content: "some content acions.test",
+        onPendingComment,
         onChallenge,
         onChallengeVerification,
       };
@@ -818,6 +820,13 @@ describe("actions", () => {
       expect(rendered.result.current.error).toBe(undefined);
 
       // check callbacks
+      expect(onPendingComment).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.objectContaining({
+          content: "some content acions.test",
+          communityAddress: "12D3KooW... acions.test",
+        }),
+      );
       expect(onChallenge.mock.calls[0][0].type).toBe("CHALLENGE");
       expect(typeof onChallenge.mock.calls[0][1].timestamp).toBe("number");
       expect(onChallengeVerification.mock.calls[0][0].type).toBe("CHALLENGEVERIFICATION");
@@ -849,6 +858,271 @@ describe("actions", () => {
       await waitFor(() => rendered.result.current.state === "succeeded");
       expect(rendered.result.current.state).toBe("succeeded");
       expect(typeof rendered.result.current.index).toBe("number");
+    });
+
+    test("onPendingComment does not run after abandoning the active publish", async () => {
+      const originalPublishComment = useAccountsStore.getState().accountsActions.publishComment;
+      const originalDeleteComment = useAccountsStore.getState().accountsActions.deleteComment;
+      let forwardedOptions: any;
+      let resolvePublish!: (value: { index: number }) => void;
+      const pendingPublish = new Promise<{ index: number }>((resolve) => {
+        resolvePublish = resolve;
+      });
+      useAccountsStore.setState((state: any) => ({
+        ...state,
+        accountsActions: {
+          ...state.accountsActions,
+          deleteComment: async () => {},
+          publishComment: (options: any) => {
+            forwardedOptions = options;
+            return pendingPublish;
+          },
+        },
+      }));
+      const onPendingComment = vi.fn();
+
+      try {
+        rendered.rerender({
+          communityAddress: "12D3KooW... actions.test abandon pending callback",
+          content: "abandon pending callback",
+          onPendingComment,
+        });
+        await waitFor(() => rendered.result.current.state === "ready");
+        let publishPromise!: Promise<void>;
+        act(() => {
+          publishPromise = rendered.result.current.publishComment();
+        });
+        await waitFor(() => forwardedOptions);
+
+        let abandonPromise!: Promise<void>;
+        act(() => {
+          abandonPromise = rendered.result.current.abandonPublish();
+        });
+        forwardedOptions.onPendingComment(0, { content: "too late" });
+        expect(onPendingComment).not.toHaveBeenCalled();
+        forwardedOptions._onPendingCommentIndex(0, { content: "too late" });
+        await abandonPromise;
+
+        resolvePublish({ index: 0 });
+        await act(async () => {
+          await publishPromise;
+        });
+      } finally {
+        useAccountsStore.setState((state: any) => ({
+          ...state,
+          accountsActions: {
+            ...state.accountsActions,
+            publishComment: originalPublishComment,
+            deleteComment: originalDeleteComment,
+          },
+        }));
+      }
+    });
+
+    test("abandon from onPendingComment removes the comment after persistence starts", async () => {
+      let abandonPromise: Promise<void> | undefined;
+      const onPendingComment = vi.fn(() => {
+        abandonPromise = rendered.result.current.abandonPublish();
+      });
+
+      rendered.rerender({
+        communityAddress: "12D3KooW... actions.test abandon from pending callback",
+        content: "abandon from pending callback",
+        onPendingComment,
+      });
+      await waitFor(() => rendered.result.current.state === "ready");
+
+      let publishPromise!: Promise<void>;
+      act(() => {
+        publishPromise = rendered.result.current.publishComment();
+      });
+      await waitFor(() => onPendingComment.mock.calls.length === 1);
+      await act(async () => {
+        await abandonPromise;
+        await publishPromise;
+      });
+
+      await waitFor(() => rendered.result.current.state === "ready");
+      await waitFor(() => {
+        const { accountsComments, activeAccountId } = useAccountsStore.getState();
+        return activeAccountId && accountsComments[activeAccountId]?.length === 0;
+      });
+      expect(rendered.result.current.index).toBeUndefined();
+    });
+
+    test("abandon from onPendingComment resolves after deferred deletion", async () => {
+      const originalPublishComment = useAccountsStore.getState().accountsActions.publishComment;
+      const originalDeleteComment = useAccountsStore.getState().accountsActions.deleteComment;
+      let forwardedOptions: any;
+      let resolvePublish!: (value: { index: number }) => void;
+      let releaseDelete!: () => void;
+      const pendingPublish = new Promise<{ index: number }>((resolve) => {
+        resolvePublish = resolve;
+      });
+      const deleteBlocked = new Promise<void>((resolve) => {
+        releaseDelete = resolve;
+      });
+      const deleteComment = vi.fn(async () => {
+        await deleteBlocked;
+      });
+      useAccountsStore.setState((state: any) => ({
+        ...state,
+        accountsActions: {
+          ...state.accountsActions,
+          deleteComment,
+          publishComment: (publishOptions: any) => {
+            forwardedOptions = publishOptions;
+            publishOptions.onPendingComment(1, { content: "pending deletion" });
+            return pendingPublish;
+          },
+        },
+      }));
+      let abandonPromise: Promise<void> | undefined;
+
+      try {
+        rendered.rerender({
+          communityAddress: "12D3KooW... actions.test deferred abandon",
+          content: "pending deletion",
+          onPendingComment: () => {
+            abandonPromise = rendered.result.current.abandonPublish();
+          },
+        });
+        await waitFor(() => rendered.result.current.state === "ready");
+        let publishPromise!: Promise<void>;
+        act(() => {
+          publishPromise = rendered.result.current.publishComment();
+        });
+        await waitFor(() => abandonPromise !== undefined && forwardedOptions);
+
+        let abandonSettled = false;
+        void abandonPromise?.then(() => {
+          abandonSettled = true;
+        });
+        forwardedOptions._onPendingCommentIndex(1, { content: "pending deletion" });
+        await Promise.resolve();
+        expect(deleteComment).toHaveBeenCalledWith(1, undefined);
+        expect(abandonSettled).toBe(false);
+
+        releaseDelete();
+        await abandonPromise;
+        expect(abandonSettled).toBe(true);
+        resolvePublish({ index: 1 });
+        await publishPromise;
+      } finally {
+        useAccountsStore.setState((state: any) => ({
+          ...state,
+          accountsActions: {
+            ...state.accountsActions,
+            publishComment: originalPublishComment,
+            deleteComment: originalDeleteComment,
+          },
+        }));
+      }
+    });
+
+    test("abandon from a second publish does not delete the previous comment", async () => {
+      rendered.rerender({
+        communityAddress: "12D3KooW... actions.test sequential pending callbacks",
+        content: "first sequential comment",
+        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+      });
+      await waitFor(() => rendered.result.current.state === "ready");
+      await act(async () => {
+        await rendered.result.current.publishComment();
+      });
+      await waitFor(() => rendered.result.current.state === "succeeded");
+      await waitFor(() => {
+        const { accountsComments, activeAccountId } = useAccountsStore.getState();
+        return activeAccountId && accountsComments[activeAccountId]?.length === 1;
+      });
+
+      let abandonPromise: Promise<void> | undefined;
+      rendered.rerender({
+        communityAddress: "12D3KooW... actions.test sequential pending callbacks",
+        content: "second sequential comment",
+        onPendingComment: () => {
+          abandonPromise = rendered.result.current.abandonPublish();
+        },
+      });
+      let publishPromise!: Promise<void>;
+      act(() => {
+        publishPromise = rendered.result.current.publishComment();
+      });
+      await waitFor(() => abandonPromise !== undefined);
+      await act(async () => {
+        await abandonPromise;
+        await publishPromise;
+      });
+
+      const { accountsComments, activeAccountId } = useAccountsStore.getState();
+      expect(activeAccountId && accountsComments[activeAccountId]).toEqual([
+        expect.objectContaining({ content: "first sequential comment" }),
+      ]);
+    });
+
+    test("publish callbacks continue after the hook unmounts", async () => {
+      const originalPublishComment = useAccountsStore.getState().accountsActions.publishComment;
+      const originalDeleteComment = useAccountsStore.getState().accountsActions.deleteComment;
+      let forwardedOptions: any;
+      let resolvePublish!: (value: { index: number }) => void;
+      const pendingPublish = new Promise<{ index: number }>((resolve) => {
+        resolvePublish = resolve;
+      });
+      const deleteComment = vi.fn(async () => {});
+      useAccountsStore.setState((state: any) => ({
+        ...state,
+        accountsActions: {
+          ...state.accountsActions,
+          deleteComment,
+          publishComment: (options: any) => {
+            forwardedOptions = options;
+            return pendingPublish;
+          },
+        },
+      }));
+      const onPendingComment = vi.fn();
+      let abandonPromise: Promise<void> | undefined;
+      let abandonPublish: (() => Promise<void>) | undefined;
+      const onChallenge = vi.fn(() => {
+        abandonPromise = abandonPublish?.();
+      });
+
+      try {
+        rendered.rerender({
+          communityAddress: "12D3KooW... actions.test unmount pending callback",
+          content: "unmount pending callback",
+          onPendingComment,
+          onChallenge,
+        });
+        await waitFor(() => rendered.result.current.state === "ready");
+        let publishPromise!: Promise<void>;
+        act(() => {
+          publishPromise = rendered.result.current.publishComment();
+        });
+        await waitFor(() => forwardedOptions);
+        abandonPublish = rendered.result.current.abandonPublish;
+
+        rendered.unmount();
+        forwardedOptions.onPendingComment(0, { content: "too late" });
+        forwardedOptions._onPendingCommentIndex(0, { content: "too late" });
+        forwardedOptions.onChallenge({ type: "CHALLENGE" }, { content: "too late" });
+        expect(onPendingComment).toHaveBeenCalledWith(0, { content: "too late" });
+        expect(onChallenge).toHaveBeenCalledWith({ type: "CHALLENGE" }, { content: "too late" });
+        await abandonPromise;
+        expect(deleteComment).toHaveBeenCalledWith(0, undefined);
+
+        resolvePublish({ index: 0 });
+        await publishPromise;
+      } finally {
+        useAccountsStore.setState((state: any) => ({
+          ...state,
+          accountsActions: {
+            ...state.accountsActions,
+            publishComment: originalPublishComment,
+            deleteComment: originalDeleteComment,
+          },
+        }));
+      }
     });
 
     test(`abandon during waiting-challenge-answers removes pending local comment and returns hook state to ready`, async () => {
@@ -976,14 +1250,16 @@ describe("actions", () => {
       rendered.rerender(publishCommentOptions);
 
       await waitFor(() => rendered.result.current.state === "ready");
-      const publishPromise = act(async () => {
-        rendered.result.current.publishComment();
+      let publishPromise!: Promise<void>;
+      act(() => {
+        publishPromise = rendered.result.current.publishComment();
       });
-      await act(async () => {
-        await rendered.result.current.abandonPublish();
+      let abandonPromise!: Promise<void>;
+      act(() => {
+        abandonPromise = rendered.result.current.abandonPublish();
       });
       rejectPublish(new Error("publish failed"));
-      await publishPromise;
+      await Promise.all([publishPromise, abandonPromise]);
       await act(async () => {
         await new Promise((r) => setTimeout(r, 0));
       });
@@ -1025,6 +1301,7 @@ describe("actions", () => {
       expect(rendered.result.current.errors.length).toBe(1);
       expect(onError).toHaveBeenCalledWith(expect.any(Error));
       expect(onError).toHaveBeenCalledTimes(1);
+      await expect(rendered.result.current.abandonPublish()).resolves.toBeUndefined();
 
       useAccountsStore.setState((state: any) => ({
         ...state,

@@ -1067,6 +1067,7 @@ export const publishComment = async (
   delete createCommentOptions.onChallenge;
   delete createCommentOptions.onChallengeVerification;
   delete createCommentOptions.onError;
+  delete createCommentOptions.onPendingComment;
   delete createCommentOptions.onPublishingStateChange;
   delete createCommentOptions._onPendingCommentIndex;
   const storedCreateCommentOptions = normalizePublicationOptionsForStore(createCommentOptions);
@@ -1091,7 +1092,9 @@ export const publishComment = async (
   let accountCommentIndex = accountsComments[account.id].length;
   const publishSessionId = createPublishSession(account.id, accountCommentIndex);
   let savedOnce = false;
-  const saveCreatedAccountComment = async (accountComment: AccountComment) => {
+  const saveCreatedAccountComment = async (
+    accountComment: AccountComment,
+  ): Promise<number | undefined> => {
     if (isPublishSessionAbandoned(publishSessionId)) {
       return;
     }
@@ -1113,15 +1116,20 @@ export const publishComment = async (
       persistedAccountComment,
       isUpdate ? currentIndex : undefined,
     );
+    const currentSession = getPublishSession(publishSessionId);
+    if (!currentSession || isPublishSessionAbandoned(publishSessionId)) {
+      return;
+    }
+    const persistedIndex = currentSession.currentIndex;
     savedOnce = true;
     accountsStore.setState(({ accountsComments, accountsCommentsIndexes }) => {
       const accountComments = [...accountsComments[account.id]];
-      if (isUpdate && !accountComments[currentIndex]) {
+      if (isUpdate && !accountComments[persistedIndex]) {
         return {};
       }
-      accountComments[currentIndex] = {
+      accountComments[persistedIndex] = {
         ...liveAccountComment,
-        index: currentIndex,
+        index: persistedIndex,
         accountId: account.id,
       };
       return {
@@ -1132,6 +1140,7 @@ export const publishComment = async (
         },
       };
     });
+    return persistedIndex;
   };
   let createdAccountComment = {
     ...storedCreateCommentOptions,
@@ -1142,8 +1151,33 @@ export const publishComment = async (
   createdAccountComment = addShortAddressesToAccountComment(
     sanitizeAccountCommentForState(createdAccountComment),
   );
-  await saveCreatedAccountComment(createdAccountComment);
-  publishCommentOptions._onPendingCommentIndex?.(accountCommentIndex, createdAccountComment);
+  const reportOnPendingCommentError = (error: unknown, pendingCommentIndex: number) => {
+    log.error("accountsActions.publishComment onPendingComment callback error", {
+      accountId: account.id,
+      accountCommentIndex: pendingCommentIndex,
+      error,
+    });
+  };
+  const notifyPendingComment = (pendingCommentIndex: number, pendingComment: AccountComment) => {
+    try {
+      const pendingCommentSnapshot = utils.clone(pendingComment) as AccountComment;
+      void Promise.resolve(
+        publishCommentOptions.onPendingComment?.(pendingCommentIndex, pendingCommentSnapshot),
+      ).catch((error) => reportOnPendingCommentError(error, pendingCommentIndex));
+    } catch (error) {
+      reportOnPendingCommentError(error, pendingCommentIndex);
+    }
+  };
+  notifyPendingComment(accountCommentIndex, createdAccountComment);
+  const pendingCommentIndex = await saveCreatedAccountComment(createdAccountComment);
+  if (pendingCommentIndex === undefined) {
+    return createdAccountComment;
+  }
+  createdAccountComment = { ...createdAccountComment, index: pendingCommentIndex };
+  if (pendingCommentIndex !== accountCommentIndex) {
+    notifyPendingComment(pendingCommentIndex, createdAccountComment);
+  }
+  publishCommentOptions._onPendingCommentIndex?.(pendingCommentIndex, createdAccountComment);
 
   let comment: any;
   (async () => {
