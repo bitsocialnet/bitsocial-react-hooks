@@ -1,3 +1,12 @@
+## [0.1.34](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.33...v0.1.34) (2026-08-07)
+
+
+### Features
+
+* **actions:** expose pending comment before persistence ([#82](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/82)) ([a0bb1b7](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/a0bb1b71a7bd7db288755918621aea107e1c5c82))
+
+
+
 ## [0.1.33](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.32...v0.1.33) (2026-07-29)
 
 
