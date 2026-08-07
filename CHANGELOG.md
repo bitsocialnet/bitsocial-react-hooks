@@ -1,3 +1,12 @@
+## [0.1.35](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.34...v0.1.35) (2026-08-07)
+
+
+### Bug Fixes
+
+* **accounts:** default web clients to browser p2p ([f8269ef](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/f8269efe68dedca7e0e7cc91421c86f8737f815f))
+
+
+
 ## [0.1.34](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.33...v0.1.34) (2026-08-07)
 
 

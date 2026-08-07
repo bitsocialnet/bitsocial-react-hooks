@@ -91,15 +91,7 @@ export const getDefaultPkcOptions = () => {
         return aliasProtocolOptions(Object.assign(Object.assign({}, defaultPkcOptions), overwritePkcOptions));
     }
     // default PKC options for web client
-    return aliasProtocolOptions(Object.assign({ ipfsGatewayUrls: [
-            "https://ipfsgateway.xyz",
-            "https://gateway.plebpubsub.xyz",
-            "https://gateway.forumindex.com",
-        ], kuboRpcClientsOptions: undefined, pubsubKuboRpcClientsOptions: [
-            "https://pubsubprovider.xyz/api/v0",
-            "https://plebpubsub.xyz/api/v0",
-            "https://rannithepleb.com/api/v0",
-        ], httpRoutersOptions: [...DEFAULT_HTTP_ROUTER_URLS] }, overwritePkcOptions));
+    return aliasProtocolOptions(Object.assign({ libp2pJsClientsOptions: [{ key: "libp2pjs" }], ipfsGatewayUrls: undefined, kuboRpcClientsOptions: undefined, pubsubKuboRpcClientsOptions: undefined, httpRoutersOptions: [...DEFAULT_HTTP_ROUTER_URLS] }, overwritePkcOptions));
 };
 // the gateway to use in <img src> for nft avatars
 // @ts-ignore
