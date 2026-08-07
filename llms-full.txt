@@ -948,7 +948,8 @@ const account = useAccount() // or useAccount('Account 2') to use an account oth
 // `account.author.wallets` only auto-generates an `eth` wallet by default.
 // `account.chainProviders` is the canonical chain config for wallets, NFT lookups, and other chain reads.
 // Defaults use multiple explicit Ethereum RPCs for `.eth` / `.bso` author-name resolution.
-// Defaults use multiple HTTP routers for IPFS/IPNS delegated routing.
+// Web defaults run a browser libp2p client and use multiple HTTP routers to discover peers.
+// IPFS gateways and HTTP pubsub providers remain available as explicit account or app overrides.
 // `account.nameResolversChainProviders` optionally overrides only the RPCs used for that resolution.
 console.log(account.author.wallets.eth)
 
@@ -3216,6 +3217,15 @@ Avoid GitHub MCP and browser MCP servers for this project because they add signi
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/CHANGELOG.md
 
 ```markdown
+## [0.1.34](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.33...v0.1.34) (2026-08-07)
+
+
+### Features
+
+* **actions:** expose pending comment before persistence ([#82](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/82)) ([a0bb1b7](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/a0bb1b71a7bd7db288755918621aea107e1c5c82))
+
+
+
 ## [0.1.33](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.32...v0.1.33) (2026-07-29)
 
 

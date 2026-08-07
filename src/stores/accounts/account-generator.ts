@@ -98,17 +98,10 @@ export const getDefaultPkcOptions = () => {
   }
   // default PKC options for web client
   return aliasProtocolOptions({
-    ipfsGatewayUrls: [
-      "https://ipfsgateway.xyz",
-      "https://gateway.plebpubsub.xyz",
-      "https://gateway.forumindex.com",
-    ],
+    libp2pJsClientsOptions: [{ key: "libp2pjs" }],
+    ipfsGatewayUrls: undefined,
     kuboRpcClientsOptions: undefined,
-    pubsubKuboRpcClientsOptions: [
-      "https://pubsubprovider.xyz/api/v0",
-      "https://plebpubsub.xyz/api/v0",
-      "https://rannithepleb.com/api/v0",
-    ],
+    pubsubKuboRpcClientsOptions: undefined,
     httpRoutersOptions: [...DEFAULT_HTTP_ROUTER_URLS],
     ...overwritePkcOptions,
   });

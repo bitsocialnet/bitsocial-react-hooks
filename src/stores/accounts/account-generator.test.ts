@@ -20,7 +20,10 @@ describe("account-generator", () => {
       try {
         const opts = getDefaultPkcOptions();
         const chainProviders = getDefaultChainProviders();
-        expect(opts.ipfsGatewayUrls).toBeDefined();
+        expect(opts.libp2pJsClientsOptions).toEqual([{ key: "libp2pjs" }]);
+        expect(opts.ipfsGatewayUrls).toBeUndefined();
+        expect(opts.kuboRpcClientsOptions).toBeUndefined();
+        expect(opts.pubsubKuboRpcClientsOptions).toBeUndefined();
         expect(opts.chainProviders).toBeUndefined();
         expect(chainProviders).toBeDefined();
         expect(chainProviders.eth).toBeDefined();

@@ -73,8 +73,9 @@ describe("accounts", () => {
       expect(account.blockedCids && typeof account.blockedCids === "object").toBe(true);
       expect(account.pkc && typeof account.pkc === "object").toBe(true);
       expect(account.pkcOptions && typeof account.pkcOptions === "object").toBe(true);
-      expect(account.pkcOptions.ipfsGatewayUrls?.length).toBeGreaterThan(0);
-      expect(account.pkcOptions.pubsubKuboRpcClientsOptions?.length).toBeGreaterThan(0);
+      expect(account.pkcOptions.libp2pJsClientsOptions).toEqual([{ key: "libp2pjs" }]);
+      expect(account.pkcOptions.ipfsGatewayUrls).toBeUndefined();
+      expect(account.pkcOptions.pubsubKuboRpcClientsOptions).toBeUndefined();
       expect(account.pkcOptions.kuboRpcClientsOptions).toBe(undefined);
     });
 

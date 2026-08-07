@@ -918,7 +918,8 @@ const account = useAccount() // or useAccount('Account 2') to use an account oth
 // `account.author.wallets` only auto-generates an `eth` wallet by default.
 // `account.chainProviders` is the canonical chain config for wallets, NFT lookups, and other chain reads.
 // Defaults use multiple explicit Ethereum RPCs for `.eth` / `.bso` author-name resolution.
-// Defaults use multiple HTTP routers for IPFS/IPNS delegated routing.
+// Web defaults run a browser libp2p client and use multiple HTTP routers to discover peers.
+// IPFS gateways and HTTP pubsub providers remain available as explicit account or app overrides.
 // `account.nameResolversChainProviders` optionally overrides only the RPCs used for that resolution.
 console.log(account.author.wallets.eth)
 

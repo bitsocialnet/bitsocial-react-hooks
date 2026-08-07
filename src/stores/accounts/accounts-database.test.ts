@@ -1516,7 +1516,8 @@ describe("accounts-database", () => {
       });
       const accounts = await accountsDatabase.getAccounts([acc.id]);
       expect(accounts[acc.id].pkcOptions).toBeDefined();
-      expect(accounts[acc.id].pkcOptions.ipfsGatewayUrls).toBeDefined();
+      expect(accounts[acc.id].pkcOptions.libp2pJsClientsOptions).toEqual([{ key: "libp2pjs" }]);
+      expect(accounts[acc.id].pkcOptions.ipfsGatewayUrls).toBeUndefined();
     });
   });
 
