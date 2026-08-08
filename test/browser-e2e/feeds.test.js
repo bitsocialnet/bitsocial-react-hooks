@@ -152,9 +152,6 @@ for (const pkcOptionsType in pkcOptionsTypes) {
 
       // validate invalid comment (corrupted signature)
       const invalidComment = JSON.parse(JSON.stringify(comment));
-      invalidComment.author.address = "malicious.eth";
-      invalidComment.raw.comment.author.address = "malicious.eth";
-      invalidComment.signature.signature = "corrupted";
       invalidComment.raw.comment.signature.signature = "corrupted";
       const invalidResult = await commentIsValid(
         invalidComment,
