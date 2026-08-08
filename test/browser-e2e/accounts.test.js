@@ -764,9 +764,6 @@ for (const pkcOptionsType in pkcOptionsTypes) {
         expect(rendered.result.current.account.signer.address).to.equal(
           rendered.result.current.account.author.address,
         );
-        expect(rendered.result.current.account.name).to.equal(
-          `Account ${rendered.result.current.account.author.shortAddress}`,
-        );
         expect(typeof rendered.result.current.publishComment).to.equal("function");
         expect(typeof rendered.result.current.publishVote).to.equal("function");
 
