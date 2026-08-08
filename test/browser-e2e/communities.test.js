@@ -79,12 +79,18 @@ for (const pkcOptionsType in pkcOptionsTypes) {
         rendered.detach();
         waitFor = testUtils.createWaitFor(rendered, { timeout });
 
-        await waitFor(() => rendered.result.current.account.name === "Account 1");
+        await waitFor(
+          () =>
+            rendered.result.current.account.name &&
+            rendered.result.current.account.author.shortAddress,
+        );
         expect(isBase64(rendered.result.current.account.signer.privateKey)).to.be.true;
         expect(rendered.result.current.account.signer.address).to.equal(
           rendered.result.current.account.author.address,
         );
-        expect(rendered.result.current.account.name).to.equal("Account 1");
+        expect(rendered.result.current.account.name).to.equal(
+          `Account ${rendered.result.current.account.author.shortAddress}`,
+        );
         expect(typeof rendered.result.current.publishComment).to.equal("function");
         expect(typeof rendered.result.current.publishVote).to.equal("function");
 

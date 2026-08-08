@@ -145,7 +145,7 @@ const generateDefaultAccount = async () => {
     },
   };
 
-  const accountName = await getNextAvailableDefaultAccountName();
+  const accountName = await getNextAvailableDefaultAccountName(author.address);
 
   // communities where the account has a role, like moderator, admin, owner, etc.
   const communities: { [communityAddress: string]: AccountCommunity } = {};
@@ -171,7 +171,9 @@ const generateDefaultAccount = async () => {
   return account;
 };
 
-const getNextAvailableDefaultAccountName = async () => {
+const getNextAvailableDefaultAccountName = async (authorAddress: string) => {
+  const shortAddress = PkcJs.PKC.getShortAddress?.({ address: authorAddress }) || authorAddress;
+  const defaultAccountName = `Account ${shortAddress}`;
   const accountIds: string[] | null =
     await accountsDatabase.accountsMetadataDatabase.getItem("accountIds");
   const accountNames = [];
@@ -181,15 +183,19 @@ const getNextAvailableDefaultAccountName = async () => {
       accountNames.push(accounts[accountId].name);
     }
   }
-  let accountNumber = 1;
   if (!accountNames?.length) {
-    return `Account ${accountNumber}`;
+    return defaultAccountName;
   }
   validator.validateAccountsDatabaseAccountNames(accountNames);
 
   const accountNamesSet = new Set(accountNames);
+  if (!accountNamesSet.has(defaultAccountName)) {
+    return defaultAccountName;
+  }
+
+  let accountNumber = 2;
   while (true) {
-    const accountName = `Account ${accountNumber}`;
+    const accountName = `${defaultAccountName} ${accountNumber}`;
     if (!accountNamesSet.has(accountName)) {
       return accountName;
     }

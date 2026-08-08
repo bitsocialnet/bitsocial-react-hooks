@@ -95,7 +95,7 @@ const applyEditedCommentProperty = (comment: any, propertyName: string, value: a
 };
 
 /**
- * @param accountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, return
+ * @param accountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, return
  * the active account id.
  */
 export function useAccountId(accountName?: string) {
@@ -107,7 +107,7 @@ export function useAccountId(accountName?: string) {
 }
 
 /**
- * @param accountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, return
+ * @param accountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, return
  * the active account.
  */
 export function useAccount(options?: UseAccountOptions): UseAccountResult {
@@ -323,7 +323,7 @@ export function useAccountCommunities(
 /**
  * Returns an account's notifications in an array. Unread notifications have a field markedAsRead: false.
  *
- * @param accountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, return
+ * @param accountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, return
  * the active account's notifications.
  */
 export function useNotifications(options?: UseNotificationsOptions): UseNotificationsResult {
@@ -1032,7 +1032,7 @@ export function useEditedComment(options?: UseEditedCommentOptions): UseEditedCo
  * submit page and the /c/<commentCid> page, it improves the speed of publishing to the pubsub
  * by subscribing to the pubsub right away.
  *
- * @param accountName - The nickname of the account, e.g. 'Account 1'.
+ * @param accountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'.
  * @param communityAddress - The community address to subscribe to, e.g. 'news.eth'.
  */
 export function usePubsubSubscribe(options?: UsePubsubSubscribeOptions): UsePubsubSubscribeResult {

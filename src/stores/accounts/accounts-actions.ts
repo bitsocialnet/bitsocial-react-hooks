@@ -641,9 +641,12 @@ export const importAccount = async (serializedAccount: string) => {
     imported.account,
     communitiesStore.getState().communities,
   );
-  // if imported.account.name already exists, add ' 2', don't overwrite
-  if (accountNamesToAccountIds[imported.account.name]) {
-    imported.account.name += " 2";
+  // Preserve the imported name when possible; otherwise use the next available numeric suffix.
+  const importedAccountName = imported.account.name;
+  let accountNameNumber = 2;
+  while (accountNamesToAccountIds[imported.account.name]) {
+    imported.account.name = `${importedAccountName} ${accountNameNumber}`;
+    accountNameNumber++;
   }
 
   // Always assign a new local id so importing the same backup cannot overwrite an existing account.

@@ -59,7 +59,7 @@ const parseFetchedCommunityStats = (fetchedCid: unknown): CommunityStats => {
 
 /**
  * @param community - The community identifier, e.g. {name: 'memes.eth'} or {publicKey: '12D3KooW...'}
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 export function useCommunity(options?: UseCommunityOptions): UseCommunityResult {
@@ -183,7 +183,7 @@ export function useCommunity(options?: UseCommunityOptions): UseCommunityResult 
 
 /**
  * @param community - The community identifier, e.g. {name: 'memes.eth'} or {publicKey: '12D3KooW...'}
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 export function useCommunityStats(options?: UseCommunityStatsOptions): UseCommunityStatsResult {
@@ -292,7 +292,7 @@ const useCommunitiesStatsStore = createStore<CommunitiesStatsState>((setState: F
 
 /**
  * @param communities - The communities to fetch, e.g. [{name: 'memes.eth'}, {publicKey: '12D3KooW...'}]
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 export function useCommunities(options?: UseCommunitiesOptions): UseCommunitiesResult {
@@ -401,7 +401,7 @@ export function useListCommunities(accountName?: string) {
 
 /**
  * @param communityAddress - The community address to resolve to a public key, e.g. 'news.eth' resolves to '12D3KooW...'.
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 // NOTE: useResolvedCommunityAddress tests are skipped, if changes are made they must be tested manually

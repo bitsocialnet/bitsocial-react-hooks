@@ -43,7 +43,9 @@ describe("pkc-rpc", () => {
   });
 
   test("usePkcRpcSettings with explicit options (branch 31)", async () => {
-    const rendered = renderHook<any, any>(() => usePkcRpcSettings({ accountName: "Account 1" }));
+    const rendered = renderHook<any, any>(() =>
+      usePkcRpcSettings({ accountName: "Account dress" }),
+    );
     const waitFor = testUtils.createWaitFor(rendered);
     await waitFor(() => rendered.result.current.state === "connected");
     expect(rendered.result.current.pkcRpcSettings).toBeDefined();

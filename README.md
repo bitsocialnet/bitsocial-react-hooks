@@ -254,17 +254,19 @@ const { accounts } = useAccounts();
 
 // on first render
 console.log(accounts.length); // 1
-console.log(account.name); // 'Account 1'
+console.log(account.name); // e.g. 'Account KoXpxTwfnjA5'
+console.log(account.name === `Account ${account.author.shortAddress}`); // true
 
-await createAccount(); // create 'Account 2'
-await createAccount(); // create 'Account 3'
-await setActiveAccount("Account 3");
+await createAccount(); // creates another uniquely named account
+await createAccount();
+const thirdAccountName = accounts[2].name;
+await setActiveAccount(thirdAccountName);
 
 // on render after updates
 console.log(accounts.length); // 3
-console.log(account.name); // 'Account 3'
+console.log(account.name); // thirdAccountName
 
-// you are now publishing from 'Account 3' because it is the active one
+// you are now publishing from the third account because it is active
 const { publishComment } = usePublishComment(publishCommentOptions);
 await publishComment();
 ```
@@ -913,7 +915,7 @@ console.log(error);
 
 ```jsx
 import {useAccount, setAccount, useResolvedAuthorAddress} from '@bitsocial/bitsocial-react-hooks'
-const account = useAccount() // or useAccount('Account 2') to use an account other than the active one
+const account = useAccount() // or useAccount('Account KoXpxTwfnjA5') to use an account by name
 
 // `account.author.wallets` only auto-generates an `eth` wallet by default.
 // `account.chainProviders` is the canonical chain config for wallets, NFT lookups, and other chain reads.
@@ -991,7 +993,7 @@ import { deleteAccount } from "@bitsocial/bitsocial-react-hooks";
 await deleteAccount();
 
 // delete account by name
-await deleteAccount("Account 2");
+await deleteAccount("Account KoXpxTwfnjA5");
 ```
 
 #### Get your own comments and votes
@@ -1278,8 +1280,9 @@ import {
   setAccountsOrder,
 } from "@bitsocial/bitsocial-react-hooks";
 
-// get active account 'Account 1'
+// New accounts default to `Account {author short address}`, while custom and legacy names are preserved.
 const activeAccount = useAccount();
+const activeAccountName = activeAccount.name;
 
 // export active account, tell user to copy or download this json
 const activeAccountJson = await exportAccount();
@@ -1287,14 +1290,15 @@ const activeAccountJson = await exportAccount();
 // import account
 await importAccount(activeAccountJson);
 
-// get imported account 'Account 1 2' (' 2' gets added to account.name if account.name already exists)
-const importedAccount = useAccount("Account 1 2");
+// Importing the same identity again uses the next available numeric suffix.
+const importedAccountName = `${activeAccountName} 2`;
+const importedAccount = useAccount(importedAccountName);
 
 // make imported account active account
-await setActiveAccount("Account 1 2");
+await setActiveAccount(importedAccountName);
 
 // reorder the accounts list
-await setAccountsOrder(["Account 1 2", "Account 1"]);
+await setAccountsOrder([importedAccountName, activeAccountName]);
 ```
 
 #### View the status of a comment edit

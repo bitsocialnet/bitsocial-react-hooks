@@ -88,10 +88,12 @@ for (const pkcOptionsType in pkcOptionsTypes) {
         const rendered = renderHook(() => useAccount());
         const waitFor = testUtils.createWaitFor(rendered, { timeout });
 
-        await waitFor(() => rendered.result.current?.name === "Account 1");
+        await waitFor(
+          () => rendered.result.current?.name && rendered.result.current?.author?.shortAddress,
+        );
 
         const account = rendered.result.current;
-        expect(account.name).to.equal("Account 1");
+        expect(account.name).to.equal(`Account ${account.author.shortAddress}`);
         expect(account.author.displayName).to.equal(undefined);
         expect(isBase64(account.signer.privateKey)).to.be.true;
         expect(account.signer.address).to.equal(account.author.address);
@@ -132,12 +134,18 @@ for (const pkcOptionsType in pkcOptionsTypes) {
           rendered.detach();
           waitFor = testUtils.createWaitFor(rendered, { timeout });
 
-          await waitFor(() => rendered.result.current.account.name === "Account 1");
+          await waitFor(
+            () =>
+              rendered.result.current.account.name &&
+              rendered.result.current.account.author.shortAddress,
+          );
           expect(isBase64(rendered.result.current.account.signer.privateKey)).to.be.true;
           expect(rendered.result.current.account.signer.address).to.equal(
             rendered.result.current.account.author.address,
           );
-          expect(rendered.result.current.account.name).to.equal("Account 1");
+          expect(rendered.result.current.account.name).to.equal(
+            `Account ${rendered.result.current.account.author.shortAddress}`,
+          );
           expect(typeof rendered.result.current.publishComment).to.equal("function");
           expect(typeof rendered.result.current.publishVote).to.equal("function");
 
@@ -439,6 +447,7 @@ for (const pkcOptionsType in pkcOptionsTypes) {
 
           rendered.rerender(community.address);
           await waitFor(() => rendered.result.current.community.address === community.address);
+          const defaultAccountName = rendered.result.current.account.name;
 
           await act(async () => {
             await rendered.result.current.createAccount("Poster");
@@ -482,9 +491,9 @@ for (const pkcOptionsType in pkcOptionsTypes) {
           expect(typeof commentCid).to.equal("string");
 
           await act(async () => {
-            await rendered.result.current.setActiveAccount("Account 1");
+            await rendered.result.current.setActiveAccount(defaultAccountName);
           });
-          await waitFor(() => rendered.result.current.account.name === "Account 1");
+          await waitFor(() => rendered.result.current.account.name === defaultAccountName);
           await act(async () => {
             await community.edit({
               roles: {
@@ -640,12 +649,18 @@ for (const pkcOptionsType in pkcOptionsTypes) {
         rendered.detach();
         waitFor = testUtils.createWaitFor(rendered, { timeout });
 
-        await waitFor(() => rendered.result.current.account.name === "Account 1");
+        await waitFor(
+          () =>
+            rendered.result.current.account.name &&
+            rendered.result.current.account.author.shortAddress,
+        );
         expect(isBase64(rendered.result.current.account.signer.privateKey)).to.be.true;
         expect(rendered.result.current.account.signer.address).to.equal(
           rendered.result.current.account.author.address,
         );
-        expect(rendered.result.current.account.name).to.equal("Account 1");
+        expect(rendered.result.current.account.name).to.equal(
+          `Account ${rendered.result.current.account.author.shortAddress}`,
+        );
         expect(typeof rendered.result.current.publishComment).to.equal("function");
         expect(typeof rendered.result.current.publishVote).to.equal("function");
 
@@ -740,12 +755,18 @@ for (const pkcOptionsType in pkcOptionsTypes) {
         rendered.detach();
         waitFor = testUtils.createWaitFor(rendered, { timeout });
 
-        await waitFor(() => rendered.result.current.account.name === "Account 1");
+        await waitFor(
+          () =>
+            rendered.result.current.account.name &&
+            rendered.result.current.account.author.shortAddress,
+        );
         expect(isBase64(rendered.result.current.account.signer.privateKey)).to.be.true;
         expect(rendered.result.current.account.signer.address).to.equal(
           rendered.result.current.account.author.address,
         );
-        expect(rendered.result.current.account.name).to.equal("Account 1");
+        expect(rendered.result.current.account.name).to.equal(
+          `Account ${rendered.result.current.account.author.shortAddress}`,
+        );
         expect(typeof rendered.result.current.publishComment).to.equal("function");
         expect(typeof rendered.result.current.publishVote).to.equal("function");
 

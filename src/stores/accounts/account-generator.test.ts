@@ -103,7 +103,9 @@ describe("account-generator", () => {
     test("creates account with pkc, signer, author, and only an eth wallet", async () => {
       const account = await accountGenerator.generateDefaultAccount();
       expect(account.id).toBeDefined();
-      expect(account.name).toBe("Account 1");
+      expect(account.name).toBe(
+        `Account ${PkcJsMock.getShortAddress({ address: account.author.address })}`,
+      );
       expect(account.author.address).toBeDefined();
       expect(account.author.wallets?.sol).toBeUndefined();
       expect(account.signer).toBeDefined();
@@ -147,11 +149,38 @@ describe("account-generator", () => {
       }
     });
 
-    test("increments account name when multiple exist", async () => {
+    test("adds a suffix when generated short addresses collide", async () => {
       const acc1 = await accountGenerator.generateDefaultAccount();
       await accountsDatabase.addAccount(acc1);
       const acc2 = await accountGenerator.generateDefaultAccount();
-      expect(acc2.name).toBe("Account 2");
+      expect(acc2.name).toBe(`${acc1.name} 2`);
+    });
+
+    test("uses distinct short addresses as default names across sessions", async () => {
+      const createPkcWithAddress = (address: string) => {
+        const createPkc: any = async (options: any) => {
+          const pkc = await PkcJsMock(options);
+          pkc.createSigner = async () => ({ privateKey: "private key", address });
+          return pkc;
+        };
+        createPkc.getShortAddress = PkcJsMock.getShortAddress;
+        return createPkc;
+      };
+
+      try {
+        setPkcJs(createPkcWithAddress("12D3KooWFirstSessionAddress"));
+        const firstAccount = await accountGenerator.generateDefaultAccount();
+        await accountsDatabase.addAccount(firstAccount);
+
+        setPkcJs(createPkcWithAddress("12D3KooWSecondSessionAddress"));
+        const secondAccount = await accountGenerator.generateDefaultAccount();
+
+        expect(firstAccount.name).toBe("Account D3KooWFirstS");
+        expect(secondAccount.name).toBe("Account D3KooWSecond");
+        expect(secondAccount.name).not.toBe(firstAccount.name);
+      } finally {
+        setPkcJs(PkcJsMock);
+      }
     });
   });
 });

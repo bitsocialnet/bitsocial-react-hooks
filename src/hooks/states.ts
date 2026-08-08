@@ -19,7 +19,7 @@ const peers = {};
 /**
  * @param comment - The comment to get the states from
  * @param community - The community to get the states from
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 export function useClientsStates(options?: UseClientsStatesOptions): UseClientsStatesResult {
@@ -137,7 +137,7 @@ export function useClientsStates(options?: UseClientsStatesOptions): UseClientsS
 
 /**
  * @param communities - The communities to get the states from
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 export function useCommunitiesStates(

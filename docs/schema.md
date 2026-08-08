@@ -5,7 +5,7 @@
 ```
 Account {
   id: string // random immutable string
-  name: string // the nickname of the account, eg "Account 1"
+  name: string // local account name; defaults to "Account {author short address}"
   author: Author,
   signer: Signer,
   pkc: PKC,

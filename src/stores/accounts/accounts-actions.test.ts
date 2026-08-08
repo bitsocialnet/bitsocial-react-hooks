@@ -335,7 +335,7 @@ describe("accounts-actions", () => {
       });
 
       await act(async () => {
-        await accountsActions.setActiveAccount("Account 1");
+        await accountsActions.setActiveAccount("Account dress");
         await accountsActions.subscribe("sub1.eth");
       });
       await act(async () => {

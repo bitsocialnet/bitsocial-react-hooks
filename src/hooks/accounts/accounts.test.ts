@@ -64,7 +64,7 @@ describe("accounts", () => {
       // on second render, you get the default generated account
       await waitFor(() => rendered.result.current.name);
       const account = rendered.result.current;
-      expect(account.name).toBe("Account 1");
+      expect(account.name).toBe("Account dress");
       expect(account.author.displayName).toBe(undefined);
       expect(typeof account.author.address).toBe("string");
       expect(typeof account.author.shortAddress).toBe("string");
@@ -152,26 +152,26 @@ describe("accounts", () => {
 
       // on second render, you get the default generated account
       await waitFor(() => rendered.result.current.account.name);
-      expect(rendered.result.current.account.name).toBe("Account 1");
+      expect(rendered.result.current.account.name).toBe("Account dress");
       expect(typeof rendered.result.current.createAccount).toBe("function");
 
       await act(async () => {
-        // create 'Account 2'
+        // create 'Account dress 2'
         await rendered.result.current.createAccount();
-        // create 'Account 3'
+        // create 'Account dress 3'
         await rendered.result.current.createAccount();
         // create account 'custom name'
         await rendered.result.current.createAccount("custom name");
       });
 
       // get created accounts by name
-      rendered.rerender("Account 1");
-      expect(rendered.result.current.account.name).toBe("Account 1");
-      rendered.rerender("Account 2");
-      expect(rendered.result.current.account.name).toBe("Account 2");
-      rendered.rerender("Account 3");
-      expect(rendered.result.current.account.name).toBe("Account 3");
-      rendered.rerender("Account 4");
+      rendered.rerender("Account dress");
+      expect(rendered.result.current.account.name).toBe("Account dress");
+      rendered.rerender("Account dress 2");
+      expect(rendered.result.current.account.name).toBe("Account dress 2");
+      rendered.rerender("Account dress 3");
+      expect(rendered.result.current.account.name).toBe("Account dress 3");
+      rendered.rerender("Account dress 4");
       expect(rendered.result.current.account).toBe(undefined);
       rendered.rerender("custom name");
       expect(rendered.result.current.account.name).toBe("custom name");
@@ -187,15 +187,15 @@ describe("accounts", () => {
       await waitFor2(() => rendered2.result.current.name);
 
       // default active account is account 1
-      expect(rendered2.result.current.name).toBe("Account 1");
+      expect(rendered2.result.current.name).toBe("Account dress");
       // get all accounts by name
-      rendered2.rerender("Account 1");
-      expect(rendered2.result.current.name).toBe("Account 1");
-      rendered2.rerender("Account 2");
-      expect(rendered2.result.current.name).toBe("Account 2");
-      rendered2.rerender("Account 3");
-      expect(rendered2.result.current.name).toBe("Account 3");
-      rendered2.rerender("Account 4");
+      rendered2.rerender("Account dress");
+      expect(rendered2.result.current.name).toBe("Account dress");
+      rendered2.rerender("Account dress 2");
+      expect(rendered2.result.current.name).toBe("Account dress 2");
+      rendered2.rerender("Account dress 3");
+      expect(rendered2.result.current.name).toBe("Account dress 3");
+      rendered2.rerender("Account dress 4");
       expect(rendered2.result.current).toBe(undefined);
       rendered2.rerender("custom name");
       expect(rendered2.result.current.name).toBe("custom name");
@@ -302,13 +302,13 @@ describe("accounts", () => {
 
       // on second render, you get the default generated account
       await waitFor(() => rendered.result.current.account.name);
-      expect(rendered.result.current.account.name).toBe("Account 1");
+      expect(rendered.result.current.account.name).toBe("Account dress");
       expect(typeof rendered.result.current.createAccount).toBe("function");
 
       await act(async () => {
-        // create 'Account 2'
+        // create 'Account dress 2'
         await rendered.result.current.createAccount();
-        // create 'Account 3'
+        // create 'Account dress 3'
         await rendered.result.current.createAccount();
         // create account 'custom name'
         await rendered.result.current.createAccount("custom name");
@@ -320,15 +320,15 @@ describe("accounts", () => {
     });
 
     test("change which account is active", async () => {
-      // active account is Account 1
-      expect(rendered.result.current.account.name).toBe("Account 1");
+      // active account is Account dress
+      expect(rendered.result.current.account.name).toBe("Account dress");
       expect(typeof rendered.result.current.setActiveAccount).toBe("function");
 
       // change active account
       await act(async () => {
-        await rendered.result.current.setActiveAccount("Account 2");
+        await rendered.result.current.setActiveAccount("Account dress 2");
       });
-      expect(rendered.result.current.account.name).toBe("Account 2");
+      expect(rendered.result.current.account.name).toBe("Account dress 2");
 
       // change active account
       await act(async () => {
@@ -351,11 +351,11 @@ describe("accounts", () => {
     });
 
     test(`fail to get account that doesn't exist`, () => {
-      expect(rendered.result.current.account.name).toBe("Account 1");
+      expect(rendered.result.current.account.name).toBe("Account dress");
       rendered.rerender("account that does not exist");
       expect(rendered.result.current.account).toBe(undefined);
-      rendered.rerender("Account 1");
-      expect(rendered.result.current.account.name).toBe("Account 1");
+      rendered.rerender("Account dress");
+      expect(rendered.result.current.account.name).toBe("Account dress");
     });
 
     test(`useAccounts have shortAddresses`, async () => {
@@ -375,8 +375,8 @@ describe("accounts", () => {
     });
 
     test("edit non active account display name", async () => {
-      rendered.rerender("Account 2");
-      expect(rendered.result.current.account.name).toBe("Account 2");
+      rendered.rerender("Account dress 2");
+      expect(rendered.result.current.account.name).toBe("Account dress 2");
       expect(rendered.result.current.account.author.displayName).toBe(undefined);
       const newAccount = JSON.parse(JSON.stringify({ ...rendered.result.current.account }));
       newAccount.author.displayName = "display name john";
@@ -389,7 +389,7 @@ describe("accounts", () => {
       await testUtils.resetStores();
 
       // render second store with empty state to check if account change saved to database
-      const rendered2 = renderHook<any, any>(() => useAccount({ accountName: "Account 2" }));
+      const rendered2 = renderHook<any, any>(() => useAccount({ accountName: "Account dress 2" }));
       const waitFor2 = testUtils.createWaitFor(rendered2);
 
       // accounts not yet loaded from database
@@ -400,7 +400,7 @@ describe("accounts", () => {
     });
 
     test("edit active account name and display name", async () => {
-      expect(rendered.result.current.account.name).toBe("Account 1");
+      expect(rendered.result.current.account.name).toBe("Account dress");
       expect(rendered.result.current.account.author.displayName).toBe(undefined);
       const newAccount = JSON.parse(JSON.stringify({ ...rendered.result.current.account }));
       newAccount.author.displayName = "display name john";
@@ -616,7 +616,7 @@ describe("accounts", () => {
         expect(rendered2.result.current.accountEdits?.[1]?.commentCid).toBe("comment cid 2");
       });
 
-      test(`import account with duplicate account name succeeds by adding ' 2' to account name`, async () => {
+      test(`import account with duplicate account name uses the next available suffix`, async () => {
         let exported: any;
         await act(async () => {
           try {
@@ -631,8 +631,8 @@ describe("accounts", () => {
         await act(async () => {
           await rendered.result.current.importAccount(JSON.stringify(exported));
         });
-        // if the imported account name already exists, ' 2' get added to the name
-        rendered.rerender(exported?.account.name + " 2");
+        // Account dress, Account dress 2, and Account dress 3 already exist, so the import uses Account dress 4
+        rendered.rerender(exported?.account.name + " 4");
 
         await waitFor(
           () => rendered.result.current.account.author.name === exported?.account.author.name,
@@ -829,30 +829,30 @@ describe("accounts", () => {
     });
 
     test(`change account order`, async () => {
-      expect(rendered.result.current.accounts[0].name).toBe("Account 1");
-      expect(rendered.result.current.accounts[1].name).toBe("Account 2");
-      expect(rendered.result.current.accounts[2].name).toBe("Account 3");
+      expect(rendered.result.current.accounts[0].name).toBe("Account dress");
+      expect(rendered.result.current.accounts[1].name).toBe("Account dress 2");
+      expect(rendered.result.current.accounts[2].name).toBe("Account dress 3");
       expect(rendered.result.current.accounts[3].name).toBe("custom name");
       await act(async () => {
         await expect(() =>
           rendered.result.current.setAccountsOrder([
             "wrong account name",
-            "Account 3",
-            "Account 2",
-            "Account 1",
+            "Account dress 3",
+            "Account dress 2",
+            "Account dress",
           ]),
         ).rejects.toThrow();
         await rendered.result.current.setAccountsOrder([
           "custom name",
-          "Account 3",
-          "Account 2",
-          "Account 1",
+          "Account dress 3",
+          "Account dress 2",
+          "Account dress",
         ]);
       });
       expect(rendered.result.current.accounts[0].name).toBe("custom name");
-      expect(rendered.result.current.accounts[1].name).toBe("Account 3");
-      expect(rendered.result.current.accounts[2].name).toBe("Account 2");
-      expect(rendered.result.current.accounts[3].name).toBe("Account 1");
+      expect(rendered.result.current.accounts[1].name).toBe("Account dress 3");
+      expect(rendered.result.current.accounts[2].name).toBe("Account dress 2");
+      expect(rendered.result.current.accounts[3].name).toBe("Account dress");
 
       // reset stores to force using the db
       await testUtils.resetStores();
@@ -863,16 +863,16 @@ describe("accounts", () => {
       await waitFor2(() => rendered2.result.current.accounts[0].name);
 
       expect(rendered2.result.current.accounts[0].name).toBe("custom name");
-      expect(rendered2.result.current.accounts[1].name).toBe("Account 3");
-      expect(rendered2.result.current.accounts[2].name).toBe("Account 2");
-      expect(rendered2.result.current.accounts[3].name).toBe("Account 1");
+      expect(rendered2.result.current.accounts[1].name).toBe("Account dress 3");
+      expect(rendered2.result.current.accounts[2].name).toBe("Account dress 2");
+      expect(rendered2.result.current.accounts[3].name).toBe("Account dress");
     });
 
     test(`delete account non-active account`, async () => {
       const activeAccountIdBefore = rendered.result.current.account.id;
       const accountCountBefore = rendered.result.current.accounts.length;
       await act(async () => {
-        await rendered.result.current.deleteAccount("Account 2");
+        await rendered.result.current.deleteAccount("Account dress 2");
       });
 
       // deleting a non-active account doesn't affect the active account
@@ -880,13 +880,13 @@ describe("accounts", () => {
       expect(rendered.result.current.account.id).toBe(activeAccountIdBefore);
 
       // check that account is deleted
-      rendered.rerender("Account 2");
+      rendered.rerender("Account dress 2");
       await waitFor(() => rendered.result.current.account === undefined);
       await waitFor(() => rendered.result.current.accounts.length === accountCountBefore - 1);
       expect(rendered.result.current.account).toBe(undefined);
       expect(rendered.result.current.accounts.length).toBe(accountCountBefore - 1);
-      expect(rendered.result.current.accounts[0].name).toBe("Account 1");
-      expect(rendered.result.current.accounts[1].name).toBe("Account 3");
+      expect(rendered.result.current.accounts[0].name).toBe("Account dress");
+      expect(rendered.result.current.accounts[1].name).toBe("Account dress 3");
       expect(rendered.result.current.accounts[2].name).toBe("custom name");
 
       // reset stores to force using the db
@@ -897,8 +897,8 @@ describe("accounts", () => {
       const waitFor2 = testUtils.createWaitFor(rendered2);
       await waitFor2(() => rendered2.result.current.accounts.length > 0);
       expect(rendered2.result.current.accounts.length).toBe(accountCountBefore - 1);
-      expect(rendered2.result.current.accounts[0].name).toBe("Account 1");
-      expect(rendered2.result.current.accounts[1].name).toBe("Account 3");
+      expect(rendered2.result.current.accounts[0].name).toBe("Account dress");
+      expect(rendered2.result.current.accounts[1].name).toBe("Account dress 3");
       expect(rendered2.result.current.accounts[2].name).toBe("custom name");
     });
 
@@ -909,20 +909,20 @@ describe("accounts", () => {
         await rendered.result.current.deleteAccount();
       });
 
-      // deleting active account 'Account 1' switches active account to 'Account 2'
+      // deleting active account 'Account dress' switches active account to 'Account dress 2'
       await waitFor(() => rendered.result.current.accounts.length === accountCountBefore - 1);
       expect(rendered.result.current.account.id).not.toBe(activeAccountIdBefore);
-      expect(rendered.result.current.account.name).toBe("Account 2");
+      expect(rendered.result.current.account.name).toBe("Account dress 2");
       expect(rendered.result.current.accounts.length).toBe(accountCountBefore - 1);
 
       // check that account is deleted
-      rendered.rerender("Account 1");
+      rendered.rerender("Account dress");
       await waitFor(() => rendered.result.current.account === undefined);
       await waitFor(() => rendered.result.current.accounts.length === accountCountBefore - 1);
       expect(rendered.result.current.account).toBe(undefined);
       expect(rendered.result.current.accounts.length).toBe(accountCountBefore - 1);
-      expect(rendered.result.current.accounts[0].name).toBe("Account 2");
-      expect(rendered.result.current.accounts[1].name).toBe("Account 3");
+      expect(rendered.result.current.accounts[0].name).toBe("Account dress 2");
+      expect(rendered.result.current.accounts[1].name).toBe("Account dress 3");
       expect(rendered.result.current.accounts[2].name).toBe("custom name");
 
       // reset stores to force using the db
@@ -933,8 +933,8 @@ describe("accounts", () => {
       const waitFor2 = testUtils.createWaitFor(rendered2);
       await waitFor2(() => rendered2.result.current.accounts.length > 0);
       expect(rendered2.result.current.accounts.length).toBe(accountCountBefore - 1);
-      expect(rendered2.result.current.accounts[0].name).toBe("Account 2");
-      expect(rendered2.result.current.accounts[1].name).toBe("Account 3");
+      expect(rendered2.result.current.accounts[0].name).toBe("Account dress 2");
+      expect(rendered2.result.current.accounts[1].name).toBe("Account dress 3");
       expect(rendered2.result.current.accounts[2].name).toBe("custom name");
     });
 
@@ -957,7 +957,7 @@ describe("accounts", () => {
       await waitFor(() => rendered.result.current.accounts.length === 1);
       await waitFor(() => rendered.result.current.account);
       expect(rendered.result.current.accounts.length).toBe(1);
-      expect(rendered.result.current.account.name).toBe("Account 1");
+      expect(rendered.result.current.account.name).toBe("Account dress");
     });
 
     test(`subscribe and unsubscribe to community`, async () => {
@@ -1100,7 +1100,7 @@ describe("accounts", () => {
 
       // on second render, you get the default generated account
       await waitFor(() => rendered.result.current.account.name);
-      expect(rendered.result.current.account.name).toBe("Account 1");
+      expect(rendered.result.current.account.name).toBe("Account dress");
       expect(typeof rendered.result.current.publishComment).toBe("function");
       expect(typeof rendered.result.current.publishVote).toBe("function");
     };
@@ -1366,7 +1366,7 @@ describe("accounts", () => {
         await waitFor(() => rendered.result.current.accountEdits.length === 1);
         const filter = (edit: any) => edit.spoiler === true;
         const renderedWithFilter = renderHook<any, any>(() =>
-          useAccountEdits({ accountName: "Account 1", filter }),
+          useAccountEdits({ accountName: "Account dress", filter }),
         );
         await waitFor(() => renderedWithFilter.result.current.accountEdits.length === 1);
         expect(renderedWithFilter.result.current.accountEdits.length).toBe(1);
@@ -1475,7 +1475,7 @@ describe("accounts", () => {
       waitFor = testUtils.createWaitFor(rendered);
 
       await waitFor(() => rendered.result.current.account.name);
-      expect(rendered.result.current.account.name).toBe("Account 1");
+      expect(rendered.result.current.account.name).toBe("Account dress");
       expect(typeof rendered.result.current.publishComment).toBe("function");
       expect(typeof rendered.result.current.publishVote).toBe("function");
 
@@ -1626,7 +1626,7 @@ describe("accounts", () => {
     });
 
     test("useAccountVote with no commentCid returns initializing", async () => {
-      const rendered = renderHook(() => useAccountVote({ accountName: "Account 1" }));
+      const rendered = renderHook(() => useAccountVote({ accountName: "Account dress" }));
       const waitFor = testUtils.createWaitFor(rendered);
       await waitFor(() => rendered.result.current.state !== undefined);
       expect(rendered.result.current.state).toBe("initializing");
@@ -2063,7 +2063,7 @@ describe("accounts", () => {
     test(`get all comments and votes from different account name`, async () => {
       await act(async () => {
         await rendered.result.current.createAccount();
-        await rendered.result.current.setActiveAccount("Account 2");
+        await rendered.result.current.setActiveAccount("Account dress 2");
         await rendered.result.current.publishComment({
           ...publishOptions,
           title: "account 2 title 1",
@@ -2083,9 +2083,9 @@ describe("accounts", () => {
       expect(rendered.result.current.accountVotes[0].commentCid).toBe("account 2 comment cid 1");
 
       await act(async () => {
-        await rendered.result.current.setActiveAccount("Account 1");
+        await rendered.result.current.setActiveAccount("Account dress");
       });
-      // no comments were added to 'Account 1'
+      // no comments were added to 'Account dress'
       expect(rendered.result.current.accountComments.length).toBe(3);
       expect(rendered.result.current.accountVotes.length).toBe(3);
 
@@ -2094,8 +2094,8 @@ describe("accounts", () => {
 
       // render with new store to see if still in database
       const rendered2 = renderHook<any, any>(() => {
-        const { accountComments } = useAccountComments({ accountName: "Account 2" });
-        const { accountVotes } = useAccountVotes({ accountName: "Account 2" });
+        const { accountComments } = useAccountComments({ accountName: "Account dress 2" });
+        const { accountVotes } = useAccountVotes({ accountName: "Account dress 2" });
         return { accountComments, accountVotes };
       });
       const waitFor2 = testUtils.createWaitFor(rendered2);
@@ -2449,7 +2449,7 @@ describe("accounts", () => {
       waitFor = testUtils.createWaitFor(rendered);
 
       await waitFor(() => rendered.result.current.account?.name);
-      expect(rendered.result.current.account?.name).toBe("Account 1");
+      expect(rendered.result.current.account?.name).toBe("Account dress");
       expect(rendered.result.current.notifications).toEqual([]);
       expect(typeof rendered.result.current.markAsRead).toBe("function");
       expect(typeof rendered.result.current.publishComment).toBe("function");
@@ -2683,13 +2683,13 @@ describe("accounts", () => {
 
     test("useAccountCommunities keeps owner communities scoped to the requested account", async () => {
       await act(async () => {
-        await accountsActions.createAccount("Account 2");
-        await accountsActions.setActiveAccount("Account 1");
+        await accountsActions.createAccount("Account dress 2");
+        await accountsActions.setActiveAccount("Account dress");
       });
 
       const state = accountsStore.getState();
       const activeAccount = state.accounts[state.activeAccountId];
-      const account2 = state.accounts[state.accountNamesToAccountIds["Account 2"]];
+      const account2 = state.accounts[state.accountNamesToAccountIds["Account dress 2"]];
 
       Object.defineProperty(activeAccount.pkc, "communities", {
         configurable: true,
@@ -2702,7 +2702,7 @@ describe("accounts", () => {
 
       try {
         const rendered = renderHook<any, any>(() =>
-          useAccountCommunities({ accountName: "Account 2" }),
+          useAccountCommunities({ accountName: "Account dress 2" }),
         );
         const waitFor = testUtils.createWaitFor(rendered, { timeout: 4000 });
 
@@ -4059,7 +4059,7 @@ describe("accounts", () => {
 
     test("useEditedComment with comment and accountName returns unedited when both present", async () => {
       const rendered = renderHook(() =>
-        useEditedComment({ comment: { cid: "test-cid" }, accountName: "Account 1" }),
+        useEditedComment({ comment: { cid: "test-cid" }, accountName: "Account dress" }),
       );
       const waitFor = testUtils.createWaitFor(rendered);
       await waitFor(() => rendered.result.current.state === "unedited");

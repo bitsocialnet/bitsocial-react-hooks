@@ -35,9 +35,11 @@ describe("accounts (pkc-js mock)", () => {
       const rendered = renderHook(() => useAccount());
       const waitFor = testUtils.createWaitFor(rendered, { timeout });
 
-      await waitFor(() => rendered.result.current?.name === "Account 1");
+      await waitFor(
+        () => rendered.result.current?.name && rendered.result.current?.author?.shortAddress,
+      );
       const account = rendered.result.current;
-      expect(account.name).to.equal("Account 1");
+      expect(account.name).to.equal(`Account ${account.author.shortAddress}`);
       expect(account.author.displayName).to.equal(undefined);
       expect(typeof account.author.address).to.equal("string");
       expect(Array.isArray(account.subscriptions)).to.equal(true);
@@ -65,8 +67,14 @@ describe("accounts (pkc-js mock)", () => {
       });
       waitFor = testUtils.createWaitFor(rendered, { timeout });
 
-      await waitFor(() => rendered.result.current.account.name === "Account 1");
-      expect(rendered.result.current.account.name).to.equal("Account 1");
+      await waitFor(
+        () =>
+          rendered.result.current.account.name &&
+          rendered.result.current.account.author.shortAddress,
+      );
+      expect(rendered.result.current.account.name).to.equal(
+        `Account ${rendered.result.current.account.author.shortAddress}`,
+      );
       expect(typeof rendered.result.current.publishComment).to.equal("function");
       expect(typeof rendered.result.current.publishVote).to.equal("function");
     });

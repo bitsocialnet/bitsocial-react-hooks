@@ -8,7 +8,7 @@ const getFirstRpcClient = (protocolClient: any) =>
   Object.values(getRpcClients(protocolClient) || {})[0] as any;
 
 /**
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 export function usePkcRpcSettings(options?: UsePkcRpcSettingsOptions): UsePkcRpcSettingsResult {
