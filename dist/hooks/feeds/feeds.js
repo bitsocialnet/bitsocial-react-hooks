@@ -21,7 +21,7 @@ import { getCommunityRefKeys, getUniqueSortedCommunityRefs, } from "../../lib/co
 /**
  * @param communities - The communities to fetch, e.g. [{name: 'memes.eth'}, {publicKey: '12D3KooW...'}]
  * @param sortType - The sorting algo for the feed: 'hot' | 'new' | 'active' | 'topHour' | 'topDay' | 'topWeek' | 'topMonth' | 'topYear' | 'topAll' | 'controversialHour' | 'controversialDay' | 'controversialWeek' | 'controversialMonth' | 'controversialYear' | 'controversialAll'
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 export function useFeed(options) {
@@ -152,7 +152,7 @@ export function useFeed(options) {
  * they are called by useFeed later, they are already preloaded.
  *
  * @param feedOptions - The options of the feed
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 export function useBufferedFeeds(options) {

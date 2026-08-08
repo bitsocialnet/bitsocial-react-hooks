@@ -42,7 +42,7 @@ const removeStateChangeListener = (client, listener) => {
 /**
  * @param authorAddress - The address of the author
  * @param commentCid - The last known comment cid of the author (not possible to get an author without providing at least 1 comment cid)
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 export function useAuthorComments(options) {
@@ -114,7 +114,7 @@ export function useAuthorComments(options) {
 /**
  * @param authorAddress - The address of the author
  * @param commentCid - The last known comment cid of the author (not possible to get an author without providing at least 1 comment cid)
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 export function useAuthor(options) {
@@ -173,7 +173,7 @@ export function useAuthor(options) {
 }
 /**
  * @param author - The Author object to resolve the avatar image URL of.
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 // NOTE: useAuthorAvatar tests are skipped, if changes are made they must be tested manually
@@ -232,7 +232,7 @@ export function useAuthorAvatar(options) {
 }
 /**
  * @param author - The Author object to resolve the address of.
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 export function useAuthorAddress(options) {
@@ -322,7 +322,7 @@ export function resetAuthorAddressCacheForTesting() {
 }
 /**
  * @param author - The author with author.address to resolve to a public key, e.g. 'john.eth' resolves to '12D3KooW...'.
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 // NOTE: useResolvedAuthorAddress tests are skipped, if changes are made they must be tested manually

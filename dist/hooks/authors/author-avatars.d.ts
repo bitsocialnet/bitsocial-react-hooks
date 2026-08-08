@@ -1,7 +1,7 @@
 import { Nft, ChainProviders, Author } from "../../types.js";
 /**
  * @param nft - The NFT object to resolve the URL of.
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 export declare function useNftMetadataUrl(nft?: Nft, accountName?: string): {
@@ -10,7 +10,7 @@ export declare function useNftMetadataUrl(nft?: Nft, accountName?: string): {
 };
 /**
  * @param nftMetadataUrl - The NFT URL to resolve the image URL of.
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 export declare function useNftImageUrl(nftMetadataUrl?: string, accountName?: string): {

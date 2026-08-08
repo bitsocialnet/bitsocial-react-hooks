@@ -459,9 +459,12 @@ export const importAccount = (serializedAccount) => __awaiter(void 0, void 0, vo
     // add community roles already in communities store to imported account
     // TODO: add test to check if roles get added
     const communities = getAccountCommunities(imported.account, communitiesStore.getState().communities);
-    // if imported.account.name already exists, add ' 2', don't overwrite
-    if (accountNamesToAccountIds[imported.account.name]) {
-        imported.account.name += " 2";
+    // Preserve the imported name when possible; otherwise use the next available numeric suffix.
+    const importedAccountName = imported.account.name;
+    let accountNameNumber = 2;
+    while (accountNamesToAccountIds[imported.account.name]) {
+        imported.account.name = `${importedAccountName} ${accountNameNumber}`;
+        accountNameNumber++;
     }
     // Always assign a new local id so importing the same backup cannot overwrite an existing account.
     const accountToImport = Object.assign(Object.assign(Object.assign({}, accountGenerator.getDefaultAccountFields()), imported.account), { communities, id: uuid() });

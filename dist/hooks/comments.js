@@ -94,7 +94,7 @@ const getCommentCreateCommentData = (commentCid, community, ...comments) => {
 /**
  * @param commentCid - The IPFS CID of the comment to get
  * @param community - The community identifier, e.g. {name: 'memes.eth', publicKey: '12D3KooW...'}.
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 export function useComment(options) {
@@ -243,7 +243,7 @@ export function useComment(options) {
 }
 /**
  * @param commentCids - The IPFS CIDs of the comments to get
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 export function useComments(options) {

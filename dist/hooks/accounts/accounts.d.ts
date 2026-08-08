@@ -1,11 +1,11 @@
 import type { Account, UseAccountCommunitiesOptions, UseAccountCommunitiesResult, UseAccountVoteOptions, UseAccountVoteResult, UseAccountVotesOptions, UseAccountVotesResult, UseAccountCommentsOptions, UseAccountCommentsResult, UseAccountCommentOptions, UseAccountCommentResult, UseNotificationsOptions, UseNotificationsResult, UseAccountEditsOptions, UseAccountEditsResult, UseEditedCommentOptions, UseEditedCommentResult, UseAccountOptions, UseAccountResult, UsePubsubSubscribeOptions, UsePubsubSubscribeResult } from "../../types.js";
 /**
- * @param accountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, return
+ * @param accountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, return
  * the active account id.
  */
 export declare function useAccountId(accountName?: string): string | false | undefined;
 /**
- * @param accountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, return
+ * @param accountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, return
  * the active account.
  */
 export declare function useAccount(options?: UseAccountOptions): UseAccountResult;
@@ -25,7 +25,7 @@ export declare function useAccountCommunities(options?: UseAccountCommunitiesOpt
 /**
  * Returns an account's notifications in an array. Unread notifications have a field markedAsRead: false.
  *
- * @param accountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, return
+ * @param accountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, return
  * the active account's notifications.
  */
 export declare function useNotifications(options?: UseNotificationsOptions): UseNotificationsResult;
@@ -57,7 +57,7 @@ export declare function useEditedComment(options?: UseEditedCommentOptions): Use
  * submit page and the /c/<commentCid> page, it improves the speed of publishing to the pubsub
  * by subscribing to the pubsub right away.
  *
- * @param accountName - The nickname of the account, e.g. 'Account 1'.
+ * @param accountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'.
  * @param communityAddress - The community address to subscribe to, e.g. 'news.eth'.
  */
 export declare function usePubsubSubscribe(options?: UsePubsubSubscribeOptions): UsePubsubSubscribeResult;

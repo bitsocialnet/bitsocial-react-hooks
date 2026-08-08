@@ -1,3 +1,12 @@
+## [0.1.36](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.35...v0.1.36) (2026-08-08)
+
+
+### Bug Fixes
+
+* **accounts:** default account names to author short address ([aba1738](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/aba1738fbd1fcf7b1e406b60d41f12c826bb30c4))
+
+
+
 ## [0.1.35](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.34...v0.1.35) (2026-08-07)
 
 

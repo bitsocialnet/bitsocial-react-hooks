@@ -120,7 +120,7 @@ const generateDefaultAccount = () => __awaiter(void 0, void 0, void 0, function*
             eth: yield chain.getEthWalletFromPkcPrivateKey(signer.privateKey, signer.address),
         },
     };
-    const accountName = yield getNextAvailableDefaultAccountName();
+    const accountName = yield getNextAvailableDefaultAccountName(author.address);
     // communities where the account has a role, like moderator, admin, owner, etc.
     const communities = {};
     const account = normalizeAccountProtocolConfig(withProtocolAliases(Object.assign(Object.assign({ id: uuid(), version: accountsDatabase.accountVersion, name: accountName, author,
@@ -129,7 +129,10 @@ const generateDefaultAccount = () => __awaiter(void 0, void 0, void 0, function*
         pkcOptions }, getDefaultAccountFields()), { communities }), pkc, pkcOptions), chainProviders);
     return account;
 });
-const getNextAvailableDefaultAccountName = () => __awaiter(void 0, void 0, void 0, function* () {
+const getNextAvailableDefaultAccountName = (authorAddress) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
+    const shortAddress = ((_b = (_a = PkcJs.PKC).getShortAddress) === null || _b === void 0 ? void 0 : _b.call(_a, { address: authorAddress })) || authorAddress;
+    const defaultAccountName = `Account ${shortAddress}`;
     const accountIds = yield accountsDatabase.accountsMetadataDatabase.getItem("accountIds");
     const accountNames = [];
     if (accountIds === null || accountIds === void 0 ? void 0 : accountIds.length) {
@@ -138,14 +141,17 @@ const getNextAvailableDefaultAccountName = () => __awaiter(void 0, void 0, void 
             accountNames.push(accounts[accountId].name);
         }
     }
-    let accountNumber = 1;
     if (!(accountNames === null || accountNames === void 0 ? void 0 : accountNames.length)) {
-        return `Account ${accountNumber}`;
+        return defaultAccountName;
     }
     validator.validateAccountsDatabaseAccountNames(accountNames);
     const accountNamesSet = new Set(accountNames);
+    if (!accountNamesSet.has(defaultAccountName)) {
+        return defaultAccountName;
+    }
+    let accountNumber = 2;
     while (true) {
-        const accountName = `Account ${accountNumber}`;
+        const accountName = `${defaultAccountName} ${accountNumber}`;
         if (!accountNamesSet.has(accountName)) {
             return accountName;
         }

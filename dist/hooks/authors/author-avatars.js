@@ -19,7 +19,7 @@ import createStore from "zustand";
 const noMediaIpfsGatewayUrl = "http://no-media-ipfs-gateway-url";
 /**
  * @param nft - The NFT object to resolve the URL of.
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 // NOTE: useNftMetadataUrl tests are skipped, if changes are made they must be tested manually
@@ -66,7 +66,7 @@ export function useNftMetadataUrl(nft, accountName) {
 }
 /**
  * @param nftMetadataUrl - The NFT URL to resolve the image URL of.
- * @param acountName - The nickname of the account, e.g. 'Account 1'. If no accountName is provided, use
+ * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
 // NOTE: useNftImageUrl tests are skipped, if changes are made they must be tested manually
