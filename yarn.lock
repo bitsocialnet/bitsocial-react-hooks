@@ -319,7 +319,7 @@ __metadata:
   resolution: "@bitsocial/bitsocial-react-hooks@workspace:."
   dependencies:
     "@bitsocial/bso-resolver": "npm:0.0.10"
-    "@pkcprotocol/pkc-js": "npm:0.0.78"
+    "@pkcprotocol/pkc-js": "npm:0.0.81"
     "@pkcprotocol/pkc-logger": "npm:0.1.0"
     "@testing-library/dom": "npm:10.4.1"
     "@testing-library/react": "npm:16.3.2"
@@ -341,7 +341,7 @@ __metadata:
     husky: "npm:4.3.8"
     jsdom: "npm:27.3.0"
     knip: "npm:6.17.0"
-    kubo: "npm:0.42.0"
+    kubo: "npm:0.43.0"
     lint-staged: "npm:12.3.8"
     localforage: "npm:1.10.0"
     lodash.isequal: "npm:4.5.0"
@@ -3645,9 +3645,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@pkcprotocol/pkc-js@npm:0.0.78":
-  version: 0.0.78
-  resolution: "@pkcprotocol/pkc-js@npm:0.0.78"
+"@pkcprotocol/pkc-js@npm:0.0.81":
+  version: 0.0.81
+  resolution: "@pkcprotocol/pkc-js@npm:0.0.81"
   dependencies:
     "@enhances/with-resolvers": "npm:0.0.5"
     "@helia/block-brokers": "npm:5.2.4"
@@ -3700,7 +3700,6 @@ __metadata:
     retry: "npm:0.13.1"
     rpc-websockets: "npm:9.3.8"
     safe-stable-stringify: "npm:2.4.3"
-    tcp-port-used: "npm:1.0.2"
     tiny-typed-emitter: "npm:2.1.0"
     tinycache: "npm:1.1.2"
     ts-custom-error: "npm:3.3.1"
@@ -3710,7 +3709,7 @@ __metadata:
     uuid: "npm:13.0.0"
     ws: "npm:8.20.0"
     zod: "npm:4.3.6"
-  checksum: 10c0/67f4bdd33b1afcdafd1c38854b08cadd43b7f71fd3c6c59fcc58ce7722f52440aa21020854b643d2bba2fc25d40977326fe967f44bc6d9fb54390e3ec5d2cb8f
+  checksum: 10c0/31307eac664b2918ff4bee0873f1953fb2b405be5230eb961c226792ae0b7bc1bdfb14e47191e0ec1727d4239fe1fc4b2962904425f6f3246ef4b4f7b52f57db
   languageName: node
   linkType: hard
 
@@ -9012,9 +9011,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"kubo@npm:0.42.0":
-  version: 0.42.0
-  resolution: "kubo@npm:0.42.0"
+"kubo@npm:0.43.0":
+  version: 0.43.0
+  resolution: "kubo@npm:0.43.0"
   dependencies:
     cachedir: "npm:^2.3.0"
     got: "npm:^11.7.0"
@@ -9025,7 +9024,7 @@ __metadata:
     unzip-stream: "npm:^0.3.0"
   bin:
     ipfs: bin/ipfs
-  checksum: 10c0/9f379236466841f2b3c0c4aa06353db78f9d499969fb5639dbd88e4cf2ae14cab3ff7b3b6b9957105d8c2a479ea7f244d9e76404d529e2decc723204ec99112b
+  checksum: 10c0/8795d909b7682fdd1c2eab16cd89853b836d210b7d47186a2a0e8c9f738bb318d79840b2730dbd3bf14fbbbec7784d1ceda64fbbeea1bf877f7bbc8390538239
   languageName: node
   linkType: hard
 

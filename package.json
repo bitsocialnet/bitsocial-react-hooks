@@ -14,7 +14,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.1.36",
+  "version": "0.1.37",
   "packageManager": "yarn@4.13.0",
   "files": [
     "CHANGELOG.md",
@@ -60,7 +60,7 @@
   },
   "dependencies": {
     "@bitsocial/bso-resolver": "0.0.10",
-    "@pkcprotocol/pkc-js": "0.0.78",
+    "@pkcprotocol/pkc-js": "0.0.81",
     "@pkcprotocol/pkc-logger": "0.1.0",
     "assert": "2.1.0",
     "ethers": "5.8.0",
@@ -133,7 +133,7 @@
     "husky": "4.3.8",
     "jsdom": "27.3.0",
     "knip": "6.17.0",
-    "kubo": "0.42.0",
+    "kubo": "0.43.0",
     "lint-staged": "12.3.8",
     "oxfmt": "0.36.0",
     "oxlint": "1.51.0",
