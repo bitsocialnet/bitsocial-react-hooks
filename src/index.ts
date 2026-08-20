@@ -17,7 +17,7 @@ import {
 } from "./hooks/accounts";
 
 // comments
-import { useComment, useComments, useValidateComment } from "./hooks/comments";
+import { useComment, useComments, useCrosspost, useValidateComment } from "./hooks/comments";
 
 // replies
 import { useReplies } from "./hooks/replies";
@@ -87,6 +87,7 @@ import {
 // utils
 import { setPkcJs, restorePkcJs } from "./lib/pkc-js";
 import { deleteDatabases, deleteCaches } from "./lib/debug-utils";
+import { createCrosspost } from "./lib/crosspost";
 
 // types
 export * from "./types";
@@ -107,6 +108,7 @@ export {
   // comments
   useComment,
   useComments,
+  useCrosspost,
   useEditedComment,
   useValidateComment,
   // replies
@@ -162,6 +164,7 @@ export {
   restorePkcJs,
   deleteDatabases,
   deleteCaches,
+  createCrosspost,
 };
 
 // IMPORTANT: should be the same as 'export {}'
@@ -180,6 +183,7 @@ const hooks = {
   // comments
   useComment,
   useComments,
+  useCrosspost,
   useEditedComment,
   useValidateComment,
   // replies
@@ -235,6 +239,7 @@ const hooks = {
   restorePkcJs,
   deleteDatabases,
   deleteCaches,
+  createCrosspost,
 };
 
 export default hooks;

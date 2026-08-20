@@ -1,6 +1,6 @@
 import { act } from "@testing-library/react";
 import testUtils, { renderHook } from "../lib/test-utils";
-import { useComment, useComments, useValidateComment, setPkcJs } from "..";
+import { useComment, useComments, useCrosspost, useValidateComment, setPkcJs } from "..";
 import { getCommentFreshness, preferFresher } from "./comments";
 import * as accountsHooks from "./accounts";
 import commentsStore from "../stores/comments";
@@ -184,6 +184,90 @@ describe("comments", () => {
         createCommentSpy.mockRestore();
         rendered.unmount();
       }
+    });
+
+    test("useCrosspost seeds the embedded record and reports community verification", async () => {
+      const crosspost = {
+        cid: "crossposted-comment-cid",
+        comment: {
+          content: "embedded crosspost content",
+          timestamp: Math.floor(Date.now() / 1000),
+          author: { address: "embedded-author" },
+          signature: { publicKey: "embedded-author-public-key" },
+        },
+      };
+      const createCommentSpy = vi.spyOn(PKC.prototype, "createComment");
+      const rendered = renderHook(() => useCrosspost({ crosspost, autoUpdate: false }));
+      const waitFor = testUtils.createWaitFor(rendered);
+
+      try {
+        expect(rendered.result.current.cid).toBe(crosspost.cid);
+        expect(rendered.result.current.content).toBe("embedded crosspost content");
+        expect(rendered.result.current.isCommunityVerified).toBe(false);
+        await waitFor(() => createCommentSpy.mock.calls.length > 0);
+        expect(createCommentSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            cid: crosspost.cid,
+            raw: { comment: crosspost.comment },
+          }),
+        );
+
+        act(() => {
+          commentsStore.setState((state: any) => ({
+            comments: {
+              ...state.comments,
+              [crosspost.cid]: {
+                ...state.comments[crosspost.cid],
+                raw: { comment: crosspost.comment, commentUpdate: { cid: crosspost.cid } },
+              },
+            },
+          }));
+        });
+        await waitFor(() => rendered.result.current.isCommunityVerified === true);
+      } finally {
+        createCommentSpy.mockRestore();
+        rendered.unmount();
+      }
+    });
+
+    test("useCrosspost accepts no crosspost and validates its options", () => {
+      const rendered = renderHook(() => useCrosspost());
+      expect(rendered.result.current.cid).toBeUndefined();
+      expect(rendered.result.current.isCommunityVerified).toBe(false);
+      rendered.unmount();
+
+      expect(() => renderHook(() => useCrosspost("invalid" as any))).toThrow(
+        "useCrosspost options argument 'invalid' not an object",
+      );
+    });
+
+    test("useComment merges initial data into a pending cached comment", () => {
+      const commentCid = "pending-comment-with-initial-data";
+      commentsStore.setState((state: any) => ({
+        comments: {
+          ...state.comments,
+          [commentCid]: {
+            cid: commentCid,
+            raw: { commentUpdate: { cid: commentCid } },
+          },
+        },
+      }));
+
+      const rendered = renderHook(() =>
+        useComment({
+          commentCid,
+          initialComment: {
+            content: "initial cached content",
+          },
+          onlyIfCached: true,
+        }),
+      );
+
+      expect(rendered.result.current.content).toBe("initial cached content");
+      expect(rendered.result.current.raw).toEqual({
+        commentUpdate: { cid: commentCid },
+      });
+      rendered.unmount();
     });
 
     test("useComment forwards page comment community identifiers to pkc.createComment", async () => {

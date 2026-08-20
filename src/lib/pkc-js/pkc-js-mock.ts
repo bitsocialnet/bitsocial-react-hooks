@@ -627,20 +627,27 @@ export class Comment extends Publication {
 
   constructor(createCommentOptions?: any) {
     super();
+    const rawComment = createCommentOptions?.raw?.comment;
     this.cid = createCommentOptions?.cid;
     this.upvoteCount = createCommentOptions?.upvoteCount;
     this.downvoteCount = createCommentOptions?.downvoteCount;
-    this.content = createCommentOptions?.content;
-    this.author = createCommentOptions?.author;
-    this.timestamp = createCommentOptions?.timestamp;
-    this.parentCid = createCommentOptions?.parentCid;
-    this.communityAddress = createCommentOptions?.communityAddress;
+    this.content = createCommentOptions?.content ?? rawComment?.content;
+    const author = createCommentOptions?.author ?? rawComment?.author;
+    this.author = author ? { ...author } : undefined;
+    this.timestamp = createCommentOptions?.timestamp ?? rawComment?.timestamp;
+    this.parentCid = createCommentOptions?.parentCid ?? rawComment?.parentCid;
+    this.communityAddress = createCommentOptions?.communityAddress ?? rawComment?.communityAddress;
+    (this as any).crosspost = createCommentOptions?.crosspost ?? rawComment?.crosspost;
+    (this as any).link = createCommentOptions?.link ?? rawComment?.link;
+    (this as any).raw = createCommentOptions?.raw;
+    (this as any).signature = createCommentOptions?.signature ?? rawComment?.signature;
+    (this as any).title = createCommentOptions?.title ?? rawComment?.title;
     this.state = "stopped";
     this.updatingState = "stopped";
     this.publishingState = "stopped";
 
-    if (createCommentOptions?.author?.address) {
-      this.author.shortAddress = `short ${createCommentOptions.author.address}`;
+    if (this.author?.address) {
+      this.author.shortAddress = `short ${this.author.address}`;
     }
 
     this.replies = new Pages({ comment: this });

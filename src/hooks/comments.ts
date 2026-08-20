@@ -10,12 +10,14 @@ import {
   UseCommentsResult,
   UseCommentOptions,
   UseCommentResult,
+  UseCrosspostOptions,
+  UseCrosspostResult,
   UseValidateCommentOptions,
   UseValidateCommentResult,
 } from "../types";
 import useCommentsStore from "../stores/comments";
 import useAccountsStore from "../stores/accounts";
-import { commentIsValid } from "../lib/utils";
+import utils, { commentIsValid } from "../lib/utils";
 import {
   addCommentModeration,
   addCommentModerationToComments,
@@ -81,38 +83,41 @@ let commentsAutoUpdateSubscriptionCount = 0;
 const getCommentCreateCommentData = (
   commentCid: string | undefined,
   community: UseCommentOptions["community"] | undefined,
+  initialComment: Comment | undefined,
   ...comments: (Comment | undefined)[]
 ) => {
   if (!commentCid) {
     return undefined;
   }
 
-  const createCommentData: Comment = { cid: commentCid };
-  let hasCommunityData = false;
+  const createCommentData: Comment = initialComment
+    ? { ...utils.clone(initialComment), cid: commentCid }
+    : { cid: commentCid };
+  let hasCreateCommentData = Boolean(initialComment);
   for (const comment of comments) {
     if (!comment) {
       continue;
     }
     if (!createCommentData.communityPublicKey && comment.communityPublicKey) {
       createCommentData.communityPublicKey = comment.communityPublicKey;
-      hasCommunityData = true;
+      hasCreateCommentData = true;
     }
     if (!createCommentData.communityName && comment.communityName) {
       createCommentData.communityName = comment.communityName;
-      hasCommunityData = true;
+      hasCreateCommentData = true;
     }
   }
 
   if (community?.publicKey) {
     createCommentData.communityPublicKey = community.publicKey;
-    hasCommunityData = true;
+    hasCreateCommentData = true;
   }
   if (community?.name) {
     createCommentData.communityName = community.name;
-    hasCommunityData = true;
+    hasCreateCommentData = true;
   }
 
-  return hasCommunityData ? createCommentData : undefined;
+  return hasCreateCommentData ? createCommentData : undefined;
 };
 
 /**
@@ -126,7 +131,14 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
     !options || typeof options === "object",
     `useComment options argument '${options}' not an object`,
   );
-  const { commentCid, community, accountName, onlyIfCached, autoUpdate = true } = options ?? {};
+  const {
+    commentCid,
+    community,
+    initialComment,
+    accountName,
+    onlyIfCached,
+    autoUpdate = true,
+  } = options ?? {};
   if (community !== undefined) {
     assertCommunityRef(community, "useComment community");
   }
@@ -162,6 +174,7 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
       getCommentCreateCommentData(
         commentCid,
         community,
+        initialComment,
         communitiesPagesComment,
         repliesPagesComment,
       ),
@@ -169,6 +182,7 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
       commentCid,
       community?.name,
       community?.publicKey,
+      initialComment,
       communitiesPagesComment?.communityName,
       communitiesPagesComment?.communityPublicKey,
       repliesPagesComment?.communityName,
@@ -236,8 +250,25 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
   if (commentCid && commentFromStoreNotLoaded && accountComment) {
     selectedComment = accountComment;
   }
+  const selectedCommentWithFallback = useMemo(() => {
+    if (!commentCid || !commentFromStoreNotLoaded || !initialComment) {
+      return selectedComment;
+    }
+    const commentWithFallback = utils.merge(
+      initialComment.raw?.comment || {},
+      initialComment,
+      { cid: commentCid },
+      selectedComment || {},
+    );
+    commentWithFallback.raw = utils.merge(initialComment.raw || {}, selectedComment?.raw || {});
+    return commentWithFallback;
+  }, [commentCid, commentFromStoreNotLoaded, initialComment, selectedComment]);
+  selectedComment = selectedCommentWithFallback;
 
   const selectedCommentState = getCommentStateAndReplyCount(selectedComment).state;
+  const initialCommentUpdatePending = Boolean(
+    initialComment?.raw?.comment && !selectedComment?.raw?.commentUpdate,
+  );
   const freezeSettledForCurrentCid = freezeSettledCid === commentCid;
 
   useEffect(() => {
@@ -265,10 +296,17 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
     }
 
     setFrozenComment(selectedComment);
-    if (selectedCommentState === "succeeded") {
+    if (selectedCommentState === "succeeded" && !initialCommentUpdatePending) {
       setFreezeSettledCid(commentCid);
     }
-  }, [autoUpdate, commentCid, selectedComment, selectedCommentState, freezeSettledForCurrentCid]);
+  }, [
+    autoUpdate,
+    commentCid,
+    selectedComment,
+    selectedCommentState,
+    initialCommentUpdatePending,
+    freezeSettledForCurrentCid,
+  ]);
 
   const frozenCommentForCurrentCid = frozenComment?.cid === commentCid ? frozenComment : undefined;
   let comment = autoUpdate
@@ -323,6 +361,42 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
       errors: errors || [],
     }),
     [comment, commentCid, errors, refresh, state, replyCount],
+  );
+}
+
+/**
+ * Read a crosspost from its embedded signed record immediately, then use the normal comment store
+ * to load the referenced community's current CommentUpdate when it is available.
+ */
+export function useCrosspost(options?: UseCrosspostOptions): UseCrosspostResult {
+  assert(
+    !options || typeof options === "object",
+    `useCrosspost options argument '${options}' not an object`,
+  );
+  const { crosspost, accountName, autoUpdate = true } = options ?? {};
+  const initialComment = useMemo(
+    () =>
+      crosspost
+        ? {
+            cid: crosspost.cid,
+            raw: { comment: crosspost.comment },
+          }
+        : undefined,
+    [crosspost],
+  );
+  const comment = useComment({
+    accountName,
+    autoUpdate,
+    commentCid: crosspost?.cid,
+    initialComment,
+  });
+
+  return useMemo(
+    () => ({
+      ...comment,
+      isCommunityVerified: Boolean(comment.raw?.commentUpdate),
+    }),
+    [comment],
   );
 }
 
