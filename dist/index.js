@@ -3,7 +3,7 @@ polyfill();
 // accounts
 import { useAccount, useAccounts, useAccountComment, useAccountComments, useAccountVotes, useAccountVote, useAccountEdits, useEditedComment, useNotifications, useAccountCommunities, usePubsubSubscribe, } from "./hooks/accounts/index.js";
 // comments
-import { useComment, useComments, useValidateComment } from "./hooks/comments.js";
+import { useComment, useComments, useCrosspost, useValidateComment } from "./hooks/comments.js";
 // replies
 import { useReplies } from "./hooks/replies.js";
 // communities
@@ -25,6 +25,7 @@ import { getEthWalletFromPkcPrivateKey, getEthPrivateKeyFromPkcPrivateKey, valid
 // utils
 import { setPkcJs, restorePkcJs } from "./lib/pkc-js/index.js";
 import { deleteDatabases, deleteCaches } from "./lib/debug-utils.js";
+import { createCrosspost } from "./lib/crosspost.js";
 // types
 export * from "./types.js";
 // IMPORTANT: should be the same as 'export default hooks'
@@ -32,7 +33,7 @@ export {
 // accounts
 useAccount, useAccounts, useAccountComment, useAccountComments, useAccountVotes, useAccountVote, useAccountEdits, useAccountCommunities, useNotifications, usePubsubSubscribe, 
 // comments
-useComment, useComments, useEditedComment, useValidateComment, 
+useComment, useComments, useCrosspost, useEditedComment, useValidateComment, 
 // replies
 useReplies, 
 // communities
@@ -52,7 +53,7 @@ usePkcRpcSettings,
 // chain
 getEthWalletFromPkcPrivateKey, getEthPrivateKeyFromPkcPrivateKey, validateEthWallet, 
 // utils
-setPkcJs, restorePkcJs, deleteDatabases, deleteCaches, };
+setPkcJs, restorePkcJs, deleteDatabases, deleteCaches, createCrosspost, };
 // IMPORTANT: should be the same as 'export {}'
 const hooks = {
     // accounts
@@ -69,6 +70,7 @@ const hooks = {
     // comments
     useComment,
     useComments,
+    useCrosspost,
     useEditedComment,
     useValidateComment,
     // replies
@@ -124,6 +126,7 @@ const hooks = {
     restorePkcJs,
     deleteDatabases,
     deleteCaches,
+    createCrosspost,
 };
 export default hooks;
 //# sourceMappingURL=index.js.map

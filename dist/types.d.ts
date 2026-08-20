@@ -105,11 +105,25 @@ export interface UsePubsubSubscribeResult extends Result {
 export interface UseCommentOptions extends Options {
     commentCid?: string;
     community?: CommunityIdentifier;
+    /** Initial data passed to pkc.createComment, for example an embedded crosspost record. */
+    initialComment?: Comment;
     onlyIfCached?: boolean;
     autoUpdate?: boolean;
 }
 export interface UseCommentResult extends Result, Comment {
     refresh(): Promise<void>;
+}
+export interface Crosspost {
+    cid: string;
+    comment: Comment;
+}
+export interface UseCrosspostOptions extends Options {
+    crosspost?: Crosspost;
+    autoUpdate?: boolean;
+}
+export interface UseCrosspostResult extends UseCommentResult {
+    /** True once the referenced community's signed CommentUpdate has been loaded. */
+    isCommunityVerified: boolean;
 }
 export interface UseCommentsOptions extends Options {
     commentCids?: string[];

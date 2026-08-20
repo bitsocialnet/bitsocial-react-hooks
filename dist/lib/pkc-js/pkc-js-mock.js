@@ -553,31 +553,38 @@ class Publication extends EventEmitter {
 }
 export class Comment extends Publication {
     constructor(createCommentOptions) {
-        var _a, _b, _c, _d, _e;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
         super();
         this.updateCalledTimes = 0;
         this.updating = false;
+        const rawComment = (_a = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.raw) === null || _a === void 0 ? void 0 : _a.comment;
         this.cid = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.cid;
         this.upvoteCount = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.upvoteCount;
         this.downvoteCount = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.downvoteCount;
-        this.content = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.content;
-        this.author = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.author;
-        this.timestamp = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.timestamp;
-        this.parentCid = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.parentCid;
-        this.communityAddress = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.communityAddress;
+        this.content = (_b = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.content) !== null && _b !== void 0 ? _b : rawComment === null || rawComment === void 0 ? void 0 : rawComment.content;
+        const author = (_c = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.author) !== null && _c !== void 0 ? _c : rawComment === null || rawComment === void 0 ? void 0 : rawComment.author;
+        this.author = author ? Object.assign({}, author) : undefined;
+        this.timestamp = (_d = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.timestamp) !== null && _d !== void 0 ? _d : rawComment === null || rawComment === void 0 ? void 0 : rawComment.timestamp;
+        this.parentCid = (_e = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.parentCid) !== null && _e !== void 0 ? _e : rawComment === null || rawComment === void 0 ? void 0 : rawComment.parentCid;
+        this.communityAddress = (_f = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.communityAddress) !== null && _f !== void 0 ? _f : rawComment === null || rawComment === void 0 ? void 0 : rawComment.communityAddress;
+        this.crosspost = (_g = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.crosspost) !== null && _g !== void 0 ? _g : rawComment === null || rawComment === void 0 ? void 0 : rawComment.crosspost;
+        this.link = (_h = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.link) !== null && _h !== void 0 ? _h : rawComment === null || rawComment === void 0 ? void 0 : rawComment.link;
+        this.raw = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.raw;
+        this.signature = (_j = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.signature) !== null && _j !== void 0 ? _j : rawComment === null || rawComment === void 0 ? void 0 : rawComment.signature;
+        this.title = (_k = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.title) !== null && _k !== void 0 ? _k : rawComment === null || rawComment === void 0 ? void 0 : rawComment.title;
         this.state = "stopped";
         this.updatingState = "stopped";
         this.publishingState = "stopped";
-        if ((_a = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.author) === null || _a === void 0 ? void 0 : _a.address) {
-            this.author.shortAddress = `short ${createCommentOptions.author.address}`;
+        if ((_l = this.author) === null || _l === void 0 ? void 0 : _l.address) {
+            this.author.shortAddress = `short ${this.author.address}`;
         }
         this.replies = new Pages({ comment: this });
         // add comment.replies from createCommentOptions
-        if ((_b = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.replies) === null || _b === void 0 ? void 0 : _b.pages) {
-            this.replies.pages = (_c = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.replies) === null || _c === void 0 ? void 0 : _c.pages;
+        if ((_m = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.replies) === null || _m === void 0 ? void 0 : _m.pages) {
+            this.replies.pages = (_o = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.replies) === null || _o === void 0 ? void 0 : _o.pages;
         }
-        if ((_d = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.replies) === null || _d === void 0 ? void 0 : _d.pageCids) {
-            this.replies.pageCids = (_e = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.replies) === null || _e === void 0 ? void 0 : _e.pageCids;
+        if ((_p = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.replies) === null || _p === void 0 ? void 0 : _p.pageCids) {
+            this.replies.pageCids = (_q = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.replies) === null || _q === void 0 ? void 0 : _q.pageCids;
         }
     }
     update() {

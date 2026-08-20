@@ -1,5 +1,5 @@
 import { useAccount, useAccounts, useAccountComment, useAccountComments, useAccountVotes, useAccountVote, useAccountEdits, useEditedComment, useNotifications, useAccountCommunities, usePubsubSubscribe } from "./hooks/accounts/index.js";
-import { useComment, useComments, useValidateComment } from "./hooks/comments.js";
+import { useComment, useComments, useCrosspost, useValidateComment } from "./hooks/comments.js";
 import { useReplies } from "./hooks/replies.js";
 import { useCommunity, useCommunities, useCommunityStats, useListCommunities, useResolvedCommunityAddress } from "./hooks/communities.js";
 import { useFeed, useBufferedFeeds } from "./hooks/feeds/index.js";
@@ -11,8 +11,9 @@ import { usePkcRpcSettings } from "./hooks/pkc-rpc.js";
 import { getEthWalletFromPkcPrivateKey, getEthPrivateKeyFromPkcPrivateKey, validateEthWallet } from "./lib/chain/index.js";
 import { setPkcJs, restorePkcJs } from "./lib/pkc-js/index.js";
 import { deleteDatabases, deleteCaches } from "./lib/debug-utils.js";
+import { createCrosspost } from "./lib/crosspost.js";
 export * from "./types.js";
-export { useAccount, useAccounts, useAccountComment, useAccountComments, useAccountVotes, useAccountVote, useAccountEdits, useAccountCommunities, useNotifications, usePubsubSubscribe, useComment, useComments, useEditedComment, useValidateComment, useReplies, useCommunity, useCommunities, useCommunityStats, useListCommunities, useResolvedCommunityAddress, useAuthor, useAuthorComments, useAuthorAvatar, useResolvedAuthorAddress, useAuthorAddress, setAuthorAvatarsWhitelistedTokenAddresses, resetAuthorAddressCacheForTesting, useFeed, useBufferedFeeds, useSubscribe, useBlock, usePublishComment, usePublishVote, usePublishCommentEdit, usePublishCommentModeration, usePublishCommunityEdit, useCreateCommunity, useExportCommunity, createAccount, deleteAccount, deleteComment, setAccount, setActiveAccount, setAccountsOrder, importAccount, exportAccount, deleteCommunity, useClientsStates, useCommunitiesStates, usePkcRpcSettings, getEthWalletFromPkcPrivateKey, getEthPrivateKeyFromPkcPrivateKey, validateEthWallet, setPkcJs, restorePkcJs, deleteDatabases, deleteCaches, };
+export { useAccount, useAccounts, useAccountComment, useAccountComments, useAccountVotes, useAccountVote, useAccountEdits, useAccountCommunities, useNotifications, usePubsubSubscribe, useComment, useComments, useCrosspost, useEditedComment, useValidateComment, useReplies, useCommunity, useCommunities, useCommunityStats, useListCommunities, useResolvedCommunityAddress, useAuthor, useAuthorComments, useAuthorAvatar, useResolvedAuthorAddress, useAuthorAddress, setAuthorAvatarsWhitelistedTokenAddresses, resetAuthorAddressCacheForTesting, useFeed, useBufferedFeeds, useSubscribe, useBlock, usePublishComment, usePublishVote, usePublishCommentEdit, usePublishCommentModeration, usePublishCommunityEdit, useCreateCommunity, useExportCommunity, createAccount, deleteAccount, deleteComment, setAccount, setActiveAccount, setAccountsOrder, importAccount, exportAccount, deleteCommunity, useClientsStates, useCommunitiesStates, usePkcRpcSettings, getEthWalletFromPkcPrivateKey, getEthPrivateKeyFromPkcPrivateKey, validateEthWallet, setPkcJs, restorePkcJs, deleteDatabases, deleteCaches, createCrosspost, };
 declare const hooks: {
     useAccount: typeof useAccount;
     useAccounts: typeof useAccounts;
@@ -26,6 +27,7 @@ declare const hooks: {
     usePubsubSubscribe: typeof usePubsubSubscribe;
     useComment: typeof useComment;
     useComments: typeof useComments;
+    useCrosspost: typeof useCrosspost;
     useEditedComment: typeof useEditedComment;
     useValidateComment: typeof useValidateComment;
     useReplies: typeof useReplies;
@@ -78,6 +80,7 @@ declare const hooks: {
     restorePkcJs: typeof restorePkcJs;
     deleteDatabases: () => Promise<[void, void, any, any, any]>;
     deleteCaches: () => Promise<[any, any, any]>;
+    createCrosspost: (comment: import("./types.js").Comment) => import("./types.js").Crosspost;
 };
 export default hooks;
 //# sourceMappingURL=index.d.ts.map
