@@ -1,3 +1,12 @@
+## [0.1.38](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.37...v0.1.38) (2026-08-20)
+
+
+### Features
+
+* **crossposts:** add shared crosspost hooks ([#87](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/87)) ([0e23f43](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/0e23f431d82acff683923969e37629a92ea9bbe6))
+
+
+
 ## [0.1.37](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.36...v0.1.37) (2026-08-15)
 
 
