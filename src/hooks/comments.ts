@@ -250,8 +250,25 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
   if (commentCid && commentFromStoreNotLoaded && accountComment) {
     selectedComment = accountComment;
   }
+  const selectedCommentWithFallback = useMemo(() => {
+    if (!commentCid || !commentFromStoreNotLoaded || !initialComment) {
+      return selectedComment;
+    }
+    const commentWithFallback = utils.merge(
+      initialComment.raw?.comment || {},
+      initialComment,
+      { cid: commentCid },
+      selectedComment || {},
+    );
+    commentWithFallback.raw = utils.merge(initialComment.raw || {}, selectedComment?.raw || {});
+    return commentWithFallback;
+  }, [commentCid, commentFromStoreNotLoaded, initialComment, selectedComment]);
+  selectedComment = selectedCommentWithFallback;
 
   const selectedCommentState = getCommentStateAndReplyCount(selectedComment).state;
+  const initialCommentUpdatePending = Boolean(
+    initialComment?.raw?.comment && !selectedComment?.raw?.commentUpdate,
+  );
   const freezeSettledForCurrentCid = freezeSettledCid === commentCid;
 
   useEffect(() => {
@@ -279,10 +296,17 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
     }
 
     setFrozenComment(selectedComment);
-    if (selectedCommentState === "succeeded") {
+    if (selectedCommentState === "succeeded" && !initialCommentUpdatePending) {
       setFreezeSettledCid(commentCid);
     }
-  }, [autoUpdate, commentCid, selectedComment, selectedCommentState, freezeSettledForCurrentCid]);
+  }, [
+    autoUpdate,
+    commentCid,
+    selectedComment,
+    selectedCommentState,
+    initialCommentUpdatePending,
+    freezeSettledForCurrentCid,
+  ]);
 
   const frozenCommentForCurrentCid = frozenComment?.cid === commentCid ? frozenComment : undefined;
   let comment = autoUpdate

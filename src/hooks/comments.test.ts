@@ -191,7 +191,7 @@ describe("comments", () => {
         cid: "crossposted-comment-cid",
         comment: {
           content: "embedded crosspost content",
-          timestamp: 1670000000,
+          timestamp: Math.floor(Date.now() / 1000),
           author: { address: "embedded-author" },
           signature: { publicKey: "embedded-author-public-key" },
         },
@@ -201,9 +201,10 @@ describe("comments", () => {
       const waitFor = testUtils.createWaitFor(rendered);
 
       try {
-        await waitFor(() => rendered.result.current.cid === crosspost.cid);
+        expect(rendered.result.current.cid).toBe(crosspost.cid);
         expect(rendered.result.current.content).toBe("embedded crosspost content");
         expect(rendered.result.current.isCommunityVerified).toBe(false);
+        await waitFor(() => createCommentSpy.mock.calls.length > 0);
         expect(createCommentSpy).toHaveBeenCalledWith(
           expect.objectContaining({
             cid: crosspost.cid,
@@ -238,6 +239,35 @@ describe("comments", () => {
       expect(() => renderHook(() => useCrosspost("invalid" as any))).toThrow(
         "useCrosspost options argument 'invalid' not an object",
       );
+    });
+
+    test("useComment merges initial data into a pending cached comment", () => {
+      const commentCid = "pending-comment-with-initial-data";
+      commentsStore.setState((state: any) => ({
+        comments: {
+          ...state.comments,
+          [commentCid]: {
+            cid: commentCid,
+            raw: { commentUpdate: { cid: commentCid } },
+          },
+        },
+      }));
+
+      const rendered = renderHook(() =>
+        useComment({
+          commentCid,
+          initialComment: {
+            content: "initial cached content",
+          },
+          onlyIfCached: true,
+        }),
+      );
+
+      expect(rendered.result.current.content).toBe("initial cached content");
+      expect(rendered.result.current.raw).toEqual({
+        commentUpdate: { cid: commentCid },
+      });
+      rendered.unmount();
     });
 
     test("useComment forwards page comment community identifiers to pkc.createComment", async () => {
