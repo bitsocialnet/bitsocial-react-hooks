@@ -119,7 +119,8 @@ useNotifications(): {notifications: Notification[], markAsRead: Function}
 #### Comments Hooks
 
 ```
-useComment({commentCid: string, community?: CommunityIdentifier, onlyIfCached?: boolean, autoUpdate?: boolean}): Comment & {refresh: Function}
+useComment({commentCid: string, community?: CommunityIdentifier, initialComment?: Comment, onlyIfCached?: boolean, autoUpdate?: boolean}): Comment & {refresh: Function}
+useCrosspost({crosspost: Crosspost, autoUpdate?: boolean}): Comment & {isCommunityVerified: boolean, refresh: Function}
 useReplies({comment: Comment, onlyIfCached?: boolean, sortType?: string, flat?: boolean, repliesPerPage?: number, filter?: CommentsFilter, accountComments?: {newerThan: number, append?: boolean}}): {replies: Comment[], hasMore: boolean, loadMore: function, reset: function, updatedReplies: Comment[], bufferedReplies: Comment[]}
 useComments({commentCids: string[], onlyIfCached?: boolean, autoUpdate?: boolean}): {comments: Comment[], refresh: Function}
 useEditedComment({comment: Comment}): {editedComment: Comment | undefined}
@@ -220,6 +221,30 @@ deleteComment(commentCidOrAccountCommentIndex: string | number, accountName?: st
 setPkcJs(PKC) // swap the underlying protocol client implementation, e.g. for mocks or Electron
 deleteDatabases() // delete all databases, including all caches and accounts data
 deleteCaches() // delete the cached comments, cached communities and cached pages only, no accounts data
+createCrosspost(comment: Comment): Crosspost // build the immutable payload accepted by pkc-js
+```
+
+`createCrosspost` requires a fully loaded comment with `comment.cid` and
+`comment.raw.comment`. Publish the returned payload through the existing action hook:
+
+```jsx
+const crosspost = createCrosspost(sourceComment);
+const { publishComment } = usePublishComment({
+  communityAddress: targetCommunityAddress,
+  title: sourceComment.title,
+  crosspost,
+});
+await publishComment();
+```
+
+Render the author-signed embedded record immediately with `useCrosspost`. The referenced
+community is only confirmed after its signed `CommentUpdate` has loaded, exposed as
+`isCommunityVerified`:
+
+```jsx
+const original = useCrosspost({ crosspost: post.crosspost });
+
+return <CrosspostCard comment={original} verified={original.isCommunityVerified} />;
 ```
 
 ## Recipes
