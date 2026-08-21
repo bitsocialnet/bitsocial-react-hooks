@@ -26,7 +26,6 @@ export function useReplies(options) {
     assert(!options || typeof options === "object", `useReplies options argument '${options}' not an object`);
     const opts = options !== null && options !== void 0 ? options : {};
     let { comment, sortType, accountName, onlyIfCached, flat, flatDepth, accountComments, repliesPerPage, filter, validateOptimistically, streamPage, } = opts;
-    sortType = sortType || "best";
     flatDepth = typeof flatDepth === "number" ? flatDepth : 0;
     validateOptimistically = validateOptimistically !== false;
     const invalidFlatDepth = flat && typeof (comment === null || comment === void 0 ? void 0 : comment.depth) === "number" && flatDepth !== comment.depth;

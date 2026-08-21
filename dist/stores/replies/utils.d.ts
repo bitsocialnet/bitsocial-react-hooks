@@ -34,6 +34,6 @@ export declare const feedsCommentsChanged: (previousFeedsComments: Map<string, C
 export declare const getFeedsCommentsFirstPageCids: (feedsComments: Map<string, Comment>) => string[];
 export declare const getFeedsCommentsRepliesPagesFirstUpdatedAts: (feedsComments: Map<string, Comment>) => string;
 export declare const getFeedsCommentsLoadedCount: (feedsComments: Map<string, Comment>) => number;
-export declare const getSortTypeFromComment: (comment: Comment, feedOptions: RepliesFeedOptions) => string;
+export declare const getSortTypeFromComment: (comment: Comment, feedOptions: RepliesFeedOptions) => string | undefined;
 export {};
 //# sourceMappingURL=utils.d.ts.map

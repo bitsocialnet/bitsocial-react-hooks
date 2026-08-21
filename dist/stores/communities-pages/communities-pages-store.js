@@ -17,6 +17,7 @@ import localForageLru from "../../lib/localforage-lru/index.js";
 import createStore from "zustand";
 import assert from "assert";
 import { createPkcCommunity, getPkcCreateCommunity, normalizeCommentCommunityAddress, } from "../../lib/pkc-compat.js";
+import { resolvePostSortType } from "../../lib/page-sorts.js";
 const communitiesPagesDatabase = localForageLru.createInstance({
     name: "bitsocialReactHooks-communitiesPages",
     size: 500,
@@ -39,7 +40,7 @@ const communitiesPagesStore = createStore((setState, getState) => ({
     addNextCommunityPageToStore: (community, sortType, account, modQueue) => __awaiter(void 0, void 0, void 0, function* () {
         var _a;
         assert((community === null || community === void 0 ? void 0 : community.address) && typeof (community === null || community === void 0 ? void 0 : community.address) === "string", `communitiesPagesStore.addNextCommunityPageToStore community '${community}' invalid`);
-        assert(sortType && typeof sortType === "string", `communitiesPagesStore.addNextCommunityPageToStore sortType '${sortType}' invalid`);
+        assert(sortType === undefined || (typeof sortType === "string" && sortType.length > 0), `communitiesPagesStore.addNextCommunityPageToStore sortType '${sortType}' invalid`);
         assert(typeof getPkcCreateCommunity(account === null || account === void 0 ? void 0 : account.pkc) === "function", `communitiesPagesStore.addNextCommunityPageToStore account '${account}' invalid`);
         assert(!modQueue || Array.isArray(modQueue), `communitiesPagesStore.addNextCommunityPageToStore modQueue '${modQueue}' invalid`);
         let pageType = "posts";
@@ -144,7 +145,7 @@ const communitiesPagesStore = createStore((setState, getState) => ({
     invalidateCommunityPages: (community, sortType, modQueue, accountId) => __awaiter(void 0, void 0, void 0, function* () {
         var _a, _b;
         assert((community === null || community === void 0 ? void 0 : community.address) && typeof (community === null || community === void 0 ? void 0 : community.address) === "string", `communitiesPagesStore.invalidateCommunityPages community '${community}' invalid`);
-        assert(sortType && typeof sortType === "string", `communitiesPagesStore.invalidateCommunityPages sortType '${sortType}' invalid`);
+        assert(sortType === undefined || (typeof sortType === "string" && sortType.length > 0), `communitiesPagesStore.invalidateCommunityPages sortType '${sortType}' invalid`);
         assert(!modQueue || Array.isArray(modQueue), `communitiesPagesStore.invalidateCommunityPages modQueue '${modQueue}' invalid`);
         let pageType = "posts";
         if (modQueue === null || modQueue === void 0 ? void 0 : modQueue[0]) {
@@ -282,12 +283,16 @@ export const getCommunityPages = (community, sortType, communitiesPages, pageTyp
 export const getCommunityFirstPageCid = (community, sortType, pageType = "posts") => {
     var _a, _b, _c, _d, _e, _f, _g, _h;
     assert(community && typeof community === "object", `getCommunityFirstPageCid community '${community}' invalid`);
-    assert(sortType && typeof sortType === "string", `getCommunityFirstPageCid sortType '${sortType}' invalid`);
-    // community has preloaded posts for sort type
-    if ((_c = (_b = (_a = community[pageType]) === null || _a === void 0 ? void 0 : _a.pages) === null || _b === void 0 ? void 0 : _b[sortType]) === null || _c === void 0 ? void 0 : _c.comments) {
-        return (_f = (_e = (_d = community[pageType]) === null || _d === void 0 ? void 0 : _d.pages) === null || _e === void 0 ? void 0 : _e[sortType]) === null || _f === void 0 ? void 0 : _f.nextCid;
+    assert(sortType === undefined || (typeof sortType === "string" && sortType.length > 0), `getCommunityFirstPageCid sortType '${sortType}' invalid`);
+    const resolvedSortType = pageType === "posts" ? resolvePostSortType(community, sortType) : sortType;
+    if (!resolvedSortType) {
+        return;
     }
-    return (_h = (_g = community[pageType]) === null || _g === void 0 ? void 0 : _g.pageCids) === null || _h === void 0 ? void 0 : _h[sortType];
+    // community has preloaded posts for sort type
+    if ((_c = (_b = (_a = community[pageType]) === null || _a === void 0 ? void 0 : _a.pages) === null || _b === void 0 ? void 0 : _b[resolvedSortType]) === null || _c === void 0 ? void 0 : _c.comments) {
+        return (_f = (_e = (_d = community[pageType]) === null || _d === void 0 ? void 0 : _d.pages) === null || _e === void 0 ? void 0 : _e[resolvedSortType]) === null || _f === void 0 ? void 0 : _f.nextCid;
+    }
+    return (_h = (_g = community[pageType]) === null || _g === void 0 ? void 0 : _g.pageCids) === null || _h === void 0 ? void 0 : _h[resolvedSortType];
     // TODO: if a loaded community doesn't have a first page, it's unclear what we should do
     // should we try to use another sort type by default, like 'hot', or should we just ignore it?
 };

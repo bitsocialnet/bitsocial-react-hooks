@@ -173,29 +173,12 @@ const validateUseCommunitiesArguments = ({ communities, communityRefs, community
         assert(getAccountProtocolClient(account) && typeof getAccountProtocolClient(account) === "object", `useCommunity account.pkc/account.pkc '${getAccountProtocolClient(account)}' not an object`);
     }
 };
-const feedSortTypes = new Set([
-    "hot",
-    "new",
-    "active",
-    "topHour",
-    "topDay",
-    "topWeek",
-    "topMonth",
-    "topYear",
-    "topAll",
-    "controversialHour",
-    "controversialDay",
-    "controversialWeek",
-    "controversialMonth",
-    "controversialYear",
-    "controversialAll",
-]);
 const validateFeedSortType = (sortType) => {
-    assert(feedSortTypes.has(sortType), `invalid feed sort type '${sortType}'`);
+    assert(sortType === undefined || (typeof sortType === "string" && sortType.length > 0), `invalid feed sort type '${sortType}'`);
 };
 const validateUseFeedArguments = ({ communities, communityRefs, communityAddresses, sortType, accountName, postsPerPage, filter, newerThan, accountComments, }) => {
     validateCommunitiesArguments(communities, communityRefs, communityAddresses, "useFeed");
-    assert(feedSortTypes.has(sortType), `useFeed sortType argument '${sortType}' invalid`);
+    assert(sortType === undefined || (typeof sortType === "string" && sortType.length > 0), `useFeed sortType argument '${sortType}' invalid`);
     if (accountName) {
         assert(typeof accountName === "string", `useFeed accountName argument '${accountName}' not a string`);
     }
@@ -218,9 +201,7 @@ const validateUseBufferedFeedsArguments = ({ feedsOptions, accountName, }) => {
     assert(Array.isArray(feedsOptions), `useBufferedFeeds feedsOptions argument '${toString(feedsOptions)}' not an array`);
     for (const { communities, communityRefs, communityAddresses, sortType, postsPerPage, filter, newerThan, } of feedsOptions) {
         validateCommunitiesArguments(communities, communityRefs, communityAddresses, "useBufferedFeeds feedOptions");
-        if (sortType) {
-            assert(feedSortTypes.has(sortType), `useBufferedFeeds feedOptions.sortType argument '${sortType}' invalid`);
-        }
+        assert(sortType === undefined || (typeof sortType === "string" && sortType.length > 0), `useBufferedFeeds feedOptions.sortType argument '${sortType}' invalid`);
         if (postsPerPage !== undefined && postsPerPage !== null) {
             assert(typeof postsPerPage === "number", `useBufferedFeeds feedOptions.postsPerPage argument '${postsPerPage}' not a number`);
         }
@@ -239,26 +220,13 @@ const validateUseBufferedFeedsArguments = ({ feedsOptions, accountName, }) => {
 const validateUseCommunitiesStatesArguments = ({ communities, communityRefs, communityAddresses, }) => {
     validateCommunitiesArguments(communities, communityRefs, communityAddresses, "useCommunitiesStates");
 };
-const repliesSortTypes = new Set([
-    "best",
-    "topHour",
-    "topDay",
-    "topWeek",
-    "topMonth",
-    "topYear",
-    "topAll",
-    "new",
-    "newFlat",
-    "old",
-    "oldFlat",
-]);
 const validateRepliesSortType = (sortType) => {
-    assert(repliesSortTypes.has(sortType), `invalid replies sort type '${sortType}'`);
+    assert(sortType === undefined || (typeof sortType === "string" && sortType.length > 0), `invalid replies sort type '${sortType}'`);
 };
 const validateUseRepliesArguments = (comment, sortType, accountName, onlyIfCached, flat, accountComments, postsPerPage, filter) => {
     assert(!comment || typeof comment === "object", `useReplies comment argument '${comment}' not an object`);
     assert(!(comment === null || comment === void 0 ? void 0 : comment.cid) || typeof comment.cid === "string", `useReplies comment.cid argument '${comment === null || comment === void 0 ? void 0 : comment.cid}' not a string`);
-    assert(repliesSortTypes.has(sortType), `useReplies sortType argument '${sortType}' invalid`);
+    assert(sortType === undefined || (typeof sortType === "string" && sortType.length > 0), `useReplies sortType argument '${sortType}' invalid`);
     if (accountName) {
         assert(typeof accountName === "string", `useReplies accountName argument '${accountName}' not a string`);
     }

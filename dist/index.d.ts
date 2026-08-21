@@ -12,8 +12,9 @@ import { getEthWalletFromPkcPrivateKey, getEthPrivateKeyFromPkcPrivateKey, valid
 import { setPkcJs, restorePkcJs } from "./lib/pkc-js/index.js";
 import { deleteDatabases, deleteCaches } from "./lib/debug-utils.js";
 import { createCrosspost } from "./lib/crosspost.js";
+import { getAvailablePostSortTypes, getAvailableReplySortTypes, getPreloadedPostSortType, getPreloadedReplySortType, resolvePostSortType, resolveReplySortType } from "./lib/page-sorts.js";
 export * from "./types.js";
-export { useAccount, useAccounts, useAccountComment, useAccountComments, useAccountVotes, useAccountVote, useAccountEdits, useAccountCommunities, useNotifications, usePubsubSubscribe, useComment, useComments, useCrosspost, useEditedComment, useValidateComment, useReplies, useCommunity, useCommunities, useCommunityStats, useListCommunities, useResolvedCommunityAddress, useAuthor, useAuthorComments, useAuthorAvatar, useResolvedAuthorAddress, useAuthorAddress, setAuthorAvatarsWhitelistedTokenAddresses, resetAuthorAddressCacheForTesting, useFeed, useBufferedFeeds, useSubscribe, useBlock, usePublishComment, usePublishVote, usePublishCommentEdit, usePublishCommentModeration, usePublishCommunityEdit, useCreateCommunity, useExportCommunity, createAccount, deleteAccount, deleteComment, setAccount, setActiveAccount, setAccountsOrder, importAccount, exportAccount, deleteCommunity, useClientsStates, useCommunitiesStates, usePkcRpcSettings, getEthWalletFromPkcPrivateKey, getEthPrivateKeyFromPkcPrivateKey, validateEthWallet, setPkcJs, restorePkcJs, deleteDatabases, deleteCaches, createCrosspost, };
+export { useAccount, useAccounts, useAccountComment, useAccountComments, useAccountVotes, useAccountVote, useAccountEdits, useAccountCommunities, useNotifications, usePubsubSubscribe, useComment, useComments, useCrosspost, useEditedComment, useValidateComment, useReplies, useCommunity, useCommunities, useCommunityStats, useListCommunities, useResolvedCommunityAddress, useAuthor, useAuthorComments, useAuthorAvatar, useResolvedAuthorAddress, useAuthorAddress, setAuthorAvatarsWhitelistedTokenAddresses, resetAuthorAddressCacheForTesting, useFeed, useBufferedFeeds, useSubscribe, useBlock, usePublishComment, usePublishVote, usePublishCommentEdit, usePublishCommentModeration, usePublishCommunityEdit, useCreateCommunity, useExportCommunity, createAccount, deleteAccount, deleteComment, setAccount, setActiveAccount, setAccountsOrder, importAccount, exportAccount, deleteCommunity, useClientsStates, useCommunitiesStates, usePkcRpcSettings, getEthWalletFromPkcPrivateKey, getEthPrivateKeyFromPkcPrivateKey, validateEthWallet, setPkcJs, restorePkcJs, deleteDatabases, deleteCaches, createCrosspost, getAvailablePostSortTypes, getAvailableReplySortTypes, getPreloadedPostSortType, getPreloadedReplySortType, resolvePostSortType, resolveReplySortType, };
 declare const hooks: {
     useAccount: typeof useAccount;
     useAccounts: typeof useAccounts;
@@ -81,6 +82,12 @@ declare const hooks: {
     deleteDatabases: () => Promise<[void, void, any, any, any]>;
     deleteCaches: () => Promise<[any, any, any]>;
     createCrosspost: (comment: import("./types.js").Comment) => import("./types.js").Crosspost;
+    getAvailablePostSortTypes: (community?: import("./types.js").Community) => string[];
+    getAvailableReplySortTypes: (comment?: import("./types.js").Comment) => string[];
+    getPreloadedPostSortType: (community?: import("./types.js").Community) => string | undefined;
+    getPreloadedReplySortType: (comment?: import("./types.js").Comment) => string | undefined;
+    resolvePostSortType: (community: import("./types.js").Community | undefined, requestedSortType?: string) => string | undefined;
+    resolveReplySortType: (comment: import("./types.js").Comment | undefined, requestedSortType?: string) => string | undefined;
 };
 export default hooks;
 //# sourceMappingURL=index.d.ts.map

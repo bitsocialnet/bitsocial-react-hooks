@@ -14,7 +14,6 @@ import createStore from "zustand";
 import localForageLru from "../../lib/localforage-lru/index.js";
 import { communityPostsCacheExpired } from "../../lib/utils/index.js";
 import { getPkcGetCommunity } from "../../lib/pkc-compat.js";
-import { deriveFeedSortType } from "../../lib/feed-sort-type.js";
 import { getCommunityRefKeys } from "../../lib/community-ref.js";
 import accountsStore from "../accounts/index.js";
 import communitiesStore from "../communities/index.js";
@@ -37,7 +36,7 @@ const feedsStore = createStore((setState, getState) => ({
     bufferedFeedsCommunitiesPostCounts: {},
     feedsHaveMore: {},
     feedsCommunityKeysWithNewerPosts: {},
-    addFeedToStore(feedName, communities, communityKeys, sortType, account, isBufferedFeed, postsPerPage, filter, newerThan, accountComments, modQueue, requestedSortType) {
+    addFeedToStore(feedName, communities, communityKeys, sortType, account, isBufferedFeed, postsPerPage, filter, newerThan, accountComments, modQueue) {
         return __awaiter(this, void 0, void 0, function* () {
             // init here because must be called after async accounts store finished initializing
             initializeFeedsStore();
@@ -47,7 +46,7 @@ const feedsStore = createStore((setState, getState) => ({
             const derivedCommunityKeys = getCommunityRefKeys(communities);
             assert(communityKeys.length === derivedCommunityKeys.length &&
                 communityKeys.every((communityKey, index) => communityKey === derivedCommunityKeys[index]), `addFeedToStore.addFeedToStore communityKeys '${communityKeys}' do not match communities`);
-            assert(sortType && typeof sortType === "string", `addFeedToStore.addFeedToStore sortType '${sortType}' invalid`);
+            assert(sortType === undefined || (typeof sortType === "string" && sortType.length > 0), `addFeedToStore.addFeedToStore sortType '${sortType}' invalid`);
             assert(typeof getPkcGetCommunity(account === null || account === void 0 ? void 0 : account.pkc) === "function", `addFeedToStore.addFeedToStore account '${account}' invalid`);
             assert(typeof isBufferedFeed === "boolean" ||
                 isBufferedFeed === undefined ||
@@ -70,7 +69,6 @@ const feedsStore = createStore((setState, getState) => ({
                 communities,
                 communityKeys,
                 sortType,
-                requestedSortType: requestedSortType || sortType,
                 accountId: account.id,
                 pageNumber: isBufferedFeed === true ? 0 : 1,
                 postsPerPage,
@@ -117,8 +115,6 @@ const feedsStore = createStore((setState, getState) => ({
         const isExpandedTimeWindow = typeof currentNewerThan === "number" &&
             (newerThan === undefined || newerThan > currentNewerThan);
         assert(isExpandedTimeWindow, `feedsActions.expandFeedTimeWindow newerThan '${newerThan}' must broaden the current window '${currentNewerThan}'`);
-        const nextSortType = deriveFeedSortType(currentFeedOptions.requestedSortType, newerThan);
-        assert(nextSortType === currentFeedOptions.sortType, `feedsActions.expandFeedTimeWindow cannot change sort type from '${currentFeedOptions.sortType}' to '${nextSortType}'`);
         const loadedFeed = loadedFeeds[feedName] || [];
         const shouldPrefetchExpandedPage = currentFeedOptions.pageNumber > 0 &&
             loadedFeed.length >= currentFeedOptions.pageNumber * currentFeedOptions.postsPerPage;

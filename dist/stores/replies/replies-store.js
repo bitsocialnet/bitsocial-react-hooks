@@ -15,6 +15,7 @@ import localForageLru from "../../lib/localforage-lru/index.js";
 import accountsStore from "../accounts/index.js";
 import repliesCommentsStore from "./replies-comments-store.js";
 import repliesPagesStore from "../replies-pages/index.js";
+import { serializeFeedKey } from "../../lib/serialize-feed-key.js";
 import { getFeedsCommentsFirstPageCids, getLoadedFeeds, getBufferedFeedsWithoutLoadedFeeds, getUpdatedFeeds, getFeedsReplyCounts, getFeedsHaveMore, feedsCommentsChanged, getFeedsComments, getFeedsCommentsLoadedCount, getFeedsCommentsRepliesPagesFirstUpdatedAts, getFilteredSortedFeeds, getSortTypeFromComment, addAccountsComments, } from "./utils.js";
 // reddit loads approximately 25 posts per page
 // while infinite scrolling
@@ -37,7 +38,19 @@ const addDefaultFeedOptions = (feedOptions) => {
 export const feedOptionsToFeedName = (feedOptions) => {
     var _a, _b, _c;
     feedOptions = addDefaultFeedOptions(feedOptions);
-    return `${feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.accountId}-${feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.commentCid}-${feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.postCid}-${feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.sortType}-${feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.flat}-${feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.onlyIfCached}-${(_a = feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.accountComments) === null || _a === void 0 ? void 0 : _a.newerThan}-${(_b = feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.accountComments) === null || _b === void 0 ? void 0 : _b.append}-${feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.repliesPerPage}-${(_c = feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.filter) === null || _c === void 0 ? void 0 : _c.key}-${feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.streamPage}`;
+    return serializeFeedKey([
+        feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.accountId,
+        feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.commentCid,
+        feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.postCid,
+        feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.sortType,
+        feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.flat,
+        feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.onlyIfCached,
+        (_a = feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.accountComments) === null || _a === void 0 ? void 0 : _a.newerThan,
+        (_b = feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.accountComments) === null || _b === void 0 ? void 0 : _b.append,
+        feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.repliesPerPage,
+        (_c = feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.filter) === null || _c === void 0 ? void 0 : _c.key,
+        feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.streamPage,
+    ]);
 };
 const getFeedsUpdatedAts = (feedsOptions, comments) => {
     var _a;
@@ -98,7 +111,8 @@ const repliesStore = createStore((setState, getState) => ({
             // validate options
             assert(comment && comment.cid && typeof comment.cid === "string", `repliesStore.addFeedToStoreOrUpdateComment comment.cid '${comment === null || comment === void 0 ? void 0 : comment.cid}' invalid`);
             assert(feedOptions.commentCid && typeof feedOptions.commentCid === "string", `repliesStore.addFeedToStoreOrUpdateComment feedOptions.commentCid '${feedOptions.commentCid}' invalid`);
-            assert(feedOptions.sortType && typeof feedOptions.sortType === "string", `repliesStore.addFeedToStoreOrUpdateComment feedOptions.sortType '${feedOptions.sortType}' invalid`);
+            assert(feedOptions.sortType === undefined ||
+                (typeof feedOptions.sortType === "string" && feedOptions.sortType.length > 0), `repliesStore.addFeedToStoreOrUpdateComment feedOptions.sortType '${feedOptions.sortType}' invalid`);
             const account = accountsStore.getState().accounts[feedOptions.accountId];
             assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.pkc) === null || _a === void 0 ? void 0 : _a.createComment) === "function", `repliesStore.addFeedToStoreOrUpdateComment feedOptions.accountId '${feedOptions.accountId}' invalid`);
             assert(!feedOptions.repliesPerPage || typeof feedOptions.repliesPerPage === "number", `repliesStore.addFeedToStoreOrUpdateComment feedOptions.repliesPerPage '${feedOptions.repliesPerPage}' invalid`);
@@ -117,7 +131,7 @@ const repliesStore = createStore((setState, getState) => ({
                 feedsToAddToStore.push(Object.assign(Object.assign({}, feedOptions), { commentCid: comment === null || comment === void 0 ? void 0 : comment.cid, commentDepth: comment === null || comment === void 0 ? void 0 : comment.depth }));
                 // flat doesn't need nested feeds
                 if (!feedOptions.flat) {
-                    for (const reply of ((_c = (_b = (_a = comment.replies) === null || _a === void 0 ? void 0 : _a.pages) === null || _b === void 0 ? void 0 : _b[sortType]) === null || _c === void 0 ? void 0 : _c.comments) || []) {
+                    for (const reply of (sortType && ((_c = (_b = (_a = comment.replies) === null || _a === void 0 ? void 0 : _a.pages) === null || _b === void 0 ? void 0 : _b[sortType]) === null || _c === void 0 ? void 0 : _c.comments)) || []) {
                         addRepliesFeedsToStoreRecursively(reply);
                     }
                 }
@@ -305,14 +319,17 @@ const addRepliesPagesOnLowBufferedFeedsReplyCounts = (repliesStoreState) => {
         }
         const account = accounts[feedsOptions[feedName].accountId];
         const feedReplyCount = bufferedFeedsReplyCounts[feedName];
-        let sortType = feedsOptions[feedName].sortType;
+        const requestedSortType = feedsOptions[feedName].sortType;
         const commentCid = feedsOptions[feedName].commentCid;
         // TODO: maybe skip if comment community address, comment cid or comment author is blocked?
         // comment hasn't loaded yet
         if (!comments[commentCid]) {
             continue;
         }
-        sortType = getSortTypeFromComment(comments[commentCid], feedsOptions[feedName]);
+        const sortType = getSortTypeFromComment(comments[commentCid], feedsOptions[feedName]);
+        if (requestedSortType !== undefined && sortType === undefined) {
+            continue;
+        }
         // comment replies count is low, fetch next replies page
         if (feedReplyCount <= commentRepliesLeftBeforeNextPage) {
             addNextRepliesPageToStore(comments[commentCid], sortType, account).catch((error) => log.error("repliesStore repliesPagesStore.addNextRepliesPageToStore error", {

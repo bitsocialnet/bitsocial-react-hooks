@@ -1,3 +1,12 @@
+## [0.1.39](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.38...v0.1.39) (2026-08-21)
+
+
+### Features
+
+* **hooks:** add wordfilters and custom page sorts ([#91](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/91)) ([086fde9](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/086fde9b5a4c621fe7e6e9124270958cc59c4b35))
+
+
+
 ## [0.1.38](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.37...v0.1.38) (2026-08-20)
 
 

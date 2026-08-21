@@ -103,33 +103,39 @@ const sortByBest = (feed) => {
         .sort((a, b) => n(a.timestamp) - n(b.timestamp))
         .sort((a, b) => n(postScores[b.cid]) - n(postScores[a.cid]));
 };
+const sorters = {
+    new: sortByNew,
+    newFlat: sortByNew,
+    hot: sortByHot,
+    top: sortByTop,
+    topHour: sortByTop,
+    topDay: sortByTop,
+    topWeek: sortByTop,
+    topMonth: sortByTop,
+    topYear: sortByTop,
+    topAll: sortByTop,
+    controversial: sortByControversial,
+    controversialHour: sortByControversial,
+    controversialDay: sortByControversial,
+    controversialWeek: sortByControversial,
+    controversialMonth: sortByControversial,
+    controversialYear: sortByControversial,
+    controversialAll: sortByControversial,
+    active: sortByActive,
+    old: sortByOld,
+    oldFlat: sortByOld,
+    best: sortByBest,
+};
 const sort = (sortType, feed) => {
+    const sorter = sortType && sorters[sortType];
+    if (!sorter) {
+        return feed;
+    }
     // NOTE: pinned posts are not sorted, maybe in a future version we can sort them based on something
     // NOTE: with useReplies({flat: true}), nested pins are at the top, unclear yet what we should do with them
     const pinnedPosts = feed.filter((post) => post.pinned);
     feed = feed.filter((post) => !post.pinned);
-    if (sortType.match("new")) {
-        return [...pinnedPosts, ...sortByNew(feed)];
-    }
-    if (sortType.match("hot")) {
-        return [...pinnedPosts, ...sortByHot(feed)];
-    }
-    if (sortType.match("top")) {
-        return [...pinnedPosts, ...sortByTop(feed)];
-    }
-    if (sortType.match("controversial")) {
-        return [...pinnedPosts, ...sortByControversial(feed)];
-    }
-    if (sortType.match("active")) {
-        return [...pinnedPosts, ...sortByActive(feed)];
-    }
-    if (sortType.match("old")) {
-        return [...pinnedPosts, ...sortByOld(feed)];
-    }
-    if (sortType.match("best")) {
-        return [...pinnedPosts, ...sortByBest(feed)];
-    }
-    throw Error(`feedsStore feedSorter sort type '${sortType}' doesn't exist`);
+    return [...pinnedPosts, ...sorter(feed)];
 };
 export default { sort };
 //# sourceMappingURL=feed-sorter.js.map

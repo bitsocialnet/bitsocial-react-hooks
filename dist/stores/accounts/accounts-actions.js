@@ -35,6 +35,70 @@ import isEqual from "lodash.isequal";
 import { v4 as uuid } from "uuid";
 import utils from "../../lib/utils/index.js";
 import { addOptimisticVoteMetadata } from "../../lib/utils/optimistic-vote-counts.js";
+import { applyCommunityWordfilters } from "../../lib/wordfilters.js";
+const PUBLICATION_COMMUNITY_LOAD_TIMEOUT_MS = 30000;
+const communityHasPublicationConfig = (community) => community &&
+    (typeof community.updatedAt === "number" ||
+        Object.prototype.hasOwnProperty.call(community, "challenges"));
+const findLoadedPublicationCommunity = (communityAddress) => {
+    const communities = communitiesStore.getState().communities;
+    return Object.values(communities).find((community) => communityHasPublicationConfig(community) &&
+        [community.address, community.name, community.publicKey].includes(communityAddress));
+};
+const loadPublicationCommunity = (communityAddress, account) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    const loadedCommunity = findLoadedPublicationCommunity(communityAddress);
+    if (loadedCommunity)
+        return loadedCommunity;
+    const community = yield createPkcCommunity(account.pkc, { address: communityAddress });
+    try {
+        if (communityHasPublicationConfig(community))
+            return community;
+        return yield new Promise((resolve, reject) => {
+            let settled = false;
+            let timeout;
+            const cleanup = () => {
+                var _a, _b;
+                clearTimeout(timeout);
+                (_a = community.removeListener) === null || _a === void 0 ? void 0 : _a.call(community, "update", onUpdate);
+                (_b = community.removeListener) === null || _b === void 0 ? void 0 : _b.call(community, "error", onError);
+            };
+            const onUpdate = (updatedCommunity) => {
+                if (settled)
+                    return;
+                settled = true;
+                cleanup();
+                resolve(updatedCommunity || community);
+            };
+            const onError = (error) => {
+                if (settled)
+                    return;
+                settled = true;
+                cleanup();
+                reject(error);
+            };
+            timeout = setTimeout(() => onError(new Error(`timed out loading challenge settings for community '${communityAddress}'`)), PUBLICATION_COMMUNITY_LOAD_TIMEOUT_MS);
+            community.once("update", onUpdate);
+            community.once("error", onError);
+            void Promise.resolve()
+                .then(() => community.update())
+                .then(() => {
+                if (communityHasPublicationConfig(community))
+                    onUpdate(community);
+            }, onError);
+        });
+    }
+    finally {
+        yield ((_a = community.stop) === null || _a === void 0 ? void 0 : _a.call(community));
+    }
+});
+const applyPublicationWordfilters = (options, account) => __awaiter(void 0, void 0, void 0, function* () {
+    const communityAddress = options.communityAddress;
+    if (typeof communityAddress !== "string" || !communityAddress)
+        return options;
+    const community = yield loadPublicationCommunity(communityAddress, account);
+    return applyCommunityWordfilters(options, community === null || community === void 0 ? void 0 : community.challenges);
+});
 // Active publish-session tracking for pending comments (Task 3)
 const activePublishSessions = new Map();
 const abandonedPublishSessionIds = new Set();
@@ -745,6 +809,7 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
     delete createCommentOptions.onPendingComment;
     delete createCommentOptions.onPublishingStateChange;
     delete createCommentOptions._onPendingCommentIndex;
+    createCommentOptions = yield applyPublicationWordfilters(createCommentOptions, account);
     const storedCreateCommentOptions = normalizePublicationOptionsForStore(createCommentOptions);
     // make sure the options dont throw
     yield account.pkc.createComment(createCommentOptions);
@@ -1153,6 +1218,7 @@ export const publishCommentEdit = (publishCommentEditOptions, accountName) => __
     delete createCommentEditOptions.onChallengeVerification;
     delete createCommentEditOptions.onError;
     delete createCommentEditOptions.onPublishingStateChange;
+    createCommentEditOptions = yield applyPublicationWordfilters(createCommentEditOptions, account);
     const storedCreateCommentEditOptions = Object.assign(Object.assign({}, normalizePublicationOptionsForStore(createCommentEditOptions)), { clientId: uuid() });
     const storedCommentEdit = sanitizeStoredAccountEdit(storedCreateCommentEditOptions);
     let commentEdit = backfillPublicationCommunityAddress(yield account.pkc.createCommentEdit(createCommentEditOptions), createCommentEditOptions);

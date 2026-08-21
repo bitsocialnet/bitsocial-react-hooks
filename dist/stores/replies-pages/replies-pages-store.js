@@ -17,6 +17,7 @@ import { addChildrenRepliesFeedsToAddToStore } from "./utils.js";
 import localForageLru from "../../lib/localforage-lru/index.js";
 import createStore from "zustand";
 import assert from "assert";
+import { resolveReplySortType } from "../../lib/page-sorts.js";
 const repliesPagesDatabase = localForageLru.createInstance({
     name: "bitsocialReactHooks-repliesPages",
     size: 500,
@@ -30,7 +31,12 @@ const repliesPagesStore = createStore((setState, getState) => ({
     addNextRepliesPageToStore: (comment, sortType, account) => __awaiter(void 0, void 0, void 0, function* () {
         var _a, _b;
         assert((comment === null || comment === void 0 ? void 0 : comment.cid) && typeof (comment === null || comment === void 0 ? void 0 : comment.cid) === "string", `repliesPagesStore.addNextRepliesPageToStore comment '${comment}' invalid`);
-        assert(sortType && typeof sortType === "string", `repliesPagesStore.addNextRepliesPageToStore sortType '${sortType}' invalid`);
+        assert(sortType === undefined || (typeof sortType === "string" && sortType.length > 0), `repliesPagesStore.addNextRepliesPageToStore sortType '${sortType}' invalid`);
+        const resolvedSortType = resolveReplySortType(comment, sortType);
+        if (!resolvedSortType) {
+            return;
+        }
+        sortType = resolvedSortType;
         assert(typeof ((_a = account === null || account === void 0 ? void 0 : account.pkc) === null || _a === void 0 ? void 0 : _a.createComment) === "function", `repliesPagesStore.addNextRepliesPageToStore account '${account}' invalid`);
         // check the preloaded replies on comment.replies.pages first, then the comment.replies.pageCids
         const repliesFirstPageCid = getRepliesFirstPageCid(comment, sortType);
@@ -240,12 +246,16 @@ export const getRepliesPages = (comment, sortType, repliesPages) => {
 export const getRepliesFirstPageCid = (comment, sortType) => {
     var _a, _b, _c, _d, _e, _f, _g, _h;
     assert(comment === null || comment === void 0 ? void 0 : comment.cid, `getRepliesFirstPageCid comment '${comment}' invalid`);
-    assert(sortType && typeof sortType === "string", `getRepliesFirstPageCid sortType '${sortType}' invalid`);
-    // comment has preloaded replies for sort type
-    if ((_c = (_b = (_a = comment.replies) === null || _a === void 0 ? void 0 : _a.pages) === null || _b === void 0 ? void 0 : _b[sortType]) === null || _c === void 0 ? void 0 : _c.comments) {
-        return (_f = (_e = (_d = comment.replies) === null || _d === void 0 ? void 0 : _d.pages) === null || _e === void 0 ? void 0 : _e[sortType]) === null || _f === void 0 ? void 0 : _f.nextCid;
+    assert(sortType === undefined || (typeof sortType === "string" && sortType.length > 0), `getRepliesFirstPageCid sortType '${sortType}' invalid`);
+    const resolvedSortType = resolveReplySortType(comment, sortType);
+    if (!resolvedSortType) {
+        return;
     }
-    return (_h = (_g = comment.replies) === null || _g === void 0 ? void 0 : _g.pageCids) === null || _h === void 0 ? void 0 : _h[sortType];
+    // comment has preloaded replies for sort type
+    if ((_c = (_b = (_a = comment.replies) === null || _a === void 0 ? void 0 : _a.pages) === null || _b === void 0 ? void 0 : _b[resolvedSortType]) === null || _c === void 0 ? void 0 : _c.comments) {
+        return (_f = (_e = (_d = comment.replies) === null || _d === void 0 ? void 0 : _d.pages) === null || _e === void 0 ? void 0 : _e[resolvedSortType]) === null || _f === void 0 ? void 0 : _f.nextCid;
+    }
+    return (_h = (_g = comment.replies) === null || _g === void 0 ? void 0 : _g.pageCids) === null || _h === void 0 ? void 0 : _h[resolvedSortType];
     // TODO: if a loaded comment doesn't have a first page, it's unclear what we should do
     // should we try to use another sort type by default, like 'best', or should we just ignore it?
 };

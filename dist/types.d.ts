@@ -399,7 +399,26 @@ export interface UseCommunitiesStatesResult extends Result {
         [clientUrl: string]: Peer[];
     };
 }
+export type PkcRpcChallengeOptionInput = {
+    option: string;
+    label: string;
+    default?: string;
+    description?: string;
+    placeholder?: string;
+    required?: boolean;
+    [key: string]: unknown;
+};
+export type PkcRpcChallengeSettings = {
+    optionInputs?: PkcRpcChallengeOptionInput[];
+    type?: string;
+    challenge?: string;
+    caseInsensitive?: boolean;
+    description?: string;
+    [key: string]: unknown;
+};
 export type PkcRpcSettings = {
+    pkcOptions?: Record<string, unknown>;
+    challenges?: Record<string, PkcRpcChallengeSettings>;
     [key: string]: any;
 };
 export interface UsePkcRpcSettingsOptions extends Options {
@@ -600,8 +619,9 @@ export type Feeds = {
 export type FeedOptions = {
     communities: CommunityIdentifier[];
     communityKeys: string[];
-    sortType: string;
-    requestedSortType: string;
+    sortType?: string;
+    /** @deprecated Ignored. Feed sort names are no longer derived from time windows. */
+    requestedSortType?: string;
     accountId: string;
     pageNumber: number;
     postsPerPage: number;
@@ -641,7 +661,7 @@ export type RepliesFeedOptions = {
     commentCid: string;
     commentDepth: number;
     postCid: string;
-    sortType: string;
+    sortType?: string;
     accountId: string;
     pageNumber: number;
     repliesPerPage: number;

@@ -26,6 +26,7 @@ import { getEthWalletFromPkcPrivateKey, getEthPrivateKeyFromPkcPrivateKey, valid
 import { setPkcJs, restorePkcJs } from "./lib/pkc-js/index.js";
 import { deleteDatabases, deleteCaches } from "./lib/debug-utils.js";
 import { createCrosspost } from "./lib/crosspost.js";
+import { getAvailablePostSortTypes, getAvailableReplySortTypes, getPreloadedPostSortType, getPreloadedReplySortType, resolvePostSortType, resolveReplySortType, } from "./lib/page-sorts.js";
 // types
 export * from "./types.js";
 // IMPORTANT: should be the same as 'export default hooks'
@@ -53,7 +54,7 @@ usePkcRpcSettings,
 // chain
 getEthWalletFromPkcPrivateKey, getEthPrivateKeyFromPkcPrivateKey, validateEthWallet, 
 // utils
-setPkcJs, restorePkcJs, deleteDatabases, deleteCaches, createCrosspost, };
+setPkcJs, restorePkcJs, deleteDatabases, deleteCaches, createCrosspost, getAvailablePostSortTypes, getAvailableReplySortTypes, getPreloadedPostSortType, getPreloadedReplySortType, resolvePostSortType, resolveReplySortType, };
 // IMPORTANT: should be the same as 'export {}'
 const hooks = {
     // accounts
@@ -127,6 +128,12 @@ const hooks = {
     deleteDatabases,
     deleteCaches,
     createCrosspost,
+    getAvailablePostSortTypes,
+    getAvailableReplySortTypes,
+    getPreloadedPostSortType,
+    getPreloadedReplySortType,
+    resolvePostSortType,
+    resolveReplySortType,
 };
 export default hooks;
 //# sourceMappingURL=index.js.map
