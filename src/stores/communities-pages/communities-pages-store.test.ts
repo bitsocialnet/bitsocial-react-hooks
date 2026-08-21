@@ -380,10 +380,10 @@ describe("communities pages store", () => {
     ).toThrow();
   });
 
-  test("getCommunityFirstPageCid throws when sortType undefined (branch 313)", () => {
-    expect(() =>
-      getCommunityFirstPageCid({ address: "addr", posts: {} } as any, undefined as any, "posts"),
-    ).toThrow("sortType");
+  test("getCommunityFirstPageCid returns undefined when no sort is published", () => {
+    expect(
+      getCommunityFirstPageCid({ address: "addr", posts: {} } as any, undefined, "posts"),
+    ).toBeUndefined();
   });
 
   test("getCommunityFirstPageCid returns nextCid when pages preloaded", () => {

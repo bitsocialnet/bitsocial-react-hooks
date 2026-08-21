@@ -301,6 +301,125 @@ describe("accounts-actions", () => {
     });
   });
 
+  describe("publication wordfilters", () => {
+    beforeEach(() => {
+      communitiesStore.setState({
+        communities: {
+          "sub.eth": {
+            address: "sub.eth",
+            updatedAt: 1,
+            challenges: [
+              {
+                publicOptions: {
+                  "wordfilter/v1/rules": JSON.stringify([{ src: "plebbit", dst: "bitcoin" }]),
+                },
+              },
+            ],
+          },
+        },
+      } as any);
+    });
+
+    test("publishComment signs and stores the filtered publication", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const createComment = vi.spyOn(account.pkc, "createComment");
+
+      await accountsActions.publishComment({
+        communityAddress: "sub.eth",
+        title: "A PLEBBIT post",
+        content: "plebbit content",
+        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      expect(createComment).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "A bitcoin post", content: "bitcoin content" }),
+      );
+      const accountId = accountsStore.getState().activeAccountId!;
+      expect(accountsStore.getState().accountsComments[accountId]).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ title: "A bitcoin post", content: "bitcoin content" }),
+        ]),
+      );
+    });
+
+    test("publishCommentEdit signs and stores the filtered edit", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const createCommentEdit = vi.spyOn(account.pkc, "createCommentEdit");
+
+      await accountsActions.publishCommentEdit({
+        communityAddress: "sub.eth",
+        commentCid: "comment cid",
+        content: "edit PLEBBIT",
+        onChallenge: (_challenge: any, edit: any) => edit.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      });
+
+      expect(createCommentEdit).toHaveBeenCalledWith(
+        expect.objectContaining({ content: "edit bitcoin" }),
+      );
+      const accountId = accountsStore.getState().activeAccountId!;
+      expect(accountsStore.getState().accountsEdits[accountId]["comment cid"]).toEqual(
+        expect.arrayContaining([expect.objectContaining({ content: "edit bitcoin" })]),
+      );
+    });
+
+    test("uses an immediately available remote challenge config and stops the community", async () => {
+      communitiesStore.setState({ communities: {} });
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const stop = vi.fn();
+      vi.spyOn(account.pkc, "createCommunity").mockResolvedValue({
+        address: "remote.eth",
+        updatedAt: 1,
+        challenges: [
+          {
+            publicOptions: {
+              "wordfilter/v1/rules": JSON.stringify([{ src: "plebbit", dst: "bitcoin" }]),
+            },
+          },
+        ],
+        stop,
+      });
+      const createComment = vi.spyOn(account.pkc, "createComment");
+
+      await accountsActions.publishComment({
+        communityAddress: "remote.eth",
+        content: "remote plebbit",
+        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      });
+
+      expect(createComment).toHaveBeenCalledWith(
+        expect.objectContaining({ content: "remote bitcoin" }),
+      );
+      expect(stop).toHaveBeenCalledOnce();
+    });
+
+    test("stops a remote community when loading its challenge config fails", async () => {
+      communitiesStore.setState({ communities: {} });
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const remoteCommunity = new BaseCommunity({ address: "unavailable.eth" }) as any;
+      remoteCommunity.update = vi.fn().mockRejectedValue(new Error("config unavailable"));
+      remoteCommunity.stop = vi.fn();
+      vi.spyOn(account.pkc, "createCommunity").mockResolvedValue(remoteCommunity);
+
+      await expect(
+        accountsActions.publishComment({
+          communityAddress: "unavailable.eth",
+          content: "plebbit",
+          onChallenge: () => {},
+          onChallengeVerification: () => {},
+        }),
+      ).rejects.toThrow("config unavailable");
+      expect(remoteCommunity.stop).toHaveBeenCalledOnce();
+    });
+
+    test("leaves invalid publications for the existing validator", async () => {
+      await expect(accountsActions.publishComment({ content: "plebbit" } as any)).rejects.toThrow();
+    });
+  });
+
   describe("optional accountName branches", () => {
     beforeEach(async () => {
       await testUtils.resetDatabasesAndStores();
@@ -888,6 +1007,15 @@ describe("accounts-actions", () => {
       const editCommunitySpy = vi.spyOn(communitiesStore.getState(), "editCommunity");
       const createCommunityEditSpy = vi.spyOn(account.pkc, "createCommunityEdit");
       const onChallengeVerification = vi.fn();
+      const challenges = [
+        {
+          path: "@bitsocial/wordfilter-challenge",
+          options: {
+            "wordfilter/v1/rules": JSON.stringify([{ src: "plebbit", dst: "bitcoin" }]),
+          },
+          publicOptions: ["wordfilter/v1/rules"],
+        },
+      ];
 
       try {
         communitiesStore.setState({
@@ -904,6 +1032,7 @@ describe("accounts-actions", () => {
         await act(async () => {
           await accountsActions.publishCommunityEdit("owned-community.eth", {
             title: "edited locally",
+            challenges,
             onChallenge: () => {},
             onChallengeVerification,
           });
@@ -911,7 +1040,7 @@ describe("accounts-actions", () => {
 
         expect(editCommunitySpy).toHaveBeenCalledWith(
           "owned-community.eth",
-          expect.objectContaining({ title: "edited locally" }),
+          expect.objectContaining({ title: "edited locally", challenges }),
           account,
         );
         expect(createCommunityEditSpy).not.toHaveBeenCalled();
@@ -2283,7 +2412,13 @@ describe("accounts-actions", () => {
         onChallengeVerification: () => {},
       });
 
-      await new Promise((r) => setTimeout(r, 5));
+      const pendingStart = Date.now();
+      while (
+        !(accountsStore.getState().accountsComments[account.id] || []).length &&
+        Date.now() - pendingStart < 2000
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
 
       await act(async () => {
         await accountsActions.deleteComment(0);
@@ -2369,7 +2504,13 @@ describe("accounts-actions", () => {
         onError,
       });
 
-      await new Promise((r) => setTimeout(r, 5));
+      const pendingStart = Date.now();
+      while (
+        (!commentRef || !(accountsStore.getState().accountsComments[account.id] || []).length) &&
+        Date.now() - pendingStart < 2000
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
       accountsStore.setState(({ accountsComments }) => ({
         accountsComments: {
           ...accountsComments,
@@ -2380,6 +2521,7 @@ describe("accounts-actions", () => {
 
       await new Promise((r) => setTimeout(r, 50));
       expect(onError).toHaveBeenCalled();
+      await publishPromise;
     });
 
     test("publishComment error and onError callback when comment emits error", async () => {

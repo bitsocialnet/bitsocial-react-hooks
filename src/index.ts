@@ -88,6 +88,14 @@ import {
 import { setPkcJs, restorePkcJs } from "./lib/pkc-js";
 import { deleteDatabases, deleteCaches } from "./lib/debug-utils";
 import { createCrosspost } from "./lib/crosspost";
+import {
+  getAvailablePostSortTypes,
+  getAvailableReplySortTypes,
+  getPreloadedPostSortType,
+  getPreloadedReplySortType,
+  resolvePostSortType,
+  resolveReplySortType,
+} from "./lib/page-sorts";
 
 // types
 export * from "./types";
@@ -165,6 +173,12 @@ export {
   deleteDatabases,
   deleteCaches,
   createCrosspost,
+  getAvailablePostSortTypes,
+  getAvailableReplySortTypes,
+  getPreloadedPostSortType,
+  getPreloadedReplySortType,
+  resolvePostSortType,
+  resolveReplySortType,
 };
 
 // IMPORTANT: should be the same as 'export {}'
@@ -240,6 +254,12 @@ const hooks = {
   deleteDatabases,
   deleteCaches,
   createCrosspost,
+  getAvailablePostSortTypes,
+  getAvailableReplySortTypes,
+  getPreloadedPostSortType,
+  getPreloadedReplySortType,
+  resolvePostSortType,
+  resolveReplySortType,
 };
 
 export default hooks;

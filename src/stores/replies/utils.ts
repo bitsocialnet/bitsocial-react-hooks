@@ -17,6 +17,7 @@ import accountsStore from "../accounts";
 import { flattenCommentsPages, commentIsValid, removeInvalidComments } from "../../lib/utils";
 import { areEquivalentCommunityAddresses } from "../../lib/community-address";
 import Logger from "@pkcprotocol/pkc-logger";
+import { resolveReplySortType } from "../../lib/page-sorts";
 const log = Logger("bitsocial-react-hooks:replies:stores");
 
 /**
@@ -31,16 +32,23 @@ export const getFilteredSortedFeeds = (
   // calculate each feed
   let feeds: Feeds = {};
   for (const feedName in feedsOptions) {
-    let { commentCid, sortType, accountId, filter, flat } = feedsOptions[feedName];
+    const {
+      commentCid,
+      sortType: requestedSortType,
+      accountId,
+      filter,
+      flat,
+    } = feedsOptions[feedName];
 
     // find all fetched replies
     let bufferedFeedReplies = [];
     const comment = comments[commentCid];
 
-    sortType = getSortTypeFromComment(comment, feedsOptions[feedName]);
+    const sortType = getSortTypeFromComment(comment, feedsOptions[feedName]);
+    const requestedSortIsUnavailable = requestedSortType !== undefined && sortType === undefined;
 
     // comment has loaded and cache not expired
-    if (comment) {
+    if (comment && !requestedSortIsUnavailable) {
       // use comment preloaded replies if any
       const preloadedReplies = getPreloadedReplies(comment, sortType);
       if (preloadedReplies) {
@@ -95,8 +103,12 @@ export const getFilteredSortedFeeds = (
   return feeds;
 };
 
-const getPreloadedReplies = (comment: Comment, sortType: string) => {
-  let preloadedReplies = comment.replies?.pages?.[sortType]?.comments;
+const getPreloadedReplies = (comment: Comment, sortType?: string) => {
+  const resolvedSortType = resolveReplySortType(comment, sortType);
+  if (!resolvedSortType) {
+    return;
+  }
+  let preloadedReplies = comment.replies?.pages?.[resolvedSortType]?.comments;
   if (preloadedReplies) {
     return preloadedReplies;
   }
@@ -543,7 +555,7 @@ export const getFeedsHaveMore = (
       continue;
     }
 
-    let { commentCid, sortType, onlyIfCached } = feedsOptions[feedName];
+    const { commentCid, sortType: requestedSortType, onlyIfCached } = feedsOptions[feedName];
 
     // TODO: maybe skip if comment cid is blocked?
 
@@ -554,7 +566,11 @@ export const getFeedsHaveMore = (
       continue;
     }
 
-    sortType = getSortTypeFromComment(comment, feedsOptions[feedName]);
+    const sortType = getSortTypeFromComment(comment, feedsOptions[feedName]);
+    if (requestedSortType !== undefined && sortType === undefined) {
+      feedsHaveMore[feedName] = false;
+      continue;
+    }
 
     const firstPageCid = getRepliesFirstPageCid(comment, sortType);
     // TODO: if a loaded comment doesn't have a first page, it's unclear what we should do
@@ -669,78 +685,5 @@ export const getFeedsCommentsLoadedCount = (feedsComments: Map<string, Comment>)
 };
 
 // selected sort type could be missing from comment, or not optimized
-export const getSortTypeFromComment = (comment: Comment, feedOptions: RepliesFeedOptions) => {
-  let { sortType, flat } = feedOptions;
-
-  if (!comment) {
-    return sortType;
-  }
-
-  // 'topAll' and 'best' are similar enough to be used interchangeably
-  if (
-    sortType === "best" &&
-    !comment.replies?.pages?.best &&
-    !comment.replies?.pageCids?.best &&
-    (comment.replies?.pages?.topAll || comment.replies?.pageCids?.topAll)
-  ) {
-    sortType = "topAll";
-  } else if (
-    sortType === "topAll" &&
-    !comment.replies?.pages?.topAll &&
-    !comment.replies?.pageCids?.topAll &&
-    (comment.replies?.pages?.best || comment.replies?.pageCids?.best)
-  ) {
-    sortType = "best";
-  }
-
-  // if 'new' sort type and flat: true, use 'newFlat'
-  else if (
-    sortType === "new" &&
-    flat &&
-    (comment.replies?.pages?.newFlat || comment.replies?.pageCids?.newFlat)
-  ) {
-    sortType = "newFlat";
-  }
-  // if 'old' sort type and flat: true, use 'oldFlat'
-  else if (
-    sortType === "old" &&
-    flat &&
-    (comment.replies?.pages?.oldFlat || comment.replies?.pageCids?.oldFlat)
-  ) {
-    sortType = "oldFlat";
-  }
-
-  // if 'newFlat' is missing, use 'new'
-  else if (
-    sortType === "newFlat" &&
-    !comment.replies?.pages?.newFlat &&
-    !comment.replies?.pageCids?.newFlat &&
-    (comment.replies?.pages?.new || comment.replies?.pageCids?.new)
-  ) {
-    sortType = "new";
-  }
-  // if 'oldFlat' is missing, use 'old'
-  else if (
-    sortType === "oldFlat" &&
-    !comment.replies?.pages?.oldFlat &&
-    !comment.replies?.pageCids?.oldFlat &&
-    (comment.replies?.pages?.old || comment.replies?.pageCids?.old)
-  ) {
-    sortType = "old";
-  }
-
-  // TODO: if sort type doesn't exist on comment, maybe use first existing?
-  // else if (!comment.replies?.pages?.[sortType] && !comment.replies?.pageCids?.[sortType]) {
-  //   const firstPageSortType = comment.replies?.pages && Object.keys(comment.replies.pages)[0]
-  //   if (firstPageSortType) {
-  //     sortType = firstPageSortType
-  //   }
-  //   else {
-  //     const firstPageCidSortType = comment.replies?.pageCids && Object.keys(comment.replies.pageCids)[0]
-  //     if (firstPageCidSortType) {
-  //       sortType = firstPageCidSortType
-  //     }
-  //   }
-  // }
-  return sortType;
-};
+export const getSortTypeFromComment = (comment: Comment, feedOptions: RepliesFeedOptions) =>
+  resolveReplySortType(comment, feedOptions.sortType);

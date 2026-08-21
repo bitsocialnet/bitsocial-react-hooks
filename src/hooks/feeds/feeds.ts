@@ -4,7 +4,6 @@ import validator from "../../lib/validator";
 import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:feeds:hooks");
 import assert from "assert";
-import { deriveFeedSortType } from "../../lib/feed-sort-type";
 import {
   Feed,
   Feeds,
@@ -25,7 +24,7 @@ import {
 
 /**
  * @param communities - The communities to fetch, e.g. [{name: 'memes.eth'}, {publicKey: '12D3KooW...'}]
- * @param sortType - The sorting algo for the feed: 'hot' | 'new' | 'active' | 'topHour' | 'topDay' | 'topWeek' | 'topMonth' | 'topYear' | 'topAll' | 'controversialHour' | 'controversialDay' | 'controversialWeek' | 'controversialMonth' | 'controversialYear' | 'controversialAll'
+ * @param sortType - A sort name published by the community. Omit it to use the preloaded sort.
  * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */
@@ -45,9 +44,6 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
     accountComments,
     modQueue,
   } = opts;
-  const requestedSortType = sortType || "hot";
-  sortType = deriveFeedSortType(sortType, newerThan);
-
   validator.validateUseFeedArguments({
     communities,
     communityRefs: (opts as any).communityRefs,
@@ -103,7 +99,6 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
       newerThan,
       accountComments,
       modQueue,
-      requestedSortType,
     ).catch((error: unknown) => log.error("useFeed addFeedToStore error", { feedName, error }));
   }, [feedName]);
 
@@ -238,7 +233,7 @@ export function useBufferedFeeds(options?: UseBufferedFeedsOptions): UseBuffered
   } = useMemo(() => {
     const communityRefsArrays: CommunityLookupRef[][] = [];
     const communityKeysArrays: string[][] = [];
-    const sortTypes: string[] = [];
+    const sortTypes: (string | undefined)[] = [];
     const postsPerPages: (number | undefined)[] = [];
     const filters: (CommentsFilter | undefined)[] = [];
     const newerThans: (number | undefined)[] = [];
@@ -247,7 +242,7 @@ export function useBufferedFeeds(options?: UseBufferedFeedsOptions): UseBuffered
         communities: feedOptions.communities,
         communityRefs: (feedOptions as any).communityRefs,
         communityAddresses: (feedOptions as any).communityAddresses,
-        sortType: deriveFeedSortType(feedOptions.sortType, feedOptions.newerThan),
+        sortType: feedOptions.sortType,
         accountName,
         postsPerPage: feedOptions.postsPerPage,
         filter: feedOptions.filter,
@@ -257,7 +252,7 @@ export function useBufferedFeeds(options?: UseBufferedFeedsOptions): UseBuffered
       const normalizedCommunityRefs = getUniqueSortedCommunityRefs(feedOptions.communities || []);
       communityRefsArrays.push(normalizedCommunityRefs);
       communityKeysArrays.push(getCommunityRefKeys(normalizedCommunityRefs));
-      sortTypes.push(deriveFeedSortType(feedOptions.sortType, feedOptions.newerThan));
+      sortTypes.push(feedOptions.sortType);
       postsPerPages.push(feedOptions.postsPerPage);
       filters.push(feedOptions.filter);
       newerThans.push(feedOptions.newerThan);
@@ -292,7 +287,6 @@ export function useBufferedFeeds(options?: UseBufferedFeedsOptions): UseBuffered
   useEffect(() => {
     for (const [i] of communityRefsArrays.entries()) {
       const sortType = sortTypes[i];
-      const requestedSortType = feedsOpts[i]?.sortType || sortType;
       const uniqueCommunityRefs = communityRefsArrays[i];
       const uniqueCommunityKeys = communityKeysArrays[i];
       validator.validateFeedSortType(sortType);
@@ -314,7 +308,6 @@ export function useBufferedFeeds(options?: UseBufferedFeedsOptions): UseBuffered
           undefined,
           undefined,
           undefined,
-          requestedSortType,
         ).catch((error: unknown) =>
           log.error("useBufferedFeeds addFeedToStore error", { feedName, error }),
         );
@@ -363,7 +356,7 @@ function useUniqueSortedCommunityRefs(communityRefs?: CommunityLookupRef[]) {
 
 function useFeedName(
   accountId: string,
-  sortType: string,
+  sortType: string | undefined,
   uniqueCommunityKeys: string[],
   postsPerPage?: number,
   filter?: CommentsFilter,
@@ -409,7 +402,7 @@ function useFeedName(
 
 function useFeedNames(
   accountId: string,
-  sortTypes: string[],
+  sortTypes: (string | undefined)[],
   uniqueCommunityKeysArrays: string[][],
   postsPerPages: (number | undefined)[],
   filters: (CommentsFilter | undefined)[],

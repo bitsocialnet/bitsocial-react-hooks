@@ -54,6 +54,11 @@ for (const i in feed) {
 }
 
 describe("feedSorter", () => {
+  test("preserves page order for an unknown custom sort", () => {
+    const customFeed = [{ cid: "first" }, { cid: "second", pinned: true }];
+    expect(feedSorter.sort("sage", customFeed)).toBe(customFeed);
+  });
+
   test("sort by top", async () => {
     const sorted = feedSorter.sort("top", feed);
     expect(sorted).toEqual([
@@ -1142,10 +1147,9 @@ describe("feedSorter", () => {
     ]);
   });
 
-  test("throws on unknown sort type", () => {
-    expect(() => feedSorter.sort("unknown", feed)).toThrow(
-      "feedsStore feedSorter sort type 'unknown' doesn't exist",
-    );
+  test("does not infer scoring from an unknown sort name", () => {
+    const unknownFeed = [{ cid: "new-looking" }, { cid: "old-looking" }];
+    expect(feedSorter.sort("newCustom", unknownFeed)).toBe(unknownFeed);
   });
 
   test("n() fallback: NaN and non-number use 0", () => {

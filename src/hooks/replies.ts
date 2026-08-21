@@ -38,7 +38,6 @@ export function useReplies(options?: UseRepliesOptions): UseRepliesResult {
     validateOptimistically,
     streamPage,
   } = opts;
-  sortType = sortType || "best";
   flatDepth = typeof flatDepth === "number" ? flatDepth : 0;
   validateOptimistically = validateOptimistically !== false;
   const invalidFlatDepth =
