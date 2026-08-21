@@ -114,7 +114,7 @@ for (const pkcOptionsType in pkcOptionsTypes) {
       expect(typeof rendered.result.current.loadMore).to.equal("function");
     });
 
-    it("change sort type", async () => {
+    it("does not substitute an unavailable sort when changing sort type", async () => {
       console.log(`starting feeds tests (${pkcOptionsType})`);
 
       rendered.rerender({ communities: toCommunities([communityAddress]), sortType: "hot" });
@@ -128,10 +128,14 @@ for (const pkcOptionsType in pkcOptionsTypes) {
       expect(rendered.result.current.feed.length).to.equal(0);
       console.log("after second render");
 
-      // change sort type
-      rendered.rerender({ communities: toCommunities([communityAddress]), sortType: "new" });
-      await waitFor(() => !!rendered.result.current.feed[0].cid);
-      expect(rendered.result.current.feed[0].communityAddress).to.equal(communityAddress);
+      // Requesting an unavailable sort must settle as empty instead of reusing
+      // the preloaded page.
+      rendered.rerender({
+        communities: toCommunities([communityAddress]),
+        sortType: "unpublished-sort",
+      });
+      await waitFor(() => rendered.result.current.hasMore === false);
+      expect(rendered.result.current.feed).to.deep.equal([]);
     });
 
     it("validate comments", async () => {
