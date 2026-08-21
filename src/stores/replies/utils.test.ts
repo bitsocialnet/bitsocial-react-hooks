@@ -140,7 +140,7 @@ describe("replies utils", () => {
       expect(feeds.feed1).toEqual([]);
     });
 
-    test("uses fallback when depth > 0 and hasPageCids (no early return)", () => {
+    test("does not substitute another sort for nested replies with page cids", () => {
       const reply = {
         cid: "depth1-fallback",
         communityAddress: "sub1",
@@ -173,7 +173,7 @@ describe("replies utils", () => {
         {},
         { [mockAccountId]: { pkc: {}, blockedAddresses: {}, blockedCids: {} } },
       );
-      expect(feeds.feed1).toContainEqual(expect.objectContaining({ cid: "depth1-fallback" }));
+      expect(feeds.feed1).toEqual([]);
     });
 
     test("breaks repliesPages loop when reply has wrong communityAddress", () => {

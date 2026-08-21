@@ -284,6 +284,17 @@ describe("replies store", () => {
     expect(stringFalseName).toBe(falseName);
   });
 
+  test("feedOptionsToFeedName distinguishes omitted and literal undefined sort types", () => {
+    const baseFeedOptions = {
+      commentCid: "sort-name-cid",
+      accountId: mockAccount.id,
+    };
+
+    expect(feedOptionsToFeedName(baseFeedOptions)).not.toBe(
+      feedOptionsToFeedName({ ...baseFeedOptions, sortType: "undefined" }),
+    );
+  });
+
   test("addFeedsToStore deletes newFeedsOptions when feed already exists", async () => {
     const commentCid = "existing-feed-cid";
     const feedOptions = {

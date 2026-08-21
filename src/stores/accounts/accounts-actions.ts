@@ -57,6 +57,8 @@ import utils from "../../lib/utils";
 import { addOptimisticVoteMetadata } from "../../lib/utils/optimistic-vote-counts";
 import { applyCommunityWordfilters } from "../../lib/wordfilters";
 
+const PUBLICATION_COMMUNITY_LOAD_TIMEOUT_MS = 30_000;
+
 const communityHasPublicationConfig = (community: any) =>
   community &&
   (typeof community.updatedAt === "number" ||
@@ -80,21 +82,39 @@ const loadPublicationCommunity = async (communityAddress: string, account: Accou
     if (communityHasPublicationConfig(community)) return community;
 
     return await new Promise<any>((resolve, reject) => {
+      let settled = false;
+      let timeout: ReturnType<typeof setTimeout>;
       const cleanup = () => {
+        clearTimeout(timeout);
         community.removeListener?.("update", onUpdate);
         community.removeListener?.("error", onError);
       };
       const onUpdate = (updatedCommunity: any) => {
+        if (settled) return;
+        settled = true;
         cleanup();
         resolve(updatedCommunity || community);
       };
       const onError = (error: Error) => {
+        if (settled) return;
+        settled = true;
         cleanup();
         reject(error);
       };
+      timeout = setTimeout(
+        () =>
+          onError(
+            new Error(`timed out loading challenge settings for community '${communityAddress}'`),
+          ),
+        PUBLICATION_COMMUNITY_LOAD_TIMEOUT_MS,
+      );
       community.once("update", onUpdate);
       community.once("error", onError);
-      Promise.resolve(community.update()).catch(onError);
+      void Promise.resolve()
+        .then(() => community.update())
+        .then(() => {
+          if (communityHasPublicationConfig(community)) onUpdate(community);
+        }, onError);
     });
   } finally {
     await community.stop?.();

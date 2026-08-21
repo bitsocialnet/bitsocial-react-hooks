@@ -17,6 +17,7 @@ import localForageLru from "../../lib/localforage-lru";
 import accountsStore from "../accounts";
 import repliesCommentsStore from "./replies-comments-store";
 import repliesPagesStore from "../replies-pages";
+import { serializeFeedKey } from "../../lib/serialize-feed-key";
 import {
   getFeedsCommentsFirstPageCids,
   getLoadedFeeds,
@@ -70,7 +71,19 @@ const addDefaultFeedOptions = (feedOptions: any) => {
 
 export const feedOptionsToFeedName = (feedOptions: Partial<RepliesFeedOptions>) => {
   feedOptions = addDefaultFeedOptions(feedOptions);
-  return `${feedOptions?.accountId}-${feedOptions?.commentCid}-${feedOptions?.postCid}-${feedOptions?.sortType}-${feedOptions?.flat}-${feedOptions?.onlyIfCached}-${feedOptions?.accountComments?.newerThan}-${feedOptions?.accountComments?.append}-${feedOptions?.repliesPerPage}-${feedOptions?.filter?.key}-${feedOptions?.streamPage}`;
+  return serializeFeedKey([
+    feedOptions?.accountId,
+    feedOptions?.commentCid,
+    feedOptions?.postCid,
+    feedOptions?.sortType,
+    feedOptions?.flat,
+    feedOptions?.onlyIfCached,
+    feedOptions?.accountComments?.newerThan,
+    feedOptions?.accountComments?.append,
+    feedOptions?.repliesPerPage,
+    feedOptions?.filter?.key,
+    feedOptions?.streamPage,
+  ]);
 };
 
 const getFeedsUpdatedAts = (feedsOptions: RepliesFeedsOptions, comments: Comments) => {

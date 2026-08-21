@@ -21,6 +21,7 @@ import {
   getCommunityRefKeys,
   getUniqueSortedCommunityRefs,
 } from "../../lib/community-ref";
+import { serializeFeedKey } from "../../lib/serialize-feed-key";
 
 /**
  * @param communities - The communities to fetch, e.g. [{name: 'memes.eth'}, {publicKey: '12D3KooW...'}]
@@ -368,25 +369,17 @@ function useFeedName(
   const accountCommentsNewerThan = accountComments?.newerThan;
   const accountCommentsAppend = accountComments?.append;
   return useMemo(() => {
-    return (
-      accountId +
-      "-" +
-      sortType +
-      "-" +
-      uniqueCommunityKeys +
-      "-" +
-      postsPerPage +
-      "-" +
-      filterKey +
-      "-" +
-      newerThan +
-      "-" +
-      accountCommentsNewerThan +
-      "-" +
-      accountCommentsAppend +
-      "-" +
-      modQueue
-    );
+    return serializeFeedKey([
+      accountId,
+      sortType,
+      uniqueCommunityKeys,
+      postsPerPage,
+      filterKey,
+      newerThan,
+      accountCommentsNewerThan,
+      accountCommentsAppend,
+      modQueue,
+    ]);
   }, [
     accountId,
     sortType,
@@ -412,17 +405,14 @@ function useFeedNames(
     const feedNames: string[] = [];
     for (const [i] of sortTypes.entries()) {
       feedNames.push(
-        accountId +
-          "-" +
-          sortTypes[i] +
-          "-" +
-          uniqueCommunityKeysArrays[i] +
-          "-" +
-          postsPerPages[i] +
-          "-" +
-          filters[i]?.key +
-          "-" +
+        serializeFeedKey([
+          accountId,
+          sortTypes[i],
+          uniqueCommunityKeysArrays[i],
+          postsPerPages[i],
+          filters[i]?.key,
           newerThans[i],
+        ]),
       );
     }
     return feedNames;

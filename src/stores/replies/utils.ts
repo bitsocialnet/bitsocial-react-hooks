@@ -108,31 +108,7 @@ const getPreloadedReplies = (comment: Comment, sortType?: string) => {
   if (!resolvedSortType) {
     return;
   }
-  let preloadedReplies = comment.replies?.pages?.[resolvedSortType]?.comments;
-  if (preloadedReplies) {
-    return preloadedReplies;
-  }
-  // TODO: should we check pageCids? it's possible to have pageCids
-  // and use 'best' preloadedReplies, if they have no nextCid (all replies are preloaded)
-  // changing this might bug out nested immediate react renders
-  // only check on comment.depth: 0 for now
-  const hasPageCids = Object.keys(comment.replies?.pageCids || {}).length !== 0;
-  if (hasPageCids && comment.depth === 0) {
-    return;
-  }
-  const pages: any[] = Object.values(comment.replies?.pages || {});
-  if (!pages.length) {
-    return;
-  }
-  const nextCids = pages.map((page: any) => page?.nextCid).filter((nextCid) => !!nextCid);
-  if (nextCids.length > 0) {
-    return;
-  }
-  // if has a preloaded page, but no pageCids and no nextCids, it means all replies fit in a single preloaded page
-  // so any sort type can be used, and later be resorted by the client
-  if (pages[0]?.comments?.length) {
-    return pages[0].comments;
-  }
+  return comment.replies?.pages?.[resolvedSortType]?.comments;
 };
 
 const previousPageNumbers: { [feedName: string]: number } = {};

@@ -220,7 +220,7 @@ useExportCommunity(options?: UseExportCommunityOptions): {
 }
 ```
 
-Before `publishComment` or `publishCommentEdit` signs a publication, hooks load the community challenge configuration and apply compatible wordfilters. The current `@bitsocial/wordfilter-challenge` contract uses a JSON array of `{src, dst}` objects in `wordfilter/v1/rules` and an optional JSON array of paths in `wordfilter/v1/fieldNames`, both published through `publicOptions`. Matching is literal and case-insensitive, not regular-expression or Unicode-evasion matching. The transformed values are the values signed, published, and stored as the pending account publication. If composed rule sets do not stabilize within eight passes, publication stops before signing.
+Before `publishComment` or `publishCommentEdit` signs a publication, hooks load the community challenge configuration and apply compatible wordfilters. The current `@bitsocial/wordfilter-challenge` contract uses a JSON array of `{src, dst}` objects in `wordfilter/v1/rules` and an optional JSON array of paths in `wordfilter/v1/fieldNames`, both published through `publicOptions`. Hooks support the user-authored `content`, `title`, and `author.displayName` paths; structural and signing fields are never rewritten by community configuration. Matching is literal and case-insensitive, not regular-expression or Unicode-evasion matching. The transformed values are the values signed, published, and stored as the pending account publication. If composed rule sets do not stabilize within eight passes, publication stops before signing.
 
 #### States Hooks
 

@@ -194,6 +194,22 @@ describe("feeds", () => {
       expect(rendered.result.current.hasMore).toBe(true);
     });
 
+    test("uses distinct feed keys for omitted and literal undefined sorts", async () => {
+      rendered.rerender({ communityAddresses: ["community address 1"] });
+      await waitFor(() => Object.keys(feedsStore.getState().feedsOptions).length === 1);
+      const [omittedSortFeedName] = Object.keys(feedsStore.getState().feedsOptions);
+
+      rendered.rerender({
+        communityAddresses: ["community address 1"],
+        sortType: "undefined",
+      });
+      await waitFor(() => Object.keys(feedsStore.getState().feedsOptions).length === 2);
+
+      expect(Object.keys(feedsStore.getState().feedsOptions)).toEqual(
+        expect.arrayContaining([omittedSortFeedName]),
+      );
+    });
+
     test("get feed page 1 with 1 community sorted by default (hot)", async () => {
       // get feed with 1 sub
       rendered.rerender({ communityAddresses: ["community address 1"] });
@@ -1188,6 +1204,22 @@ describe("feeds", () => {
       const rendered = renderHook<any, any>(() => useBufferedFeeds());
       await act(async () => {});
       expect(rendered.result.current.bufferedFeeds).toEqual([]);
+    });
+
+    test("useBufferedFeeds keeps omitted and literal undefined sorts separate", async () => {
+      const rendered = renderHook<any, any>(() =>
+        useBufferedFeeds(
+          toBufferedFeedsOptions({
+            feedsOptions: [
+              { communityAddresses: ["community address 1"] },
+              { communityAddresses: ["community address 1"], sortType: "undefined" },
+            ],
+          }),
+        ),
+      );
+
+      await waitFor(() => Object.keys(feedsStore.getState().feedsOptions).length === 2);
+      expect(rendered.result.current.bufferedFeeds).toHaveLength(2);
     });
 
     test("useBufferedFeeds skips empty feed entries without blocking later feeds", async () => {

@@ -35,20 +35,28 @@ describe("applyCommunityWordfilters", () => {
     ).toBe("c");
   });
 
-  test("uses configured fields and treats replacement dollar syntax literally", () => {
+  test("uses configured supported fields and treats replacement dollar syntax literally", () => {
     expect(
-      applyCommunityWordfilters({ content: "plebbit", extra: { text: "plebbit" } }, [
-        challenge([{ src: "plebbit", dst: "$&coin" }], ["extra.text"]),
+      applyCommunityWordfilters({ content: "plebbit", title: "plebbit" }, [
+        challenge([{ src: "plebbit", dst: "$&coin" }], ["content"]),
       ]),
-    ).toEqual({ content: "plebbit", extra: { text: "$&coin" } });
+    ).toEqual({ content: "$&coin", title: "plebbit" });
   });
 
-  test("ignores malformed options, non-string fields, and unsafe paths", () => {
-    const publication = { content: 1, title: "unchanged" };
+  test("ignores malformed options, non-string fields, and structural paths", () => {
+    const publication = {
+      content: 1,
+      title: "unchanged",
+      communityAddress: "plebbit.eth",
+      signer: { privateKey: "plebbit-private-key" },
+    };
     expect(
       applyCommunityWordfilters(publication, [
         { publicOptions: { "wordfilter/v1/rules": "{" } },
-        challenge([{ src: "unchanged", dst: "changed" }], ["__proto__.title"]),
+        challenge(
+          [{ src: "plebbit", dst: "bitcoin" }],
+          ["communityAddress", "signer.privateKey", "__proto__.title"],
+        ),
       ]),
     ).toBe(publication);
   });

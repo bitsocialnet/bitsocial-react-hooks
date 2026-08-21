@@ -281,27 +281,7 @@ const getPreloadedPosts = (community: Community, sortType?: string) => {
   if (!resolvedSortType) {
     return;
   }
-  let preloadedPosts = community.posts?.pages?.[resolvedSortType]?.comments;
-  if (preloadedPosts) {
-    return preloadedPosts;
-  }
-  const hasPageCids = Object.keys(community.posts?.pageCids || {}).length !== 0;
-  if (hasPageCids) {
-    return;
-  }
-  const pages: any[] = Object.values(community.posts?.pages || {});
-  if (!pages.length) {
-    return;
-  }
-  const nextCids = pages.map((page: any) => page?.nextCid).filter((nextCid) => !!nextCid);
-  if (nextCids.length > 0) {
-    return;
-  }
-  // if has a preloaded page, but no pageCids and no nextCids, it means all posts fit in a single preloaded page
-  // so any sort type can be used, and later be resorted by the client
-  if (pages[0]?.comments?.length) {
-    return pages[0].comments;
-  }
+  return community.posts?.pages?.[resolvedSortType]?.comments;
 };
 
 export const getLoadedFeeds = async (

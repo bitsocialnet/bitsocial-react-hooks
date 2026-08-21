@@ -396,6 +396,37 @@ describe("accounts-actions", () => {
       expect(stop).toHaveBeenCalledOnce();
     });
 
+    test("uses challenge config populated by a resolved update without an event", async () => {
+      communitiesStore.setState({ communities: {} });
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const remoteCommunity = new BaseCommunity({ address: "resolved.eth" }) as any;
+      remoteCommunity.update = vi.fn().mockImplementation(async () => {
+        remoteCommunity.updatedAt = 1;
+        remoteCommunity.challenges = [
+          {
+            publicOptions: {
+              "wordfilter/v1/rules": JSON.stringify([{ src: "plebbit", dst: "bitcoin" }]),
+            },
+          },
+        ];
+      });
+      remoteCommunity.stop = vi.fn();
+      vi.spyOn(account.pkc, "createCommunity").mockResolvedValue(remoteCommunity);
+      const createComment = vi.spyOn(account.pkc, "createComment");
+
+      await accountsActions.publishComment({
+        communityAddress: "resolved.eth",
+        content: "resolved plebbit",
+        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      });
+
+      expect(createComment).toHaveBeenCalledWith(
+        expect.objectContaining({ content: "resolved bitcoin" }),
+      );
+      expect(remoteCommunity.stop).toHaveBeenCalledOnce();
+    });
+
     test("stops a remote community when loading its challenge config fails", async () => {
       communitiesStore.setState({ communities: {} });
       const account = Object.values(accountsStore.getState().accounts)[0];
@@ -413,6 +444,34 @@ describe("accounts-actions", () => {
         }),
       ).rejects.toThrow("config unavailable");
       expect(remoteCommunity.stop).toHaveBeenCalledOnce();
+    });
+
+    test("times out when remote challenge config never loads", async () => {
+      vi.useFakeTimers();
+      try {
+        communitiesStore.setState({ communities: {} });
+        const account = Object.values(accountsStore.getState().accounts)[0];
+        const remoteCommunity = new BaseCommunity({ address: "timeout.eth" }) as any;
+        remoteCommunity.update = vi.fn().mockResolvedValue(undefined);
+        remoteCommunity.stop = vi.fn();
+        vi.spyOn(account.pkc, "createCommunity").mockResolvedValue(remoteCommunity);
+
+        const publication = accountsActions.publishComment({
+          communityAddress: "timeout.eth",
+          content: "plebbit",
+          onChallenge: () => {},
+          onChallengeVerification: () => {},
+        });
+        const rejection = expect(publication).rejects.toThrow(
+          "timed out loading challenge settings for community 'timeout.eth'",
+        );
+
+        await vi.advanceTimersByTimeAsync(30_000);
+        await rejection;
+        expect(remoteCommunity.stop).toHaveBeenCalledOnce();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     test("leaves invalid publications for the existing validator", async () => {

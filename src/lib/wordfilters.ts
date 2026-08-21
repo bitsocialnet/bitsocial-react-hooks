@@ -1,6 +1,7 @@
 const RULES_KEY = "wordfilter/v1/rules";
 const FIELD_NAMES_KEY = "wordfilter/v1/fieldNames";
 const DEFAULT_FIELD_NAMES = ["content", "title", "author.displayName"];
+const SUPPORTED_FIELD_NAMES = new Set(DEFAULT_FIELD_NAMES);
 const MAX_PASSES = 8;
 const unsafePathParts = new Set(["__proto__", "constructor", "prototype"]);
 
@@ -104,6 +105,7 @@ export const applyCommunityWordfilters = <T extends Record<string, any>>(
         : parseStringArray(configuredFieldNames);
     if (!fieldNames) continue;
     for (const fieldName of fieldNames) {
+      if (!SUPPORTED_FIELD_NAMES.has(fieldName)) continue;
       rulesByField.set(fieldName, [...(rulesByField.get(fieldName) || []), ...rules]);
     }
   }
