@@ -9,6 +9,7 @@ import { addChildrenRepliesFeedsToAddToStore } from "./utils";
 import localForageLru from "../../lib/localforage-lru";
 import createStore from "zustand";
 import assert from "assert";
+import { resolveReplySortType } from "../../lib/page-sorts";
 
 const repliesPagesDatabase = localForageLru.createInstance({
   name: "bitsocialReactHooks-repliesPages",
@@ -31,15 +32,24 @@ const repliesPagesStore = createStore<RepliesPagesState>(
     repliesPages: {},
     comments: {},
 
-    addNextRepliesPageToStore: async (comment: Comment, sortType: string, account: Account) => {
+    addNextRepliesPageToStore: async (
+      comment: Comment,
+      sortType: string | undefined,
+      account: Account,
+    ) => {
       assert(
         comment?.cid && typeof comment?.cid === "string",
         `repliesPagesStore.addNextRepliesPageToStore comment '${comment}' invalid`,
       );
       assert(
-        sortType && typeof sortType === "string",
+        sortType === undefined || (typeof sortType === "string" && sortType.length > 0),
         `repliesPagesStore.addNextRepliesPageToStore sortType '${sortType}' invalid`,
       );
+      const resolvedSortType = resolveReplySortType(comment, sortType);
+      if (!resolvedSortType) {
+        return;
+      }
+      sortType = resolvedSortType;
       assert(
         typeof account?.pkc?.createComment === "function",
         `repliesPagesStore.addNextRepliesPageToStore account '${account}' invalid`,
@@ -256,7 +266,11 @@ const fetchPage = async (pageCid: string, comment: Comment, account: Account) =>
  * Util function to get all pages in the store for a
  * specific comment+sortType using `RepliesPage.nextCid`
  */
-export const getRepliesPages = (comment: Comment, sortType: string, repliesPages: RepliesPages) => {
+export const getRepliesPages = (
+  comment: Comment,
+  sortType: string | undefined,
+  repliesPages: RepliesPages,
+) => {
   assert(
     repliesPages && typeof repliesPages === "object",
     `getRepliesPages repliesPages '${repliesPages}' invalid`,
@@ -285,17 +299,21 @@ export const getRepliesPages = (comment: Comment, sortType: string, repliesPages
   }
 };
 
-export const getRepliesFirstPageCid = (comment: Comment, sortType: string) => {
+export const getRepliesFirstPageCid = (comment: Comment, sortType?: string) => {
   assert(comment?.cid, `getRepliesFirstPageCid comment '${comment}' invalid`);
   assert(
-    sortType && typeof sortType === "string",
+    sortType === undefined || (typeof sortType === "string" && sortType.length > 0),
     `getRepliesFirstPageCid sortType '${sortType}' invalid`,
   );
-  // comment has preloaded replies for sort type
-  if (comment.replies?.pages?.[sortType]?.comments) {
-    return comment.replies?.pages?.[sortType]?.nextCid;
+  const resolvedSortType = resolveReplySortType(comment, sortType);
+  if (!resolvedSortType) {
+    return;
   }
-  return comment.replies?.pageCids?.[sortType];
+  // comment has preloaded replies for sort type
+  if (comment.replies?.pages?.[resolvedSortType]?.comments) {
+    return comment.replies?.pages?.[resolvedSortType]?.nextCid;
+  }
+  return comment.replies?.pageCids?.[resolvedSortType];
 
   // TODO: if a loaded comment doesn't have a first page, it's unclear what we should do
   // should we try to use another sort type by default, like 'best', or should we just ignore it?

@@ -18,7 +18,6 @@ import createStore from "zustand";
 import localForageLru from "../../lib/localforage-lru";
 import { communityPostsCacheExpired } from "../../lib/utils";
 import { getPkcGetCommunity } from "../../lib/pkc-compat";
-import { deriveFeedSortType } from "../../lib/feed-sort-type";
 import { CommunityLookupRef, getCommunityRefKeys } from "../../lib/community-ref";
 import accountsStore from "../accounts";
 import communitiesStore from "../communities";
@@ -84,7 +83,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
     feedName: string,
     communities: CommunityLookupRef[],
     communityKeys: string[],
-    sortType: string,
+    sortType: string | undefined,
     account: Account,
     isBufferedFeed?: boolean,
     postsPerPage?: number,
@@ -92,7 +91,6 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
     newerThan?: number,
     accountComments?: FeedOptionsAccountComments,
     modQueue?: string[],
-    requestedSortType?: string,
   ) {
     // init here because must be called after async accounts store finished initializing
     initializeFeedsStore();
@@ -116,7 +114,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
       `addFeedToStore.addFeedToStore communityKeys '${communityKeys}' do not match communities`,
     );
     assert(
-      sortType && typeof sortType === "string",
+      sortType === undefined || (typeof sortType === "string" && sortType.length > 0),
       `addFeedToStore.addFeedToStore sortType '${sortType}' invalid`,
     );
     assert(
@@ -166,7 +164,6 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
       communities,
       communityKeys,
       sortType,
-      requestedSortType: requestedSortType || sortType,
       accountId: account.id,
       pageNumber: isBufferedFeed === true ? 0 : 1,
       postsPerPage,
@@ -239,12 +236,6 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
     assert(
       isExpandedTimeWindow,
       `feedsActions.expandFeedTimeWindow newerThan '${newerThan}' must broaden the current window '${currentNewerThan}'`,
-    );
-
-    const nextSortType = deriveFeedSortType(currentFeedOptions.requestedSortType, newerThan);
-    assert(
-      nextSortType === currentFeedOptions.sortType,
-      `feedsActions.expandFeedTimeWindow cannot change sort type from '${currentFeedOptions.sortType}' to '${nextSortType}'`,
     );
 
     const loadedFeed = loadedFeeds[feedName] || [];

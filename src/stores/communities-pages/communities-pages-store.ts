@@ -20,6 +20,7 @@ import {
   getPkcCreateCommunity,
   normalizeCommentCommunityAddress,
 } from "../../lib/pkc-compat";
+import { resolvePostSortType } from "../../lib/page-sorts";
 
 const communitiesPagesDatabase = localForageLru.createInstance({
   name: "bitsocialReactHooks-communitiesPages",
@@ -60,7 +61,7 @@ const communitiesPagesStore = createStore<CommunitiesPagesState>(
 
     addNextCommunityPageToStore: async (
       community: Community,
-      sortType: string,
+      sortType: string | undefined,
       account: Account,
       modQueue?: string[],
     ) => {
@@ -69,7 +70,7 @@ const communitiesPagesStore = createStore<CommunitiesPagesState>(
         `communitiesPagesStore.addNextCommunityPageToStore community '${community}' invalid`,
       );
       assert(
-        sortType && typeof sortType === "string",
+        sortType === undefined || (typeof sortType === "string" && sortType.length > 0),
         `communitiesPagesStore.addNextCommunityPageToStore sortType '${sortType}' invalid`,
       );
       assert(
@@ -206,7 +207,7 @@ const communitiesPagesStore = createStore<CommunitiesPagesState>(
 
     invalidateCommunityPages: async (
       community: Community,
-      sortType: string,
+      sortType: string | undefined,
       modQueue?: string[],
       accountId?: string,
     ) => {
@@ -215,7 +216,7 @@ const communitiesPagesStore = createStore<CommunitiesPagesState>(
         `communitiesPagesStore.invalidateCommunityPages community '${community}' invalid`,
       );
       assert(
-        sortType && typeof sortType === "string",
+        sortType === undefined || (typeof sortType === "string" && sortType.length > 0),
         `communitiesPagesStore.invalidateCommunityPages sortType '${sortType}' invalid`,
       );
       assert(
@@ -368,7 +369,7 @@ const fetchPage = async (
  */
 export const getCommunityPages = (
   community: Community,
-  sortType: string,
+  sortType: string | undefined,
   communitiesPages: CommunitiesPages,
   pageType: string,
   accountId?: string,
@@ -404,7 +405,7 @@ export const getCommunityPages = (
 
 export const getCommunityFirstPageCid = (
   community: Community,
-  sortType: string,
+  sortType: string | undefined,
   pageType = "posts",
 ) => {
   assert(
@@ -412,14 +413,19 @@ export const getCommunityFirstPageCid = (
     `getCommunityFirstPageCid community '${community}' invalid`,
   );
   assert(
-    sortType && typeof sortType === "string",
+    sortType === undefined || (typeof sortType === "string" && sortType.length > 0),
     `getCommunityFirstPageCid sortType '${sortType}' invalid`,
   );
-  // community has preloaded posts for sort type
-  if (community[pageType]?.pages?.[sortType]?.comments) {
-    return community[pageType]?.pages?.[sortType]?.nextCid;
+  const resolvedSortType =
+    pageType === "posts" ? resolvePostSortType(community, sortType) : sortType;
+  if (!resolvedSortType) {
+    return;
   }
-  return community[pageType]?.pageCids?.[sortType];
+  // community has preloaded posts for sort type
+  if (community[pageType]?.pages?.[resolvedSortType]?.comments) {
+    return community[pageType]?.pages?.[resolvedSortType]?.nextCid;
+  }
+  return community[pageType]?.pageCids?.[resolvedSortType];
 
   // TODO: if a loaded community doesn't have a first page, it's unclear what we should do
   // should we try to use another sort type by default, like 'hot', or should we just ignore it?

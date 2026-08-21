@@ -55,6 +55,81 @@ import isEqual from "lodash.isequal";
 import { v4 as uuid } from "uuid";
 import utils from "../../lib/utils";
 import { addOptimisticVoteMetadata } from "../../lib/utils/optimistic-vote-counts";
+import { applyCommunityWordfilters } from "../../lib/wordfilters";
+
+const PUBLICATION_COMMUNITY_LOAD_TIMEOUT_MS = 30_000;
+
+const communityHasPublicationConfig = (community: any) =>
+  community &&
+  (typeof community.updatedAt === "number" ||
+    Object.prototype.hasOwnProperty.call(community, "challenges"));
+
+const findLoadedPublicationCommunity = (communityAddress: string) => {
+  const communities = communitiesStore.getState().communities;
+  return Object.values(communities).find(
+    (community: any) =>
+      communityHasPublicationConfig(community) &&
+      [community.address, community.name, community.publicKey].includes(communityAddress),
+  );
+};
+
+const loadPublicationCommunity = async (communityAddress: string, account: Account) => {
+  const loadedCommunity = findLoadedPublicationCommunity(communityAddress);
+  if (loadedCommunity) return loadedCommunity;
+
+  const community = await createPkcCommunity(account.pkc, { address: communityAddress });
+  try {
+    if (communityHasPublicationConfig(community)) return community;
+
+    return await new Promise<any>((resolve, reject) => {
+      let settled = false;
+      let timeout: ReturnType<typeof setTimeout>;
+      const cleanup = () => {
+        clearTimeout(timeout);
+        community.removeListener?.("update", onUpdate);
+        community.removeListener?.("error", onError);
+      };
+      const onUpdate = (updatedCommunity: any) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(updatedCommunity || community);
+      };
+      const onError = (error: Error) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error);
+      };
+      timeout = setTimeout(
+        () =>
+          onError(
+            new Error(`timed out loading challenge settings for community '${communityAddress}'`),
+          ),
+        PUBLICATION_COMMUNITY_LOAD_TIMEOUT_MS,
+      );
+      community.once("update", onUpdate);
+      community.once("error", onError);
+      void Promise.resolve()
+        .then(() => community.update())
+        .then(() => {
+          if (communityHasPublicationConfig(community)) onUpdate(community);
+        }, onError);
+    });
+  } finally {
+    await community.stop?.();
+  }
+};
+
+const applyPublicationWordfilters = async <T extends Record<string, any>>(
+  options: T,
+  account: Account,
+) => {
+  const communityAddress = options.communityAddress;
+  if (typeof communityAddress !== "string" || !communityAddress) return options;
+  const community = await loadPublicationCommunity(communityAddress, account);
+  return applyCommunityWordfilters(options, community?.challenges);
+};
 
 type PublishSession = {
   accountId: string;
@@ -1073,6 +1148,7 @@ export const publishComment = async (
   delete createCommentOptions.onPendingComment;
   delete createCommentOptions.onPublishingStateChange;
   delete createCommentOptions._onPendingCommentIndex;
+  createCommentOptions = await applyPublicationWordfilters(createCommentOptions, account);
   const storedCreateCommentOptions = normalizePublicationOptionsForStore(createCommentOptions);
 
   // make sure the options dont throw
@@ -1633,6 +1709,7 @@ export const publishCommentEdit = async (
   delete createCommentEditOptions.onChallengeVerification;
   delete createCommentEditOptions.onError;
   delete createCommentEditOptions.onPublishingStateChange;
+  createCommentEditOptions = await applyPublicationWordfilters(createCommentEditOptions, account);
   const storedCreateCommentEditOptions = {
     ...normalizePublicationOptionsForStore(createCommentEditOptions),
     clientId: uuid(),

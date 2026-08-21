@@ -505,7 +505,7 @@ describe("feeds utils", () => {
       expect(feeds.feed1).toEqual([]);
     });
 
-    test("fallback to any page when no pageCids, no nextCids, single preloaded page", () => {
+    test("does not substitute a different single-page sort", () => {
       const feedComment = {
         cid: "fallback-cid",
         communityAddress: "sub1",
@@ -530,7 +530,79 @@ describe("feeds utils", () => {
         },
       };
       const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, makeMockAccounts());
-      expect(feeds.feed1).toContainEqual(expect.objectContaining({ cid: "fallback-cid" }));
+      expect(feeds.feed1).toEqual([]);
+    });
+
+    test("uses the resolved default active sort when filtering by time", () => {
+      const now = Math.floor(Date.now() / 1000);
+      const communities = {
+        sub1: {
+          address: "sub1",
+          updatedAt: 1,
+          posts: {
+            pages: {
+              active: {
+                comments: [
+                  {
+                    cid: "recently-active",
+                    communityAddress: "sub1",
+                    timestamp: now - 7200,
+                    lastReplyTimestamp: now - 60,
+                  },
+                ],
+              },
+            },
+          },
+        },
+      };
+      const feedsOptions = {
+        feed1: {
+          communities: toCommunities(["sub1"]),
+          accountId: mockAccountId,
+          newerThan: 3600,
+        },
+      };
+
+      const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, makeMockAccounts());
+
+      expect(feeds.feed1.map((post: any) => post.cid)).toEqual(["recently-active"]);
+    });
+
+    test("preserves published page order when communities have different default sorts", () => {
+      const communities = {
+        sub1: {
+          address: "sub1",
+          updatedAt: 1,
+          posts: {
+            pages: {
+              customOne: {
+                comments: [{ cid: "first", communityAddress: "sub1", timestamp: 1 }],
+              },
+            },
+          },
+        },
+        sub2: {
+          address: "sub2",
+          updatedAt: 1,
+          posts: {
+            pages: {
+              customTwo: {
+                comments: [{ cid: "second", communityAddress: "sub2", timestamp: 2 }],
+              },
+            },
+          },
+        },
+      };
+      const feedsOptions = {
+        feed1: {
+          communities: toCommunities(["sub1", "sub2"]),
+          accountId: mockAccountId,
+        },
+      };
+
+      const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, makeMockAccounts());
+
+      expect(feeds.feed1.map((post: any) => post.cid)).toEqual(["first", "second"]);
     });
   });
 

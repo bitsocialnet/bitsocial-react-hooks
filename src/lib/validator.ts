@@ -462,25 +462,11 @@ const validateUseCommunitiesArguments = ({
   }
 };
 
-const feedSortTypes = new Set([
-  "hot",
-  "new",
-  "active",
-  "topHour",
-  "topDay",
-  "topWeek",
-  "topMonth",
-  "topYear",
-  "topAll",
-  "controversialHour",
-  "controversialDay",
-  "controversialWeek",
-  "controversialMonth",
-  "controversialYear",
-  "controversialAll",
-]);
 const validateFeedSortType = (sortType: any) => {
-  assert(feedSortTypes.has(sortType), `invalid feed sort type '${sortType}'`);
+  assert(
+    sortType === undefined || (typeof sortType === "string" && sortType.length > 0),
+    `invalid feed sort type '${sortType}'`,
+  );
 };
 const validateUseFeedArguments = ({
   communities,
@@ -494,7 +480,10 @@ const validateUseFeedArguments = ({
   accountComments,
 }: any) => {
   validateCommunitiesArguments(communities, communityRefs, communityAddresses, "useFeed");
-  assert(feedSortTypes.has(sortType), `useFeed sortType argument '${sortType}' invalid`);
+  assert(
+    sortType === undefined || (typeof sortType === "string" && sortType.length > 0),
+    `useFeed sortType argument '${sortType}' invalid`,
+  );
   if (accountName) {
     assert(
       typeof accountName === "string",
@@ -557,12 +546,10 @@ const validateUseBufferedFeedsArguments = ({
       communityAddresses,
       "useBufferedFeeds feedOptions",
     );
-    if (sortType) {
-      assert(
-        feedSortTypes.has(sortType),
-        `useBufferedFeeds feedOptions.sortType argument '${sortType}' invalid`,
-      );
-    }
+    assert(
+      sortType === undefined || (typeof sortType === "string" && sortType.length > 0),
+      `useBufferedFeeds feedOptions.sortType argument '${sortType}' invalid`,
+    );
     if (postsPerPage !== undefined && postsPerPage !== null) {
       assert(
         typeof postsPerPage === "number",
@@ -607,21 +594,11 @@ const validateUseCommunitiesStatesArguments = ({
   );
 };
 
-const repliesSortTypes = new Set([
-  "best",
-  "topHour",
-  "topDay",
-  "topWeek",
-  "topMonth",
-  "topYear",
-  "topAll",
-  "new",
-  "newFlat",
-  "old",
-  "oldFlat",
-]);
 const validateRepliesSortType = (sortType: any) => {
-  assert(repliesSortTypes.has(sortType), `invalid replies sort type '${sortType}'`);
+  assert(
+    sortType === undefined || (typeof sortType === "string" && sortType.length > 0),
+    `invalid replies sort type '${sortType}'`,
+  );
 };
 const validateUseRepliesArguments = (
   comment?: any,
@@ -641,7 +618,10 @@ const validateUseRepliesArguments = (
     !comment?.cid || typeof comment.cid === "string",
     `useReplies comment.cid argument '${comment?.cid}' not a string`,
   );
-  assert(repliesSortTypes.has(sortType), `useReplies sortType argument '${sortType}' invalid`);
+  assert(
+    sortType === undefined || (typeof sortType === "string" && sortType.length > 0),
+    `useReplies sortType argument '${sortType}' invalid`,
+  );
   if (accountName) {
     assert(
       typeof accountName === "string",

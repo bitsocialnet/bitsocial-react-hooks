@@ -65,15 +65,39 @@ describe("pkc-rpc", () => {
     expect(rendered.result.current.state).toBe("connected");
 
     await act(async () => {
-      await rendered.result.current.setPkcRpcSettings({
+      const account = Object.values(accountsStore.getState().accounts)[0] as any;
+      const rpcClient = Object.values(account.pkc.clients.pkcRpcClients)[0] as any;
+      rpcClient.settings = {
         challenges: {
-          "some-challenge": {},
+          "some-challenge": {
+            optionInputs: [
+              {
+                option: "wordfilter/v1/rules",
+                label: "Wordfilter rules",
+                required: true,
+              },
+            ],
+          },
         },
-      });
+      };
+      rpcClient.emit("settingschange", rpcClient.settings);
     });
 
     await waitFor(() => !!rendered.result.current.pkcRpcSettings.challenges["some-challenge"]);
     expect(rendered.result.current.pkcRpcSettings.challenges["some-challenge"]).not.toBe(undefined);
+    expect(
+      rendered.result.current.pkcRpcSettings.challenges["some-challenge"].optionInputs,
+    ).toEqual([
+      {
+        option: "wordfilter/v1/rules",
+        label: "Wordfilter rules",
+        required: true,
+      },
+    ]);
+
+    await act(async () => {
+      await rendered.result.current.setPkcRpcSettings({ pkcOptions: {} });
+    });
     expect(rendered.result.current.state).toBe("succeeded");
   });
 

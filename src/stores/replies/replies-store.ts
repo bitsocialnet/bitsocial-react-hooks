@@ -17,6 +17,7 @@ import localForageLru from "../../lib/localforage-lru";
 import accountsStore from "../accounts";
 import repliesCommentsStore from "./replies-comments-store";
 import repliesPagesStore from "../replies-pages";
+import { serializeFeedKey } from "../../lib/serialize-feed-key";
 import {
   getFeedsCommentsFirstPageCids,
   getLoadedFeeds,
@@ -70,7 +71,19 @@ const addDefaultFeedOptions = (feedOptions: any) => {
 
 export const feedOptionsToFeedName = (feedOptions: Partial<RepliesFeedOptions>) => {
   feedOptions = addDefaultFeedOptions(feedOptions);
-  return `${feedOptions?.accountId}-${feedOptions?.commentCid}-${feedOptions?.postCid}-${feedOptions?.sortType}-${feedOptions?.flat}-${feedOptions?.onlyIfCached}-${feedOptions?.accountComments?.newerThan}-${feedOptions?.accountComments?.append}-${feedOptions?.repliesPerPage}-${feedOptions?.filter?.key}-${feedOptions?.streamPage}`;
+  return serializeFeedKey([
+    feedOptions?.accountId,
+    feedOptions?.commentCid,
+    feedOptions?.postCid,
+    feedOptions?.sortType,
+    feedOptions?.flat,
+    feedOptions?.onlyIfCached,
+    feedOptions?.accountComments?.newerThan,
+    feedOptions?.accountComments?.append,
+    feedOptions?.repliesPerPage,
+    feedOptions?.filter?.key,
+    feedOptions?.streamPage,
+  ]);
 };
 
 const getFeedsUpdatedAts = (feedsOptions: RepliesFeedsOptions, comments: Comments) => {
@@ -144,7 +157,8 @@ const repliesStore = createStore<RepliesState>((setState: Function, getState: Fu
       `repliesStore.addFeedToStoreOrUpdateComment feedOptions.commentCid '${feedOptions.commentCid}' invalid`,
     );
     assert(
-      feedOptions.sortType && typeof feedOptions.sortType === "string",
+      feedOptions.sortType === undefined ||
+        (typeof feedOptions.sortType === "string" && feedOptions.sortType.length > 0),
       `repliesStore.addFeedToStoreOrUpdateComment feedOptions.sortType '${feedOptions.sortType}' invalid`,
     );
     const account = accountsStore.getState().accounts[feedOptions.accountId];
@@ -184,7 +198,7 @@ const repliesStore = createStore<RepliesState>((setState: Function, getState: Fu
 
       // flat doesn't need nested feeds
       if (!feedOptions.flat) {
-        for (const reply of comment.replies?.pages?.[sortType]?.comments || []) {
+        for (const reply of (sortType && comment.replies?.pages?.[sortType]?.comments) || []) {
           addRepliesFeedsToStoreRecursively(reply);
         }
       }
@@ -464,7 +478,7 @@ const addRepliesPagesOnLowBufferedFeedsReplyCounts = (repliesStoreState: any) =>
     }
     const account = accounts[feedsOptions[feedName].accountId];
     const feedReplyCount = bufferedFeedsReplyCounts[feedName];
-    let sortType = feedsOptions[feedName].sortType;
+    const requestedSortType = feedsOptions[feedName].sortType;
     const commentCid = feedsOptions[feedName].commentCid;
 
     // TODO: maybe skip if comment community address, comment cid or comment author is blocked?
@@ -474,7 +488,10 @@ const addRepliesPagesOnLowBufferedFeedsReplyCounts = (repliesStoreState: any) =>
       continue;
     }
 
-    sortType = getSortTypeFromComment(comments[commentCid], feedsOptions[feedName]);
+    const sortType = getSortTypeFromComment(comments[commentCid], feedsOptions[feedName]);
+    if (requestedSortType !== undefined && sortType === undefined) {
+      continue;
+    }
 
     // comment replies count is low, fetch next replies page
     if (feedReplyCount <= commentRepliesLeftBeforeNextPage) {

@@ -25,6 +25,7 @@ import {
   getMatchingCommunityRefKeys,
 } from "../../lib/community-ref";
 import Logger from "@pkcprotocol/pkc-logger";
+import { resolvePostSortType } from "../../lib/page-sorts";
 const log = Logger("bitsocial-react-hooks:feeds:stores");
 
 const getFeedCommunityRefs = (feedOptions: Partial<FeedOptions>): CommunityLookupRef[] =>
@@ -218,7 +219,13 @@ export const getFilteredSortedFeeds = (
     }
 
     // sort the feed before filtering to get more accurate results
-    const originalSortType = feedsOptions[feedName].sortType;
+    const resolvedDefaultSortTypes = communityKeys.map((communityKey) =>
+      resolvePostSortType(communities[communityKey], feedsOptions[feedName].sortType),
+    );
+    const uniqueResolvedDefaultSortTypes = new Set(resolvedDefaultSortTypes);
+    const originalSortType =
+      feedsOptions[feedName].sortType ||
+      (uniqueResolvedDefaultSortTypes.size === 1 ? resolvedDefaultSortTypes[0] : undefined);
     const sortedBufferedFeedPosts = feedSorter.sort(originalSortType, bufferedFeedPosts);
 
     // filter the feed
@@ -250,7 +257,7 @@ export const getFilteredSortedFeeds = (
 
       // filter posts older than newerThan option
       if (newerThanTimestamp) {
-        if (sortType === "active") {
+        if (originalSortType === "active") {
           if ((post.lastReplyTimestamp || post.timestamp) <= newerThanTimestamp) {
             continue;
           }
@@ -269,28 +276,12 @@ export const getFilteredSortedFeeds = (
   return feeds;
 };
 
-const getPreloadedPosts = (community: Community, sortType: string) => {
-  let preloadedPosts = community.posts?.pages?.[sortType]?.comments;
-  if (preloadedPosts) {
-    return preloadedPosts;
-  }
-  const hasPageCids = Object.keys(community.posts?.pageCids || {}).length !== 0;
-  if (hasPageCids) {
+const getPreloadedPosts = (community: Community, sortType?: string) => {
+  const resolvedSortType = resolvePostSortType(community, sortType);
+  if (!resolvedSortType) {
     return;
   }
-  const pages: any[] = Object.values(community.posts?.pages || {});
-  if (!pages.length) {
-    return;
-  }
-  const nextCids = pages.map((page: any) => page?.nextCid).filter((nextCid) => !!nextCid);
-  if (nextCids.length > 0) {
-    return;
-  }
-  // if has a preloaded page, but no pageCids and no nextCids, it means all posts fit in a single preloaded page
-  // so any sort type can be used, and later be resorted by the client
-  if (pages[0]?.comments?.length) {
-    return pages[0].comments;
-  }
+  return community.posts?.pages?.[resolvedSortType]?.comments;
 };
 
 export const getLoadedFeeds = async (

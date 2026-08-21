@@ -374,43 +374,46 @@ describe("replies", () => {
         depth: 0,
         replies: { pages: {} },
       };
-      comment.replies.pages.best = Pages.prototype.pageToGet.apply({ comment }, [
-        `${comment.cid} page cid best`,
+      comment.replies.pages.new = Pages.prototype.pageToGet.apply({ comment }, [
+        `${comment.cid} page cid new`,
       ]);
-      // comment.replies.pages.best.comments.length = 3
-      // no nextCid indicates all replies are preloaded, and that a page can safely be used with any sort type
-      comment.replies.pages.best.nextCid = undefined;
+      comment.replies.pages.old = Pages.prototype.pageToGet.apply({ comment }, [
+        `${comment.cid} page cid old`,
+      ]);
+      comment.replies.pages.new.nextCid = undefined;
+      comment.replies.pages.old.nextCid = undefined;
 
       rendered.rerender({ comment, sortType: "new", validateOptimistically: true });
       expect(rendered.result.current.replies.length).toBe(repliesPerPage);
       expect(rendered.result.current.replies[0].cid).toBe(
-        "comment cid 1 page cid best comment cid 100",
-      );
-      expect(rendered.result.current.replies[0].timestamp).toBeGreaterThan(
-        rendered.result.current.replies[repliesPerPage - 1].timestamp,
+        "comment cid 1 page cid new comment cid 100",
       );
       expect(rendered.result.current.hasMore).toBe(true);
 
       rendered.rerender({ comment, sortType: "old", validateOptimistically: true });
       expect(rendered.result.current.replies.length).toBe(repliesPerPage);
       expect(rendered.result.current.replies[0].cid).toBe(
-        "comment cid 1 page cid best comment cid 1",
+        "comment cid 1 page cid old comment cid 1",
       );
       expect(rendered.result.current.replies[repliesPerPage - 1].timestamp).toBeGreaterThan(
         rendered.result.current.replies[0].timestamp,
       );
       expect(rendered.result.current.hasMore).toBe(true);
 
-      comment = { ...comment, cid: "comment cid 2" };
-      comment.replies.pages.best = Pages.prototype.pageToGet.apply({ comment }, [
-        `${comment.cid} page cid best`,
+      comment = {
+        ...comment,
+        cid: "comment cid 2",
+        replies: { pages: {} },
+      };
+      comment.replies.pages.old = Pages.prototype.pageToGet.apply({ comment }, [
+        `${comment.cid} page cid old`,
       ]);
-      comment.replies.pages.best.nextCid = undefined;
+      comment.replies.pages.old.nextCid = undefined;
 
       rendered.rerender({ comment, sortType: "old", validateOptimistically: true });
       expect(rendered.result.current.replies.length).toBe(repliesPerPage);
       expect(rendered.result.current.replies[0].cid).toBe(
-        "comment cid 2 page cid best comment cid 1",
+        "comment cid 2 page cid old comment cid 1",
       );
       expect(rendered.result.current.replies[repliesPerPage - 1].timestamp).toBeGreaterThan(
         rendered.result.current.replies[0].timestamp,
@@ -579,11 +582,11 @@ describe("replies", () => {
       expect(Object.keys(repliesPagesStore.getState().repliesPages).length).toBe(1);
     });
 
-    test("if sort type topAll missing, use best instead", { retry: 10 }, async () => {
+    test("loads the explicitly published best sort", { retry: 10 }, async () => {
       expect(rendered.result.current.replies).toEqual([]);
 
       const commentCid = "comment cid 1";
-      rendered.rerender({ commentCid, sortType: "topAll" });
+      rendered.rerender({ commentCid, sortType: "best" });
       await waitFor(() => rendered.result.current.replies.length === repliesPerPage);
       expect(rendered.result.current.updatedReplies.length).toBe(
         rendered.result.current.replies.length,
@@ -621,7 +624,7 @@ describe("replies", () => {
       expect(Object.keys(repliesPagesStore.getState().repliesPages).length).toBe(1);
     });
 
-    test("if sort type best missing, use topAll instead", { retry: 10 }, async () => {
+    test("loads an explicitly published topAll sort", { retry: 10 }, async () => {
       const simulateUpdateEvent = Comment.prototype.simulateUpdateEvent;
       Comment.prototype.simulateUpdateEvent = async function () {
         if (!this.timestamp) {
@@ -649,7 +652,7 @@ describe("replies", () => {
       };
 
       const commentCid = "comment cid 1";
-      rendered.rerender({ commentCid, sortType: "best" });
+      rendered.rerender({ commentCid, sortType: "topAll" });
       await waitFor(() => rendered.result.current.replies.length === repliesPerPage);
       expect(rendered.result.current.replies.length).toBe(repliesPerPage);
       expect(rendered.result.current.replies[0].cid).toBe("comment cid 1 topAll reply cid 1");
@@ -898,48 +901,31 @@ describe("replies", () => {
       await testUtils.resetDatabasesAndStores();
     });
 
-    test("sort type new, switch to sort type old, switch to different comment", async () => {
+    test("requested missing sorts do not use the single preloaded page", async () => {
+      const comment = {
+        cid: "comment cid 1",
+        postCid: "comment cid 1",
+        communityAddress: "sub",
+        updatedAt: 1,
+        timestamp: 1,
+        depth: 0,
+        replies: {
+          pages: {
+            best: {
+              comments: [{ cid: "best reply", communityAddress: "sub", timestamp: 1, depth: 1 }],
+            },
+          },
+          pageCids: {},
+        },
+      };
+
+      rendered.rerender({ comment, sortType: "new" });
+      await waitFor(() => rendered.result.current.hasMore === false);
       expect(rendered.result.current.replies).toEqual([]);
 
-      const commentCid = "comment cid 1";
-      rendered.rerender({ commentCid, sortType: "new" });
-      await waitFor(() => rendered.result.current.replies.length === repliesPerPage);
-      expect(rendered.result.current.replies.length).toBe(repliesPerPage);
-      expect(rendered.result.current.replies[0].cid).toBe(
-        "comment cid 1 page cid best comment cid 35",
-      );
-      expect(rendered.result.current.replies[0].timestamp).toBeGreaterThan(
-        rendered.result.current.replies[repliesPerPage - 1].timestamp,
-      );
-      expect(rendered.result.current.hasMore).toBe(true);
-
-      rendered.rerender({ commentCid, sortType: "old" });
-      await waitFor(
-        () =>
-          rendered.result.current.replies[0].cid === "comment cid 1 page cid best comment cid 1",
-      );
-      expect(rendered.result.current.replies.length).toBe(repliesPerPage);
-      expect(rendered.result.current.replies[0].cid).toBe(
-        "comment cid 1 page cid best comment cid 1",
-      );
-      expect(rendered.result.current.replies[repliesPerPage - 1].timestamp).toBeGreaterThan(
-        rendered.result.current.replies[0].timestamp,
-      );
-      expect(rendered.result.current.hasMore).toBe(true);
-
-      rendered.rerender({ commentCid: "comment cid 2", sortType: "old" });
-      await waitFor(
-        () =>
-          rendered.result.current.replies[0].cid === "comment cid 2 page cid best comment cid 1",
-      );
-      expect(rendered.result.current.replies.length).toBe(repliesPerPage);
-      expect(rendered.result.current.replies[0].cid).toBe(
-        "comment cid 2 page cid best comment cid 1",
-      );
-      expect(rendered.result.current.replies[repliesPerPage - 1].timestamp).toBeGreaterThan(
-        rendered.result.current.replies[0].timestamp,
-      );
-      expect(rendered.result.current.hasMore).toBe(true);
+      rendered.rerender({ comment, sortType: "old" });
+      await waitFor(() => rendered.result.current.hasMore === false);
+      expect(rendered.result.current.replies).toEqual([]);
     });
   });
 
@@ -1100,41 +1086,7 @@ describe("replies", () => {
       // expect(Object.keys(repliesPagesStore.getState().repliesPages).length).toBe(0)
     });
 
-    test("sort type new uses newFlat if available", async () => {
-      // make sure pages were reset properly
-      expect(Object.keys(repliesPagesStore.getState().repliesPages).length).toBe(0);
-
-      rendered.rerender({ commentCid: "comment cid 1", sortType: "new", flat: true });
-      await waitFor(() => rendered.result.current.replies.length === repliesPerPage);
-
-      const pageCids = Object.keys(repliesPagesStore.getState().repliesPages);
-      expect(pageCids.length).toBe(1);
-      expect(pageCids[0]).toMatch("newFlat");
-    });
-
-    test("sort type old uses oldFlat if available", async () => {
-      // make sure pages were reset properly
-      expect(Object.keys(repliesPagesStore.getState().repliesPages).length).toBe(0);
-
-      rendered.rerender({ commentCid: "comment cid 1", sortType: "old", flat: true });
-      await waitFor(() => rendered.result.current.replies.length === repliesPerPage);
-
-      const pageCids = Object.keys(repliesPagesStore.getState().repliesPages);
-      expect(pageCids.length).toBe(1);
-      expect(pageCids[0]).toMatch("oldFlat");
-    });
-
-    test("sort type newFlat uses new if missing", async () => {
-      const simulateUpdateEvent = Comment.prototype.simulateUpdateEvent;
-      Comment.prototype.simulateUpdateEvent = async function () {
-        this.replies.pageCids = {
-          new: this.cid + " page cid new",
-        };
-        this.updatingState = "succeeded";
-        this.emit("update", this);
-        this.emit("updatingstatechange", "succeeded");
-      };
-
+    test("sort type newFlat uses the explicitly published newFlat page", async () => {
       // make sure pages were reset properly
       expect(Object.keys(repliesPagesStore.getState().repliesPages).length).toBe(0);
 
@@ -1143,12 +1095,43 @@ describe("replies", () => {
 
       const pageCids = Object.keys(repliesPagesStore.getState().repliesPages);
       expect(pageCids.length).toBe(1);
-      expect(pageCids[0]).not.toMatch("newFlat");
-
-      Comment.prototype.simulateUpdateEvent = simulateUpdateEvent;
+      expect(pageCids[0]).toMatch("newFlat");
     });
 
-    test("sort type new, flat: true uses new if newFlat missing", async () => {
+    test("sort type oldFlat uses the explicitly published oldFlat page", async () => {
+      // make sure pages were reset properly
+      expect(Object.keys(repliesPagesStore.getState().repliesPages).length).toBe(0);
+
+      rendered.rerender({ commentCid: "comment cid 1", sortType: "oldFlat", flat: true });
+      await waitFor(() => rendered.result.current.replies.length === repliesPerPage);
+
+      const pageCids = Object.keys(repliesPagesStore.getState().repliesPages);
+      expect(pageCids.length).toBe(1);
+      expect(pageCids[0]).toMatch("oldFlat");
+    });
+
+    test("sort type newFlat stays unavailable when only new is published", async () => {
+      const comment = {
+        cid: "comment cid 1",
+        postCid: "comment cid 1",
+        communityAddress: "sub",
+        updatedAt: 1,
+        depth: 0,
+        replies: { pages: {}, pageCids: { new: "comment cid 1 page cid new" } },
+      };
+
+      // make sure pages were reset properly
+      expect(Object.keys(repliesPagesStore.getState().repliesPages).length).toBe(0);
+
+      rendered.rerender({ comment, sortType: "newFlat", flat: true });
+      await waitFor(() => rendered.result.current.hasMore === false);
+
+      const pageCids = Object.keys(repliesPagesStore.getState().repliesPages);
+      expect(rendered.result.current.replies).toEqual([]);
+      expect(pageCids).toEqual([]);
+    });
+
+    test("sort type new with flat rendering still fetches the exact new page", async () => {
       const simulateUpdateEvent = Comment.prototype.simulateUpdateEvent;
       Comment.prototype.simulateUpdateEvent = async function () {
         this.replies.pageCids = {
@@ -1172,31 +1155,28 @@ describe("replies", () => {
       Comment.prototype.simulateUpdateEvent = simulateUpdateEvent;
     });
 
-    test("sort type oldFlat uses old if missing", async () => {
-      const simulateUpdateEvent = Comment.prototype.simulateUpdateEvent;
-      Comment.prototype.simulateUpdateEvent = async function () {
-        this.replies.pageCids = {
-          old: this.cid + " page cid old",
-        };
-        this.updatingState = "succeeded";
-        this.emit("update", this);
-        this.emit("updatingstatechange", "succeeded");
+    test("sort type oldFlat stays unavailable when only old is published", async () => {
+      const comment = {
+        cid: "comment cid 1",
+        postCid: "comment cid 1",
+        communityAddress: "sub",
+        updatedAt: 1,
+        depth: 0,
+        replies: { pages: {}, pageCids: { old: "comment cid 1 page cid old" } },
       };
 
       // make sure pages were reset properly
       expect(Object.keys(repliesPagesStore.getState().repliesPages).length).toBe(0);
 
-      rendered.rerender({ commentCid: "comment cid 1", sortType: "oldFlat", flat: true });
-      await waitFor(() => rendered.result.current.replies.length === repliesPerPage);
+      rendered.rerender({ comment, sortType: "oldFlat", flat: true });
+      await waitFor(() => rendered.result.current.hasMore === false);
 
       const pageCids = Object.keys(repliesPagesStore.getState().repliesPages);
-      expect(pageCids.length).toBe(1);
-      expect(pageCids[0]).not.toMatch("oldFlat");
-
-      Comment.prototype.simulateUpdateEvent = simulateUpdateEvent;
+      expect(rendered.result.current.replies).toEqual([]);
+      expect(pageCids).toEqual([]);
     });
 
-    test("sort type old, flat: true uses old if oldFlat missing", async () => {
+    test("sort type old with flat rendering still fetches the exact old page", async () => {
       const simulateUpdateEvent = Comment.prototype.simulateUpdateEvent;
       Comment.prototype.simulateUpdateEvent = async function () {
         this.replies.pageCids = {
@@ -1574,7 +1554,7 @@ describe("replies", () => {
       expect(rendered.result.current.repliesDepth3.replies.length).toBeGreaterThan(0);
     });
 
-    test("best sort type missing, use topAll, nested replies are rendered immediately, without unnecessary rerenders", async () => {
+    test("topAll nested replies are rendered immediately without unnecessary rerenders", async () => {
       const simulateUpdateEvent = Comment.prototype.simulateUpdateEvent;
       Comment.prototype.simulateUpdateEvent = async function () {
         this.updatedAt = Math.floor(Date.now() / 1000);
@@ -1585,7 +1565,7 @@ describe("replies", () => {
         this.emit("updatingstatechange", "succeeded");
       };
 
-      rendered.rerender({ commentCid: "comment cid 1", sortType: "best" });
+      rendered.rerender({ commentCid: "comment cid 1", sortType: "topAll" });
 
       // as soon as depth 1 has replies, all other depths also should
       await waitFor(() => rendered.result.current.repliesDepth1.replies.length > 0);
@@ -1609,7 +1589,7 @@ describe("replies", () => {
       expect(rendered.result.current.repliesDepth3.replies.length).toBeGreaterThan(0);
     });
 
-    test("new sort type with preloaded pages best, nested replies are rendered immediately, without unnecessary rerenders", async () => {
+    test("nested replies do not substitute best when new is requested", async () => {
       // mock nested replies on pages
       const pageToGet = Pages.prototype.pageToGet;
       Pages.prototype.pageToGet = function (pageCid) {
@@ -1622,8 +1602,8 @@ describe("replies", () => {
       // as soon as depth 1 has replies, all other depths also should
       await waitFor(() => rendered.result.current.repliesDepth1.replies.length > 0);
       expect(rendered.result.current.repliesDepth1.replies.length).toBeGreaterThan(0);
-      expect(rendered.result.current.repliesDepth2.replies.length).toBeGreaterThan(0);
-      expect(rendered.result.current.repliesDepth3.replies.length).toBeGreaterThan(0);
+      expect(rendered.result.current.repliesDepth2.replies.length).toBe(0);
+      expect(rendered.result.current.repliesDepth3.replies.length).toBe(0);
 
       Pages.prototype.pageToGet = pageToGet;
     });
@@ -1684,12 +1664,12 @@ describe("replies", () => {
       expect(rendered.result.current.repliesDepth3.replies.length).toBeGreaterThan(0);
     });
 
-    test("sort type new, changing flat: true to false, false to true", async () => {
+    test("switches explicit newFlat and new sorts when flat changes", async () => {
       // make sure pages were reset properly
       expect(Object.keys(repliesPagesStore.getState().repliesPages).length).toBe(0);
 
       // sort type new, flat true to false
-      rendered.rerender({ commentCid: "comment cid 3", sortType: "new", flat: true });
+      rendered.rerender({ commentCid: "comment cid 3", sortType: "newFlat", flat: true });
       await waitFor(() => rendered.result.current.repliesDepth1.replies.length > 0);
       expect(rendered.result.current.repliesDepth1.replies.length).toBeGreaterThan(0);
       expect(rendered.result.current.repliesDepth2.replies.length).toBe(0);
@@ -1699,7 +1679,7 @@ describe("replies", () => {
       expect(rendered.result.current.repliesDepth1.replies.length).toBeGreaterThan(0);
       expect(rendered.result.current.repliesDepth2.replies.length).toBeGreaterThan(0);
       expect(rendered.result.current.repliesDepth3.replies.length).toBeGreaterThan(0);
-      rendered.rerender({ commentCid: "comment cid 3", sortType: "new", flat: true });
+      rendered.rerender({ commentCid: "comment cid 3", sortType: "newFlat", flat: true });
       await waitFor(() => rendered.result.current.repliesDepth1.replies.length > 0);
       expect(rendered.result.current.repliesDepth1.replies.length).toBeGreaterThan(0);
       expect(rendered.result.current.repliesDepth2.replies.length).toBe(0);
@@ -1711,7 +1691,7 @@ describe("replies", () => {
       expect(rendered.result.current.repliesDepth1.replies.length).toBeGreaterThan(0);
       expect(rendered.result.current.repliesDepth2.replies.length).toBeGreaterThan(0);
       expect(rendered.result.current.repliesDepth3.replies.length).toBeGreaterThan(0);
-      rendered.rerender({ commentCid: "comment cid 4", sortType: "new", flat: true });
+      rendered.rerender({ commentCid: "comment cid 4", sortType: "newFlat", flat: true });
       await waitFor(() => rendered.result.current.repliesDepth1.replies.length > 0);
       expect(rendered.result.current.repliesDepth1.replies.length).toBeGreaterThan(0);
       expect(rendered.result.current.repliesDepth2.replies.length).toBe(0);

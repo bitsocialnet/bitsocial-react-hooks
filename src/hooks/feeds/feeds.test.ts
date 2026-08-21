@@ -194,6 +194,22 @@ describe("feeds", () => {
       expect(rendered.result.current.hasMore).toBe(true);
     });
 
+    test("uses distinct feed keys for omitted and literal undefined sorts", async () => {
+      rendered.rerender({ communityAddresses: ["community address 1"] });
+      await waitFor(() => Object.keys(feedsStore.getState().feedsOptions).length === 1);
+      const [omittedSortFeedName] = Object.keys(feedsStore.getState().feedsOptions);
+
+      rendered.rerender({
+        communityAddresses: ["community address 1"],
+        sortType: "undefined",
+      });
+      await waitFor(() => Object.keys(feedsStore.getState().feedsOptions).length === 2);
+
+      expect(Object.keys(feedsStore.getState().feedsOptions)).toEqual(
+        expect.arrayContaining([omittedSortFeedName]),
+      );
+    });
+
     test("get feed page 1 with 1 community sorted by default (hot)", async () => {
       // get feed with 1 sub
       rendered.rerender({ communityAddresses: ["community address 1"] });
@@ -436,48 +452,48 @@ describe("feeds", () => {
       Pages.prototype.getPage = getPage;
     });
 
-    test("newerThan sets correct sortType", async () => {
+    test("newerThan does not construct a different sort name", async () => {
       rendered.rerender({
         communityAddresses: ["community address 1"],
         sortType: "topAll",
         newerThan: 60 * 60 * 24,
       });
-      expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).toMatch("topDay");
+      expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).toMatch("topAll");
 
       rendered.rerender({
         communityAddresses: ["community address 1"],
         sortType: "topAll",
         newerThan: 60 * 60 * 24 * 7,
       });
-      expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).toMatch("topWeek");
+      expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).not.toMatch("topWeek");
 
       rendered.rerender({
         communityAddresses: ["community address 1"],
         sortType: "topAll",
         newerThan: 60 * 60 * 24 * 30,
       });
-      expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).toMatch("topMonth");
+      expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).not.toMatch("topMonth");
 
       rendered.rerender({
         communityAddresses: ["community address 1"],
         sortType: "topAll",
         newerThan: 60 * 60 * 24 * 365,
       });
-      expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).toMatch("topYear");
+      expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).not.toMatch("topYear");
 
       rendered.rerender({
         communityAddresses: ["community address 1"],
         sortType: "controversialAll",
         newerThan: 60 * 60 * 24,
       });
-      expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).toMatch("controversialDay");
+      expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).toMatch("controversialAll");
 
       rendered.rerender({
         communityAddresses: ["community address 1"],
         sortType: "controversialAll",
         newerThan: 60 * 60 * 24 * 7,
       });
-      expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).toMatch(
+      expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).not.toMatch(
         "controversialWeek",
       );
 
@@ -486,7 +502,7 @@ describe("feeds", () => {
         sortType: "controversialAll",
         newerThan: 60 * 60 * 24 * 30,
       });
-      expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).toMatch(
+      expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).not.toMatch(
         "controversialMonth",
       );
 
@@ -495,7 +511,7 @@ describe("feeds", () => {
         sortType: "controversialAll",
         newerThan: 60 * 60 * 24 * 365,
       });
-      expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).toMatch(
+      expect(Object.keys(feedsStore.getState().feedsOptions).join(" ")).not.toMatch(
         "controversialYear",
       );
 
@@ -667,7 +683,7 @@ describe("feeds", () => {
       expect(rendered.result.current.error?.message).toMatch(/must broaden the current window/i);
     });
 
-    test("expandTimeWindow rejects expansions that would change the derived sort type", async () => {
+    test("expandTimeWindow preserves the explicitly requested sort type", async () => {
       rendered.rerender({
         communityAddresses: ["community address 1"],
         sortType: "topAll",
@@ -680,7 +696,8 @@ describe("feeds", () => {
         await rendered.result.current.expandTimeWindow(7 * 24 * 60 * 60);
       });
 
-      expect(rendered.result.current.error?.message).toMatch(/cannot change sort type/i);
+      expect(rendered.result.current.error).toBeUndefined();
+      expect(Object.values(feedsStore.getState().feedsOptions)[0]?.sortType).toBe("topAll");
     });
 
     test("change community addresses and sort type", async () => {
@@ -1189,6 +1206,22 @@ describe("feeds", () => {
       expect(rendered.result.current.bufferedFeeds).toEqual([]);
     });
 
+    test("useBufferedFeeds keeps omitted and literal undefined sorts separate", async () => {
+      const rendered = renderHook<any, any>(() =>
+        useBufferedFeeds(
+          toBufferedFeedsOptions({
+            feedsOptions: [
+              { communityAddresses: ["community address 1"] },
+              { communityAddresses: ["community address 1"], sortType: "undefined" },
+            ],
+          }),
+        ),
+      );
+
+      await waitFor(() => Object.keys(feedsStore.getState().feedsOptions).length === 2);
+      expect(rendered.result.current.bufferedFeeds).toHaveLength(2);
+    });
+
     test("useBufferedFeeds skips empty feed entries without blocking later feeds", async () => {
       const rendered = renderHook<any, any>(() =>
         useBufferedFeeds({
@@ -1362,52 +1395,13 @@ describe("feeds", () => {
       expect(rendered.result.current.feed.length).toBe(postsPerPage);
     });
 
-    test(`fail to get feed sorted by sort type that doesn't exist`, async () => {
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      expect(() => {
-        rendered.rerender({
-          communityAddresses: ["community address 1", "community address 2", "community address 3"],
-          sortType: `doesnt exist`,
-        });
-      }).toThrow(`useFeed sortType argument 'doesnt exist' invalid`);
-      consoleSpy.mockRestore();
-
-      // one of the buffered feed has a sort type that doesn't exist
-      const consoleSpy2 = vi.spyOn(console, "error").mockImplementation(() => {});
-      expect(() => {
-        renderHook<any, any>(() =>
-          useBufferedFeeds(
-            toBufferedFeedsOptions({
-              feedsOptions: [
-                {
-                  communityAddresses: [
-                    "community address 1",
-                    "community address 2",
-                    "community address 3",
-                  ],
-                  sortType: "new",
-                },
-                {
-                  communityAddresses: [
-                    "community address 4",
-                    "community address 5",
-                    "community address 6",
-                  ],
-                  sortType: `doesnt exist`,
-                },
-                {
-                  communityAddresses: [
-                    "community address 7",
-                    "community address 8",
-                    "community address 9",
-                  ],
-                },
-              ],
-            }),
-          ),
-        );
-      }).toThrow(`useBufferedFeeds feedOptions.sortType argument 'doesnt exist' invalid`);
-      consoleSpy2.mockRestore();
+    test(`accepts an arbitrary sort type and leaves the feed empty when it is unpublished`, async () => {
+      rendered.rerender({
+        communityAddresses: ["community address 1", "community address 2", "community address 3"],
+        sortType: `doesnt exist`,
+      });
+      await waitFor(() => Array.isArray(rendered.result.current.feed));
+      expect(rendered.result.current.feed).toEqual([]);
     });
 
     describe("getPage only has 1 page", () => {
@@ -2148,7 +2142,7 @@ describe("feeds", () => {
       Community.prototype.simulateUpdateEvent = simulateUpdateEvent;
     });
 
-    test("no pageCids, no page.nextCid, use any preloaded page sort", async () => {
+    test("no pageCids defaults to the preloaded page without substituting requested sorts", async () => {
       const update = Community.prototype.update;
       Community.prototype.update = async function () {
         this.updatedAt = Math.floor(Date.now() / 1000);
@@ -2163,7 +2157,7 @@ describe("feeds", () => {
         this.emit("updatingstatechange", "succeeded");
       };
 
-      rendered.rerender({ communityAddresses: ["community address 1"], sortType: "new" });
+      rendered.rerender({ communityAddresses: ["community address 1"] });
       await waitFor(() => rendered.result.current.feed.length > 0);
       expect(rendered.result.current.feed[0].cid).toBe(
         "community address 1 page cid hot comment cid 100",
@@ -2174,11 +2168,8 @@ describe("feeds", () => {
         communityAddresses: ["community address 1"],
         sortType: "controversialAll",
       });
-      await waitFor(() => rendered.result.current.feed.length > 0);
-      expect(rendered.result.current.feed[0].cid).toBe(
-        "community address 1 page cid hot comment cid 9",
-      );
-      expect(rendered.result.current.feed.length).toBe(postsPerPage);
+      await waitFor(() => Array.isArray(rendered.result.current.feed));
+      expect(rendered.result.current.feed).toEqual([]);
 
       // restore mock
       Community.prototype.update = update;

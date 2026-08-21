@@ -319,7 +319,7 @@ __metadata:
   resolution: "@bitsocial/bitsocial-react-hooks@workspace:."
   dependencies:
     "@bitsocial/bso-resolver": "npm:0.0.10"
-    "@pkcprotocol/pkc-js": "npm:0.0.83"
+    "@pkcprotocol/pkc-js": "npm:0.0.85"
     "@pkcprotocol/pkc-logger": "npm:0.1.0"
     "@testing-library/dom": "npm:10.4.1"
     "@testing-library/react": "npm:16.3.2"
@@ -3645,9 +3645,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@pkcprotocol/pkc-js@npm:0.0.83":
-  version: 0.0.83
-  resolution: "@pkcprotocol/pkc-js@npm:0.0.83"
+"@pkcprotocol/pkc-js@npm:0.0.85":
+  version: 0.0.85
+  resolution: "@pkcprotocol/pkc-js@npm:0.0.85"
   dependencies:
     "@enhances/with-resolvers": "npm:0.0.5"
     "@helia/block-brokers": "npm:5.2.4"
@@ -3667,8 +3667,8 @@ __metadata:
     assert: "npm:2.1.0"
     better-sqlite3: "npm:12.9.0"
     blockstore-core: "npm:7.0.1"
-    blockstore-fs: "npm:^4.0.1"
-    blockstore-idb: "npm:^4.0.1"
+    blockstore-fs: "npm:4.0.1"
+    blockstore-idb: "npm:4.0.1"
     buffer: "npm:6.0.3"
     cbor: "npm:10.0.11"
     cborg: "npm:4.5.8"
@@ -3709,7 +3709,7 @@ __metadata:
     uuid: "npm:13.0.0"
     ws: "npm:8.20.0"
     zod: "npm:4.3.6"
-  checksum: 10c0/efeb19d0abcf15e5f45b5ad764714231fb661e7b71cb28f21cdd4fbbade42f027c2414ad90b7422d154a8833c243374cf192a4364d6f09ff494586cb06b42108
+  checksum: 10c0/eedef4700cf6baf365c9f7c60e4fdccfd2efb3cc084c303bf71934e8935afa5aeafc3468a87c3a5e0822e9b671eadce808b3638a13b22b5bfed74aca5d1ce1f3
   languageName: node
   linkType: hard
 
@@ -4792,7 +4792,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"blockstore-fs@npm:^4.0.1":
+"blockstore-fs@npm:4.0.1":
   version: 4.0.1
   resolution: "blockstore-fs@npm:4.0.1"
   dependencies:
@@ -4809,7 +4809,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"blockstore-idb@npm:^4.0.1":
+"blockstore-idb@npm:4.0.1":
   version: 4.0.1
   resolution: "blockstore-idb@npm:4.0.1"
   dependencies:
@@ -10030,12 +10030,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"nanoid@npm:3.3.17":
-  version: 3.3.17
-  resolution: "nanoid@npm:3.3.17"
+"nanoid@npm:3.3.18":
+  version: 3.3.18
+  resolution: "nanoid@npm:3.3.18"
   bin:
     nanoid: bin/nanoid.cjs
-  checksum: 10c0/06f7949c7cce5c92c6aea66022f29a1eae7f56e05acbfddf1e049e819b4bf234c44a765cc44da7163482b111677948514012e27acdfa56f95309295768bdae32
+  checksum: 10c0/b994b4e396730f8be2520923284e2040d61eaee55cc6d4935ef6d38d34bafdc46133eda4d3faea5073bda545aa6079d82b886caeac5c731cf9ac18bcc1301425
   languageName: node
   linkType: hard
 

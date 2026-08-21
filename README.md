@@ -166,7 +166,9 @@ useBufferedFeeds({feedsOptions: UseFeedOptions[]}) // preload or buffer feeds in
 ```
 
 `useFeed().reset()` clears the current feed and refreshes the latest community snapshots before rebuilding it.
-`useFeed().expandTimeWindow(newerThan)` broadens `newerThan` in place for feeds whose derived sort type stays the same, so older posts can be appended without replacing the feed instance.
+`useFeed().expandTimeWindow(newerThan)` broadens `newerThan` in place without constructing a different sort name, so older posts can be appended without replacing the feed instance.
+
+Feed and reply sort names are defined by each community record, not by a fixed hooks allowlist. Omit `sortType` to use the preloaded page, or discover the published names with `getAvailablePostSortTypes(community)` and `getAvailableReplySortTypes(comment)`. A requested sort that is not published is not silently replaced with another sort. Hooks preserve protocol page order for unknown custom sorts because their scoring algorithm is not available to the client.
 
 #### Actions Hooks
 
@@ -188,6 +190,8 @@ useExportCommunity(options?: UseExportCommunityOptions): {
 }
 ```
 
+Before `publishComment` or `publishCommentEdit` signs a publication, hooks load the community challenge configuration and apply compatible wordfilters. The current `@bitsocial/wordfilter-challenge` contract uses a JSON array of `{src, dst}` objects in `wordfilter/v1/rules` and an optional JSON array of paths in `wordfilter/v1/fieldNames`, both published through `publicOptions`. Hooks support the user-authored `content`, `title`, and `author.displayName` paths; structural and signing fields are never rewritten by community configuration. Matching is literal and case-insensitive, not regular-expression or Unicode-evasion matching. The transformed values are the values signed, published, and stored as the pending account publication. If composed rule sets do not stabilize within eight passes, publication stops before signing.
+
 #### States Hooks
 
 ```
@@ -200,6 +204,8 @@ useCommunitiesStates({communities?: CommunityIdentifier[]}): {states, peers}
 ```
 usePkcRpcSettings(): {pkcRpcSettings: {pkcOptions, challenges}, setPkcRpcSettings: Function}
 ```
+
+Community edits preserve challenge `publicOptions` arrays, remote community records expose their published option values, and `usePkcRpcSettings` exposes each installed challenge's `optionInputs` metadata so clients can build challenge-specific configuration without hooks knowing each challenge schema.
 
 #### Actions with no hooks implementations yet
 
@@ -222,6 +228,12 @@ setPkcJs(PKC) // swap the underlying protocol client implementation, e.g. for mo
 deleteDatabases() // delete all databases, including all caches and accounts data
 deleteCaches() // delete the cached comments, cached communities and cached pages only, no accounts data
 createCrosspost(comment: Comment): Crosspost // build the immutable payload accepted by pkc-js
+getAvailablePostSortTypes(community: Community): string[]
+getAvailableReplySortTypes(comment: Comment): string[]
+getPreloadedPostSortType(community: Community): string | undefined
+getPreloadedReplySortType(comment: Comment): string | undefined
+resolvePostSortType(community: Community, requestedSortType?: string): string | undefined
+resolveReplySortType(comment: Comment, requestedSortType?: string): string | undefined
 ```
 
 `createCrosspost` requires a fully loaded comment with `comment.cid` and

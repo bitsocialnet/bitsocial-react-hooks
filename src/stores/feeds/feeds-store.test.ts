@@ -665,7 +665,6 @@ describe("feeds store", () => {
           communities: toCommunities(communityAddresses),
           communityKeys: communityAddresses,
           sortType: "active",
-          requestedSortType: "active",
           accountId: mockAccount.id,
           pageNumber: 1,
           postsPerPage,

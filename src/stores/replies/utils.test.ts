@@ -140,7 +140,7 @@ describe("replies utils", () => {
       expect(feeds.feed1).toEqual([]);
     });
 
-    test("uses fallback when depth > 0 and hasPageCids (no early return)", () => {
+    test("does not substitute another sort for nested replies with page cids", () => {
       const reply = {
         cid: "depth1-fallback",
         communityAddress: "sub1",
@@ -173,7 +173,7 @@ describe("replies utils", () => {
         {},
         { [mockAccountId]: { pkc: {}, blockedAddresses: {}, blockedCids: {} } },
       );
-      expect(feeds.feed1).toContainEqual(expect.objectContaining({ cid: "depth1-fallback" }));
+      expect(feeds.feed1).toEqual([]);
     });
 
     test("breaks repliesPages loop when reply has wrong communityAddress", () => {
@@ -281,7 +281,7 @@ describe("replies utils", () => {
       expect(feeds.feed1.map((reply: any) => reply.cid)).toEqual(["r2", "r1"]);
     });
 
-    test("fallback to any page when no pageCids, no nextCids, single preloaded page", () => {
+    test("does not substitute a single preloaded page for a missing requested sort", () => {
       const reply = {
         cid: "fallback-reply",
         communityAddress: "sub1",
@@ -312,7 +312,7 @@ describe("replies utils", () => {
         {},
         { [mockAccountId]: { pkc: {}, blockedAddresses: {}, blockedCids: {} } },
       );
-      expect(feeds.feed1).toContainEqual(expect.objectContaining({ cid: "fallback-reply" }));
+      expect(feeds.feed1).toEqual([]);
     });
   });
 
@@ -957,83 +957,35 @@ describe("replies utils", () => {
   });
 
   describe("getSortTypeFromComment", () => {
-    test("returns sortType when comment is null", () => {
-      expect(getSortTypeFromComment(null as any, { sortType: "new" })).toBe("new");
+    test("returns undefined before the comment is loaded", () => {
+      expect(getSortTypeFromComment(null as any, { sortType: "new" })).toBeUndefined();
     });
 
-    test("falls back to topAll when best requested but only topAll available", () => {
+    test("returns the requested sort only when it is published", () => {
       const comment = {
-        replies: { pages: { topAll: { comments: [] } }, pageCids: {} },
+        replies: { pages: { custom: { comments: [] } }, pageCids: {} },
       };
-      expect(getSortTypeFromComment(comment as any, { sortType: "best" })).toBe("topAll");
+      expect(getSortTypeFromComment(comment as any, { sortType: "custom" })).toBe("custom");
     });
 
-    test("falls back to best when topAll requested but only best available", () => {
+    test("does not substitute a similar or flat sort name", () => {
       const comment = {
-        replies: { pages: { best: { comments: [] } }, pageCids: {} },
+        replies: {
+          pages: { topAll: { comments: [] }, newFlat: { comments: [] } },
+          pageCids: {},
+        },
       };
-      expect(getSortTypeFromComment(comment as any, { sortType: "topAll" })).toBe("best");
+      expect(getSortTypeFromComment(comment as any, { sortType: "best" })).toBeUndefined();
+      expect(
+        getSortTypeFromComment(comment as any, { sortType: "new", flat: true }),
+      ).toBeUndefined();
     });
 
-    test("uses newFlat when new and flat and newFlat available", () => {
+    test("defaults to the preloaded sort when none is requested", () => {
       const comment = {
-        replies: { pages: { newFlat: { comments: [] } }, pageCids: {} },
+        replies: { pages: { chronological: { comments: [] } }, pageCids: {} },
       };
-      expect(getSortTypeFromComment(comment as any, { sortType: "new", flat: true })).toBe(
-        "newFlat",
-      );
-    });
-
-    test("uses oldFlat when old and flat and oldFlat available", () => {
-      const comment = {
-        replies: { pages: { oldFlat: { comments: [] } }, pageCids: {} },
-      };
-      expect(getSortTypeFromComment(comment as any, { sortType: "old", flat: true })).toBe(
-        "oldFlat",
-      );
-    });
-
-    test("falls back to new when newFlat requested but only new available", () => {
-      const comment = {
-        replies: { pages: { new: { comments: [] } }, pageCids: {} },
-      };
-      expect(getSortTypeFromComment(comment as any, { sortType: "newFlat", flat: true })).toBe(
-        "new",
-      );
-    });
-
-    test("falls back to old when oldFlat requested but only old available", () => {
-      const comment = {
-        replies: { pages: { old: { comments: [] } }, pageCids: {} },
-      };
-      expect(getSortTypeFromComment(comment as any, { sortType: "oldFlat", flat: true })).toBe(
-        "old",
-      );
-    });
-
-    test("returns sortType when no fallback applies (branch 552)", () => {
-      const comment = {
-        replies: { pages: { hot: { comments: [] } }, pageCids: {} },
-      };
-      expect(getSortTypeFromComment(comment as any, { sortType: "hot" })).toBe("hot");
-    });
-
-    test("returns sortType when comment has no replies", () => {
-      expect(getSortTypeFromComment({} as any, { sortType: "new" })).toBe("new");
-    });
-
-    test("falls back to topAll via pageCids when best requested", () => {
-      const comment = {
-        replies: { pageCids: { topAll: "page-cid" }, pages: {} },
-      };
-      expect(getSortTypeFromComment(comment as any, { sortType: "best" })).toBe("topAll");
-    });
-
-    test("falls back to best via pageCids when topAll requested", () => {
-      const comment = {
-        replies: { pageCids: { best: "page-cid" }, pages: {} },
-      };
-      expect(getSortTypeFromComment(comment as any, { sortType: "topAll" })).toBe("best");
+      expect(getSortTypeFromComment(comment as any, {})).toBe("chronological");
     });
   });
 
