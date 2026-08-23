@@ -157,7 +157,7 @@ src/
 - After code changes, run: `yarn build`.
 - After test changes, run: `yarn test`.
 - Do not commit local `dist/` rebuild output. `dist/` is CI-managed in this repo; if verification dirties tracked files there, run `git restore --worktree -- dist` before committing.
-- Keep test coverage as high as possible when adding or modifying code; every feature or bug fix in `src/hooks/` or `src/stores/` must include or adjust tests covering the changed behavior. Coverage is advisory, not a CI gate: use the coverage run (and optionally `node scripts/verify-hooks-stores-coverage.mjs` to list hooks/stores files below 100%) to find gaps in the code you touched, and do not invent a repo-wide coverage threshold.
+- Keep test coverage as high as possible when adding or modifying code; every feature or bug fix in `src/hooks/` or `src/stores/` must include or adjust tests covering the changed behavior. Coverage is advisory, not a CI gate: use the coverage run (and `node scripts/coverage-triage.mjs` to print uncovered hooks/stores lines) to find gaps in the code you touched, and do not invent a repo-wide coverage threshold. `scripts/verify-hooks-stores-coverage.mjs` is a strict opt-in check that exits non-zero below 100%; a failure there on untouched files is a known pre-existing condition, not a blocker.
 - Before committing, run: `yarn prettier` to format.
 - If verification fails, fix and re-run until passing.
 
@@ -210,7 +210,7 @@ yarn knip                 # Advisory dependency/binary manifest audit
 yarn knip:full            # Exploratory full unused files/exports scan (non-blocking)
 yarn test                 # Vitest unit tests
 vitest run --config config/vitest.config.js --coverage.enabled --coverage.provider=istanbul --coverage.reporter=text --coverage.reporter=json-summary --coverage.reportsDirectory=./coverage
-node scripts/verify-hooks-stores-coverage.mjs # Advisory: list hooks/stores files below 100% coverage (not a CI gate)
+node scripts/coverage-triage.mjs # Advisory: print uncovered hooks/stores lines after a coverage run (not a CI gate)
 yarn test:e2e:mock        # E2E tests with mock backend
 yarn test:e2e:chrome      # E2E tests in Chrome
 yarn prettier             # Format all source files
