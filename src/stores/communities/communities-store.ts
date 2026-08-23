@@ -166,7 +166,7 @@ const clearStoredCommunityErrors = (state: CommunitiesState, communityKey: strin
   return nextErrors;
 };
 
-const isRetriableCommunityLoadError = (error: Error) => {
+export const isRetriableCommunityLoadError = (error: Error) => {
   const details = (error as Error & { details?: unknown }).details;
   return Boolean(
     details &&

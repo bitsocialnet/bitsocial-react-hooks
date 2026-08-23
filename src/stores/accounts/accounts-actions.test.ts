@@ -427,6 +427,41 @@ describe("accounts-actions", () => {
       expect(remoteCommunity.stop).toHaveBeenCalledOnce();
     });
 
+    test("ignores retriable community errors while loading challenge config", async () => {
+      communitiesStore.setState({ communities: {} });
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const remoteCommunity = new BaseCommunity({ address: "flaky.eth" }) as any;
+      remoteCommunity.update = vi.fn().mockImplementation(async () => {
+        const retriableError = new Error("gateway fetch failed") as Error & { details?: any };
+        retriableError.details = { retriableError: true };
+        remoteCommunity.emit("error", retriableError);
+        remoteCommunity.updatedAt = 1;
+        remoteCommunity.challenges = [
+          {
+            publicOptions: {
+              "wordfilter/v1/rules": JSON.stringify([{ src: "plebbit", dst: "bitcoin" }]),
+            },
+          },
+        ];
+        remoteCommunity.emit("update", remoteCommunity);
+      });
+      remoteCommunity.stop = vi.fn();
+      vi.spyOn(account.pkc, "createCommunity").mockResolvedValue(remoteCommunity);
+      const createComment = vi.spyOn(account.pkc, "createComment");
+
+      await accountsActions.publishComment({
+        communityAddress: "flaky.eth",
+        content: "flaky plebbit",
+        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      });
+
+      expect(createComment).toHaveBeenCalledWith(
+        expect.objectContaining({ content: "flaky bitcoin" }),
+      );
+      expect(remoteCommunity.stop).toHaveBeenCalledOnce();
+    });
+
     test("stops a remote community when loading its challenge config fails", async () => {
       communitiesStore.setState({ communities: {} });
       const account = Object.values(accountsStore.getState().accounts)[0];

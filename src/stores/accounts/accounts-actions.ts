@@ -1,7 +1,7 @@
 // public accounts actions that are called by the user
 
 import accountsStore, { listeners } from "./accounts-store";
-import communitiesStore from "../communities";
+import communitiesStore, { isRetriableCommunityLoadError } from "../communities";
 import accountsDatabase from "./accounts-database";
 import accountGenerator from "./account-generator";
 import Logger from "@pkcprotocol/pkc-logger";
@@ -97,6 +97,9 @@ const loadPublicationCommunity = async (communityAddress: string, account: Accou
       };
       const onError = (error: Error) => {
         if (settled) return;
+        // pkc-js emits an error on every failed fetch attempt while it keeps retrying;
+        // keep waiting for a later update and only fail on non-retriable errors or the timeout
+        if (isRetriableCommunityLoadError(error)) return;
         settled = true;
         cleanup();
         reject(error);
@@ -109,7 +112,7 @@ const loadPublicationCommunity = async (communityAddress: string, account: Accou
         PUBLICATION_COMMUNITY_LOAD_TIMEOUT_MS,
       );
       community.once("update", onUpdate);
-      community.once("error", onError);
+      community.on("error", onError);
       void Promise.resolve()
         .then(() => community.update())
         .then(() => {
