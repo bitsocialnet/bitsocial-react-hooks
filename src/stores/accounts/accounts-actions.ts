@@ -125,13 +125,14 @@ const loadPublicationCommunity = async (communityAddress: string, account: Accou
 };
 
 const applyPublicationWordfilters = async <T extends Record<string, any>>(
+  publicationType: string,
   options: T,
   account: Account,
 ) => {
   const communityAddress = options.communityAddress;
   if (typeof communityAddress !== "string" || !communityAddress) return options;
   const community = await loadPublicationCommunity(communityAddress, account);
-  return applyCommunityWordfilters(options, community?.challenges);
+  return applyCommunityWordfilters(publicationType, options, community?.challenges);
 };
 
 type PublishSession = {
@@ -1151,7 +1152,11 @@ export const publishComment = async (
   delete createCommentOptions.onPendingComment;
   delete createCommentOptions.onPublishingStateChange;
   delete createCommentOptions._onPendingCommentIndex;
-  createCommentOptions = await applyPublicationWordfilters(createCommentOptions, account);
+  createCommentOptions = await applyPublicationWordfilters(
+    "comment",
+    createCommentOptions,
+    account,
+  );
   const storedCreateCommentOptions = normalizePublicationOptionsForStore(createCommentOptions);
 
   // make sure the options dont throw
@@ -1621,6 +1626,7 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
   delete createVoteOptions.onChallengeVerification;
   delete createVoteOptions.onError;
   delete createVoteOptions.onPublishingStateChange;
+  createVoteOptions = await applyPublicationWordfilters("vote", createVoteOptions, account);
   const accountsState = accountsStore.getState();
   const accountCommentInfo =
     accountsState.commentCidsToAccountsComments[createVoteOptions.commentCid];
@@ -1724,7 +1730,11 @@ export const publishCommentEdit = async (
   delete createCommentEditOptions.onChallengeVerification;
   delete createCommentEditOptions.onError;
   delete createCommentEditOptions.onPublishingStateChange;
-  createCommentEditOptions = await applyPublicationWordfilters(createCommentEditOptions, account);
+  createCommentEditOptions = await applyPublicationWordfilters(
+    "commentEdit",
+    createCommentEditOptions,
+    account,
+  );
   const storedCreateCommentEditOptions = {
     ...normalizePublicationOptionsForStore(createCommentEditOptions),
     clientId: uuid(),
@@ -1864,6 +1874,11 @@ export const publishCommentModeration = async (
   delete createCommentModerationOptions.onChallengeVerification;
   delete createCommentModerationOptions.onError;
   delete createCommentModerationOptions.onPublishingStateChange;
+  createCommentModerationOptions = await applyPublicationWordfilters(
+    "commentModeration",
+    createCommentModerationOptions,
+    account,
+  );
   const storedCreateCommentModerationOptions = {
     ...normalizePublicationOptionsForStore(createCommentModerationOptions),
     clientId: uuid(),
@@ -2021,6 +2036,11 @@ export const publishCommunityEdit = async (
     communityAddress,
     communityEdit: communityEditOptions,
   });
+  createCommunityEditOptions = await applyPublicationWordfilters(
+    "communityEdit",
+    createCommunityEditOptions,
+    account,
+  );
   const storedCreateCommunityEditOptions = {
     ...normalizePublicationOptionsForStore(createCommunityEditOptions),
     clientId: uuid(),
@@ -2069,9 +2089,10 @@ export const publishCommunityEdit = async (
 
   // account is the owner of the community and can edit it locally, no need to publish
   if (accountOwnsCommunityLocally(account, communityAddress)) {
+    // use the wordfiltered edit so the applied community state matches the stored account edit
     await communitiesStore
       .getState()
-      .editCommunity(communityAddress, communityEditOptions, account);
+      .editCommunity(communityAddress, createCommunityEditOptions.communityEdit, account);
     await storePublishedCommunityEdit();
     // create fake success challenge verification for consistent behavior with remote community edit
     publishCommunityEditOptions.onChallengeVerification({ challengeSuccess: true });

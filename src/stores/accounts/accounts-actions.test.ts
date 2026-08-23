@@ -462,6 +462,105 @@ describe("accounts-actions", () => {
       expect(remoteCommunity.stop).toHaveBeenCalledOnce();
     });
 
+    test("publishVote signs the filtered author displayName", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const createVote = vi.spyOn(account.pkc, "createVote");
+
+      await accountsActions.publishVote({
+        communityAddress: "sub.eth",
+        commentCid: "vote cid",
+        vote: 1,
+        author: { ...account.author, displayName: "plebbit hero" },
+        onChallenge: (_challenge: any, vote: any) => vote.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      } as any);
+
+      expect(createVote).toHaveBeenCalledWith(
+        expect.objectContaining({
+          author: expect.objectContaining({ displayName: "bitcoin hero" }),
+        }),
+      );
+    });
+
+    test("publishCommentModeration filters the reason when the community configures the path", async () => {
+      communitiesStore.setState({
+        communities: {
+          "sub.eth": {
+            address: "sub.eth",
+            updatedAt: 1,
+            challenges: [
+              {
+                publicOptions: {
+                  "wordfilter/v1/rules": JSON.stringify([{ src: "plebbit", dst: "bitcoin" }]),
+                  "wordfilter/v1/fieldNames": JSON.stringify([
+                    "commentModeration.commentModeration.reason",
+                  ]),
+                },
+              },
+            ],
+          },
+        },
+      } as any);
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const createCommentModeration = vi.spyOn(account.pkc, "createCommentModeration");
+
+      await accountsActions.publishCommentModeration({
+        communityAddress: "sub.eth",
+        commentCid: "moderated cid",
+        commentModeration: { removed: true, reason: "plebbit spam" },
+        onChallenge: (_challenge: any, moderation: any) => moderation.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      } as any);
+
+      expect(createCommentModeration).toHaveBeenCalledWith(
+        expect.objectContaining({
+          commentModeration: expect.objectContaining({ removed: true, reason: "bitcoin spam" }),
+        }),
+      );
+    });
+
+    test("publishCommunityEdit filters configured title and description paths", async () => {
+      communitiesStore.setState({
+        communities: {
+          "sub.eth": {
+            address: "sub.eth",
+            updatedAt: 1,
+            challenges: [
+              {
+                publicOptions: {
+                  "wordfilter/v1/rules": JSON.stringify([{ src: "plebbit", dst: "bitcoin" }]),
+                  "wordfilter/v1/fieldNames": JSON.stringify([
+                    "communityEdit.communityEdit.title",
+                    "communityEdit.communityEdit.description",
+                  ]),
+                },
+              },
+            ],
+          },
+        },
+      } as any);
+
+      await accountsActions.publishCommunityEdit("sub.eth", {
+        title: "plebbit board",
+        description: "all about plebbit",
+        onChallenge: (_challenge: any, edit: any) => edit.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      } as any);
+
+      const accountId = accountsStore.getState().activeAccountId!;
+      const storedEdits = accountsStore.getState().accountsEdits[accountId]["sub.eth"];
+      expect(storedEdits).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            communityEdit: expect.objectContaining({
+              title: "bitcoin board",
+              description: "all about bitcoin",
+            }),
+          }),
+        ]),
+      );
+    });
+
     test("stops a remote community when loading its challenge config fails", async () => {
       communitiesStore.setState({ communities: {} });
       const account = Object.values(accountsStore.getState().accounts)[0];
@@ -1143,6 +1242,55 @@ describe("accounts-actions", () => {
         getPkcCommunityAddressesSpy.mockRestore();
         editCommunitySpy.mockRestore();
         createCommunityEditSpy.mockRestore();
+      }
+    });
+
+    test("publishCommunityEdit applies wordfilters to local owner edits", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const getPkcCommunityAddressesSpy = vi
+        .spyOn(protocolCompat, "getPkcCommunityAddresses")
+        .mockReturnValue([]);
+      const editCommunitySpy = vi.spyOn(communitiesStore.getState(), "editCommunity");
+
+      try {
+        communitiesStore.setState({
+          communities: {
+            "owned-filtered.eth": {
+              address: "owned-filtered.eth",
+              updatedAt: 1,
+              roles: {
+                [account.author.address]: { role: "owner" },
+              },
+              challenges: [
+                {
+                  publicOptions: {
+                    "wordfilter/v1/rules": JSON.stringify([{ src: "plebbit", dst: "bitcoin" }]),
+                    "wordfilter/v1/fieldNames": JSON.stringify([
+                      "communityEdit.communityEdit.title",
+                    ]),
+                  },
+                },
+              ],
+            } as any,
+          },
+        });
+
+        await act(async () => {
+          await accountsActions.publishCommunityEdit("owned-filtered.eth", {
+            title: "plebbit board",
+            onChallenge: () => {},
+            onChallengeVerification: () => {},
+          });
+        });
+
+        expect(editCommunitySpy).toHaveBeenCalledWith(
+          "owned-filtered.eth",
+          expect.objectContaining({ title: "bitcoin board" }),
+          account,
+        );
+      } finally {
+        getPkcCommunityAddressesSpy.mockRestore();
+        editCommunitySpy.mockRestore();
       }
     });
 

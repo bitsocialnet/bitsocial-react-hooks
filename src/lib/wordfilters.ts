@@ -1,7 +1,24 @@
 const RULES_KEY = "wordfilter/v1/rules";
 const FIELD_NAMES_KEY = "wordfilter/v1/fieldNames";
-const DEFAULT_FIELD_NAMES = ["content", "title", "author.displayName"];
-const SUPPORTED_FIELD_NAMES = new Set(DEFAULT_FIELD_NAMES);
+// every wordfilter/v1 path starts with the publication type and is resolved against
+// {[publicationType]: publication}, so a path for another type is simply absent and skipped
+const DEFAULT_FIELD_NAMES = [
+  "comment.content",
+  "comment.title",
+  "comment.author.displayName",
+  "commentEdit.content",
+  "commentEdit.reason",
+  "commentEdit.author.displayName",
+  "vote.author.displayName",
+];
+// user-authored text only: never let community configuration rewrite structural or
+// signing fields (addresses, CIDs, signer material), whatever paths it publishes
+const SUPPORTED_FIELD_NAMES = new Set([
+  ...DEFAULT_FIELD_NAMES,
+  "commentModeration.commentModeration.reason",
+  "communityEdit.communityEdit.title",
+  "communityEdit.communityEdit.description",
+]);
 const MAX_PASSES = 8;
 const unsafePathParts = new Set(["__proto__", "constructor", "prototype"]);
 
@@ -91,6 +108,7 @@ const setOwnPath = (value: Record<string, any>, path: string, replacement: strin
 };
 
 export const applyCommunityWordfilters = <T extends Record<string, any>>(
+  publicationType: string,
   publication: T,
   challenges?: Challenge[],
 ): T => {
@@ -106,16 +124,17 @@ export const applyCommunityWordfilters = <T extends Record<string, any>>(
     if (!fieldNames) continue;
     for (const fieldName of fieldNames) {
       if (!SUPPORTED_FIELD_NAMES.has(fieldName)) continue;
+      // merge every challenge's rules per field so one apply call sees their interactions
       rulesByField.set(fieldName, [...(rulesByField.get(fieldName) || []), ...rules]);
     }
   }
 
-  let output: Record<string, any> = publication;
+  let output: Record<string, any> = { [publicationType]: publication };
   for (const [fieldName, rules] of rulesByField) {
     const value = getOwnStringAtPath(output, fieldName);
     if (value === undefined) continue;
     const replacement = applyRules(value, rules);
     if (replacement !== value) output = setOwnPath(output, fieldName, replacement);
   }
-  return output as T;
+  return output[publicationType] as T;
 };
