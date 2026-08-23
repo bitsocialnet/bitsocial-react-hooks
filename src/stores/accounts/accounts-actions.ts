@@ -2089,9 +2089,10 @@ export const publishCommunityEdit = async (
 
   // account is the owner of the community and can edit it locally, no need to publish
   if (accountOwnsCommunityLocally(account, communityAddress)) {
+    // use the wordfiltered edit so the applied community state matches the stored account edit
     await communitiesStore
       .getState()
-      .editCommunity(communityAddress, communityEditOptions, account);
+      .editCommunity(communityAddress, createCommunityEditOptions.communityEdit, account);
     await storePublishedCommunityEdit();
     // create fake success challenge verification for consistent behavior with remote community edit
     publishCommunityEditOptions.onChallengeVerification({ challengeSuccess: true });

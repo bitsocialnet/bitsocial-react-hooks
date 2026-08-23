@@ -1245,6 +1245,55 @@ describe("accounts-actions", () => {
       }
     });
 
+    test("publishCommunityEdit applies wordfilters to local owner edits", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const getPkcCommunityAddressesSpy = vi
+        .spyOn(protocolCompat, "getPkcCommunityAddresses")
+        .mockReturnValue([]);
+      const editCommunitySpy = vi.spyOn(communitiesStore.getState(), "editCommunity");
+
+      try {
+        communitiesStore.setState({
+          communities: {
+            "owned-filtered.eth": {
+              address: "owned-filtered.eth",
+              updatedAt: 1,
+              roles: {
+                [account.author.address]: { role: "owner" },
+              },
+              challenges: [
+                {
+                  publicOptions: {
+                    "wordfilter/v1/rules": JSON.stringify([{ src: "plebbit", dst: "bitcoin" }]),
+                    "wordfilter/v1/fieldNames": JSON.stringify([
+                      "communityEdit.communityEdit.title",
+                    ]),
+                  },
+                },
+              ],
+            } as any,
+          },
+        });
+
+        await act(async () => {
+          await accountsActions.publishCommunityEdit("owned-filtered.eth", {
+            title: "plebbit board",
+            onChallenge: () => {},
+            onChallengeVerification: () => {},
+          });
+        });
+
+        expect(editCommunitySpy).toHaveBeenCalledWith(
+          "owned-filtered.eth",
+          expect.objectContaining({ title: "bitcoin board" }),
+          account,
+        );
+      } finally {
+        getPkcCommunityAddressesSpy.mockRestore();
+        editCommunitySpy.mockRestore();
+      }
+    });
+
     test("importAccount with no accountComments/votes/edits (branches 313, 316, 319)", async () => {
       await act(async () => {
         await accountsActions.createAccount("Minimal");
