@@ -611,6 +611,249 @@ describe("accounts-actions", () => {
     test("leaves invalid publications for the existing validator", async () => {
       await expect(accountsActions.publishComment({ content: "plebbit" } as any)).rejects.toThrow();
     });
+
+    test("publishComment filters the author displayName through the defaults", async () => {
+      communitiesStore.setState({
+        communities: {
+          "sub.eth": {
+            address: "sub.eth",
+            updatedAt: 1,
+            challenges: [
+              {
+                publicOptions: {
+                  "wordfilter/v1/rules": JSON.stringify([{ src: "forbidden", dst: "allowed" }]),
+                },
+              },
+            ],
+          },
+        },
+      } as any);
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const createComment = vi.spyOn(account.pkc, "createComment");
+      createComment.mockClear();
+
+      await accountsActions.publishComment({
+        communityAddress: "sub.eth",
+        content: "forbidden",
+        author: { ...account.author, displayName: "forbidden fan" },
+        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      } as any);
+
+      expect(createComment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          author: expect.objectContaining({ displayName: "allowed fan" }),
+        }),
+      );
+    });
+
+    test("publishComment leaves fields outside a configured fieldNames subset alone", async () => {
+      communitiesStore.setState({
+        communities: {
+          "sub.eth": {
+            address: "sub.eth",
+            updatedAt: 1,
+            challenges: [
+              {
+                publicOptions: {
+                  "wordfilter/v1/rules": JSON.stringify([{ src: "forbidden", dst: "allowed" }]),
+                  "wordfilter/v1/fieldNames": JSON.stringify(["comment.title"]),
+                },
+              },
+            ],
+          },
+        },
+      } as any);
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const createComment = vi.spyOn(account.pkc, "createComment");
+      createComment.mockClear();
+
+      await accountsActions.publishComment({
+        communityAddress: "sub.eth",
+        title: "forbidden title",
+        content: "forbidden content",
+        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      });
+
+      expect(createComment).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "allowed title", content: "forbidden content" }),
+      );
+    });
+
+    test("publishComment merges multiple wordfilter challenges through the publish path", async () => {
+      communitiesStore.setState({
+        communities: {
+          "sub.eth": {
+            address: "sub.eth",
+            updatedAt: 1,
+            challenges: [
+              {
+                publicOptions: {
+                  "wordfilter/v1/rules": JSON.stringify([{ src: "a", dst: "b" }]),
+                },
+              },
+              {
+                publicOptions: {
+                  "wordfilter/v1/rules": JSON.stringify([{ src: "b", dst: "c" }]),
+                },
+              },
+            ],
+          },
+        },
+      } as any);
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const createComment = vi.spyOn(account.pkc, "createComment");
+      createComment.mockClear();
+
+      await accountsActions.publishComment({
+        communityAddress: "sub.eth",
+        content: "a",
+        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      });
+
+      expect(createComment).toHaveBeenCalledWith(expect.objectContaining({ content: "c" }));
+    });
+
+    test("publishComment ignores unparseable wordfilter rules and publishes unfiltered", async () => {
+      communitiesStore.setState({
+        communities: {
+          "sub.eth": {
+            address: "sub.eth",
+            updatedAt: 1,
+            challenges: [
+              {
+                publicOptions: {
+                  "wordfilter/v1/rules": "{",
+                },
+              },
+            ],
+          },
+        },
+      } as any);
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const createComment = vi.spyOn(account.pkc, "createComment");
+      createComment.mockClear();
+
+      await accountsActions.publishComment({
+        communityAddress: "sub.eth",
+        content: "forbidden",
+        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      });
+
+      expect(createComment).toHaveBeenCalledWith(expect.objectContaining({ content: "forbidden" }));
+    });
+
+    test("a did-not-stabilise rule set rejects the publish and stores no pending comment", async () => {
+      communitiesStore.setState({
+        communities: {
+          "sub.eth": {
+            address: "sub.eth",
+            updatedAt: 1,
+            challenges: [
+              {
+                publicOptions: {
+                  "wordfilter/v1/rules": JSON.stringify([{ src: "foo", dst: "bar" }]),
+                },
+              },
+              {
+                publicOptions: {
+                  "wordfilter/v1/rules": JSON.stringify([{ src: "bar", dst: "foofoo" }]),
+                },
+              },
+            ],
+          },
+        },
+      } as any);
+
+      const accountId = accountsStore.getState().activeAccountId!;
+      const accountCommentsBefore = accountsStore.getState().accountsComments[accountId] || [];
+
+      await expect(
+        accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "foo",
+          onChallenge: () => {},
+          onChallengeVerification: () => {},
+        }),
+      ).rejects.toThrow("wordfilter rules did not stabilise");
+
+      const accountComments = accountsStore.getState().accountsComments[accountId] || [];
+      expect(accountComments.length).toBe(accountCommentsBefore.length);
+    });
+
+    test("uses the store community without creating a temporary one", async () => {
+      communitiesStore.setState({
+        communities: {
+          "sub.eth": {
+            address: "sub.eth",
+            updatedAt: 1,
+            challenges: [
+              {
+                publicOptions: {
+                  "wordfilter/v1/rules": JSON.stringify([{ src: "forbidden", dst: "allowed" }]),
+                },
+              },
+            ],
+          },
+        },
+      } as any);
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const createCommunity = vi.spyOn(account.pkc, "createCommunity");
+      createCommunity.mockClear();
+      const createComment = vi.spyOn(account.pkc, "createComment");
+      createComment.mockClear();
+
+      await accountsActions.publishComment({
+        communityAddress: "sub.eth",
+        content: "forbidden",
+        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      });
+
+      expect(createComment).toHaveBeenCalledWith(expect.objectContaining({ content: "allowed" }));
+      expect(createCommunity).not.toHaveBeenCalled();
+    });
+
+    test("publishCommentEdit filters displayName but respects a fieldNames subset excluding content", async () => {
+      communitiesStore.setState({
+        communities: {
+          "sub.eth": {
+            address: "sub.eth",
+            updatedAt: 1,
+            challenges: [
+              {
+                publicOptions: {
+                  "wordfilter/v1/rules": JSON.stringify([{ src: "forbidden", dst: "allowed" }]),
+                  "wordfilter/v1/fieldNames": JSON.stringify(["commentEdit.author.displayName"]),
+                },
+              },
+            ],
+          },
+        },
+      } as any);
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const createCommentEdit = vi.spyOn(account.pkc, "createCommentEdit");
+      createCommentEdit.mockClear();
+
+      await accountsActions.publishCommentEdit({
+        communityAddress: "sub.eth",
+        commentCid: "edit cid",
+        content: "forbidden content",
+        author: { ...account.author, displayName: "forbidden mod" },
+        onChallenge: (_ch: any, e: any) => e.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      } as any);
+
+      expect(createCommentEdit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: "forbidden content",
+          author: expect.objectContaining({ displayName: "allowed mod" }),
+        }),
+      );
+    });
   });
 
   describe("optional accountName branches", () => {
