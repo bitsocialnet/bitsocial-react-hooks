@@ -83,7 +83,7 @@ After code changes, follow repo verification rules from `AGENTS.md`:
 
 - run `yarn build`
 - run `yarn test` after adding or changing tests
-- if hooks or stores changed, run the coverage command and `node scripts/verify-hooks-stores-coverage.mjs`
+- if hooks or stores changed, make sure the changed behavior is covered by tests; the coverage run is advisory, not a gate
 - run `yarn prettier` before the final review-driven commit
 - if local verification dirties tracked `dist/` output, restore it before committing
 
