@@ -1,3 +1,15 @@
+## [0.1.40](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.39...v0.1.40) (2026-08-23)
+
+
+### Bug Fixes
+
+* **deps:** upgrade pkc-js to 0.1.0 ([cbd8c9e](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/cbd8c9e69047f7182208b2f9a42f341ef3222ed5))
+* **stores:** ignore retriable community errors while loading wordfilter challenge config ([#99](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/99)) ([515e0db](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/515e0db72793569b71f7af868fafd5e640980340)), closes [#92](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/92)
+* **stores:** stop publishComment/publishVote auto-retry on terminal challenge verification errors ([#100](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/100)) ([a17240a](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/a17240ae2a858c314ec6168a19bc6c69f776c250)), closes [#93](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/93)
+* **stores:** support prefixed wordfilter/v1 field paths across all publication types ([#101](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/101)) ([fcfebed](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/fcfebed025a135a30992023461263fb9f34ee0e4)), closes [#98](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/98)
+
+
+
 ## [0.1.39](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.38...v0.1.39) (2026-08-21)
 
 
