@@ -1488,6 +1488,87 @@ describe("accounts-actions", () => {
     });
   });
 
+  describe("terminal challenge verification errors stop the auto-retry", () => {
+    beforeEach(async () => {
+      await testUtils.resetDatabasesAndStores();
+    });
+
+    const emitTerminalVerification = (publication: any) => {
+      publication.simulateChallengeVerificationEvent = function () {
+        this.emit("challengeverification", {
+          type: "CHALLENGEVERIFICATION",
+          challengeSuccess: false,
+          challengeErrors: { 1: "This community replaces certain words, refresh and retry" },
+        });
+      };
+    };
+
+    test("publishComment does not republish after a terminal challenge verification error", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const origCreateComment = account.pkc.createComment.bind(account.pkc);
+      const createComment = vi
+        .spyOn(account.pkc, "createComment")
+        .mockImplementation(async (opts: any) => {
+          const comment = await origCreateComment(opts);
+          emitTerminalVerification(comment);
+          return comment;
+        });
+      const onChallenge = vi.fn((_challenge: any, comment: any) =>
+        comment.publishChallengeAnswers(["4"]),
+      );
+      const onChallengeVerification = vi.fn();
+
+      await act(async () => {
+        await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "terminal rejection",
+          onChallenge,
+          onChallengeVerification,
+        });
+      });
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      // 2 calls are the normal path: one options-validation call plus the published comment;
+      // a third call would mean the terminal rejection was auto-retried
+      expect(createComment).toHaveBeenCalledTimes(2);
+      expect(onChallenge).toHaveBeenCalledTimes(1);
+      expect(onChallengeVerification).toHaveBeenCalledTimes(1);
+      expect(onChallengeVerification.mock.calls[0][0].challengeErrors).toBeTruthy();
+    });
+
+    test("publishVote does not republish after a terminal challenge verification error", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const origCreateVote = account.pkc.createVote.bind(account.pkc);
+      const createVote = vi
+        .spyOn(account.pkc, "createVote")
+        .mockImplementation(async (opts: any) => {
+          const vote = await origCreateVote(opts);
+          emitTerminalVerification(vote);
+          return vote;
+        });
+      const onChallenge = vi.fn((_challenge: any, vote: any) =>
+        vote.publishChallengeAnswers(["4"]),
+      );
+      const onChallengeVerification = vi.fn();
+
+      await act(async () => {
+        await accountsActions.publishVote({
+          communityAddress: "sub.eth",
+          commentCid: "cid",
+          vote: 1,
+          onChallenge,
+          onChallengeVerification,
+        });
+      });
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      expect(createVote).toHaveBeenCalledTimes(1);
+      expect(onChallenge).toHaveBeenCalledTimes(1);
+      expect(onChallengeVerification).toHaveBeenCalledTimes(1);
+      expect(onChallengeVerification.mock.calls[0][0].challengeErrors).toBeTruthy();
+    });
+  });
+
   describe("publish retry loops (challengeSuccess === false && lastChallenge)", () => {
     beforeEach(async () => {
       setPkcJs(createRetryPkcMock());
