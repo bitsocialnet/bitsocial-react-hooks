@@ -613,21 +613,36 @@ describe("accounts-actions", () => {
     });
 
     test("publishComment filters the author displayName through the defaults", async () => {
+      communitiesStore.setState({
+        communities: {
+          "sub.eth": {
+            address: "sub.eth",
+            updatedAt: 1,
+            challenges: [
+              {
+                publicOptions: {
+                  "wordfilter/v1/rules": JSON.stringify([{ src: "forbidden", dst: "allowed" }]),
+                },
+              },
+            ],
+          },
+        },
+      } as any);
       const account = Object.values(accountsStore.getState().accounts)[0];
       const createComment = vi.spyOn(account.pkc, "createComment");
       createComment.mockClear();
 
       await accountsActions.publishComment({
         communityAddress: "sub.eth",
-        content: "plebbit",
-        author: { ...account.author, displayName: "plebbit fan" },
+        content: "forbidden",
+        author: { ...account.author, displayName: "forbidden fan" },
         onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
         onChallengeVerification: () => {},
       } as any);
 
       expect(createComment).toHaveBeenCalledWith(
         expect.objectContaining({
-          author: expect.objectContaining({ displayName: "bitcoin fan" }),
+          author: expect.objectContaining({ displayName: "allowed fan" }),
         }),
       );
     });
@@ -641,7 +656,7 @@ describe("accounts-actions", () => {
             challenges: [
               {
                 publicOptions: {
-                  "wordfilter/v1/rules": JSON.stringify([{ src: "plebbit", dst: "bitcoin" }]),
+                  "wordfilter/v1/rules": JSON.stringify([{ src: "forbidden", dst: "allowed" }]),
                   "wordfilter/v1/fieldNames": JSON.stringify(["comment.title"]),
                 },
               },
@@ -655,14 +670,14 @@ describe("accounts-actions", () => {
 
       await accountsActions.publishComment({
         communityAddress: "sub.eth",
-        title: "plebbit title",
-        content: "plebbit content",
+        title: "forbidden title",
+        content: "forbidden content",
         onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
         onChallengeVerification: () => {},
       });
 
       expect(createComment).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "bitcoin title", content: "plebbit content" }),
+        expect.objectContaining({ title: "allowed title", content: "forbidden content" }),
       );
     });
 
@@ -723,12 +738,12 @@ describe("accounts-actions", () => {
 
       await accountsActions.publishComment({
         communityAddress: "sub.eth",
-        content: "plebbit",
+        content: "forbidden",
         onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
         onChallengeVerification: () => {},
       });
 
-      expect(createComment).toHaveBeenCalledWith(expect.objectContaining({ content: "plebbit" }));
+      expect(createComment).toHaveBeenCalledWith(expect.objectContaining({ content: "forbidden" }));
     });
 
     test("a did-not-stabilise rule set rejects the publish and stores no pending comment", async () => {
@@ -753,6 +768,9 @@ describe("accounts-actions", () => {
         },
       } as any);
 
+      const accountId = accountsStore.getState().activeAccountId!;
+      const accountCommentsBefore = accountsStore.getState().accountsComments[accountId] || [];
+
       await expect(
         accountsActions.publishComment({
           communityAddress: "sub.eth",
@@ -762,12 +780,26 @@ describe("accounts-actions", () => {
         }),
       ).rejects.toThrow("wordfilter rules did not stabilise");
 
-      const accountId = accountsStore.getState().activeAccountId!;
       const accountComments = accountsStore.getState().accountsComments[accountId] || [];
-      expect(accountComments.some((comment: any) => comment.content === "foo")).toBe(false);
+      expect(accountComments.length).toBe(accountCommentsBefore.length);
     });
 
     test("uses the store community without creating a temporary one", async () => {
+      communitiesStore.setState({
+        communities: {
+          "sub.eth": {
+            address: "sub.eth",
+            updatedAt: 1,
+            challenges: [
+              {
+                publicOptions: {
+                  "wordfilter/v1/rules": JSON.stringify([{ src: "forbidden", dst: "allowed" }]),
+                },
+              },
+            ],
+          },
+        },
+      } as any);
       const account = Object.values(accountsStore.getState().accounts)[0];
       const createCommunity = vi.spyOn(account.pkc, "createCommunity");
       createCommunity.mockClear();
@@ -776,12 +808,12 @@ describe("accounts-actions", () => {
 
       await accountsActions.publishComment({
         communityAddress: "sub.eth",
-        content: "plebbit",
+        content: "forbidden",
         onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
         onChallengeVerification: () => {},
       });
 
-      expect(createComment).toHaveBeenCalledWith(expect.objectContaining({ content: "bitcoin" }));
+      expect(createComment).toHaveBeenCalledWith(expect.objectContaining({ content: "allowed" }));
       expect(createCommunity).not.toHaveBeenCalled();
     });
 
@@ -794,7 +826,7 @@ describe("accounts-actions", () => {
             challenges: [
               {
                 publicOptions: {
-                  "wordfilter/v1/rules": JSON.stringify([{ src: "plebbit", dst: "bitcoin" }]),
+                  "wordfilter/v1/rules": JSON.stringify([{ src: "forbidden", dst: "allowed" }]),
                   "wordfilter/v1/fieldNames": JSON.stringify(["commentEdit.author.displayName"]),
                 },
               },
@@ -809,16 +841,16 @@ describe("accounts-actions", () => {
       await accountsActions.publishCommentEdit({
         communityAddress: "sub.eth",
         commentCid: "edit cid",
-        content: "plebbit content",
-        author: { ...account.author, displayName: "plebbit mod" },
+        content: "forbidden content",
+        author: { ...account.author, displayName: "forbidden mod" },
         onChallenge: (_ch: any, e: any) => e.publishChallengeAnswers(),
         onChallengeVerification: () => {},
       } as any);
 
       expect(createCommentEdit).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: "plebbit content",
-          author: expect.objectContaining({ displayName: "bitcoin mod" }),
+          content: "forbidden content",
+          author: expect.objectContaining({ displayName: "allowed mod" }),
         }),
       );
     });
