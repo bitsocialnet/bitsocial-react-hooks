@@ -96,12 +96,12 @@ const loadPublicationCommunity = (communityAddress, account) => __awaiter(void 0
         yield ((_a = community.stop) === null || _a === void 0 ? void 0 : _a.call(community));
     }
 });
-const applyPublicationWordfilters = (options, account) => __awaiter(void 0, void 0, void 0, function* () {
+const applyPublicationWordfilters = (publicationType, options, account) => __awaiter(void 0, void 0, void 0, function* () {
     const communityAddress = options.communityAddress;
     if (typeof communityAddress !== "string" || !communityAddress)
         return options;
     const community = yield loadPublicationCommunity(communityAddress, account);
-    return applyCommunityWordfilters(options, community === null || community === void 0 ? void 0 : community.challenges);
+    return applyCommunityWordfilters(publicationType, options, community === null || community === void 0 ? void 0 : community.challenges);
 });
 // Active publish-session tracking for pending comments (Task 3)
 const activePublishSessions = new Map();
@@ -813,7 +813,7 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
     delete createCommentOptions.onPendingComment;
     delete createCommentOptions.onPublishingStateChange;
     delete createCommentOptions._onPendingCommentIndex;
-    createCommentOptions = yield applyPublicationWordfilters(createCommentOptions, account);
+    createCommentOptions = yield applyPublicationWordfilters("comment", createCommentOptions, account);
     const storedCreateCommentOptions = normalizePublicationOptionsForStore(createCommentOptions);
     // make sure the options dont throw
     yield account.pkc.createComment(createCommentOptions);
@@ -976,7 +976,12 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
                 var _a, _b;
                 applyChallengeVerificationCommentUpdateToPublication(challengeVerification, activeComment);
                 publishCommentOptions.onChallengeVerification(challengeVerification, activeComment);
-                if (!challengeVerification.challengeSuccess && lastChallenge) {
+                // a verification with challengeErrors/reason is a terminal rejection of the publication
+                // (e.g. stale wordfilter rules); republishing the same signed content would loop forever,
+                // so fall through to the terminal path instead of retrying
+                if (!challengeVerification.challengeSuccess &&
+                    lastChallenge &&
+                    !hasTerminalChallengeVerificationError(challengeVerification)) {
                     // publish again automatically on fail
                     const timestamp = Math.floor(Date.now() / 1000);
                     createCommentOptions = Object.assign(Object.assign({}, createCommentOptions), { timestamp });
@@ -1160,6 +1165,7 @@ export const publishVote = (publishVoteOptions, accountName) => __awaiter(void 0
     delete createVoteOptions.onChallengeVerification;
     delete createVoteOptions.onError;
     delete createVoteOptions.onPublishingStateChange;
+    createVoteOptions = yield applyPublicationWordfilters("vote", createVoteOptions, account);
     const accountsState = accountsStore.getState();
     const accountCommentInfo = accountsState.commentCidsToAccountsComments[createVoteOptions.commentCid];
     const accountComment = accountCommentInfo
@@ -1176,7 +1182,10 @@ export const publishVote = (publishVoteOptions, accountName) => __awaiter(void 0
         }));
         vote.once("challengeverification", (challengeVerification) => __awaiter(void 0, void 0, void 0, function* () {
             publishVoteOptions.onChallengeVerification(challengeVerification, vote);
-            if (!challengeVerification.challengeSuccess && lastChallenge) {
+            // same terminal short-circuit as publishComment/publishCommentEdit: never retry a rejection
+            if (!challengeVerification.challengeSuccess &&
+                lastChallenge &&
+                !hasTerminalChallengeVerificationError(challengeVerification)) {
                 // publish again automatically on fail
                 createVoteOptions = Object.assign(Object.assign({}, createVoteOptions), { timestamp: Math.floor(Date.now() / 1000) });
                 vote = backfillPublicationCommunityAddress(yield account.pkc.createVote(createVoteOptions), createVoteOptions);
@@ -1222,7 +1231,7 @@ export const publishCommentEdit = (publishCommentEditOptions, accountName) => __
     delete createCommentEditOptions.onChallengeVerification;
     delete createCommentEditOptions.onError;
     delete createCommentEditOptions.onPublishingStateChange;
-    createCommentEditOptions = yield applyPublicationWordfilters(createCommentEditOptions, account);
+    createCommentEditOptions = yield applyPublicationWordfilters("commentEdit", createCommentEditOptions, account);
     const storedCreateCommentEditOptions = Object.assign(Object.assign({}, normalizePublicationOptionsForStore(createCommentEditOptions)), { clientId: uuid() });
     const storedCommentEdit = sanitizeStoredAccountEdit(storedCreateCommentEditOptions);
     let commentEdit = backfillPublicationCommunityAddress(yield account.pkc.createCommentEdit(createCommentEditOptions), createCommentEditOptions);
@@ -1311,6 +1320,7 @@ export const publishCommentModeration = (publishCommentModerationOptions, accoun
     delete createCommentModerationOptions.onChallengeVerification;
     delete createCommentModerationOptions.onError;
     delete createCommentModerationOptions.onPublishingStateChange;
+    createCommentModerationOptions = yield applyPublicationWordfilters("commentModeration", createCommentModerationOptions, account);
     const storedCreateCommentModerationOptions = Object.assign(Object.assign({}, normalizePublicationOptionsForStore(createCommentModerationOptions)), { clientId: uuid() });
     const storedCommentModeration = sanitizeStoredAccountEdit(storedCreateCommentModerationOptions);
     let commentModeration = backfillPublicationCommunityAddress(yield account.pkc.createCommentModeration(createCommentModerationOptions), createCommentModerationOptions);
@@ -1419,6 +1429,7 @@ export const publishCommunityEdit = (communityAddress, publishCommunityEditOptio
         communityAddress,
         communityEdit: communityEditOptions,
     });
+    createCommunityEditOptions = yield applyPublicationWordfilters("communityEdit", createCommunityEditOptions, account);
     const storedCreateCommunityEditOptions = Object.assign(Object.assign({}, normalizePublicationOptionsForStore(createCommunityEditOptions)), { clientId: uuid() });
     const storedCommunityEdit = sanitizeStoredAccountEdit(storedCreateCommunityEditOptions);
     let challengeSucceeded = false;
@@ -1446,9 +1457,10 @@ export const publishCommunityEdit = (communityAddress, publishCommunityEditOptio
     });
     // account is the owner of the community and can edit it locally, no need to publish
     if (accountOwnsCommunityLocally(account, communityAddress)) {
+        // use the wordfiltered edit so the applied community state matches the stored account edit
         yield communitiesStore
             .getState()
-            .editCommunity(communityAddress, communityEditOptions, account);
+            .editCommunity(communityAddress, createCommunityEditOptions.communityEdit, account);
         yield storePublishedCommunityEdit();
         // create fake success challenge verification for consistent behavior with remote community edit
         publishCommunityEditOptions.onChallengeVerification({ challengeSuccess: true });
