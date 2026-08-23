@@ -1352,7 +1352,14 @@ export const publishComment = async (
       async (challengeVerification: ChallengeVerification) => {
         applyChallengeVerificationCommentUpdateToPublication(challengeVerification, activeComment);
         publishCommentOptions.onChallengeVerification(challengeVerification, activeComment);
-        if (!challengeVerification.challengeSuccess && lastChallenge) {
+        // a verification with challengeErrors/reason is a terminal rejection of the publication
+        // (e.g. stale wordfilter rules); republishing the same signed content would loop forever,
+        // so fall through to the terminal path instead of retrying
+        if (
+          !challengeVerification.challengeSuccess &&
+          lastChallenge &&
+          !hasTerminalChallengeVerificationError(challengeVerification)
+        ) {
           // publish again automatically on fail
           const timestamp = Math.floor(Date.now() / 1000);
           createCommentOptions = { ...createCommentOptions, timestamp };
@@ -1640,7 +1647,12 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
     });
     vote.once("challengeverification", async (challengeVerification: ChallengeVerification) => {
       publishVoteOptions.onChallengeVerification(challengeVerification, vote);
-      if (!challengeVerification.challengeSuccess && lastChallenge) {
+      // same terminal short-circuit as publishComment/publishCommentEdit: never retry a rejection
+      if (
+        !challengeVerification.challengeSuccess &&
+        lastChallenge &&
+        !hasTerminalChallengeVerificationError(challengeVerification)
+      ) {
         // publish again automatically on fail
         createVoteOptions = { ...createVoteOptions, timestamp: Math.floor(Date.now() / 1000) };
         vote = backfillPublicationCommunityAddress(
