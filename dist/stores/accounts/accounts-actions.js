@@ -20,7 +20,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 import accountsStore, { listeners } from "./accounts-store.js";
-import communitiesStore from "../communities/index.js";
+import communitiesStore, { isRetriableCommunityLoadError } from "../communities/index.js";
 import accountsDatabase from "./accounts-database.js";
 import accountGenerator from "./account-generator.js";
 import Logger from "@pkcprotocol/pkc-logger";
@@ -73,13 +73,17 @@ const loadPublicationCommunity = (communityAddress, account) => __awaiter(void 0
             const onError = (error) => {
                 if (settled)
                     return;
+                // pkc-js emits an error on every failed fetch attempt while it keeps retrying;
+                // keep waiting for a later update and only fail on non-retriable errors or the timeout
+                if (isRetriableCommunityLoadError(error))
+                    return;
                 settled = true;
                 cleanup();
                 reject(error);
             };
             timeout = setTimeout(() => onError(new Error(`timed out loading challenge settings for community '${communityAddress}'`)), PUBLICATION_COMMUNITY_LOAD_TIMEOUT_MS);
             community.once("update", onUpdate);
-            community.once("error", onError);
+            community.on("error", onError);
             void Promise.resolve()
                 .then(() => community.update())
                 .then(() => {

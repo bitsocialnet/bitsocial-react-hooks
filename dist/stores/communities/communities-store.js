@@ -98,7 +98,7 @@ const clearStoredCommunityErrors = (state, communityKey) => {
     delete nextErrors[communityKey];
     return nextErrors;
 };
-const isRetriableCommunityLoadError = (error) => {
+export const isRetriableCommunityLoadError = (error) => {
     const details = error.details;
     return Boolean(details &&
         typeof details === "object" &&
