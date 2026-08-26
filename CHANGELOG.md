@@ -1,3 +1,12 @@
+## [0.1.41](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.40...v0.1.41) (2026-08-26)
+
+
+### Bug Fixes
+
+* **deps:** replace deprecated pkc-js release ([#105](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/105)) ([c4814bd](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/c4814bd97bed17d4cc1139f5575d98bf2b0f81eb))
+
+
+
 ## [0.1.40](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.39...v0.1.40) (2026-08-23)
 
 
