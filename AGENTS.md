@@ -153,9 +153,14 @@ src/
 ### Verification Rules
 
 - Never mark work complete without verification.
+- Treat the contributor machine as a shared, resource-constrained environment. Before a CPU- or memory-intensive command, inspect existing repo workloads and stop only stale processes that the current agent owns.
+- Run heavyweight work sequentially across the whole task, including delegated agents: dependency installs, full unit or coverage runs, production builds, and mock or real-browser e2e verification must not overlap.
+- On contributor machines, cap agent-invoked unit Vitest runs at two workers. Use `corepack yarn exec vitest run --config config/vitest.config.js --maxWorkers=2` for the full unit suite, or add test paths for a targeted run. Coverage and e2e configurations already use one worker; never override those limits upward. CI may keep its configured worker count.
+- Prefer the narrowest reliable check first. When a full verification pass is required, finish each heavyweight command before starting the next; parallelize only lightweight read-only checks.
+- Reuse an already-running compatible test server for the same worktree when safe. Otherwise record every process/session you start and stop it on every exit path as soon as it is no longer needed. Never start duplicate servers or stop a process whose owner or purpose is unclear.
 - Run `nvm install && nvm use`, then `corepack enable` once per machine before using the commands below.
 - After code changes, run: `yarn build`.
-- After test changes, run: `yarn test`.
+- After test changes, run the affected tests with the two-worker Vitest command above; run the full unit suite when the risk or repository workflow requires it.
 - Do not commit local `dist/` rebuild output. `dist/` is CI-managed in this repo; if verification dirties tracked files there, run `git restore --worktree -- dist` before committing.
 - Keep test coverage as high as possible when adding or modifying code; every feature or bug fix in `src/hooks/` or `src/stores/` must include or adjust tests covering the changed behavior. Coverage is advisory, not a CI gate: use the coverage run (and `node scripts/coverage-triage.mjs` to print uncovered hooks/stores lines) to find gaps in the code you touched, and do not invent a repo-wide coverage threshold. `scripts/verify-hooks-stores-coverage.mjs` is a strict opt-in check that exits non-zero below 100%; a failure there on untouched files is a known pre-existing condition, not a blocker.
 - Before committing, run: `yarn prettier` to format.
@@ -191,7 +196,7 @@ src/
 ## Core SHOULD Rules
 
 - Keep context lean: delegate heavy/verbose tasks to subprocesses when available.
-- For complex work, parallelize independent checks.
+- For complex work, parallelize independent lightweight checks. Keep CPU- or memory-intensive commands sequential.
 - Use `yarn knip` as an advisory manifest-hygiene check when changing dependencies or adding/removing imports. It is not a required verification gate.
 - When proposing or implementing meaningful code changes, include both:
   - a Conventional Commit title suggestion
@@ -208,7 +213,7 @@ yarn install
 yarn build                # TypeScript compilation
 yarn knip                 # Advisory dependency/binary manifest audit
 yarn knip:full            # Exploratory full unused files/exports scan (non-blocking)
-yarn test                 # Vitest unit tests
+corepack yarn exec vitest run --config config/vitest.config.js --maxWorkers=2 # Vitest unit tests
 vitest run --config config/vitest.config.js --coverage.enabled --coverage.provider=istanbul --coverage.reporter=text --coverage.reporter=json-summary --coverage.reportsDirectory=./coverage
 node scripts/coverage-triage.mjs # Advisory: print uncovered hooks/stores lines after a coverage run (not a CI gate)
 yarn test:e2e:mock        # E2E tests with mock backend
