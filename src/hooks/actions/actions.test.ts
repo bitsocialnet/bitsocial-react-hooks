@@ -576,6 +576,26 @@ describe("actions", () => {
       expect(exported.account.savedComments).toEqual(["comment-2", "comment-1"]);
       addAccountSpy.mockRestore();
     });
+
+    test("saves and unsaves a named non-active account", async () => {
+      rendered.rerender({ commentCid: "active-comment" });
+      await waitFor(() => rendered.result.current.state === "ready");
+      const accountsActions = useAccountsStore.getState().accountsActions;
+      const activeAccountId = useAccountsStore.getState().activeAccountId;
+
+      await accountsActions.createAccount("Saved Account");
+      expect(useAccountsStore.getState().activeAccountId).toBe(activeAccountId);
+
+      await accountsActions.saveComment("named-comment", "Saved Account");
+      const namedSaved = JSON.parse(await accountsActions.exportAccount("Saved Account"));
+      const activeSaved = JSON.parse(await accountsActions.exportAccount());
+      expect(namedSaved.account.savedComments).toEqual(["named-comment"]);
+      expect(activeSaved.account.savedComments).toEqual([]);
+
+      await accountsActions.unsaveComment("named-comment", "Saved Account");
+      const namedUnsaved = JSON.parse(await accountsActions.exportAccount("Saved Account"));
+      expect(namedUnsaved.account.savedComments).toEqual([]);
+    });
   });
 
   describe("useCreateCommunity", () => {

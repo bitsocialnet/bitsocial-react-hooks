@@ -1162,7 +1162,7 @@ const updateSavedComments = async (
       const updatedAccounts = { ...latestAccounts, [accountId]: mergedAccount };
       const actionName = shouldSave ? "saveComment" : "unsaveComment";
       log(`accountsActions.${actionName}`, {
-        account: mergedAccount,
+        accountId,
         accountName,
         commentCid,
       });

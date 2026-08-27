@@ -371,6 +371,17 @@ describe("accounts-database", () => {
       expect(accounts["v5-existing"].savedComments).toEqual(["comment-1"]);
       expect(accounts["v5-missing"].version).toBe(6);
       expect(accounts["v5-existing"].version).toBe(6);
+
+      const exportedMissing = JSON.parse(
+        await accountsDatabase.getExportedAccountJson("v5-missing"),
+      );
+      const exportedExisting = JSON.parse(
+        await accountsDatabase.getExportedAccountJson("v5-existing"),
+      );
+      expect(exportedMissing.account.version).toBe(6);
+      expect(exportedMissing.account.savedComments).toEqual([]);
+      expect(exportedExisting.account.version).toBe(6);
+      expect(exportedExisting.account.savedComments).toEqual(["comment-1"]);
     });
   });
 
