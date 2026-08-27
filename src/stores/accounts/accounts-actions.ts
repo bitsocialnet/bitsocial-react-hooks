@@ -1108,6 +1108,73 @@ export const unblockCid = async (cid: string, accountName?: string) => {
   accountsStore.setState({ accounts: updatedAccounts });
 };
 
+export const saveComment = async (commentCid: string, accountName?: string) => {
+  const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
+  assert(
+    commentCid && typeof commentCid === "string",
+    `accountsActions.saveComment invalid commentCid '${commentCid}'`,
+  );
+  assert(
+    accounts && accountNamesToAccountIds && activeAccountId,
+    `can't use accountsStore.accountActions before initialized`,
+  );
+  let account = accounts[activeAccountId];
+  if (accountName) {
+    const accountId = accountNamesToAccountIds[accountName];
+    account = accounts[accountId];
+  }
+  assert(
+    account?.id,
+    `accountsActions.saveComment account.id '${account?.id}' doesn't exist, activeAccountId '${activeAccountId}' accountName '${accountName}'`,
+  );
+
+  const savedComments: string[] = [...account.savedComments];
+  if (savedComments.includes(commentCid)) {
+    throw Error(`account '${account.id}' already saved comment '${commentCid}'`);
+  }
+  savedComments.unshift(commentCid);
+
+  const updatedAccount: Account = { ...account, savedComments };
+  await accountsDatabase.addAccount(updatedAccount);
+  const updatedAccounts = { ...accounts, [updatedAccount.id]: updatedAccount };
+  log("accountsActions.saveComment", { account: updatedAccount, accountName, commentCid });
+  accountsStore.setState({ accounts: updatedAccounts });
+};
+
+export const unsaveComment = async (commentCid: string, accountName?: string) => {
+  const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
+  assert(
+    commentCid && typeof commentCid === "string",
+    `accountsActions.unsaveComment invalid commentCid '${commentCid}'`,
+  );
+  assert(
+    accounts && accountNamesToAccountIds && activeAccountId,
+    `can't use accountsStore.accountActions before initialized`,
+  );
+  let account = accounts[activeAccountId];
+  if (accountName) {
+    const accountId = accountNamesToAccountIds[accountName];
+    account = accounts[accountId];
+  }
+  assert(
+    account?.id,
+    `accountsActions.unsaveComment account.id '${account?.id}' doesn't exist, activeAccountId '${activeAccountId}' accountName '${accountName}'`,
+  );
+
+  if (!account.savedComments.includes(commentCid)) {
+    throw Error(`account '${account.id}' already unsaved comment '${commentCid}'`);
+  }
+  const savedComments: string[] = account.savedComments.filter(
+    (savedCommentCid: string) => savedCommentCid !== commentCid,
+  );
+
+  const updatedAccount: Account = { ...account, savedComments };
+  await accountsDatabase.addAccount(updatedAccount);
+  const updatedAccounts = { ...accounts, [updatedAccount.id]: updatedAccount };
+  log("accountsActions.unsaveComment", { account: updatedAccount, accountName, commentCid });
+  accountsStore.setState({ accounts: updatedAccounts });
+};
+
 export const publishComment = async (
   publishCommentOptions: PublishCommentOptions,
   accountName?: string,

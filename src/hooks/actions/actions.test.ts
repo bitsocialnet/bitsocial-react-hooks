@@ -8,12 +8,14 @@ import {
   usePublishCommunityEdit,
   usePublishVote,
   useBlock,
+  useSaveComment,
   useAccount,
   useCreateCommunity,
   useExportCommunity,
   setPkcJs,
   useAccountVote,
   useAccountComments,
+  exportAccount,
 } from "../..";
 import {
   handlePublishErrorWhenAbandoned,
@@ -33,6 +35,7 @@ import PkcJsMock, {
   debugPkcJsMock,
 } from "../../lib/pkc-js/pkc-js-mock";
 import useAccountsStore from "../../stores/accounts";
+import accountsDatabase from "../../stores/accounts/accounts-database";
 
 describe("actions", () => {
   describe("handlePublishErrorWhenAbandoned", () => {
@@ -456,6 +459,92 @@ describe("actions", () => {
       });
       expect(rendered.result.current[0].errors.length).toBe(1);
       expect(onError).toHaveBeenCalledWith(expect.any(Error));
+    });
+  });
+
+  describe("useSaveComment", () => {
+    let rendered: any, waitFor: Function;
+
+    beforeEach(async () => {
+      rendered = renderHook<any, any>((options = {}) => useSaveComment(options));
+      waitFor = testUtils.createWaitFor(rendered);
+    });
+
+    afterEach(async () => {
+      await testUtils.resetDatabasesAndStores();
+    });
+
+    test("saves, unsaves, orders, exports, and persists comments", async () => {
+      expect(rendered.result.current.state).toBe("initializing");
+      expect(rendered.result.current.saved).toBe(undefined);
+
+      rendered.rerender({ commentCid: "comment-1" });
+      await waitFor(() => rendered.result.current.state === "ready");
+      expect(rendered.result.current.saved).toBe(false);
+
+      await act(async () => {
+        await rendered.result.current.saveComment();
+      });
+      await waitFor(() => rendered.result.current.saved === true);
+
+      rendered.rerender({ commentCid: "comment-2" });
+      await act(async () => {
+        await rendered.result.current.saveComment();
+      });
+      await waitFor(() => rendered.result.current.saved === true);
+
+      const exported = JSON.parse(await exportAccount());
+      expect(exported.account.savedComments).toEqual(["comment-2", "comment-1"]);
+
+      await act(async () => {
+        await rendered.result.current.unsaveComment();
+      });
+      await waitFor(() => rendered.result.current.saved === false);
+
+      await testUtils.resetStores();
+      const persisted = renderHook(() => useSaveComment({ commentCid: "comment-1" }));
+      const waitForPersisted = testUtils.createWaitFor(persisted);
+      await waitForPersisted(() => persisted.result.current.state === "ready");
+      expect(persisted.result.current.saved).toBe(true);
+    });
+
+    test("reports duplicate save and unsave errors", async () => {
+      const onError = vi.fn();
+      rendered.rerender({ commentCid: "comment-1", onError });
+      await waitFor(() => rendered.result.current.state === "ready");
+
+      await act(async () => {
+        await rendered.result.current.saveComment();
+        await rendered.result.current.saveComment();
+      });
+      expect(rendered.result.current.errors).toHaveLength(1);
+      expect(onError).toHaveBeenCalledWith(expect.any(Error));
+
+      await act(async () => {
+        await rendered.result.current.unsaveComment();
+        await rendered.result.current.unsaveComment();
+      });
+      expect(rendered.result.current.errors).toHaveLength(2);
+      expect(onError).toHaveBeenCalledTimes(2);
+    });
+
+    test("reports persistence errors without changing saved state", async () => {
+      const onError = vi.fn();
+      const persistenceError = new Error("failed to persist saved comments");
+      rendered.rerender({ commentCid: "comment-1", onError });
+      await waitFor(() => rendered.result.current.state === "ready");
+
+      const addAccountSpy = vi
+        .spyOn(accountsDatabase, "addAccount")
+        .mockRejectedValueOnce(persistenceError);
+      await act(async () => {
+        await rendered.result.current.saveComment();
+      });
+
+      expect(rendered.result.current.saved).toBe(false);
+      expect(rendered.result.current.error).toBe(persistenceError);
+      expect(onError).toHaveBeenCalledWith(persistenceError);
+      addAccountSpy.mockRestore();
     });
   });
 

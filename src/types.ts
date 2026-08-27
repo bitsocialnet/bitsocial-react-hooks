@@ -541,6 +541,16 @@ export interface UseBlockResult extends Result {
   unblock(): Promise<void>;
 }
 
+// useSaveComment(options): result
+export interface UseSaveCommentOptions extends Options {
+  commentCid?: string;
+}
+export interface UseSaveCommentResult extends Result {
+  saved: boolean | undefined;
+  saveComment(): Promise<void>;
+  unsaveComment(): Promise<void>;
+}
+
 // useNotify(options): result
 // export interface UseNotifyOptions extends Options {
 //   communityAddress?: string

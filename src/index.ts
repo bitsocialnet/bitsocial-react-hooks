@@ -49,6 +49,7 @@ import {
 import {
   useSubscribe,
   useBlock,
+  useSaveComment,
   usePublishComment,
   usePublishVote,
   useCreateCommunity,
@@ -141,6 +142,7 @@ export {
   // actions
   useSubscribe,
   useBlock,
+  useSaveComment,
   usePublishComment,
   usePublishVote,
   usePublishCommentEdit,
@@ -222,6 +224,7 @@ const hooks = {
   // actions
   useSubscribe,
   useBlock,
+  useSaveComment,
   usePublishComment,
   usePublishVote,
   usePublishCommentEdit,

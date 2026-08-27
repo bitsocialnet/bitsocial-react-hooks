@@ -142,7 +142,7 @@ const getAccounts = async (accountIds: string[]) => {
   return getAccountsFromStoredAccounts(storedAccounts);
 };
 
-const accountVersion = 5;
+const accountVersion = 6;
 const migrateAccount = async (account: any) => {
   account = normalizeAccountProtocolConfig(account);
 
@@ -189,6 +189,13 @@ const migrateAccount = async (account: any) => {
   if (version === 4) {
     version++;
     account = normalizeAccountProtocolConfig(account);
+  }
+
+  if (version === 5) {
+    version++;
+    if (!Array.isArray(account.savedComments)) {
+      account.savedComments = [];
+    }
   }
 
   account.version = accountVersion;

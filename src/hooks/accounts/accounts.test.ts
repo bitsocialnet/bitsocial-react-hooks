@@ -71,6 +71,7 @@ describe("accounts", () => {
       expect(Array.isArray(account.subscriptions)).toBe(true);
       expect(account.blockedAddresses && typeof account.blockedAddresses === "object").toBe(true);
       expect(account.blockedCids && typeof account.blockedCids === "object").toBe(true);
+      expect(Array.isArray(account.savedComments)).toBe(true);
       expect(account.pkc && typeof account.pkc === "object").toBe(true);
       expect(account.pkcOptions && typeof account.pkcOptions === "object").toBe(true);
       expect(account.pkcOptions.libp2pJsClientsOptions).toEqual([{ key: "libp2pjs" }]);

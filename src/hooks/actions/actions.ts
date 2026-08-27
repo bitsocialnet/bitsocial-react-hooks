@@ -48,6 +48,8 @@ import type {
   UsePublishCommentResult,
   UseBlockOptions,
   UseBlockResult,
+  UseSaveCommentOptions,
+  UseSaveCommentResult,
   UseCreateCommunityOptions,
   UseCreateCommunityResult,
   UseExportCommunityOptions,
@@ -196,6 +198,54 @@ export function useBlock(options?: UseBlockOptions): UseBlockResult {
       errors,
     }),
     [state, blocked, errors, address, accountName],
+  );
+}
+
+export function useSaveComment(options?: UseSaveCommentOptions): UseSaveCommentResult {
+  assert(
+    !options || typeof options === "object",
+    `useSaveComment options argument '${options}' not an object`,
+  );
+  const { commentCid, accountName, onError } = options || {};
+  const account = useAccount({ accountName });
+  const accountsActions = useAccountsStore((state) => state.accountsActions);
+  const [errors, setErrors] = useState<Error[]>([]);
+  let state = "initializing";
+  let saved: boolean | undefined;
+
+  if (account && commentCid) {
+    state = "ready";
+    saved = account.savedComments.includes(commentCid);
+  }
+
+  const saveComment = async () => {
+    try {
+      await accountsActions.saveComment(commentCid, accountName);
+    } catch (e: any) {
+      setErrors((errors) => [...errors, e]);
+      onError?.(e);
+    }
+  };
+
+  const unsaveComment = async () => {
+    try {
+      await accountsActions.unsaveComment(commentCid, accountName);
+    } catch (e: any) {
+      setErrors((errors) => [...errors, e]);
+      onError?.(e);
+    }
+  };
+
+  return useMemo(
+    () => ({
+      saved,
+      saveComment,
+      unsaveComment,
+      state,
+      error: errors[errors.length - 1],
+      errors,
+    }),
+    [state, saved, errors, commentCid, accountName, onError],
   );
 }
 
