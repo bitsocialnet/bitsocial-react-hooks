@@ -205,6 +205,7 @@ Feed and reply sort names are defined by each community record, not by a fixed h
 ```
 useSubscribe({communityAddress: string}): {subscribed: boolean | undefined, subscribe: Function, unsubscribe: Function}
 useBlock({address?: string, cid?: string}): {blocked: boolean | undefined, block: Function, unblock: Function}
+useSaveComment({commentCid: string}): {saved: boolean | undefined, saveComment: Function, unsaveComment: Function}
 usePublishComment(options: UsePublishCommentOptions): {index: number, abandonPublish: () => Promise<void>, ...UsePublishCommentResult}
 usePublishVote(options: UsePublishVoteOptions): UsePublishVoteResult
 usePublishCommentEdit(options: UsePublishCommentEditOptions): UsePublishCommentEditResult
@@ -1212,6 +1213,20 @@ block();
 
 // to unblock
 unblock();
+```
+
+#### Save a comment
+
+Saved comments are kept in the account's `savedComments` list and are included when the account is exported.
+
+```jsx
+const { saved, saveComment, unsaveComment } = useSaveComment({ commentCid: "Qm..." });
+
+if (saved) {
+  await unsaveComment();
+} else {
+  await saveComment();
+}
 ```
 
 #### (Desktop only) Create a community
@@ -2907,7 +2922,7 @@ Account {
   blockedAddresses: {[address: string]: boolean}, // hide address from feed and notifications
   blockedCids: {[cid: string]: boolean}, // hide a specific comment cid from feed and notifications
   limitedAddresses: {[address: string]: number}, // limit how many times per feed page an address can appear, e.g. 1 = 100%, 0.1 = 10%, 0.001 = 0.1%
-  savedComments: string[], // save a list of comments for later
+  savedComments: string[], // saved comment cids, newest saved first
   karma: Karma
   unreadNotificationCount: number
   communities: {[communityAddress: string]: AccountCommunity} // the communities moderated or created by the user
@@ -3263,6 +3278,15 @@ Avoid GitHub MCP and browser MCP servers for this project because they add signi
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/CHANGELOG.md
 
 ```markdown
+## [0.1.41](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.40...v0.1.41) (2026-08-26)
+
+
+### Bug Fixes
+
+* **deps:** replace deprecated pkc-js release ([#105](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/105)) ([c4814bd](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/c4814bd97bed17d4cc1139f5575d98bf2b0f81eb))
+
+
+
 ## [0.1.40](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.39...v0.1.40) (2026-08-23)
 
 

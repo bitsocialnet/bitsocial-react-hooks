@@ -106,8 +106,13 @@ const migrate = async () => {
 const getAccountsFromStoredAccounts = async (storedAccounts: Accounts) => {
   const accounts: Accounts = {};
   for (const [accountId, storedAccount] of Object.entries(storedAccounts)) {
+    const storedVersion = storedAccount.version || 1;
+    const migratedAccount = await migrateAccount(storedAccount);
+    if (storedVersion !== migratedAccount.version) {
+      await accountsDatabase.setItem(accountId, migratedAccount);
+    }
     accounts[accountId] = normalizeAccountProtocolConfig(
-      await migrateAccount(storedAccount),
+      migratedAccount,
       getDefaultChainProviders(),
     );
     // protocol options aren't saved to database if they are default
@@ -142,7 +147,7 @@ const getAccounts = async (accountIds: string[]) => {
   return getAccountsFromStoredAccounts(storedAccounts);
 };
 
-const accountVersion = 5;
+const accountVersion = 6;
 const migrateAccount = async (account: any) => {
   account = normalizeAccountProtocolConfig(account);
 
@@ -189,6 +194,13 @@ const migrateAccount = async (account: any) => {
   if (version === 4) {
     version++;
     account = normalizeAccountProtocolConfig(account);
+  }
+
+  if (version === 5) {
+    version++;
+    if (!Array.isArray(account.savedComments)) {
+      account.savedComments = [];
+    }
   }
 
   account.version = accountVersion;

@@ -175,6 +175,7 @@ Feed and reply sort names are defined by each community record, not by a fixed h
 ```
 useSubscribe({communityAddress: string}): {subscribed: boolean | undefined, subscribe: Function, unsubscribe: Function}
 useBlock({address?: string, cid?: string}): {blocked: boolean | undefined, block: Function, unblock: Function}
+useSaveComment({commentCid: string}): {saved: boolean | undefined, saveComment: Function, unsaveComment: Function}
 usePublishComment(options: UsePublishCommentOptions): {index: number, abandonPublish: () => Promise<void>, ...UsePublishCommentResult}
 usePublishVote(options: UsePublishVoteOptions): UsePublishVoteResult
 usePublishCommentEdit(options: UsePublishCommentEditOptions): UsePublishCommentEditResult
@@ -1182,6 +1183,20 @@ block();
 
 // to unblock
 unblock();
+```
+
+#### Save a comment
+
+Saved comments are kept in the account's `savedComments` list and are included when the account is exported.
+
+```jsx
+const { saved, saveComment, unsaveComment } = useSaveComment({ commentCid: "Qm..." });
+
+if (saved) {
+  await unsaveComment();
+} else {
+  await saveComment();
+}
 ```
 
 #### (Desktop only) Create a community

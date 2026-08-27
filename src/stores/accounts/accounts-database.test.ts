@@ -21,7 +21,7 @@ describe("accounts-database", () => {
   const makeAccount = (overrides: any = {}) => ({
     id: "acc-1",
     name: "Test Account",
-    version: 5,
+    version: 6,
     author: {
       address: "address",
       wallets: { eth: undefined },
@@ -32,6 +32,7 @@ describe("accounts-database", () => {
     subscriptions: [],
     blockedAddresses: {},
     blockedCids: {},
+    savedComments: [],
     communities: {},
     mediaIpfsGatewayUrl: "https://ipfs.io",
     ...overrides,
@@ -133,7 +134,7 @@ describe("accounts-database", () => {
         "http://pubsub:5001",
       ]);
       expect(accounts["v1-acc"].pkcOptions.ipfsHttpClientsOptions).toBeUndefined();
-      expect(accounts["v1-acc"].version).toBe(5);
+      expect(accounts["v1-acc"].version).toBe(6);
     });
 
     test("v1 migration when pkcOptions absent (branch 111)", async () => {
@@ -151,7 +152,7 @@ describe("accounts-database", () => {
         V1NoOpts: "v1-no-opts",
       });
       const accounts = await accountsDatabase.getAccounts(["v1-no-opts"]);
-      expect(accounts["v1-no-opts"].version).toBe(5);
+      expect(accounts["v1-no-opts"].version).toBe(6);
     });
 
     test("migrateAccount when account.version is falsy uses 1 (branch 111)", async () => {
@@ -168,7 +169,7 @@ describe("accounts-database", () => {
         NoVer: "no-ver-acc",
       });
       const accounts = await accountsDatabase.getAccounts(["no-ver-acc"]);
-      expect(accounts["no-ver-acc"].version).toBe(5);
+      expect(accounts["no-ver-acc"].version).toBe(6);
     });
 
     test("v1 migration skips when ipfsHttpClientsOptions absent", async () => {
@@ -258,7 +259,7 @@ describe("accounts-database", () => {
       const accounts = await accountsDatabase.getAccounts(["v2-acc"]);
       expect(accounts["v2-acc"].author.wallets).toBeDefined();
       expect(accounts["v2-acc"].author.wallets.sol).toBeUndefined();
-      expect(accounts["v2-acc"].version).toBe(5);
+      expect(accounts["v2-acc"].version).toBe(6);
     });
 
     test("v3 regenerates only eth wallet when timestamp is in ms", async () => {
@@ -285,7 +286,7 @@ describe("accounts-database", () => {
       const accounts = await accountsDatabase.getAccounts(["v3-acc"]);
       expect(accounts["v3-acc"].author.wallets.eth).toBeUndefined();
       expect(accounts["v3-acc"].author.wallets.sol.timestamp).toBe(1e13);
-      expect(accounts["v3-acc"].version).toBe(5);
+      expect(accounts["v3-acc"].version).toBe(6);
     });
 
     test("v3 migration skips when wallet timestamps already in seconds", async () => {
@@ -341,7 +342,7 @@ describe("accounts-database", () => {
         V4ChainProviders: "v4-chain-providers",
       });
       const accounts = await accountsDatabase.getAccounts(["v4-chain-providers"]);
-      expect(accounts["v4-chain-providers"].version).toBe(5);
+      expect(accounts["v4-chain-providers"].version).toBe(6);
       expect(accounts["v4-chain-providers"].chainProviders).toEqual({
         eth: { urls: ["https://custom.eth"], chainId: 1 },
       });
@@ -350,6 +351,37 @@ describe("accounts-database", () => {
       });
       expect(accounts["v4-chain-providers"].pkcOptions.chainProviders).toBeUndefined();
       expect(accounts["v4-chain-providers"].pkcOptions.nameResolversChainProviders).toBeUndefined();
+    });
+
+    test("v5 adds the saved comments list and preserves an existing list", async () => {
+      const missingSavedComments = makeAccount({ id: "v5-missing", version: 5 });
+      delete missingSavedComments.savedComments;
+      const existingSavedComments = makeAccount({
+        id: "v5-existing",
+        name: "Existing",
+        version: 5,
+        savedComments: ["comment-1"],
+      });
+      await accountsDatabase.accountsDatabase.setItem("v5-missing", missingSavedComments);
+      await accountsDatabase.accountsDatabase.setItem("v5-existing", existingSavedComments);
+
+      const accounts = await accountsDatabase.getAccounts(["v5-missing", "v5-existing"]);
+
+      expect(accounts["v5-missing"].savedComments).toEqual([]);
+      expect(accounts["v5-existing"].savedComments).toEqual(["comment-1"]);
+      expect(accounts["v5-missing"].version).toBe(6);
+      expect(accounts["v5-existing"].version).toBe(6);
+
+      const exportedMissing = JSON.parse(
+        await accountsDatabase.getExportedAccountJson("v5-missing"),
+      );
+      const exportedExisting = JSON.parse(
+        await accountsDatabase.getExportedAccountJson("v5-existing"),
+      );
+      expect(exportedMissing.account.version).toBe(6);
+      expect(exportedMissing.account.savedComments).toEqual([]);
+      expect(exportedExisting.account.version).toBe(6);
+      expect(exportedExisting.account.savedComments).toEqual(["comment-1"]);
     });
   });
 

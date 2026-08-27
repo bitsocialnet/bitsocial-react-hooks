@@ -1577,6 +1577,7 @@ describe("accounts-actions", () => {
       delete exported.account.subscriptions;
       delete exported.account.blockedAddresses;
       delete exported.account.blockedCids;
+      delete exported.account.savedComments;
       const generateDefaultAccountSpy = vi.spyOn(accountGenerator, "generateDefaultAccount");
       const importAccountHistorySpy = vi.spyOn(accountsDatabase, "importAccountHistory");
       try {
@@ -1593,6 +1594,7 @@ describe("accounts-actions", () => {
         expect(importedAccount.subscriptions).toEqual([]);
         expect(importedAccount.blockedAddresses).toEqual({});
         expect(importedAccount.blockedCids).toEqual({});
+        expect(importedAccount.savedComments).toEqual([]);
         expect(importedAccount.pkc).toBeDefined();
       } finally {
         generateDefaultAccountSpy.mockRestore();

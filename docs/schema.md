@@ -22,7 +22,7 @@ Account {
   blockedAddresses: {[address: string]: boolean}, // hide address from feed and notifications
   blockedCids: {[cid: string]: boolean}, // hide a specific comment cid from feed and notifications
   limitedAddresses: {[address: string]: number}, // limit how many times per feed page an address can appear, e.g. 1 = 100%, 0.1 = 10%, 0.001 = 0.1%
-  savedComments: string[], // save a list of comments for later
+  savedComments: string[], // saved comment cids, newest saved first
   karma: Karma
   unreadNotificationCount: number
   communities: {[communityAddress: string]: AccountCommunity} // the communities moderated or created by the user
