@@ -85,7 +85,12 @@ const migrate = () => __awaiter(void 0, void 0, void 0, function* () {
 const getAccountsFromStoredAccounts = (storedAccounts) => __awaiter(void 0, void 0, void 0, function* () {
     const accounts = {};
     for (const [accountId, storedAccount] of Object.entries(storedAccounts)) {
-        accounts[accountId] = normalizeAccountProtocolConfig(yield migrateAccount(storedAccount), getDefaultChainProviders());
+        const storedVersion = storedAccount.version || 1;
+        const migratedAccount = yield migrateAccount(storedAccount);
+        if (storedVersion !== migratedAccount.version) {
+            yield accountsDatabase.setItem(accountId, migratedAccount);
+        }
+        accounts[accountId] = normalizeAccountProtocolConfig(migratedAccount, getDefaultChainProviders());
         // protocol options aren't saved to database if they are default
         if (!accounts[accountId].pkcOptions) {
             accounts[accountId].pkcOptions = getDefaultPkcOptions();
@@ -109,7 +114,7 @@ const getAccounts = (accountIds) => __awaiter(void 0, void 0, void 0, function* 
     }
     return getAccountsFromStoredAccounts(storedAccounts);
 });
-const accountVersion = 5;
+const accountVersion = 6;
 const migrateAccount = (account) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c, _d, _e;
     account = normalizeAccountProtocolConfig(account);
@@ -146,6 +151,12 @@ const migrateAccount = (account) => __awaiter(void 0, void 0, void 0, function* 
     if (version === 4) {
         version++;
         account = normalizeAccountProtocolConfig(account);
+    }
+    if (version === 5) {
+        version++;
+        if (!Array.isArray(account.savedComments)) {
+            account.savedComments = [];
+        }
     }
     account.version = accountVersion;
     return account;

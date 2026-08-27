@@ -100,6 +100,7 @@ export const getDefaultAccountFields = () => ({
     subscriptions: [],
     blockedAddresses: {},
     blockedCids: {},
+    savedComments: [],
     communities: {},
     mediaIpfsGatewayUrl: defaultMediaIpfsGatewayUrl,
 });

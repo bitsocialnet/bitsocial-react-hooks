@@ -16,6 +16,7 @@ export declare const getDefaultAccountFields: () => {
     subscriptions: never[];
     blockedAddresses: {};
     blockedCids: {};
+    savedComments: never[];
     communities: {};
     mediaIpfsGatewayUrl: string;
 };
@@ -27,6 +28,7 @@ declare const accountGenerator: {
         subscriptions: never[];
         blockedAddresses: {};
         blockedCids: {};
+        savedComments: never[];
         mediaIpfsGatewayUrl: string;
         id: string;
         version: number;
@@ -55,6 +57,7 @@ declare const accountGenerator: {
         subscriptions: never[];
         blockedAddresses: {};
         blockedCids: {};
+        savedComments: never[];
         communities: {};
         mediaIpfsGatewayUrl: string;
     };

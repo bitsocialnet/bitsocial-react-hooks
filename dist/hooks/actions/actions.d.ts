@@ -7,9 +7,10 @@ export declare function handlePublishErrorWhenAbandoned(activeRequestIdRef: {
 }, requestId: number, error: Error, setErrors: Dispatch<SetStateAction<Error[]>>, onError?: (e: Error) => void): void;
 /** For usePublishVote catch. Exported for coverage. */
 export declare function handlePublishVoteError(error: Error, setErrors: Dispatch<SetStateAction<Error[]>>, onError?: (e: Error) => void): void;
-import type { UseSubscribeOptions, UseSubscribeResult, UsePublishCommentOptions, UsePublishCommentResult, UseBlockOptions, UseBlockResult, UseCreateCommunityOptions, UseCreateCommunityResult, UseExportCommunityOptions, UseExportCommunityResult, UsePublishVoteOptions, UsePublishVoteResult, UsePublishCommentEditOptions, UsePublishCommentEditResult, UsePublishCommentModerationOptions, UsePublishCommentModerationResult, UsePublishCommunityEditOptions, UsePublishCommunityEditResult } from "../../types.js";
+import type { UseSubscribeOptions, UseSubscribeResult, UsePublishCommentOptions, UsePublishCommentResult, UseBlockOptions, UseBlockResult, UseSaveCommentOptions, UseSaveCommentResult, UseCreateCommunityOptions, UseCreateCommunityResult, UseExportCommunityOptions, UseExportCommunityResult, UsePublishVoteOptions, UsePublishVoteResult, UsePublishCommentEditOptions, UsePublishCommentEditResult, UsePublishCommentModerationOptions, UsePublishCommentModerationResult, UsePublishCommunityEditOptions, UsePublishCommunityEditResult } from "../../types.js";
 export declare function useSubscribe(options?: UseSubscribeOptions): UseSubscribeResult;
 export declare function useBlock(options?: UseBlockOptions): UseBlockResult;
+export declare function useSaveComment(options?: UseSaveCommentOptions): UseSaveCommentResult;
 export declare function usePublishComment(options?: UsePublishCommentOptions): UsePublishCommentResult;
 export declare function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteResult;
 export declare function usePublishCommentEdit(options?: UsePublishCommentEditOptions): UsePublishCommentEditResult;

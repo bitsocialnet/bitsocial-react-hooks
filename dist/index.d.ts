@@ -4,7 +4,7 @@ import { useReplies } from "./hooks/replies.js";
 import { useCommunity, useCommunities, useCommunityStats, useListCommunities, useResolvedCommunityAddress } from "./hooks/communities.js";
 import { useFeed, useBufferedFeeds } from "./hooks/feeds/index.js";
 import { useAuthor, useAuthorComments, useAuthorAvatar, useResolvedAuthorAddress, useAuthorAddress, setAuthorAvatarsWhitelistedTokenAddresses, resetAuthorAddressCacheForTesting } from "./hooks/authors/index.js";
-import { useSubscribe, useBlock, usePublishComment, usePublishVote, useCreateCommunity, usePublishCommentEdit, usePublishCommentModeration, usePublishCommunityEdit, useExportCommunity } from "./hooks/actions/index.js";
+import { useSubscribe, useBlock, useSaveComment, usePublishComment, usePublishVote, useCreateCommunity, usePublishCommentEdit, usePublishCommentModeration, usePublishCommunityEdit, useExportCommunity } from "./hooks/actions/index.js";
 import { createAccount, deleteAccount, deleteComment, setAccount, setActiveAccount, setAccountsOrder, importAccount, exportAccount, deleteCommunity } from "./stores/accounts/accounts-actions.js";
 import { useClientsStates, useCommunitiesStates } from "./hooks/states.js";
 import { usePkcRpcSettings } from "./hooks/pkc-rpc.js";
@@ -14,7 +14,7 @@ import { deleteDatabases, deleteCaches } from "./lib/debug-utils.js";
 import { createCrosspost } from "./lib/crosspost.js";
 import { getAvailablePostSortTypes, getAvailableReplySortTypes, getPreloadedPostSortType, getPreloadedReplySortType, resolvePostSortType, resolveReplySortType } from "./lib/page-sorts.js";
 export * from "./types.js";
-export { useAccount, useAccounts, useAccountComment, useAccountComments, useAccountVotes, useAccountVote, useAccountEdits, useAccountCommunities, useNotifications, usePubsubSubscribe, useComment, useComments, useCrosspost, useEditedComment, useValidateComment, useReplies, useCommunity, useCommunities, useCommunityStats, useListCommunities, useResolvedCommunityAddress, useAuthor, useAuthorComments, useAuthorAvatar, useResolvedAuthorAddress, useAuthorAddress, setAuthorAvatarsWhitelistedTokenAddresses, resetAuthorAddressCacheForTesting, useFeed, useBufferedFeeds, useSubscribe, useBlock, usePublishComment, usePublishVote, usePublishCommentEdit, usePublishCommentModeration, usePublishCommunityEdit, useCreateCommunity, useExportCommunity, createAccount, deleteAccount, deleteComment, setAccount, setActiveAccount, setAccountsOrder, importAccount, exportAccount, deleteCommunity, useClientsStates, useCommunitiesStates, usePkcRpcSettings, getEthWalletFromPkcPrivateKey, getEthPrivateKeyFromPkcPrivateKey, validateEthWallet, setPkcJs, restorePkcJs, deleteDatabases, deleteCaches, createCrosspost, getAvailablePostSortTypes, getAvailableReplySortTypes, getPreloadedPostSortType, getPreloadedReplySortType, resolvePostSortType, resolveReplySortType, };
+export { useAccount, useAccounts, useAccountComment, useAccountComments, useAccountVotes, useAccountVote, useAccountEdits, useAccountCommunities, useNotifications, usePubsubSubscribe, useComment, useComments, useCrosspost, useEditedComment, useValidateComment, useReplies, useCommunity, useCommunities, useCommunityStats, useListCommunities, useResolvedCommunityAddress, useAuthor, useAuthorComments, useAuthorAvatar, useResolvedAuthorAddress, useAuthorAddress, setAuthorAvatarsWhitelistedTokenAddresses, resetAuthorAddressCacheForTesting, useFeed, useBufferedFeeds, useSubscribe, useBlock, useSaveComment, usePublishComment, usePublishVote, usePublishCommentEdit, usePublishCommentModeration, usePublishCommunityEdit, useCreateCommunity, useExportCommunity, createAccount, deleteAccount, deleteComment, setAccount, setActiveAccount, setAccountsOrder, importAccount, exportAccount, deleteCommunity, useClientsStates, useCommunitiesStates, usePkcRpcSettings, getEthWalletFromPkcPrivateKey, getEthPrivateKeyFromPkcPrivateKey, validateEthWallet, setPkcJs, restorePkcJs, deleteDatabases, deleteCaches, createCrosspost, getAvailablePostSortTypes, getAvailableReplySortTypes, getPreloadedPostSortType, getPreloadedReplySortType, resolvePostSortType, resolveReplySortType, };
 declare const hooks: {
     useAccount: typeof useAccount;
     useAccounts: typeof useAccounts;
@@ -48,6 +48,7 @@ declare const hooks: {
     useBufferedFeeds: typeof useBufferedFeeds;
     useSubscribe: typeof useSubscribe;
     useBlock: typeof useBlock;
+    useSaveComment: typeof useSaveComment;
     usePublishComment: typeof usePublishComment;
     usePublishVote: typeof usePublishVote;
     usePublishCommentEdit: typeof usePublishCommentEdit;

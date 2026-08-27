@@ -371,6 +371,14 @@ export interface UseBlockResult extends Result {
     block(): Promise<void>;
     unblock(): Promise<void>;
 }
+export interface UseSaveCommentOptions extends Options {
+    commentCid?: string;
+}
+export interface UseSaveCommentResult extends Result {
+    saved: boolean | undefined;
+    saveComment(): Promise<void>;
+    unsaveComment(): Promise<void>;
+}
 export interface UseClientsStatesOptions extends Options {
     comment?: Comment;
     community?: Community;

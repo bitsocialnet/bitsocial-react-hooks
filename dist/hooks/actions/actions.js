@@ -147,6 +147,45 @@ export function useBlock(options) {
         errors,
     }), [state, blocked, errors, address, accountName]);
 }
+export function useSaveComment(options) {
+    assert(!options || typeof options === "object", `useSaveComment options argument '${options}' not an object`);
+    const { commentCid, accountName, onError } = options || {};
+    const account = useAccount({ accountName });
+    const accountsActions = useAccountsStore((state) => state.accountsActions);
+    const [errors, setErrors] = useState([]);
+    let state = "initializing";
+    let saved;
+    if (account && commentCid) {
+        state = "ready";
+        saved = account.savedComments.includes(commentCid);
+    }
+    const saveComment = () => __awaiter(this, void 0, void 0, function* () {
+        try {
+            yield accountsActions.saveComment(commentCid, accountName);
+        }
+        catch (e) {
+            setErrors((errors) => [...errors, e]);
+            onError === null || onError === void 0 ? void 0 : onError(e);
+        }
+    });
+    const unsaveComment = () => __awaiter(this, void 0, void 0, function* () {
+        try {
+            yield accountsActions.unsaveComment(commentCid, accountName);
+        }
+        catch (e) {
+            setErrors((errors) => [...errors, e]);
+            onError === null || onError === void 0 ? void 0 : onError(e);
+        }
+    });
+    return useMemo(() => ({
+        saved,
+        saveComment,
+        unsaveComment,
+        state,
+        error: errors[errors.length - 1],
+        errors,
+    }), [state, saved, errors, commentCid, accountName, onError]);
+}
 export function usePublishComment(options) {
     assert(!options || typeof options === "object", `usePublishComment options argument '${options}' not an object`);
     const _a = options || {}, { accountName } = _a, publishCommentOptions = __rest(_a, ["accountName"]);

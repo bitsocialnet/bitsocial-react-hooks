@@ -782,6 +782,62 @@ export const unblockCid = (cid, accountName) => __awaiter(void 0, void 0, void 0
     log("accountsActions.unblockCid", { account: updatedAccount, accountName, cid });
     accountsStore.setState({ accounts: updatedAccounts });
 });
+const savedCommentMutationQueues = new Map();
+const updateSavedComments = (commentCid, accountName, shouldSave) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
+    const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
+    assert(commentCid && typeof commentCid === "string", `accountsActions.${shouldSave ? "saveComment" : "unsaveComment"} invalid commentCid '${commentCid}'`);
+    assert(accounts && accountNamesToAccountIds && activeAccountId, `can't use accountsStore.accountActions before initialized`);
+    const accountId = accountName ? accountNamesToAccountIds[accountName] : activeAccountId;
+    assert((_a = accounts[accountId]) === null || _a === void 0 ? void 0 : _a.id, `accountsActions.${shouldSave ? "saveComment" : "unsaveComment"} account.id '${(_b = accounts[accountId]) === null || _b === void 0 ? void 0 : _b.id}' doesn't exist, activeAccountId '${activeAccountId}' accountName '${accountName}'`);
+    const previousMutation = savedCommentMutationQueues.get(accountId) || Promise.resolve();
+    const mutation = previousMutation
+        .catch(() => { })
+        .then(() => __awaiter(void 0, void 0, void 0, function* () {
+        const currentAccounts = accountsStore.getState().accounts;
+        const account = currentAccounts[accountId];
+        assert(account === null || account === void 0 ? void 0 : account.id, `accountsActions.${shouldSave ? "saveComment" : "unsaveComment"} account.id '${account === null || account === void 0 ? void 0 : account.id}' doesn't exist, activeAccountId '${activeAccountId}' accountName '${accountName}'`);
+        const isSaved = account.savedComments.includes(commentCid);
+        if (shouldSave && isSaved) {
+            throw Error(`account '${account.id}' already saved comment '${commentCid}'`);
+        }
+        if (!shouldSave && !isSaved) {
+            throw Error(`account '${account.id}' already unsaved comment '${commentCid}'`);
+        }
+        const savedComments = shouldSave
+            ? [commentCid, ...account.savedComments]
+            : account.savedComments.filter((savedCommentCid) => savedCommentCid !== commentCid);
+        const updatedAccount = Object.assign(Object.assign({}, account), { savedComments });
+        yield accountsDatabase.addAccount(updatedAccount);
+        const latestAccounts = accountsStore.getState().accounts;
+        const latestAccount = latestAccounts[accountId];
+        assert(latestAccount === null || latestAccount === void 0 ? void 0 : latestAccount.id, `account '${accountId}' was removed while updating saved comments`);
+        const mergedAccount = Object.assign(Object.assign({}, latestAccount), { savedComments });
+        const updatedAccounts = Object.assign(Object.assign({}, latestAccounts), { [accountId]: mergedAccount });
+        const actionName = shouldSave ? "saveComment" : "unsaveComment";
+        log(`accountsActions.${actionName}`, {
+            accountId,
+            accountName,
+            commentCid,
+        });
+        accountsStore.setState({ accounts: updatedAccounts });
+    }));
+    savedCommentMutationQueues.set(accountId, mutation);
+    try {
+        yield mutation;
+    }
+    finally {
+        if (savedCommentMutationQueues.get(accountId) === mutation) {
+            savedCommentMutationQueues.delete(accountId);
+        }
+    }
+});
+export const saveComment = (commentCid, accountName) => __awaiter(void 0, void 0, void 0, function* () {
+    yield updateSavedComments(commentCid, accountName, true);
+});
+export const unsaveComment = (commentCid, accountName) => __awaiter(void 0, void 0, void 0, function* () {
+    yield updateSavedComments(commentCid, accountName, false);
+});
 export const publishComment = (publishCommentOptions, accountName) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c;
     const { accounts, accountsComments, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
