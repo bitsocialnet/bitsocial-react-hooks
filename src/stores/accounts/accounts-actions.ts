@@ -1108,71 +1108,83 @@ export const unblockCid = async (cid: string, accountName?: string) => {
   accountsStore.setState({ accounts: updatedAccounts });
 };
 
-export const saveComment = async (commentCid: string, accountName?: string) => {
+const savedCommentMutationQueues = new Map<string, Promise<void>>();
+
+const updateSavedComments = async (
+  commentCid: string,
+  accountName: string | undefined,
+  shouldSave: boolean,
+) => {
   const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
   assert(
     commentCid && typeof commentCid === "string",
-    `accountsActions.saveComment invalid commentCid '${commentCid}'`,
+    `accountsActions.${shouldSave ? "saveComment" : "unsaveComment"} invalid commentCid '${commentCid}'`,
   );
   assert(
     accounts && accountNamesToAccountIds && activeAccountId,
     `can't use accountsStore.accountActions before initialized`,
   );
-  let account = accounts[activeAccountId];
-  if (accountName) {
-    const accountId = accountNamesToAccountIds[accountName];
-    account = accounts[accountId];
-  }
+  const accountId = accountName ? accountNamesToAccountIds[accountName] : activeAccountId;
   assert(
-    account?.id,
-    `accountsActions.saveComment account.id '${account?.id}' doesn't exist, activeAccountId '${activeAccountId}' accountName '${accountName}'`,
+    accounts[accountId]?.id,
+    `accountsActions.${shouldSave ? "saveComment" : "unsaveComment"} account.id '${accounts[accountId]?.id}' doesn't exist, activeAccountId '${activeAccountId}' accountName '${accountName}'`,
   );
 
-  const savedComments: string[] = [...account.savedComments];
-  if (savedComments.includes(commentCid)) {
-    throw Error(`account '${account.id}' already saved comment '${commentCid}'`);
-  }
-  savedComments.unshift(commentCid);
+  const previousMutation = savedCommentMutationQueues.get(accountId) || Promise.resolve();
+  const mutation = previousMutation
+    .catch(() => {})
+    .then(async () => {
+      const currentAccounts = accountsStore.getState().accounts;
+      const account = currentAccounts[accountId];
+      assert(
+        account?.id,
+        `accountsActions.${shouldSave ? "saveComment" : "unsaveComment"} account.id '${account?.id}' doesn't exist, activeAccountId '${activeAccountId}' accountName '${accountName}'`,
+      );
 
-  const updatedAccount: Account = { ...account, savedComments };
-  await accountsDatabase.addAccount(updatedAccount);
-  const updatedAccounts = { ...accounts, [updatedAccount.id]: updatedAccount };
-  log("accountsActions.saveComment", { account: updatedAccount, accountName, commentCid });
-  accountsStore.setState({ accounts: updatedAccounts });
+      const isSaved = account.savedComments.includes(commentCid);
+      if (shouldSave && isSaved) {
+        throw Error(`account '${account.id}' already saved comment '${commentCid}'`);
+      }
+      if (!shouldSave && !isSaved) {
+        throw Error(`account '${account.id}' already unsaved comment '${commentCid}'`);
+      }
+
+      const savedComments = shouldSave
+        ? [commentCid, ...account.savedComments]
+        : account.savedComments.filter((savedCommentCid: string) => savedCommentCid !== commentCid);
+      const updatedAccount: Account = { ...account, savedComments };
+      await accountsDatabase.addAccount(updatedAccount);
+
+      const latestAccounts = accountsStore.getState().accounts;
+      const latestAccount = latestAccounts[accountId];
+      assert(latestAccount?.id, `account '${accountId}' was removed while updating saved comments`);
+      const mergedAccount: Account = { ...latestAccount, savedComments };
+      const updatedAccounts = { ...latestAccounts, [accountId]: mergedAccount };
+      const actionName = shouldSave ? "saveComment" : "unsaveComment";
+      log(`accountsActions.${actionName}`, {
+        account: mergedAccount,
+        accountName,
+        commentCid,
+      });
+      accountsStore.setState({ accounts: updatedAccounts });
+    });
+
+  savedCommentMutationQueues.set(accountId, mutation);
+  try {
+    await mutation;
+  } finally {
+    if (savedCommentMutationQueues.get(accountId) === mutation) {
+      savedCommentMutationQueues.delete(accountId);
+    }
+  }
+};
+
+export const saveComment = async (commentCid: string, accountName?: string) => {
+  await updateSavedComments(commentCid, accountName, true);
 };
 
 export const unsaveComment = async (commentCid: string, accountName?: string) => {
-  const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
-  assert(
-    commentCid && typeof commentCid === "string",
-    `accountsActions.unsaveComment invalid commentCid '${commentCid}'`,
-  );
-  assert(
-    accounts && accountNamesToAccountIds && activeAccountId,
-    `can't use accountsStore.accountActions before initialized`,
-  );
-  let account = accounts[activeAccountId];
-  if (accountName) {
-    const accountId = accountNamesToAccountIds[accountName];
-    account = accounts[accountId];
-  }
-  assert(
-    account?.id,
-    `accountsActions.unsaveComment account.id '${account?.id}' doesn't exist, activeAccountId '${activeAccountId}' accountName '${accountName}'`,
-  );
-
-  if (!account.savedComments.includes(commentCid)) {
-    throw Error(`account '${account.id}' already unsaved comment '${commentCid}'`);
-  }
-  const savedComments: string[] = account.savedComments.filter(
-    (savedCommentCid: string) => savedCommentCid !== commentCid,
-  );
-
-  const updatedAccount: Account = { ...account, savedComments };
-  await accountsDatabase.addAccount(updatedAccount);
-  const updatedAccounts = { ...accounts, [updatedAccount.id]: updatedAccount };
-  log("accountsActions.unsaveComment", { account: updatedAccount, accountName, commentCid });
-  accountsStore.setState({ accounts: updatedAccounts });
+  await updateSavedComments(commentCid, accountName, false);
 };
 
 export const publishComment = async (

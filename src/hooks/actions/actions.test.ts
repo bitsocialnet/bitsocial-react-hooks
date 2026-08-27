@@ -546,6 +546,36 @@ describe("actions", () => {
       expect(onError).toHaveBeenCalledWith(persistenceError);
       addAccountSpy.mockRestore();
     });
+
+    test("serializes concurrent saves for the same account", async () => {
+      rendered.rerender({ commentCid: "comment-1" });
+      await waitFor(() => rendered.result.current.state === "ready");
+
+      const originalAddAccount = accountsDatabase.addAccount.bind(accountsDatabase);
+      let releaseFirstSave: () => void = () => {};
+      const firstSavePending = new Promise<void>((resolve) => {
+        releaseFirstSave = resolve;
+      });
+      const addAccountSpy = vi
+        .spyOn(accountsDatabase, "addAccount")
+        .mockImplementationOnce(async (account) => {
+          await firstSavePending;
+          return originalAddAccount(account);
+        });
+      const accountsActions = useAccountsStore.getState().accountsActions;
+
+      const firstSave = accountsActions.saveComment("comment-1");
+      await vi.waitFor(() => expect(addAccountSpy).toHaveBeenCalledTimes(1));
+      const secondSave = accountsActions.saveComment("comment-2");
+      expect(addAccountSpy).toHaveBeenCalledTimes(1);
+
+      releaseFirstSave();
+      await Promise.all([firstSave, secondSave]);
+
+      const exported = JSON.parse(await exportAccount());
+      expect(exported.account.savedComments).toEqual(["comment-2", "comment-1"]);
+      addAccountSpy.mockRestore();
+    });
   });
 
   describe("useCreateCommunity", () => {
