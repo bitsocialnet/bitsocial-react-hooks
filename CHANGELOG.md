@@ -1,3 +1,12 @@
+## [0.1.42](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.41...v0.1.42) (2026-08-28)
+
+
+### Features
+
+* **accounts:** add saved comment support ([#106](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/106)) ([661d720](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/661d72031cc39076b2263013160ad17c5fed6f9d))
+
+
+
 ## [0.1.41](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.40...v0.1.41) (2026-08-26)
 
 
