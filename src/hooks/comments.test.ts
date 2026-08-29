@@ -730,8 +730,49 @@ describe("comments", () => {
               ...canonicalComment,
               content: "later content",
               upvoteCount: 2,
+              replyCount: 2,
               number: 1,
-              author: { ...canonicalComment.author, shortAddress: "bitsocialist.bso" },
+            },
+          },
+        }));
+      });
+
+      expect(rendered.result.current.number).toBe(1);
+      expect(rendered.result.current.content).toBe("original content");
+      expect(rendered.result.current.upvoteCount).toBe(1);
+      expect(rendered.result.current.replyCount).toBe(0);
+
+      act(() => {
+        commentsStore.setState((state: any) => ({
+          comments: {
+            ...state.comments,
+            [cid]: {
+              ...state.comments[cid],
+              content: "still later content",
+              upvoteCount: 3,
+              replyCount: 3,
+              postNumber: 2,
+            },
+          },
+        }));
+      });
+
+      expect(rendered.result.current.number).toBe(1);
+      expect(rendered.result.current.postNumber).toBe(2);
+      expect(rendered.result.current.content).toBe("original content");
+      expect(rendered.result.current.upvoteCount).toBe(1);
+      expect(rendered.result.current.replyCount).toBe(0);
+
+      act(() => {
+        commentsStore.setState((state: any) => ({
+          comments: {
+            ...state.comments,
+            [cid]: {
+              ...state.comments[cid],
+              content: "latest content",
+              upvoteCount: 4,
+              replyCount: 4,
+              author: { ...state.comments[cid].author, shortAddress: "bitsocialist.bso" },
             },
           },
         }));
@@ -739,8 +780,10 @@ describe("comments", () => {
 
       expect(rendered.result.current.author?.shortAddress).toBe("bitsocialist.bso");
       expect(rendered.result.current.number).toBe(1);
+      expect(rendered.result.current.postNumber).toBe(2);
       expect(rendered.result.current.content).toBe("original content");
       expect(rendered.result.current.upvoteCount).toBe(1);
+      expect(rendered.result.current.replyCount).toBe(0);
     });
 
     test("useComment succeeds with replyCount 0 when comment newer than 5 min (lines 123-125)", async () => {

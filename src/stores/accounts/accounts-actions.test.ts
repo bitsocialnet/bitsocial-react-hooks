@@ -864,6 +864,17 @@ describe("accounts-actions", () => {
     test("publishComment preserves account identity when overriding only displayName", async () => {
       const account = Object.values(accountsStore.getState().accounts)[0];
       const createComment = vi.spyOn(account.pkc, "createComment");
+      accountsStore.setState(({ accountsComments }) => ({
+        accountsComments: {
+          ...accountsComments,
+          [account.id]: [
+            {
+              cid: "previous-comment-cid",
+              author: { address: account.author.address },
+            } as any,
+          ],
+        },
+      }));
 
       await accountsActions.publishComment({
         communityAddress: "sub.eth",
@@ -878,9 +889,38 @@ describe("accounts-actions", () => {
           author: expect.objectContaining({
             address: account.author.address,
             displayName: "5chan Dev",
+            previousCommentCid: "previous-comment-cid",
           }),
         }),
       );
+    });
+
+    test("publishComment does not inherit the account comment chain for another author address", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const createComment = vi.spyOn(account.pkc, "createComment");
+      accountsStore.setState(({ accountsComments }) => ({
+        accountsComments: {
+          ...accountsComments,
+          [account.id]: [
+            {
+              cid: "previous-comment-cid",
+              author: { address: account.author.address },
+            } as any,
+          ],
+        },
+      }));
+
+      await accountsActions.publishComment({
+        communityAddress: "sub.eth",
+        content: "different author address",
+        author: { address: "alternate-author.bso" },
+        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      });
+
+      const publishedAuthor = createComment.mock.calls[0][0].author;
+      expect(publishedAuthor).toMatchObject({ address: "alternate-author.bso" });
+      expect(publishedAuthor).not.toHaveProperty("previousCommentCid");
     });
   });
 

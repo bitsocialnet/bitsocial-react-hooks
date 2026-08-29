@@ -1219,6 +1219,12 @@ export const publishComment = async (
     author.previousCommentCid = previousCommentCid;
   }
   const publicationAuthor = { ...author, ...publishCommentOptions.author };
+  if (
+    publicationAuthor.address !== account.author?.address &&
+    publishCommentOptions.author?.previousCommentCid === undefined
+  ) {
+    delete publicationAuthor.previousCommentCid;
+  }
 
   let createCommentOptions: any = normalizePublicationOptionsForPkc(account.pkc, {
     timestamp: Math.floor(Date.now() / 1000),
