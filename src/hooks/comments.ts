@@ -308,8 +308,22 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
         (selectedComment.postNumber !== undefined &&
           selectedComment.postNumber !== frozenCommentForCurrentCid?.postNumber) ||
         (selectedCommentShortAddress && selectedCommentShortAddress !== frozenCommentShortAddress);
-      if (hasReconciledPublicationMetadata) {
-        setFrozenComment(selectedComment);
+      if (hasReconciledPublicationMetadata && frozenCommentForCurrentCid) {
+        setFrozenComment({
+          ...frozenCommentForCurrentCid,
+          ...(selectedComment.number !== undefined ? { number: selectedComment.number } : {}),
+          ...(selectedComment.postNumber !== undefined
+            ? { postNumber: selectedComment.postNumber }
+            : {}),
+          ...(selectedCommentShortAddress
+            ? {
+                author: {
+                  ...frozenCommentForCurrentCid.author,
+                  shortAddress: selectedCommentShortAddress,
+                },
+              }
+            : {}),
+        });
       }
       return;
     }

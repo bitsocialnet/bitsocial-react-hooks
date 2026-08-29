@@ -705,6 +705,8 @@ describe("comments", () => {
       const canonicalComment = {
         cid,
         timestamp,
+        content: "original content",
+        upvoteCount: 1,
         author: { address: "bitsocialist.bso", shortAddress: undefined as string | undefined },
       };
       act(() => {
@@ -726,6 +728,8 @@ describe("comments", () => {
             ...state.comments,
             [cid]: {
               ...canonicalComment,
+              content: "later content",
+              upvoteCount: 2,
               number: 1,
               author: { ...canonicalComment.author, shortAddress: "bitsocialist.bso" },
             },
@@ -735,6 +739,8 @@ describe("comments", () => {
 
       expect(rendered.result.current.author?.shortAddress).toBe("bitsocialist.bso");
       expect(rendered.result.current.number).toBe(1);
+      expect(rendered.result.current.content).toBe("original content");
+      expect(rendered.result.current.upvoteCount).toBe(1);
     });
 
     test("useComment succeeds with replyCount 0 when comment newer than 5 min (lines 123-125)", async () => {
