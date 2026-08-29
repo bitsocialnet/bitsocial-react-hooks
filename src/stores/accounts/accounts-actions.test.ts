@@ -856,6 +856,34 @@ describe("accounts-actions", () => {
     });
   });
 
+  describe("publish author defaults", () => {
+    beforeEach(async () => {
+      await testUtils.resetDatabasesAndStores();
+    });
+
+    test("publishComment preserves account identity when overriding only displayName", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const createComment = vi.spyOn(account.pkc, "createComment");
+
+      await accountsActions.publishComment({
+        communityAddress: "sub.eth",
+        content: "partial author override",
+        author: { displayName: "5chan Dev" },
+        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      });
+
+      expect(createComment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          author: expect.objectContaining({
+            address: account.author.address,
+            displayName: "5chan Dev",
+          }),
+        }),
+      );
+    });
+  });
+
   describe("optional accountName branches", () => {
     beforeEach(async () => {
       await testUtils.resetDatabasesAndStores();

@@ -357,6 +357,8 @@ const post = useComment({ commentCid, onlyIfCached: true });
 // disable background polling and refresh on demand
 const post = useComment({ commentCid, autoUpdate: false });
 await post.refresh();
+// newly published comments still absorb canonical number, postNumber, and
+// author shortAddress metadata as it arrives; later live updates stay frozen
 
 // post.replies are not validated, to show replies
 const { replies, hasMore, loadMore } = useReplies({ comment: post });
@@ -571,6 +573,8 @@ const publishCommentOptions = {
   content: 'hello',
   title: 'hello',
   communityAddress: '12D3KooW...',
+  // partial author overrides keep the active account's author identity
+  author: {displayName: 'Alice'},
   onPendingComment,
   onChallenge,
   onChallengeVerification,
@@ -3278,6 +3282,15 @@ Avoid GitHub MCP and browser MCP servers for this project because they add signi
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/CHANGELOG.md
 
 ```markdown
+## [0.1.42](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.41...v0.1.42) (2026-08-28)
+
+
+### Features
+
+* **accounts:** add saved comment support ([#106](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/106)) ([661d720](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/661d72031cc39076b2263013160ad17c5fed6f9d))
+
+
+
 ## [0.1.41](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.40...v0.1.41) (2026-08-26)
 
 

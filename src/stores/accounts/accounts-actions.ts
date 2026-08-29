@@ -1218,12 +1218,13 @@ export const publishComment = async (
   if (previousCommentCid) {
     author.previousCommentCid = previousCommentCid;
   }
+  const publicationAuthor = { ...author, ...publishCommentOptions.author };
 
   let createCommentOptions: any = normalizePublicationOptionsForPkc(account.pkc, {
     timestamp: Math.floor(Date.now() / 1000),
-    author,
     signer: account.signer,
     ...publishCommentOptions,
+    author: publicationAuthor,
   });
   delete createCommentOptions.onChallenge;
   delete createCommentOptions.onChallengeVerification;
