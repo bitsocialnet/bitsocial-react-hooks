@@ -99,7 +99,7 @@ const getCommentCreateCommentData = (commentCid, community, initialComment, ...c
  * the active account.
  */
 export function useComment(options) {
-    var _a, _b;
+    var _a, _b, _c;
     assert(!options || typeof options === "object", `useComment options argument '${options}' not an object`);
     const { commentCid, community, initialComment, accountName, onlyIfCached, autoUpdate = true, } = options !== null && options !== void 0 ? options : {};
     if (community !== undefined) {
@@ -185,7 +185,8 @@ export function useComment(options) {
     }, [commentCid, commentFromStoreNotLoaded, initialComment, selectedComment]);
     selectedComment = selectedCommentWithFallback;
     const selectedCommentState = getCommentStateAndReplyCount(selectedComment).state;
-    const initialCommentUpdatePending = Boolean(((_a = initialComment === null || initialComment === void 0 ? void 0 : initialComment.raw) === null || _a === void 0 ? void 0 : _a.comment) && !((_b = selectedComment === null || selectedComment === void 0 ? void 0 : selectedComment.raw) === null || _b === void 0 ? void 0 : _b.commentUpdate));
+    const selectedCommentShortAddress = (_a = selectedComment === null || selectedComment === void 0 ? void 0 : selectedComment.author) === null || _a === void 0 ? void 0 : _a.shortAddress;
+    const initialCommentUpdatePending = Boolean(((_b = initialComment === null || initialComment === void 0 ? void 0 : initialComment.raw) === null || _b === void 0 ? void 0 : _b.comment) && !((_c = selectedComment === null || selectedComment === void 0 ? void 0 : selectedComment.raw) === null || _c === void 0 ? void 0 : _c.commentUpdate));
     const freezeSettledForCurrentCid = freezeSettledCid === commentCid;
     useEffect(() => {
         if (autoUpdate) {
@@ -197,6 +198,7 @@ export function useComment(options) {
         setFreezeSettledCid(undefined);
     }, [commentCid, autoUpdate]);
     useEffect(() => {
+        var _a;
         if (autoUpdate) {
             return;
         }
@@ -205,7 +207,29 @@ export function useComment(options) {
             setFreezeSettledCid(undefined);
             return;
         }
-        if (freezeSettledForCurrentCid || !selectedComment) {
+        if (!selectedComment) {
+            return;
+        }
+        if (freezeSettledForCurrentCid) {
+            // A new local publication can look settled from its timestamp before the
+            // canonical number and author identity arrive. Absorb only that immutable
+            // metadata while keeping later vote and reply updates frozen.
+            const frozenCommentForCurrentCid = (frozenComment === null || frozenComment === void 0 ? void 0 : frozenComment.cid) === commentCid ? frozenComment : undefined;
+            const frozenCommentShortAddress = (_a = frozenCommentForCurrentCid === null || frozenCommentForCurrentCid === void 0 ? void 0 : frozenCommentForCurrentCid.author) === null || _a === void 0 ? void 0 : _a.shortAddress;
+            const hasReconciledPublicationMetadata = (selectedComment.number !== undefined &&
+                selectedComment.number !== (frozenCommentForCurrentCid === null || frozenCommentForCurrentCid === void 0 ? void 0 : frozenCommentForCurrentCid.number)) ||
+                (selectedComment.postNumber !== undefined &&
+                    selectedComment.postNumber !== (frozenCommentForCurrentCid === null || frozenCommentForCurrentCid === void 0 ? void 0 : frozenCommentForCurrentCid.postNumber)) ||
+                (selectedCommentShortAddress && selectedCommentShortAddress !== frozenCommentShortAddress);
+            if (hasReconciledPublicationMetadata && frozenCommentForCurrentCid) {
+                setFrozenComment(Object.assign(Object.assign(Object.assign(Object.assign({}, frozenCommentForCurrentCid), (selectedComment.number !== undefined ? { number: selectedComment.number } : {})), (selectedComment.postNumber !== undefined
+                    ? { postNumber: selectedComment.postNumber }
+                    : {})), (selectedCommentShortAddress
+                    ? {
+                        author: Object.assign(Object.assign({}, frozenCommentForCurrentCid.author), { shortAddress: selectedCommentShortAddress }),
+                    }
+                    : {})));
+            }
             return;
         }
         setFrozenComment(selectedComment);
@@ -219,6 +243,8 @@ export function useComment(options) {
         selectedCommentState,
         initialCommentUpdatePending,
         freezeSettledForCurrentCid,
+        frozenComment,
+        selectedCommentShortAddress,
     ]);
     const frozenCommentForCurrentCid = (frozenComment === null || frozenComment === void 0 ? void 0 : frozenComment.cid) === commentCid ? frozenComment : undefined;
     let comment = autoUpdate

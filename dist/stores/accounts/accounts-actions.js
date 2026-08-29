@@ -839,7 +839,7 @@ export const unsaveComment = (commentCid, accountName) => __awaiter(void 0, void
     yield updateSavedComments(commentCid, accountName, false);
 });
 export const publishComment = (publishCommentOptions, accountName) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e;
     const { accounts, accountsComments, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
     assert(accounts && accountNamesToAccountIds && activeAccountId, `can't use accountsStore.accountActions before initialized`);
     let account = accounts[activeAccountId];
@@ -862,7 +862,12 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
     if (previousCommentCid) {
         author.previousCommentCid = previousCommentCid;
     }
-    let createCommentOptions = normalizePublicationOptionsForPkc(account.pkc, Object.assign({ timestamp: Math.floor(Date.now() / 1000), author, signer: account.signer }, publishCommentOptions));
+    const publicationAuthor = Object.assign(Object.assign({}, author), publishCommentOptions.author);
+    if (publicationAuthor.address !== ((_b = account.author) === null || _b === void 0 ? void 0 : _b.address) &&
+        ((_c = publishCommentOptions.author) === null || _c === void 0 ? void 0 : _c.previousCommentCid) === undefined) {
+        delete publicationAuthor.previousCommentCid;
+    }
+    let createCommentOptions = normalizePublicationOptionsForPkc(account.pkc, Object.assign(Object.assign({ timestamp: Math.floor(Date.now() / 1000), signer: account.signer }, publishCommentOptions), { author: publicationAuthor }));
     delete createCommentOptions.onChallenge;
     delete createCommentOptions.onChallengeVerification;
     delete createCommentOptions.onError;
@@ -878,7 +883,7 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
     // set fetching link dimensions state
     let fetchingLinkDimensionsStates;
     if (publishCommentOptions.link) {
-        (_b = publishCommentOptions.onPublishingStateChange) === null || _b === void 0 ? void 0 : _b.call(publishCommentOptions, "fetching-link-dimensions");
+        (_d = publishCommentOptions.onPublishingStateChange) === null || _d === void 0 ? void 0 : _d.call(publishCommentOptions, "fetching-link-dimensions");
         fetchingLinkDimensionsStates = {
             state: "publishing",
             publishingState: "fetching-link-dimensions",
@@ -950,7 +955,7 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
     if (pendingCommentIndex !== accountCommentIndex) {
         notifyPendingComment(pendingCommentIndex, createdAccountComment);
     }
-    (_c = publishCommentOptions._onPendingCommentIndex) === null || _c === void 0 ? void 0 : _c.call(publishCommentOptions, pendingCommentIndex, createdAccountComment);
+    (_e = publishCommentOptions._onPendingCommentIndex) === null || _e === void 0 ? void 0 : _e.call(publishCommentOptions, pendingCommentIndex, createdAccountComment);
     let comment;
     (() => __awaiter(void 0, void 0, void 0, function* () {
         // fetch comment.link dimensions
