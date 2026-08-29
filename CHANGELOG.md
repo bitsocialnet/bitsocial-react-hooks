@@ -1,3 +1,12 @@
+## [0.1.43](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.42...v0.1.43) (2026-08-29)
+
+
+### Bug Fixes
+
+* **comments:** preserve published author identity ([#109](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/109)) ([a3bb5c6](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/a3bb5c697f38eec45e4629ddebe7d5d11456036d))
+
+
+
 ## [0.1.42](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.41...v0.1.42) (2026-08-28)
 
 
