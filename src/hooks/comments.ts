@@ -266,6 +266,7 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
   selectedComment = selectedCommentWithFallback;
 
   const selectedCommentState = getCommentStateAndReplyCount(selectedComment).state;
+  const selectedCommentShortAddress = selectedComment?.author?.shortAddress;
   const initialCommentUpdatePending = Boolean(
     initialComment?.raw?.comment && !selectedComment?.raw?.commentUpdate,
   );
@@ -291,7 +292,39 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
       setFreezeSettledCid(undefined);
       return;
     }
-    if (freezeSettledForCurrentCid || !selectedComment) {
+    if (!selectedComment) {
+      return;
+    }
+    if (freezeSettledForCurrentCid) {
+      // A new local publication can look settled from its timestamp before the
+      // canonical number and author identity arrive. Absorb only that immutable
+      // metadata while keeping later vote and reply updates frozen.
+      const frozenCommentForCurrentCid =
+        frozenComment?.cid === commentCid ? frozenComment : undefined;
+      const frozenCommentShortAddress = frozenCommentForCurrentCid?.author?.shortAddress;
+      const hasReconciledPublicationMetadata =
+        (selectedComment.number !== undefined &&
+          selectedComment.number !== frozenCommentForCurrentCid?.number) ||
+        (selectedComment.postNumber !== undefined &&
+          selectedComment.postNumber !== frozenCommentForCurrentCid?.postNumber) ||
+        (selectedCommentShortAddress && selectedCommentShortAddress !== frozenCommentShortAddress);
+      if (hasReconciledPublicationMetadata && frozenCommentForCurrentCid) {
+        setFrozenComment({
+          ...frozenCommentForCurrentCid,
+          ...(selectedComment.number !== undefined ? { number: selectedComment.number } : {}),
+          ...(selectedComment.postNumber !== undefined
+            ? { postNumber: selectedComment.postNumber }
+            : {}),
+          ...(selectedCommentShortAddress
+            ? {
+                author: {
+                  ...frozenCommentForCurrentCid.author,
+                  shortAddress: selectedCommentShortAddress,
+                },
+              }
+            : {}),
+        });
+      }
       return;
     }
 
@@ -306,6 +339,8 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
     selectedCommentState,
     initialCommentUpdatePending,
     freezeSettledForCurrentCid,
+    frozenComment,
+    selectedCommentShortAddress,
   ]);
 
   const frozenCommentForCurrentCid = frozenComment?.cid === commentCid ? frozenComment : undefined;

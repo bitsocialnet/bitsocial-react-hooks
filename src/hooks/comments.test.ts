@@ -699,6 +699,93 @@ describe("comments", () => {
       expect(rendered.result.current.timestamp).toBe(100);
     });
 
+    test("useComment reconciles canonical publication metadata after a non-updating snapshot settles", async () => {
+      const cid = "canonical-author-reconciliation-cid";
+      const timestamp = Math.round(Date.now() / 1000) - 60;
+      const canonicalComment = {
+        cid,
+        timestamp,
+        content: "original content",
+        upvoteCount: 1,
+        author: { address: "bitsocialist.bso", shortAddress: undefined as string | undefined },
+      };
+      act(() => {
+        commentsStore.setState((state: any) => ({
+          comments: { ...state.comments, [cid]: canonicalComment },
+        }));
+      });
+
+      const rendered = renderHook(() =>
+        useComment({ commentCid: cid, onlyIfCached: true, autoUpdate: false }),
+      );
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => rendered.result.current.state === "succeeded");
+      expect(rendered.result.current.author?.shortAddress).toBeUndefined();
+
+      act(() => {
+        commentsStore.setState((state: any) => ({
+          comments: {
+            ...state.comments,
+            [cid]: {
+              ...canonicalComment,
+              content: "later content",
+              upvoteCount: 2,
+              replyCount: 2,
+              number: 1,
+            },
+          },
+        }));
+      });
+
+      expect(rendered.result.current.number).toBe(1);
+      expect(rendered.result.current.content).toBe("original content");
+      expect(rendered.result.current.upvoteCount).toBe(1);
+      expect(rendered.result.current.replyCount).toBe(0);
+
+      act(() => {
+        commentsStore.setState((state: any) => ({
+          comments: {
+            ...state.comments,
+            [cid]: {
+              ...state.comments[cid],
+              content: "still later content",
+              upvoteCount: 3,
+              replyCount: 3,
+              postNumber: 2,
+            },
+          },
+        }));
+      });
+
+      expect(rendered.result.current.number).toBe(1);
+      expect(rendered.result.current.postNumber).toBe(2);
+      expect(rendered.result.current.content).toBe("original content");
+      expect(rendered.result.current.upvoteCount).toBe(1);
+      expect(rendered.result.current.replyCount).toBe(0);
+
+      act(() => {
+        commentsStore.setState((state: any) => ({
+          comments: {
+            ...state.comments,
+            [cid]: {
+              ...state.comments[cid],
+              content: "latest content",
+              upvoteCount: 4,
+              replyCount: 4,
+              author: { ...state.comments[cid].author, shortAddress: "bitsocialist.bso" },
+            },
+          },
+        }));
+      });
+
+      expect(rendered.result.current.author?.shortAddress).toBe("bitsocialist.bso");
+      expect(rendered.result.current.number).toBe(1);
+      expect(rendered.result.current.postNumber).toBe(2);
+      expect(rendered.result.current.content).toBe("original content");
+      expect(rendered.result.current.upvoteCount).toBe(1);
+      expect(rendered.result.current.replyCount).toBe(0);
+    });
+
     test("useComment succeeds with replyCount 0 when comment newer than 5 min (lines 123-125)", async () => {
       const freshCid = "fresh-comment-5min";
       const freshTimestamp = Math.round(Date.now() / 1000) - 60;
