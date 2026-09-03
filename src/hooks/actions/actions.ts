@@ -452,9 +452,11 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
   const [challenge, setChallenge] = useState<Challenge>();
   const [challengeVerification, setChallengeVerification] = useState<ChallengeVerification>();
   const [publishChallengeAnswers, setPublishChallengeAnswers] = useState<PublishChallengeAnswers>();
-  // false once abandonPublish() ran, so the stopped publication's late events (like the "stopped"
-  // publishing state) do not overwrite the cleared hook state
-  const publishActiveRef = useRef(false);
+  // each publishVote() call gets its own request id and abandonPublish() clears the active one, so
+  // the stopped publication's late events (like the "stopped" publishing state) neither overwrite
+  // the cleared hook state nor leak into the next publication
+  const publishVoteRequestIdRef = useRef(0);
+  const activePublishVoteRequestIdRef = useRef<number | undefined>(undefined);
 
   let initialState = "initializing";
   // before the accountId and options is defined, nothing can happen
@@ -473,7 +475,6 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
   // define onChallenge if not defined
   const originalOnChallenge = publishVoteOptions.onChallenge;
   const onChallenge = async (challenge: Challenge, vote: Vote) => {
-    if (!publishActiveRef.current) return;
     setPublishChallengeAnswers(() => vote?.publishChallengeAnswers.bind(vote));
     setChallenge(challenge);
     (originalOnChallenge ?? (() => {}))(challenge, vote);
@@ -485,7 +486,6 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
     challengeVerification: ChallengeVerification,
     vote: Vote,
   ) => {
-    if (!publishActiveRef.current) return;
     setChallengeVerification(challengeVerification);
     (originalOnChallengeVerification ?? noop)(challengeVerification, vote);
   };
@@ -493,21 +493,35 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
 
   // change state on publishing state change
   publishVoteOptions.onPublishingStateChange = (publishingState: string) => {
-    if (!publishActiveRef.current) return;
     setPublishingState(publishingState);
   };
 
   const publishVote = async () => {
-    publishActiveRef.current = true;
+    const requestId = publishVoteRequestIdRef.current + 1;
+    publishVoteRequestIdRef.current = requestId;
+    activePublishVoteRequestIdRef.current = requestId;
+    const isActiveRequest = () => activePublishVoteRequestIdRef.current === requestId;
+    const activePublishVoteOptions = {
+      ...publishVoteOptions,
+      onChallenge: (challenge: Challenge, vote: Vote) => {
+        if (isActiveRequest()) onChallenge(challenge, vote);
+      },
+      onChallengeVerification: (challengeVerification: ChallengeVerification, vote: Vote) => {
+        if (isActiveRequest()) onChallengeVerification(challengeVerification, vote);
+      },
+      onPublishingStateChange: (publishingState: string) => {
+        if (isActiveRequest()) setPublishingState(publishingState);
+      },
+    };
     try {
-      await accountsActions.publishVote(publishVoteOptions, accountName);
+      await accountsActions.publishVote(activePublishVoteOptions, accountName);
     } catch (e: any) {
       handlePublishVoteError(e, setErrors, originalOnError);
     }
   };
 
   const abandonPublish = async () => {
-    publishActiveRef.current = false;
+    activePublishVoteRequestIdRef.current = undefined;
     setChallenge(undefined);
     setChallengeVerification(undefined);
     setPublishChallengeAnswers(undefined);
