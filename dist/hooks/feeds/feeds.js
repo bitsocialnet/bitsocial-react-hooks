@@ -14,7 +14,9 @@ import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:feeds:hooks");
 import assert from "assert";
 import useFeedsStore from "../../stores/feeds/index.js";
+import useAccountsStore from "../../stores/accounts/index.js";
 import { addCommentModerationToComments } from "../../lib/utils/comment-moderation.js";
+import { addOptimisticVoteCountsToComments } from "../../lib/utils/optimistic-vote-counts.js";
 import shallow from "zustand/shallow";
 import { getCommunityRefKeys, getUniqueSortedCommunityRefs, } from "../../lib/community-ref.js";
 import { serializeFeedKey } from "../../lib/serialize-feed-key.js";
@@ -40,6 +42,7 @@ export function useFeed(options) {
         accountComments,
     });
     const account = useAccount({ accountName });
+    const accountVotes = useAccountsStore((state) => (account === null || account === void 0 ? void 0 : account.id) ? state.accountsVotes[account.id] : undefined);
     const addFeedToStore = useFeedsStore((state) => state.addFeedToStore);
     const incrementFeedPageNumber = useFeedsStore((state) => state.incrementFeedPageNumber);
     const expandFeedTimeWindow = useFeedsStore((state) => state.expandFeedTimeWindow);
@@ -120,9 +123,11 @@ export function useFeed(options) {
         });
     }
     const state = !hasMore ? "succeeded" : "fetching-ipns";
-    const normalizedFeed = useMemo(() => addCommentModerationToComments(feed), [feed]);
-    const normalizedBufferedFeed = useMemo(() => addCommentModerationToComments(bufferedFeed), [bufferedFeed]);
-    const normalizedUpdatedFeed = useMemo(() => addCommentModerationToComments(updatedFeed), [updatedFeed]);
+    // apply the account's pending votes like useComment/useComments/useReplies do, so voting from a
+    // feed updates the score immediately instead of only once the community publishes the new counts
+    const normalizedFeed = useMemo(() => addOptimisticVoteCountsToComments(addCommentModerationToComments(feed), accountVotes), [feed, accountVotes]);
+    const normalizedBufferedFeed = useMemo(() => addOptimisticVoteCountsToComments(addCommentModerationToComments(bufferedFeed), accountVotes), [bufferedFeed, accountVotes]);
+    const normalizedUpdatedFeed = useMemo(() => addOptimisticVoteCountsToComments(addCommentModerationToComments(updatedFeed), accountVotes), [updatedFeed, accountVotes]);
     return useMemo(() => ({
         feed: normalizedFeed,
         bufferedFeed: normalizedBufferedFeed,
