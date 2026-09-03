@@ -41,6 +41,11 @@ export declare const unsaveComment: (commentCid: string, accountName?: string) =
 export declare const publishComment: (publishCommentOptions: PublishCommentOptions, accountName?: string) => Promise<any>;
 export declare const deleteComment: (commentCidOrAccountCommentIndex: string | number, accountName?: string) => Promise<void>;
 export declare const publishVote: (publishVoteOptions: PublishVoteOptions, accountName?: string) => Promise<void>;
+/**
+ * Stops the vote publications still waiting on a challenge for a comment and restores the account
+ * vote they optimistically replaced. Does nothing once the vote has been verified.
+ */
+export declare const abandonVote: (commentCid: string, accountName?: string) => Promise<void>;
 export declare const publishCommentEdit: (publishCommentEditOptions: PublishCommentEditOptions, accountName?: string) => Promise<void>;
 export declare const publishCommentModeration: (publishCommentModerationOptions: PublishCommentModerationOptions, accountName?: string) => Promise<void>;
 export declare const publishCommunityEdit: (communityAddress: string, publishCommunityEditOptions: PublishCommunityEditOptions, accountName?: string) => Promise<void>;

@@ -298,6 +298,7 @@ export interface UsePublishVoteResult extends Result {
     challenge: Challenge | undefined;
     challengeVerification: ChallengeVerification | undefined;
     publishVote(): Promise<void>;
+    abandonPublish(): Promise<void>;
     publishChallengeAnswers(challengeAnswers?: string[]): Promise<void>;
 }
 export interface UsePublishCommentEditOptions extends Options {

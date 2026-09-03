@@ -356,6 +356,11 @@ export function usePublishVote(options) {
     const [challenge, setChallenge] = useState();
     const [challengeVerification, setChallengeVerification] = useState();
     const [publishChallengeAnswers, setPublishChallengeAnswers] = useState();
+    // each publishVote() call gets its own request id and abandonPublish() clears the active one, so
+    // the stopped publication's late events (like the "stopped" publishing state) neither overwrite
+    // the cleared hook state nor leak into the next publication
+    const publishVoteRequestIdRef = useRef(0);
+    const activePublishVoteRequestIdRef = useRef(undefined);
     let initialState = "initializing";
     // before the accountId and options is defined, nothing can happen
     if (accountId && options) {
@@ -387,17 +392,42 @@ export function usePublishVote(options) {
         setPublishingState(publishingState);
     };
     const publishVote = () => __awaiter(this, void 0, void 0, function* () {
+        const requestId = publishVoteRequestIdRef.current + 1;
+        publishVoteRequestIdRef.current = requestId;
+        activePublishVoteRequestIdRef.current = requestId;
+        const isActiveRequest = () => activePublishVoteRequestIdRef.current === requestId;
+        const activePublishVoteOptions = Object.assign(Object.assign({}, publishVoteOptions), { onChallenge: (challenge, vote) => {
+                if (isActiveRequest())
+                    onChallenge(challenge, vote);
+            }, onChallengeVerification: (challengeVerification, vote) => {
+                if (isActiveRequest())
+                    onChallengeVerification(challengeVerification, vote);
+            }, onPublishingStateChange: (publishingState) => {
+                if (isActiveRequest())
+                    setPublishingState(publishingState);
+            } });
         try {
-            yield accountsActions.publishVote(publishVoteOptions, accountName);
+            yield accountsActions.publishVote(activePublishVoteOptions, accountName);
         }
         catch (e) {
             handlePublishVoteError(e, setErrors, originalOnError);
         }
     });
+    const abandonPublish = () => __awaiter(this, void 0, void 0, function* () {
+        activePublishVoteRequestIdRef.current = undefined;
+        setChallenge(undefined);
+        setChallengeVerification(undefined);
+        setPublishChallengeAnswers(undefined);
+        setPublishingState(undefined);
+        if (!publishVoteOptions.commentCid)
+            return;
+        yield accountsActions.abandonVote(publishVoteOptions.commentCid, accountName);
+    });
     return useMemo(() => ({
         challenge,
         challengeVerification,
         publishVote,
+        abandonPublish,
         publishChallengeAnswers: publishChallengeAnswers || publishChallengeAnswersNotReady,
         state: publishingState || initialState,
         error: errors[errors.length - 1],

@@ -106,6 +106,11 @@ const applyPublicationWordfilters = (publicationType, options, account) => __awa
 // Active publish-session tracking for pending comments (Task 3)
 const activePublishSessions = new Map();
 const abandonedPublishSessionIds = new Set();
+// A vote has no pending account comment to delete, so abandoning one restores the account vote that
+// the optimistic write in publishVote replaced. Keyed per comment because that is what the caller
+// abandons, and because rapid votes on the same comment share one revert target.
+const activeVotePublishSessions = new Map();
+const getVotePublishSessionKey = (accountId, commentCid) => `${accountId}:${commentCid}`;
 const getClientsSnapshotForState = (clients) => {
     if (!clients || typeof clients !== "object") {
         return undefined;
@@ -203,6 +208,42 @@ const abandonAndStopPublishSession = (accountId, index) => {
     }
     activePublishSessions.delete(session.sessionId);
 };
+const startVotePublishSession = (accountId, commentCid, previousAccountVote) => {
+    const key = getVotePublishSessionKey(accountId, commentCid);
+    const session = activeVotePublishSessions.get(key);
+    // a retry or a rapid second vote joins the running session so the revert target stays the vote the
+    // user had before any of them was published
+    if (session)
+        return session;
+    const startedSession = {
+        previousAccountVote,
+        publications: new Set(),
+        creating: 0,
+    };
+    activeVotePublishSessions.set(key, startedSession);
+    return startedSession;
+};
+const endVotePublishSession = (accountId, commentCid) => {
+    activeVotePublishSessions.delete(getVotePublishSessionKey(accountId, commentCid));
+};
+const restoreAccountVote = (accountId, commentCid, previousAccountVote) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    const currentAccountVote = (_a = accountsStore.getState().accountsVotes[accountId]) === null || _a === void 0 ? void 0 : _a[commentCid];
+    // nothing was written optimistically, so there is nothing to restore
+    if (currentAccountVote === previousAccountVote)
+        return;
+    // the account votes database only appends, so a comment with no earlier vote is restored to an
+    // explicit neutral vote rather than by deleting the abandoned one
+    const restoredAccountVote = previousAccountVote !== null && previousAccountVote !== void 0 ? previousAccountVote : {
+        commentCid,
+        vote: 0,
+        timestamp: Math.floor(Date.now() / 1000),
+    };
+    yield accountsDatabase.addAccountVote(accountId, restoredAccountVote);
+    accountsStore.setState(({ accountsVotes }) => ({
+        accountsVotes: Object.assign(Object.assign({}, accountsVotes), { [accountId]: Object.assign(Object.assign({}, accountsVotes[accountId]), { [commentCid]: restoredAccountVote }) }),
+    }));
+});
 const isPublishSessionAbandoned = (sessionId) => abandonedPublishSessionIds.has(sessionId);
 const getPublishSession = (sessionId) => activePublishSessions.get(sessionId);
 /** Returns state update or {} when accountComment not yet in state (no-op). Exported for coverage. */
@@ -1232,11 +1273,31 @@ export const publishVote = (publishVoteOptions, accountName) => __awaiter(void 0
     const accountComment = accountCommentInfo
         ? (_a = accountsState.accountsComments[accountCommentInfo.accountId]) === null || _a === void 0 ? void 0 : _a[accountCommentInfo.accountCommentIndex]
         : undefined;
-    const storedCreateVoteOptions = addOptimisticVoteMetadata(normalizePublicationOptionsForStore(createVoteOptions), (_b = accountsState.accountsVotes[account.id]) === null || _b === void 0 ? void 0 : _b[createVoteOptions.commentCid], getFreshestLoadedComment(createVoteOptions.commentCid, accountComment));
-    let vote = backfillPublicationCommunityAddress(yield account.pkc.createVote(createVoteOptions), createVoteOptions);
+    const previousAccountVote = (_b = accountsState.accountsVotes[account.id]) === null || _b === void 0 ? void 0 : _b[createVoteOptions.commentCid];
+    const storedCreateVoteOptions = addOptimisticVoteMetadata(normalizePublicationOptionsForStore(createVoteOptions), previousAccountVote, getFreshestLoadedComment(createVoteOptions.commentCid, accountComment));
+    const accountVote = Object.assign(Object.assign({}, storedCreateVoteOptions), { 
+        // remove signer and author because not needed and they expose private key
+        signer: undefined, author: undefined });
+    const votePublishSession = startVotePublishSession(account.id, createVoteOptions.commentCid, previousAccountVote);
+    const votePublishSessionKey = getVotePublishSessionKey(account.id, createVoteOptions.commentCid);
+    const isVotePublishSessionActive = () => activeVotePublishSessions.get(votePublishSessionKey) === votePublishSession;
+    const createSessionVote = () => __awaiter(void 0, void 0, void 0, function* () {
+        votePublishSession.creating++;
+        try {
+            return backfillPublicationCommunityAddress(yield account.pkc.createVote(createVoteOptions), createVoteOptions);
+        }
+        finally {
+            votePublishSession.creating--;
+        }
+    });
+    let vote = yield createSessionVote();
+    // abandoned while the vote was being created: nothing was published or written, so stop here
+    if (!isVotePublishSessionActive())
+        return;
     let lastChallenge;
     const publishAndRetryFailedChallengeVerification = () => __awaiter(void 0, void 0, void 0, function* () {
         var _a;
+        votePublishSession.publications.add(vote);
         vote.once("challenge", (challenge) => __awaiter(void 0, void 0, void 0, function* () {
             lastChallenge = challenge;
             publishVoteOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(vote));
@@ -1248,10 +1309,29 @@ export const publishVote = (publishVoteOptions, accountName) => __awaiter(void 0
                 lastChallenge &&
                 !hasTerminalChallengeVerificationError(challengeVerification)) {
                 // publish again automatically on fail
+                votePublishSession.publications.delete(vote);
                 createVoteOptions = Object.assign(Object.assign({}, createVoteOptions), { timestamp: Math.floor(Date.now() / 1000) });
-                vote = backfillPublicationCommunityAddress(yield account.pkc.createVote(createVoteOptions), createVoteOptions);
+                vote = yield createSessionVote();
+                if (!isVotePublishSessionActive())
+                    return;
                 lastChallenge = undefined;
                 publishAndRetryFailedChallengeVerification();
+            }
+            else {
+                // terminal: this vote is no longer abandonable
+                votePublishSession.publications.delete(vote);
+                if (challengeVerification.challengeSuccess) {
+                    // the verified vote is the one the account has now, so abandoning the rest of the burst
+                    // restores it instead of the vote from before the burst
+                    votePublishSession.previousAccountVote = accountVote;
+                }
+                // the session ends only once no other publication of the burst is waiting on its challenge
+                // or still being created, and only if a newer session has not replaced it in the meantime
+                if (votePublishSession.publications.size === 0 &&
+                    votePublishSession.creating === 0 &&
+                    isVotePublishSessionActive()) {
+                    activeVotePublishSessions.delete(votePublishSessionKey);
+                }
             }
         }));
         vote.on("error", (error) => { var _a; return (_a = publishVoteOptions.onError) === null || _a === void 0 ? void 0 : _a.call(publishVoteOptions, error, vote); });
@@ -1271,8 +1351,44 @@ export const publishVote = (publishVoteOptions, accountName) => __awaiter(void 0
     yield accountsDatabase.addAccountVote(account.id, storedCreateVoteOptions);
     log("accountsActions.publishVote", { createVoteOptions });
     accountsStore.setState(({ accountsVotes }) => ({
-        accountsVotes: Object.assign(Object.assign({}, accountsVotes), { [account.id]: Object.assign(Object.assign({}, accountsVotes[account.id]), { [storedCreateVoteOptions.commentCid]: Object.assign(Object.assign({}, storedCreateVoteOptions), { signer: undefined, author: undefined }) }) }),
+        accountsVotes: Object.assign(Object.assign({}, accountsVotes), { [account.id]: Object.assign(Object.assign({}, accountsVotes[account.id]), { [storedCreateVoteOptions.commentCid]: accountVote }) }),
     }));
+});
+/**
+ * Stops the vote publications still waiting on a challenge for a comment and restores the account
+ * vote they optimistically replaced. Does nothing once the vote has been verified.
+ */
+export const abandonVote = (commentCid, accountName) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
+    assert(accounts && accountNamesToAccountIds && activeAccountId, `can't use accountsStore.accountActions before initialized`);
+    let account = accounts[activeAccountId];
+    if (accountName) {
+        const accountId = accountNamesToAccountIds[accountName];
+        account = accounts[accountId];
+    }
+    assert(account === null || account === void 0 ? void 0 : account.id, `accountsActions.abandonVote account.id '${account === null || account === void 0 ? void 0 : account.id}' doesn't exist`);
+    assert(commentCid && typeof commentCid === "string", `accountsActions.abandonVote commentCid '${commentCid}' not a string`);
+    const session = activeVotePublishSessions.get(getVotePublishSessionKey(account.id, commentCid));
+    if (!session)
+        return;
+    endVotePublishSession(account.id, commentCid);
+    for (const publication of session.publications) {
+        try {
+            const stop = (_a = publication === null || publication === void 0 ? void 0 : publication.stop) === null || _a === void 0 ? void 0 : _a.bind(publication);
+            if (typeof stop === "function")
+                yield stop();
+        }
+        catch (e) {
+            log.error("vote.stop() error during abandon", {
+                accountId: account.id,
+                commentCid,
+                error: e,
+            });
+        }
+    }
+    yield restoreAccountVote(account.id, commentCid, session.previousAccountVote);
+    log("accountsActions.abandonVote", { accountId: account.id, commentCid });
 });
 export const publishCommentEdit = (publishCommentEditOptions, accountName) => __awaiter(void 0, void 0, void 0, function* () {
     const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
