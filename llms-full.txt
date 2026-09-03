@@ -207,7 +207,7 @@ useSubscribe({communityAddress: string}): {subscribed: boolean | undefined, subs
 useBlock({address?: string, cid?: string}): {blocked: boolean | undefined, block: Function, unblock: Function}
 useSaveComment({commentCid: string}): {saved: boolean | undefined, saveComment: Function, unsaveComment: Function}
 usePublishComment(options: UsePublishCommentOptions): {index: number, abandonPublish: () => Promise<void>, ...UsePublishCommentResult}
-usePublishVote(options: UsePublishVoteOptions): UsePublishVoteResult
+usePublishVote(options: UsePublishVoteOptions): {abandonPublish: () => Promise<void>, ...UsePublishVoteResult}
 usePublishCommentEdit(options: UsePublishCommentEditOptions): UsePublishCommentEditResult
 usePublishCommentModeration(options: UsePublishCommentModerationOptions): UsePublishCommentModerationResult
 usePublishCommunityEdit(options: UsePublishCommunityEditOptions): UsePublishCommunityEditResult
@@ -712,11 +712,16 @@ const publishVoteOptions = {
   onChallengeVerification,
   onError,
 };
-const { state, error, publishVote } = usePublishVote(publishVoteOptions);
+const { state, error, publishVote, abandonPublish } = usePublishVote(publishVoteOptions);
 
 await publishVote();
 console.log(state);
 console.log(error);
+
+// if the user closes the challenge modal and wants to cancel voting:
+await abandonPublish();
+// the vote publication is stopped and the account vote goes back to what it was
+// before publishVote(), so the optimistic vote does not survive a cancelled challenge
 
 // display the user's vote
 const { vote } = useAccountVote({ commentCid });
@@ -3282,6 +3287,15 @@ Avoid GitHub MCP and browser MCP servers for this project because they add signi
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/CHANGELOG.md
 
 ```markdown
+## [0.1.43](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.42...v0.1.43) (2026-08-29)
+
+
+### Bug Fixes
+
+* **comments:** preserve published author identity ([#109](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/109)) ([a3bb5c6](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/a3bb5c697f38eec45e4629ddebe7d5d11456036d))
+
+
+
 ## [0.1.42](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.41...v0.1.42) (2026-08-28)
 
 

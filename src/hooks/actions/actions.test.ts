@@ -2147,6 +2147,40 @@ describe("actions", () => {
       await testUtils.resetDatabasesAndStores();
     });
 
+    test(`abandonPublish reverts the account vote and clears the challenge`, async () => {
+      const publishVoteOptions = {
+        communityAddress: "12D3KooW... acions.test",
+        commentCid: "Qm... abandon.test",
+        vote: 1,
+        // never answer the challenge so the vote stays abandonable
+        onChallenge: vi.fn(),
+        onChallengeVerification: vi.fn(),
+      };
+      rendered.rerender(publishVoteOptions);
+      await waitFor(() => rendered.result.current.state === "ready");
+
+      await act(async () => {
+        await rendered.result.current.publishVote();
+      });
+      await waitFor(() => rendered.result.current.challenge !== undefined);
+      expect(rendered.result.current.accountVote.vote).toBe(1);
+
+      await act(async () => {
+        await rendered.result.current.abandonPublish();
+      });
+
+      await waitFor(() => rendered.result.current.accountVote.vote === 0);
+      expect(rendered.result.current.accountVote.vote).toBe(0);
+      expect(rendered.result.current.challenge).toBe(undefined);
+      expect(publishVoteOptions.onChallengeVerification).not.toHaveBeenCalled();
+    });
+
+    test(`abandonPublish without a commentCid does not throw`, async () => {
+      rendered.rerender({ communityAddress: "12D3KooW... acions.test", vote: 1 });
+      await waitFor(() => rendered.result.current.state === "ready");
+      await expect(rendered.result.current.abandonPublish()).resolves.toBeUndefined();
+    });
+
     test(`publishChallengeAnswers throws when challenge not yet received`, async () => {
       const publishVoteOptions = {
         communityAddress: "12D3KooW... acions.test",

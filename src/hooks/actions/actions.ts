@@ -499,11 +499,21 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
     }
   };
 
+  const abandonPublish = async () => {
+    setChallenge(undefined);
+    setChallengeVerification(undefined);
+    setPublishChallengeAnswers(undefined);
+    setPublishingState(undefined);
+    if (!publishVoteOptions.commentCid) return;
+    await accountsActions.abandonVote(publishVoteOptions.commentCid, accountName);
+  };
+
   return useMemo(
     () => ({
       challenge,
       challengeVerification,
       publishVote,
+      abandonPublish,
       publishChallengeAnswers: publishChallengeAnswers || publishChallengeAnswersNotReady,
       state: publishingState || initialState,
       error: errors[errors.length - 1],

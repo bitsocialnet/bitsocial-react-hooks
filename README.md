@@ -177,7 +177,7 @@ useSubscribe({communityAddress: string}): {subscribed: boolean | undefined, subs
 useBlock({address?: string, cid?: string}): {blocked: boolean | undefined, block: Function, unblock: Function}
 useSaveComment({commentCid: string}): {saved: boolean | undefined, saveComment: Function, unsaveComment: Function}
 usePublishComment(options: UsePublishCommentOptions): {index: number, abandonPublish: () => Promise<void>, ...UsePublishCommentResult}
-usePublishVote(options: UsePublishVoteOptions): UsePublishVoteResult
+usePublishVote(options: UsePublishVoteOptions): {abandonPublish: () => Promise<void>, ...UsePublishVoteResult}
 usePublishCommentEdit(options: UsePublishCommentEditOptions): UsePublishCommentEditResult
 usePublishCommentModeration(options: UsePublishCommentModerationOptions): UsePublishCommentModerationResult
 usePublishCommunityEdit(options: UsePublishCommunityEditOptions): UsePublishCommunityEditResult
@@ -682,11 +682,16 @@ const publishVoteOptions = {
   onChallengeVerification,
   onError,
 };
-const { state, error, publishVote } = usePublishVote(publishVoteOptions);
+const { state, error, publishVote, abandonPublish } = usePublishVote(publishVoteOptions);
 
 await publishVote();
 console.log(state);
 console.log(error);
+
+// if the user closes the challenge modal and wants to cancel voting:
+await abandonPublish();
+// the vote publication is stopped and the account vote goes back to what it was
+// before publishVote(), so the optimistic vote does not survive a cancelled challenge
 
 // display the user's vote
 const { vote } = useAccountVote({ commentCid });

@@ -3671,4 +3671,132 @@ describe("accounts-actions", () => {
       expect(persistedEdits["remote-sub.eth"]).toBeUndefined();
     });
   });
+
+  describe("abandonVote", () => {
+    beforeEach(async () => {
+      await testUtils.resetDatabasesAndStores();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    // the challenge is never answered, so the vote stays abandonable
+    const publishUnansweredVote = async (commentCid: string, vote: number) => {
+      const votes: any[] = [];
+      await act(async () => {
+        await accountsActions.publishVote({
+          communityAddress: "sub.eth",
+          commentCid,
+          vote,
+          onChallenge: (_challenge: any, publication: any) => votes.push(publication),
+          onChallengeVerification: () => {},
+        });
+      });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return votes;
+    };
+
+    test("stops the publication and neutralizes a vote the comment did not have before", async () => {
+      const accountId = accountsStore.getState().activeAccountId!;
+      const [vote] = await publishUnansweredVote("abandon cid", 1);
+      const stop = vi.spyOn(vote, "stop");
+      expect(accountsStore.getState().accountsVotes[accountId]["abandon cid"].vote).toBe(1);
+
+      await act(async () => {
+        await accountsActions.abandonVote("abandon cid");
+      });
+
+      expect(stop).toHaveBeenCalledOnce();
+      const accountVote = accountsStore.getState().accountsVotes[accountId]["abandon cid"];
+      expect(accountVote.vote).toBe(0);
+      expect(accountVote._optimisticVoteTransitions).toBeUndefined();
+      const persistedVotes = await accountsDatabase.getAccountVotes(accountId);
+      expect(persistedVotes["abandon cid"].vote).toBe(0);
+    });
+
+    test("restores the vote the comment had before the abandoned publication", async () => {
+      const accountId = accountsStore.getState().activeAccountId!;
+      await act(async () => {
+        await accountsActions.publishVote({
+          communityAddress: "sub.eth",
+          commentCid: "restore cid",
+          vote: 1,
+          onChallenge: (_challenge: any, publication: any) =>
+            publication.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      const publishedVote = accountsStore.getState().accountsVotes[accountId]["restore cid"];
+      expect(publishedVote.vote).toBe(1);
+
+      await publishUnansweredVote("restore cid", -1);
+      expect(accountsStore.getState().accountsVotes[accountId]["restore cid"].vote).toBe(-1);
+
+      await act(async () => {
+        await accountsActions.abandonVote("restore cid");
+      });
+
+      expect(accountsStore.getState().accountsVotes[accountId]["restore cid"]).toEqual(
+        publishedVote,
+      );
+      const persistedVotes = await accountsDatabase.getAccountVotes(accountId);
+      expect(persistedVotes["restore cid"].vote).toBe(1);
+    });
+
+    test("keeps abandoning the publication still waiting on its challenge after another one of the burst is verified", async () => {
+      const accountId = accountsStore.getState().activeAccountId!;
+      const [firstVote] = await publishUnansweredVote("burst cid", 1);
+      const [secondVote] = await publishUnansweredVote("burst cid", -1);
+      const secondStop = vi.spyOn(secondVote, "stop");
+
+      await act(async () => {
+        await firstVote.publishChallengeAnswers(["4"]);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      await act(async () => {
+        await accountsActions.abandonVote("burst cid");
+      });
+
+      expect(secondStop).toHaveBeenCalledOnce();
+      expect(accountsStore.getState().accountsVotes[accountId]["burst cid"].vote).toBe(0);
+    });
+
+    test("does not revert a vote that already passed challenge verification", async () => {
+      const accountId = accountsStore.getState().activeAccountId!;
+      await act(async () => {
+        await accountsActions.publishVote({
+          communityAddress: "sub.eth",
+          commentCid: "verified cid",
+          vote: 1,
+          onChallenge: (_challenge: any, publication: any) =>
+            publication.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      await act(async () => {
+        await accountsActions.abandonVote("verified cid");
+      });
+
+      expect(accountsStore.getState().accountsVotes[accountId]["verified cid"].vote).toBe(1);
+    });
+
+    test("does nothing when the comment has no vote publication waiting on a challenge", async () => {
+      const accountId = accountsStore.getState().activeAccountId!;
+      const addAccountVote = vi.spyOn(accountsDatabase, "addAccountVote");
+
+      await act(async () => {
+        await accountsActions.abandonVote("never voted cid");
+      });
+
+      expect(addAccountVote).not.toHaveBeenCalled();
+      expect(
+        accountsStore.getState().accountsVotes[accountId]?.["never voted cid"],
+      ).toBeUndefined();
+    });
+  });
 });
