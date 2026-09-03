@@ -148,9 +148,12 @@ const activePublishSessions = new Map<string, PublishSession>();
 const abandonedPublishSessionIds = new Set<string>();
 
 type VotePublishSession = {
-  // the account vote the first publication of this burst replaced, restored when the burst is abandoned
+  // the account vote restored when the burst is abandoned: the one the first publication replaced, or
+  // the latest verified vote of the burst
   previousAccountVote: AccountVote | undefined;
   publications: Set<any>;
+  // votes still waiting on account.pkc.createVote(), they join publications once it resolves
+  creating: number;
 };
 
 // A vote has no pending account comment to delete, so abandoning one restores the account vote that
@@ -288,7 +291,11 @@ const startVotePublishSession = (
   // a retry or a rapid second vote joins the running session so the revert target stays the vote the
   // user had before any of them was published
   if (session) return session;
-  const startedSession: VotePublishSession = { previousAccountVote, publications: new Set() };
+  const startedSession: VotePublishSession = {
+    previousAccountVote,
+    publications: new Set(),
+    creating: 0,
+  };
   activeVotePublishSessions.set(key, startedSession);
   return startedSession;
 };
@@ -1786,16 +1793,35 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
     previousAccountVote,
     getFreshestLoadedComment(createVoteOptions.commentCid, accountComment),
   );
+  const accountVote: AccountVote = {
+    ...storedCreateVoteOptions,
+    // remove signer and author because not needed and they expose private key
+    signer: undefined,
+    author: undefined,
+  };
   const votePublishSession = startVotePublishSession(
     account.id,
     createVoteOptions.commentCid,
     previousAccountVote,
   );
+  const votePublishSessionKey = getVotePublishSessionKey(account.id, createVoteOptions.commentCid);
+  const isVotePublishSessionActive = () =>
+    activeVotePublishSessions.get(votePublishSessionKey) === votePublishSession;
+  const createSessionVote = async () => {
+    votePublishSession.creating++;
+    try {
+      return backfillPublicationCommunityAddress(
+        await account.pkc.createVote(createVoteOptions),
+        createVoteOptions,
+      );
+    } finally {
+      votePublishSession.creating--;
+    }
+  };
 
-  let vote = backfillPublicationCommunityAddress(
-    await account.pkc.createVote(createVoteOptions),
-    createVoteOptions,
-  );
+  let vote = await createSessionVote();
+  // abandoned while the vote was being created: nothing was published or written, so stop here
+  if (!isVotePublishSessionActive()) return;
   let lastChallenge: Challenge | undefined;
   const publishAndRetryFailedChallengeVerification = async () => {
     votePublishSession.publications.add(vote);
@@ -1814,23 +1840,26 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
         // publish again automatically on fail
         votePublishSession.publications.delete(vote);
         createVoteOptions = { ...createVoteOptions, timestamp: Math.floor(Date.now() / 1000) };
-        vote = backfillPublicationCommunityAddress(
-          await account.pkc.createVote(createVoteOptions),
-          createVoteOptions,
-        );
+        vote = await createSessionVote();
+        if (!isVotePublishSessionActive()) return;
         lastChallenge = undefined;
         publishAndRetryFailedChallengeVerification();
       } else {
-        // terminal: this vote is no longer abandonable. The session ends only once no other
-        // publication of the burst is still waiting on its challenge, and only if a newer session
-        // has not replaced it in the meantime
+        // terminal: this vote is no longer abandonable
         votePublishSession.publications.delete(vote);
-        const key = getVotePublishSessionKey(account.id, createVoteOptions.commentCid);
+        if (challengeVerification.challengeSuccess) {
+          // the verified vote is the one the account has now, so abandoning the rest of the burst
+          // restores it instead of the vote from before the burst
+          votePublishSession.previousAccountVote = accountVote;
+        }
+        // the session ends only once no other publication of the burst is waiting on its challenge
+        // or still being created, and only if a newer session has not replaced it in the meantime
         if (
           votePublishSession.publications.size === 0 &&
-          activeVotePublishSessions.get(key) === votePublishSession
+          votePublishSession.creating === 0 &&
+          isVotePublishSessionActive()
         ) {
-          activeVotePublishSessions.delete(key);
+          activeVotePublishSessions.delete(votePublishSessionKey);
         }
       }
     });
@@ -1857,9 +1886,7 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
       ...accountsVotes,
       [account.id]: {
         ...accountsVotes[account.id],
-        [storedCreateVoteOptions.commentCid]:
-          // remove signer and author because not needed and they expose private key
-          { ...storedCreateVoteOptions, signer: undefined, author: undefined },
+        [storedCreateVoteOptions.commentCid]: accountVote,
       },
     },
   }));

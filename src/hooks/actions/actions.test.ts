@@ -2172,6 +2172,8 @@ describe("actions", () => {
       await waitFor(() => rendered.result.current.accountVote.vote === 0);
       expect(rendered.result.current.accountVote.vote).toBe(0);
       expect(rendered.result.current.challenge).toBe(undefined);
+      // the "stopped" publishing state emitted by the stopped publication is ignored
+      expect(rendered.result.current.state).toBe("ready");
       expect(publishVoteOptions.onChallengeVerification).not.toHaveBeenCalled();
     });
 

@@ -452,6 +452,9 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
   const [challenge, setChallenge] = useState<Challenge>();
   const [challengeVerification, setChallengeVerification] = useState<ChallengeVerification>();
   const [publishChallengeAnswers, setPublishChallengeAnswers] = useState<PublishChallengeAnswers>();
+  // false once abandonPublish() ran, so the stopped publication's late events (like the "stopped"
+  // publishing state) do not overwrite the cleared hook state
+  const publishActiveRef = useRef(false);
 
   let initialState = "initializing";
   // before the accountId and options is defined, nothing can happen
@@ -470,6 +473,7 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
   // define onChallenge if not defined
   const originalOnChallenge = publishVoteOptions.onChallenge;
   const onChallenge = async (challenge: Challenge, vote: Vote) => {
+    if (!publishActiveRef.current) return;
     setPublishChallengeAnswers(() => vote?.publishChallengeAnswers.bind(vote));
     setChallenge(challenge);
     (originalOnChallenge ?? (() => {}))(challenge, vote);
@@ -481,6 +485,7 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
     challengeVerification: ChallengeVerification,
     vote: Vote,
   ) => {
+    if (!publishActiveRef.current) return;
     setChallengeVerification(challengeVerification);
     (originalOnChallengeVerification ?? noop)(challengeVerification, vote);
   };
@@ -488,10 +493,12 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
 
   // change state on publishing state change
   publishVoteOptions.onPublishingStateChange = (publishingState: string) => {
+    if (!publishActiveRef.current) return;
     setPublishingState(publishingState);
   };
 
   const publishVote = async () => {
+    publishActiveRef.current = true;
     try {
       await accountsActions.publishVote(publishVoteOptions, accountName);
     } catch (e: any) {
@@ -500,6 +507,7 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
   };
 
   const abandonPublish = async () => {
+    publishActiveRef.current = false;
     setChallenge(undefined);
     setChallengeVerification(undefined);
     setPublishChallengeAnswers(undefined);
