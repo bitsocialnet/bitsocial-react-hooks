@@ -702,8 +702,9 @@ if (vote === 0) console.log("user voted 0");
 if (vote === undefined) console.log(`user didn't vote yet`);
 ```
 
-`useComment`, `useComments`, and `useReplies` apply the selected account's pending vote to
-`upvoteCount` and `downvoteCount` immediately. The optimistic adjustment is replaced by the next
+`useComment`, `useComments`, `useReplies`, and `useFeed` apply the selected account's pending vote
+to `upvoteCount` and `downvoteCount` immediately, so a score updates the same way whether the vote
+was cast from a feed or from a comment page. The optimistic adjustment is replaced by the next
 canonical comment update.
 
 #### Create a comment edit

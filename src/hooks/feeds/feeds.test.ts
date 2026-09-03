@@ -289,6 +289,42 @@ describe("feeds", () => {
       expect(rendered.result.current.feed[0]?.commentModeration?.purged).toBe(true);
     });
 
+    test("useFeed optimistically includes the active account vote in feed counts", async () => {
+      rendered.rerender({ communityAddresses: ["community address 1"] });
+      await waitFor(() => rendered.result.current.feed.length > 0);
+
+      const votedCommentCid = rendered.result.current.feed[0].cid;
+      const findVotedComment = () =>
+        rendered.result.current.feed.find((comment: Comment) => comment.cid === votedCommentCid);
+      const upvoteCountWithoutAccountVote = findVotedComment().upvoteCount;
+      const downvoteCountWithoutAccountVote = findVotedComment().downvoteCount;
+      const accountId = accountsStore.getState().activeAccountId;
+
+      act(() => {
+        accountsStore.setState((state: any) => ({
+          accountsVotes: {
+            ...state.accountsVotes,
+            [accountId!]: {
+              ...state.accountsVotes[accountId!],
+              [votedCommentCid]: {
+                commentCid: votedCommentCid,
+                vote: 1,
+                timestamp: Number.MAX_SAFE_INTEGER,
+                _optimisticVoteBase: 0,
+                _optimisticVoteObservedAt: 0,
+                // newer than any comment version, so the published counts never include it yet
+                _optimisticVoteTransitions: [{ vote: 1, timestamp: Number.MAX_SAFE_INTEGER }],
+              },
+            },
+          },
+        }));
+      });
+
+      await waitFor(() => findVotedComment()?.upvoteCount === upvoteCountWithoutAccountVote + 1);
+      expect(findVotedComment().upvoteCount).toBe(upvoteCountWithoutAccountVote + 1);
+      expect(findVotedComment().downvoteCount).toBe(downvoteCountWithoutAccountVote);
+    });
+
     test("feed cache expires and hasMore is true", async () => {
       // mock Date.now for fetchedAt cache value
       const now = Date.now();
