@@ -1,3 +1,19 @@
+## [0.1.44](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.43...v0.1.44) (2026-09-03)
+
+
+### Bug Fixes
+
+* **deps:** patch Dependabot alerts [skip github-alerts] [skip ci] ([9854f45](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/9854f45a757f1acc050d0bbcef6d96744a62cef3))
+* **deps:** update browserslist [skip github-alerts] [skip ci] ([57bef08](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/57bef08c185a097823c9925788df9ae74b98ab48))
+* **feeds:** apply optimistic account votes to feed vote counts ([#114](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/114)) ([a081cfb](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/a081cfb72230ebd43e62a70f6ecf9c813dbb0195))
+
+
+### Features
+
+* **votes:** add abandonPublish to usePublishVote ([#112](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/112)) ([036c44f](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/036c44fcfc682519a5883103a18be0fe46efceba))
+
+
+
 ## [0.1.43](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.42...v0.1.43) (2026-08-29)
 
 
