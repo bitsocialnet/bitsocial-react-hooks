@@ -14,7 +14,9 @@ import {
   CommentsFilter,
 } from "../../types";
 import useFeedsStore from "../../stores/feeds";
+import useAccountsStore from "../../stores/accounts";
 import { addCommentModerationToComments } from "../../lib/utils/comment-moderation";
+import { addOptimisticVoteCountsToComments } from "../../lib/utils/optimistic-vote-counts";
 import shallow from "zustand/shallow";
 import {
   CommunityLookupRef,
@@ -57,6 +59,9 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
     accountComments,
   });
   const account = useAccount({ accountName });
+  const accountVotes = useAccountsStore((state: any) =>
+    account?.id ? state.accountsVotes[account.id] : undefined,
+  );
   const addFeedToStore = useFeedsStore((state) => state.addFeedToStore);
   const incrementFeedPageNumber = useFeedsStore((state) => state.incrementFeedPageNumber);
   const expandFeedTimeWindow = useFeedsStore((state) => state.expandFeedTimeWindow);
@@ -167,14 +172,21 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
   }
 
   const state = !hasMore ? "succeeded" : "fetching-ipns";
-  const normalizedFeed = useMemo(() => addCommentModerationToComments(feed), [feed]);
+  // apply the account's pending votes like useComment/useComments/useReplies do, so voting from a
+  // feed updates the score immediately instead of only once the community publishes the new counts
+  const normalizedFeed = useMemo(
+    () => addOptimisticVoteCountsToComments(addCommentModerationToComments(feed), accountVotes),
+    [feed, accountVotes],
+  );
   const normalizedBufferedFeed = useMemo(
-    () => addCommentModerationToComments(bufferedFeed),
-    [bufferedFeed],
+    () =>
+      addOptimisticVoteCountsToComments(addCommentModerationToComments(bufferedFeed), accountVotes),
+    [bufferedFeed, accountVotes],
   );
   const normalizedUpdatedFeed = useMemo(
-    () => addCommentModerationToComments(updatedFeed),
-    [updatedFeed],
+    () =>
+      addOptimisticVoteCountsToComments(addCommentModerationToComments(updatedFeed), accountVotes),
+    [updatedFeed, accountVotes],
   );
 
   return useMemo(
