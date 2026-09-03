@@ -3671,4 +3671,204 @@ describe("accounts-actions", () => {
       expect(persistedEdits["remote-sub.eth"]).toBeUndefined();
     });
   });
+
+  describe("abandonVote", () => {
+    beforeEach(async () => {
+      await testUtils.resetDatabasesAndStores();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    // the challenge is never answered, so the vote stays abandonable
+    const publishUnansweredVote = async (commentCid: string, vote: number) => {
+      const votes: any[] = [];
+      await act(async () => {
+        await accountsActions.publishVote({
+          communityAddress: "sub.eth",
+          commentCid,
+          vote,
+          onChallenge: (_challenge: any, publication: any) => votes.push(publication),
+          onChallengeVerification: () => {},
+        });
+      });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return votes;
+    };
+
+    test("stops the publication and neutralizes a vote the comment did not have before", async () => {
+      const accountId = accountsStore.getState().activeAccountId!;
+      const [vote] = await publishUnansweredVote("abandon cid", 1);
+      const stop = vi.spyOn(vote, "stop");
+      expect(accountsStore.getState().accountsVotes[accountId]["abandon cid"].vote).toBe(1);
+
+      await act(async () => {
+        await accountsActions.abandonVote("abandon cid");
+      });
+
+      expect(stop).toHaveBeenCalledOnce();
+      const accountVote = accountsStore.getState().accountsVotes[accountId]["abandon cid"];
+      expect(accountVote.vote).toBe(0);
+      expect(accountVote._optimisticVoteTransitions).toBeUndefined();
+      const persistedVotes = await accountsDatabase.getAccountVotes(accountId);
+      expect(persistedVotes["abandon cid"].vote).toBe(0);
+    });
+
+    test("restores the vote the comment had before the abandoned publication", async () => {
+      const accountId = accountsStore.getState().activeAccountId!;
+      await act(async () => {
+        await accountsActions.publishVote({
+          communityAddress: "sub.eth",
+          commentCid: "restore cid",
+          vote: 1,
+          onChallenge: (_challenge: any, publication: any) =>
+            publication.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      const publishedVote = accountsStore.getState().accountsVotes[accountId]["restore cid"];
+      expect(publishedVote.vote).toBe(1);
+
+      await publishUnansweredVote("restore cid", -1);
+      expect(accountsStore.getState().accountsVotes[accountId]["restore cid"].vote).toBe(-1);
+
+      await act(async () => {
+        await accountsActions.abandonVote("restore cid");
+      });
+
+      expect(accountsStore.getState().accountsVotes[accountId]["restore cid"]).toEqual(
+        publishedVote,
+      );
+      const persistedVotes = await accountsDatabase.getAccountVotes(accountId);
+      expect(persistedVotes["restore cid"].vote).toBe(1);
+    });
+
+    test("keeps abandoning the publication still waiting on its challenge after another one of the burst is verified", async () => {
+      const accountId = accountsStore.getState().activeAccountId!;
+      const [firstVote] = await publishUnansweredVote("burst cid", 1);
+      const [secondVote] = await publishUnansweredVote("burst cid", -1);
+      const secondStop = vi.spyOn(secondVote, "stop");
+
+      await act(async () => {
+        await firstVote.publishChallengeAnswers(["4"]);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      await act(async () => {
+        await accountsActions.abandonVote("burst cid");
+      });
+
+      expect(secondStop).toHaveBeenCalledOnce();
+      // the verified first vote is restored, not the neutral vote from before the burst
+      expect(accountsStore.getState().accountsVotes[accountId]["burst cid"].vote).toBe(1);
+    });
+
+    // resolves account.pkc.createVote() only once the returned release() is called
+    const gateCreateVote = () => {
+      const account = accountsStore.getState().accounts[accountsStore.getState().activeAccountId!];
+      const originalCreateVote = account.pkc.createVote.bind(account.pkc);
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      const createVote = vi
+        .spyOn(account.pkc, "createVote")
+        .mockImplementation(async (...args: any[]) => {
+          await gate;
+          return originalCreateVote(...args);
+        });
+      return { createVote, release };
+    };
+
+    test("does not publish or write a vote abandoned while it was still being created", async () => {
+      const accountId = accountsStore.getState().activeAccountId!;
+      const { createVote, release } = gateCreateVote();
+      const onChallenge = vi.fn();
+      const publishPromise = accountsActions.publishVote({
+        communityAddress: "sub.eth",
+        commentCid: "creating cid",
+        vote: 1,
+        onChallenge,
+        onChallengeVerification: () => {},
+      });
+      await vi.waitFor(() => expect(createVote).toHaveBeenCalled());
+
+      await act(async () => {
+        await accountsActions.abandonVote("creating cid");
+      });
+      release();
+      await publishPromise;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(onChallenge).not.toHaveBeenCalled();
+      expect(accountsStore.getState().accountsVotes[accountId]?.["creating cid"]).toBeUndefined();
+    });
+
+    test("keeps the session for a vote still being created when the rest of the burst is verified", async () => {
+      const accountId = accountsStore.getState().activeAccountId!;
+      const [firstVote] = await publishUnansweredVote("creating burst cid", 1);
+      const { createVote, release } = gateCreateVote();
+      const votes: any[] = [];
+      const publishPromise = accountsActions.publishVote({
+        communityAddress: "sub.eth",
+        commentCid: "creating burst cid",
+        vote: -1,
+        onChallenge: (_challenge: any, publication: any) => votes.push(publication),
+        onChallengeVerification: () => {},
+      });
+      await vi.waitFor(() => expect(createVote).toHaveBeenCalled());
+
+      await act(async () => {
+        await firstVote.publishChallengeAnswers(["4"]);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      release();
+      await publishPromise;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(accountsStore.getState().accountsVotes[accountId]["creating burst cid"].vote).toBe(-1);
+      const secondStop = vi.spyOn(votes[0], "stop");
+
+      await act(async () => {
+        await accountsActions.abandonVote("creating burst cid");
+      });
+
+      expect(secondStop).toHaveBeenCalledOnce();
+      expect(accountsStore.getState().accountsVotes[accountId]["creating burst cid"].vote).toBe(1);
+    });
+
+    test("does not revert a vote that already passed challenge verification", async () => {
+      const accountId = accountsStore.getState().activeAccountId!;
+      await act(async () => {
+        await accountsActions.publishVote({
+          communityAddress: "sub.eth",
+          commentCid: "verified cid",
+          vote: 1,
+          onChallenge: (_challenge: any, publication: any) =>
+            publication.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      await act(async () => {
+        await accountsActions.abandonVote("verified cid");
+      });
+
+      expect(accountsStore.getState().accountsVotes[accountId]["verified cid"].vote).toBe(1);
+    });
+
+    test("does nothing when the comment has no vote publication waiting on a challenge", async () => {
+      const accountId = accountsStore.getState().activeAccountId!;
+      const addAccountVote = vi.spyOn(accountsDatabase, "addAccountVote");
+
+      await act(async () => {
+        await accountsActions.abandonVote("never voted cid");
+      });
+
+      expect(addAccountVote).not.toHaveBeenCalled();
+      expect(
+        accountsStore.getState().accountsVotes[accountId]?.["never voted cid"],
+      ).toBeUndefined();
+    });
+  });
 });
