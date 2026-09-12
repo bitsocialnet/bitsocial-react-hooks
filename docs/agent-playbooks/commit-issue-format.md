@@ -1,6 +1,6 @@
 # Commit and Issue Format
 
-Use this when proposing or implementing meaningful code changes.
+Use this when commit/issue wording is requested or an authorized commit/issue is being created. Do not append suggestions to unrelated answers.
 
 ## Commit Suggestion Format
 

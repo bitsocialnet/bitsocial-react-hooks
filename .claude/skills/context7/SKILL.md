@@ -1,67 +1,14 @@
 ---
 name: context7
-description: Retrieve up-to-date documentation for software libraries, frameworks, and components via the Context7 API. This skill should be used when looking up documentation for any programming library or framework, finding code examples for specific APIs or features, verifying correct usage of library functions, or obtaining current information about library APIs that may have changed since training.
+description: Retrieve library documentation with Context7 when the current task needs version-specific API guidance or a concrete documentation lookup.
 ---
+
+<!-- Generated from .agents/skills/context7/SKILL.md; run yarn ai-workflow:sync. -->
 
 # Context7
 
-## Overview
+Use the installed dependency version and the API question to scope the lookup. Existing source and tests may already answer it; a normal coding task does not require a Context7 search merely because it uses a library.
 
-This skill enables retrieval of current documentation for software libraries and components by querying the Context7 API via curl. Use it instead of relying on potentially outdated training data.
+Use an available Context7 tool, or read [HTTP lookup](references/http-lookup.md) when calling the API directly. Select the matching library and version from the results; do not assume the first result or latest release matches this repository.
 
-## Workflow
-
-### Step 1: Search for the Library
-
-To find the Context7 library ID, query the search endpoint:
-
-```bash
-curl -s "https://context7.com/api/v2/libs/search?libraryName=LIBRARY_NAME&query=TOPIC" | jq '.results[0]'
-```
-
-**Parameters:**
-- `libraryName` (required): The library name to search for (e.g., "react", "zustand", "vitest", "ethers")
-- `query` (required): A description of the topic for relevance ranking
-
-**Response fields:**
-- `id`: Library identifier for the context endpoint
-- `title`: Human-readable library name
-- `description`: Brief description of the library
-- `totalSnippets`: Number of documentation snippets available
-
-### Step 2: Fetch Documentation
-
-To retrieve documentation, use the library ID from step 1:
-
-```bash
-curl -s "https://context7.com/api/v2/context?libraryId=LIBRARY_ID&query=TOPIC&type=txt"
-```
-
-**Parameters:**
-- `libraryId` (required): The library ID from search results
-- `query` (required): The specific topic to retrieve documentation for
-- `type` (optional): Response format - `json` (default) or `txt` (plain text, more readable)
-
-## Examples
-
-### Zustand store documentation
-
-```bash
-curl -s "https://context7.com/api/v2/libs/search?libraryName=zustand&query=store" | jq '.results[0].id'
-curl -s "https://context7.com/api/v2/context?libraryId=/pmndrs/zustand&query=create+store&type=txt"
-```
-
-### Vitest testing
-
-```bash
-curl -s "https://context7.com/api/v2/libs/search?libraryName=vitest&query=testing" | jq '.results[0].id'
-curl -s "https://context7.com/api/v2/context?libraryId=/vitest-dev/vitest&query=mock+functions&type=txt"
-```
-
-## Tips
-
-- Use `type=txt` for more readable output
-- Use `jq` to filter and format JSON responses
-- Be specific with the `query` parameter to improve relevance ranking
-- URL-encode query parameters containing spaces (use `+` or `%20`)
-- No API key is required for basic usage (rate-limited)
+Fetch only documentation relevant to the decision. Check returned examples against the installed API and link the underlying official documentation when reporting a claim. If Context7 is unavailable, use official docs or installed source instead of installing another integration or blocking unrelated work.

@@ -336,9 +336,11 @@ __metadata:
     commitizen: "npm:4.3.1"
     conventional-changelog-cli: "npm:4.1.0"
     cross-env: "npm:10.0.0"
+    cross-spawn: "npm:7.0.6"
     cz-conventional-changelog: "npm:3.3.0"
     ethers: "npm:5.8.0"
     husky: "npm:4.3.8"
+    js-yaml: "npm:4.3.1"
     jsdom: "npm:27.3.0"
     knip: "npm:6.17.0"
     kubo: "npm:0.43.0"
@@ -354,6 +356,7 @@ __metadata:
     quick-lru: "npm:5.1.1"
     react: "npm:19.1.0"
     react-dom: "npm:19.1.0"
+    smol-toml: "npm:1.6.1"
     tcp-port-used: "npm:1.0.2"
     tempy: "npm:1.0.1"
     typescript: "npm:6.0.3"
@@ -5813,7 +5816,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"cross-spawn@npm:^7.0.3, cross-spawn@npm:^7.0.6":
+"cross-spawn@npm:7.0.6, cross-spawn@npm:^7.0.3, cross-spawn@npm:^7.0.6":
   version: 7.0.6
   resolution: "cross-spawn@npm:7.0.6"
   dependencies:
@@ -12138,7 +12141,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"smol-toml@npm:^1.6.1":
+"smol-toml@npm:1.6.1, smol-toml@npm:^1.6.1":
   version: 1.6.1
   resolution: "smol-toml@npm:1.6.1"
   checksum: 10c0/511a78722f99c7616fdb46af708de3d7e81434b5a3d58061166da73f28bfc6cae4f0cd04683f60515b9c490cd10152fce72287c960b337419c0299cc1f0f2a22

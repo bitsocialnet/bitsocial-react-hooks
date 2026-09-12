@@ -1,28 +1,63 @@
 # Skills and Tools
 
-Use this playbook when setting up/adjusting skills and external tooling.
+Shared skills live in `.agents/skills/`. Edit these sources, then run `yarn ai-workflow:sync` to generate `.claude/skills/` for Claude Code. Codex and Cursor discover `.agents/skills/` directly; do not restore the duplicate `.codex/skills/` or `.cursor/skills/` roots.
 
-## Recommended Skills
+Shared role prompts live in `.agents/roles/*.md`. This is a repository-specific source format, not a native agent discovery path. `scripts/ai-workflow-files.mjs` converts these sources into the app-specific files below; `yarn ai-workflow:sync` writes them. Commit the generated files alongside their sources so a fresh checkout has the native configuration without running a generator first. After removing a source, remove its obsolete generated outputs explicitly; the validator reports them rather than silently deleting files.
 
-### Context7 (library docs)
+## Native discovery paths
 
-For up-to-date docs on libraries.
+Verified against official documentation on 2026-09-12:
 
-```bash
-npx skills add https://github.com/intellectronica/agent-skills --skill context7
-```
+| App | Project instructions | Skills used by this repository | Custom agents used by this repository |
+|---|---|---|---|
+| Codex | `AGENTS.md` | `.agents/skills/<name>/SKILL.md` | Generated `.codex/agents/<name>.toml` |
+| Cursor | `AGENTS.md`; `.cursor/rules/*.mdc` remains available for Cursor-specific conditional rules | `.agents/skills/<name>/SKILL.md` | Generated `.cursor/agents/<name>.md` |
+| Claude Code | `CLAUDE.md` imports `@AGENTS.md` | Generated `.claude/skills/<name>/SKILL.md` | Generated `.claude/agents/<name>.md` |
 
-### Find Skills
+Sources: [Codex skills](https://learn.chatgpt.com/docs/build-skills), [Codex subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents), [Cursor rules](https://cursor.com/docs/rules), [Cursor skills](https://cursor.com/docs/skills), [Cursor subagents](https://cursor.com/docs/subagents), [Claude memory](https://code.claude.com/docs/en/memory), [Claude skills](https://code.claude.com/docs/en/skills), [Claude subagents](https://code.claude.com/docs/en/sub-agents).
 
-Discover/install skills from the open ecosystem.
+Do not replace the native agent directories with `.agents/roles` or assume Claude discovers `.agents/skills`. Claude can still read a referenced file there as ordinary project context. Cursor also discovers `.claude/skills` for compatibility; copies remain synchronized, but its published skills guide does not specify deduplication across these roots. Check the installed app's skill catalog rather than promising that duplicate entries cannot appear.
 
-```bash
-npx skills add https://github.com/vercel-labs/skills --skill find-skills
-```
+The AI directories use LF line endings through `.gitattributes` so generated text stays identical across platforms. Supporting skill assets are copied as bytes.
 
-## MCP Policy Rationale
+## Skills
 
-Avoid GitHub MCP and browser MCP servers for this project because they add significant tool-schema/context overhead.
+Shared skills cover scoped implementation and debugging, README/release wording, requested cleanup, React effect/performance review, commit/issue formatting, and authorized PR review or merging. Use `find-skills` only when a missing reusable capability is requested; use Context7 for a concrete version/API question. Read individual skill roots when the task needs them.
 
-- GitHub operations: use `gh` CLI.
-- Browser operations: not needed for this library project.
+React guidance must respect this package's supported React peer range and its implementation of store subscriptions. Preserve the licensed upstream React rule files; select only relevant rules rather than importing Next.js or application-specific assumptions.
+
+## Roles and models
+
+Keep a scoped `reviewer` role for independent correctness, public API, and subscription-lifecycle review. Use the harness's built-in worker/general-purpose or explorer role for ordinary implementation and code discovery. The parent assigns acceptance criteria and ownership; one owner runs heavyweight checks.
+
+Codex agent files include `name`, `description`, and `developer_instructions`. `.codex/config.toml` caps concurrent children at four using `max_concurrent_threads_per_session`. Shared role metadata contains the name, description, and optional sandbox mode; it deliberately has no model fields.
+
+Leave model and reasoning fields out of committed skills and custom agents in all three apps. This allows runtime invocation choices, user defaults, and parent inheritance according to each app’s documented precedence. Claude family aliases reduce version maintenance but still choose a family; a versioned Cursor model requires future updates. Keep such choices in user/session settings when needed. Inheritance does not promise an automatic choice of the best current model. Do not invent a `latest` alias or add model-catalog research to routine tasks. See [Codex selection](https://learn.chatgpt.com/docs/agent-configuration/subagents), [Claude selection](https://code.claude.com/docs/en/sub-agents#choose-a-model), and [Cursor selection](https://cursor.com/docs/subagents#model-configuration).
+
+`sandbox-mode: read-only` maps to Codex’s sandbox and Cursor’s `readonly`; Claude’s tool list and the role instructions restrict its review workflow, but Bash access is not an OS-level sandbox.
+
+Shared skill frontmatter uses `disable-model-invocation: true` for user-invoked workflows where applicable. Codex's corresponding setting lives in `agents/openai.yaml` as `policy.allow_implicit_invocation: false`; the validator requires both. Invocation metadata supplements explicit authorization rules; a review request never authorizes publication merely because a skill includes publishing steps.
+
+## Checks and discovery
+
+- `yarn ai-workflow:sync` regenerates compatibility outputs using installed `js-yaml` and `smol-toml`.
+- `yarn ai-workflow:check` parses source/frontmatter/configs, checks generated outputs, invocation metadata, model-field placement, and the formatter-only hook wiring. It does not resolve model identifiers against a provider catalog.
+- `yarn ai-workflow:test` runs isolated Node fixtures for hook payloads, path containment, model omission, and workflow generation/validation.
+- After upgrading an agent application, verify skill/role discovery in that application. Syntax/parity checks do not replace a loader check. Reload the application if an existing session retains an old catalog.
+- Hooks require the harness's project trust and hook review; do not bypass trust to make a check pass. See [hooks-setup.md](hooks-setup.md).
+
+## Maintaining useful instructions
+
+Follow [OpenAI’s skills and prompts guidance](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra) (reviewed 2026-09-12): keep descriptions precise, load details only when relevant, and preserve the user’s requested scope. Shared skills serve different models; retain project-specific invariants while allowing routine implementation choices.
+
+Keep a skill’s purpose, decision boundaries, and essential constraints in `SKILL.md`. Link substantial mode-specific commands or examples as optional references. Put trigger conditions early in short descriptions; a matching keyword alone should not expand the task. Preserve existing invocation metadata unless its behavior is intentionally being changed.
+
+After a substantial instruction change, exercise a few representative small and large requests. Check which skills/references were selected, whether actions stayed within scope, whether verification matched the change, and whether authorized work completed. Schema and fixture tests establish tooling correctness, not agent decision quality.
+
+## Tools and browser ownership
+
+Prefer existing tools and project CLIs. Use `gh` for GitHub operations, the configured Vitest/Playwright e2e harness for browser behavior, and official/version-specific documentation when library behavior matters. Browser work is relevant when testing hook behavior in actual browser environments; it is not required for every library edit.
+
+MCP overhead depends on the harness: deferred loading can avoid loading every schema upfront. Keep integrations relevant rather than declaring MCP obsolete or issuing blanket warnings. Existing CLI choices remain useful for reproducibility and resource control.
+
+Serialize e2e engines and other heavyweight work. Reuse compatible same-worktree servers when safe, record every process you start, and close only task-owned resources even after failure. Do not use global browser cleanup or stop another task's workload. See [verification.md](verification.md) and [testing.md](../testing.md).

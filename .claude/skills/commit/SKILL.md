@@ -1,57 +1,21 @@
 ---
 name: commit
-description: Commit current work by reviewing diffs, splitting into logical commits, and writing standardized messages. Use when the user says "commit", "commit this", "commit current work", or asks to create a git commit.
+description: Create scoped local commits when the user asks to commit changes.
 disable-model-invocation: true
 ---
 
-# Commit Current Work
+<!-- Generated from .agents/skills/commit/SKILL.md; run yarn ai-workflow:sync. -->
 
-## Workflow
+# Commit
 
-1. **Review all uncommitted changes**
+Review the requested diff, including staged and untracked files, and preserve unrelated work. Group independently useful changes into separate commits; do not split one coherent change merely by file type.
 
-   ```bash
-   git status
-   git diff
-   git diff --cached
-   ```
+Use the existing final-state verification and review evidence when still applicable. Follow `docs/agent-playbooks/verification.md` for any missing checks. A completed review does not need to be repeated just to commit the same diff.
 
-   Read every changed file's diff to understand the full scope of changes.
+Stage only task-owned hunks and inspect `git diff --cached` before committing. For mixed files, use an index patch. Exclude unrelated staged changes from the commit and restore their staging afterward.
 
-2. **Group changes into logical commits**
+Use a Conventional Commit: `type: concise description`, with an optional meaningful scope. Use `perf` for performance work. A body is optional when the title is insufficient; see `commit-format` for wording requests.
 
-   If diffs are unrelated, split into multiple commits. Each commit should cover one logical unit of work.
+Use `corepack yarn exec git commit -m 'type(scope): description'` so the repository's Git hooks inherit Corepack Yarn rather than a global Yarn version. Report the resulting hash and title.
 
-   Example — two unrelated changes in the working tree:
-   - Modified `src/hooks/comments.ts` (bug fix)
-   - Modified `src/stores/feeds/feeds-store.ts` (new feature)
-
-   These should be two separate commits, not one.
-
-3. **Stage and commit each group**
-
-   For each logical group:
-   ```bash
-   git add <relevant files>
-   git commit -m "title here"
-   ```
-
-4. **Display the commit title to the user** wrapped in backticks (inline code).
-
-## Commit Message Rules
-
-- **Title format:** Conventional Commits with a **required scope**. The scope should be a short, human-readable name for the area of the codebase affected.
-
-  | Pattern | Example |
-  |---------|---------|
-  | `type(scope): description` | `fix(feeds): handle empty community addresses array` |
-
-- **Never omit the scope.** `feat: add hook` is wrong. `feat(replies): add flat mode to useReplies` is correct.
-- **Keep titles short.** If more context is needed, add a commit body — but don't repeat the title.
-- **Use `perf:` for performance optimizations**, not `fix:`.
-
-## Constraints
-
-- Only commit when instructed. Do not commit subsequent changes unless explicitly told to.
-- Never push — only commit locally.
-- Never amend commits that have been pushed to a remote.
+Only commit within the user's authorization. Do not push, tag, or amend published history as part of this skill. Explicitly requested later actions retain their own scope.

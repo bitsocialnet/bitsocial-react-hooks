@@ -1,47 +1,16 @@
 ---
 name: refactor-pass
-description: Perform a refactor pass focused on simplicity after recent changes. Use when the user asks for a refactor/cleanup pass, simplification, dead-code removal, or says "refactor pass".
+description: Simplify code while preserving behavior when the user requests a refactor or cleanup pass.
 ---
+
+<!-- Generated from .agents/skills/refactor-pass/SKILL.md; run yarn ai-workflow:sync. -->
 
 # Refactor Pass
 
-## Workflow
+Identify the requested scope from the conversation and diff; include relevant staged, unstaged, and untracked work. If no scope is supplied, inspect recent task changes without expanding into unrelated code.
 
-1. **Review recent changes** — identify simplification opportunities:
-   - `git diff` for unstaged changes
-   - `git diff --cached` for staged changes
-   - `git log --oneline -5` for recent commits if no uncommitted changes
+Prefer removing dead code, clarifying control flow, or reusing existing helpers over adding abstractions. Read surrounding source and tests before changing a boundary. Check history when the purpose of a guard, workaround, or optimization is unclear; keep it when its necessity cannot be established.
 
-2. **Apply refactors** (in priority order):
-   - Remove dead code and unreachable paths
-   - Straighten convoluted logic flows
-   - Remove excessive parameters or intermediary variables
-   - Remove premature optimization (unnecessary memoization, etc.)
-   - Extract duplicated logic into shared utilities in `src/lib/`
+Preserve observable behavior, error contracts, accessibility, and project architecture. Remove memoization only when its purpose and impact are understood. Stores own shared protocol state, and hooks expose focused selectors and actions. Preserve subscription lifecycles, request deduplication, cache behavior, loading/error states, and public API compatibility. Do not remove effect-based subscriptions or cleanup merely because a client application can consume this library without managing them.
 
-3. **Verify** — run build:
-   ```bash
-   yarn build && yarn test
-   ```
-
-4. **Optional suggestions** — identify abstractions or reusable patterns only if they clearly improve clarity. Keep suggestions brief; don't refactor speculatively.
-
-## Project-Specific Patterns to Enforce
-
-When refactoring, watch for these anti-patterns from AGENTS.md:
-
-| Anti-pattern | Refactor to |
-|---|---|
-| `useEffect` syncing derived state | Calculate during render |
-| Duplicated logic across hooks | Shared utility in `src/lib/` |
-| Inline types for cross-module data | Move to `src/types.ts` |
-| `as any` type casts | Fix the underlying type |
-| Overly complex store actions | Split into smaller, focused actions |
-
-## Rules
-
-- Don't change behavior — refactors must be semantically equivalent
-- Don't introduce new dependencies
-- Format edited files with `yarn prettier` after changes
-- If the build/tests fail after refactoring, fix before finishing
-- Prefer `pkc`/`community` naming when it does not introduce compatibility regressions
+Keep the diff focused and avoid new dependencies for routine cleanup. Verify the affected behavior using `docs/agent-playbooks/verification.md`; report what became simpler and any remaining uncertainty.

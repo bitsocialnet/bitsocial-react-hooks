@@ -1,35 +1,18 @@
 ---
 name: find-skills
-description: Helps users discover and install agent skills when they ask questions like "how do I do X", "find a skill for X", "is there a skill for X". Use this to search the open skill ecosystem.
+description: Find reusable agent skills when the user requests a new skill or capability.
 ---
+
+<!-- Generated from .agents/skills/find-skills/SKILL.md; run yarn ai-workflow:sync. -->
 
 # Find Skills
 
-Search the open skill ecosystem for useful agent skills.
+Use the capabilities already available for ordinary coding, debugging, documentation, and review requests. Do not start a skill search solely because the request mentions one of those domains.
 
-## How to Search
+When the user asks for a new skill:
 
-```bash
-npx skills search "QUERY"
-```
-
-## How to Install
-
-```bash
-npx skills add REPO_URL --skill SKILL_NAME
-```
-
-## Examples
-
-```bash
-npx skills search "code review"
-npx skills search "testing"
-npx skills search "documentation"
-npx skills add https://github.com/intellectronica/agent-skills --skill context7
-```
-
-## Tips
-
-- Search with broad terms first, then narrow down
-- Skills are installed to `.claude/skills/SKILL_NAME/`
-- After installing, the skill is available in the current project
+1. Check the current skill catalog for an existing match.
+2. Search the requested source or the skills ecosystem for the specific missing workflow. Prefer official, maintained sources and inspect instructions before recommending installation.
+3. Explain what useful capability the skill adds, its source, and any required tools. Avoid installing a duplicate of a repository-managed skill.
+4. Install only when requested, using the current harness's installer. Keep shared repository skills in the canonical source and regenerate compatibility outputs.
+5. If nothing suitable exists, perform the task with available tools when possible. Do not ask again for permission to do work the user already requested.

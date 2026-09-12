@@ -56,7 +56,10 @@
     "prettier": "oxfmt src/**/*.{js,ts,tsx} test/**/*.{js,ts,tsx} config/**/*.{js,ts,tsx}",
     "type-check": "node ./node_modules/typescript/bin/tsc --noEmit --project config/tsconfig.json",
     "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s -r 0",
-    "changelog:release-notes": "node scripts/changelog-release-notes.mjs"
+    "changelog:release-notes": "node scripts/changelog-release-notes.mjs",
+    "ai-workflow:sync": "node scripts/sync-ai-workflow.mjs",
+    "ai-workflow:check": "node scripts/validate-ai-workflow.mjs",
+    "ai-workflow:test": "node --test scripts/__tests__/ai-workflow.node-test.mjs scripts/__tests__/agent-hooks.node-test.mjs"
   },
   "dependencies": {
     "@bitsocial/bso-resolver": "0.0.10",
@@ -130,8 +133,10 @@
     "commitizen": "4.3.1",
     "conventional-changelog-cli": "4.1.0",
     "cross-env": "10.0.0",
+    "cross-spawn": "7.0.6",
     "cz-conventional-changelog": "3.3.0",
     "husky": "4.3.8",
+    "js-yaml": "4.3.1",
     "jsdom": "27.3.0",
     "knip": "6.17.0",
     "kubo": "0.43.0",
@@ -141,6 +146,7 @@
     "playwright": "1.56.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "smol-toml": "1.6.1",
     "tcp-port-used": "1.0.2",
     "tempy": "1.0.1",
     "typescript": "6.0.3",

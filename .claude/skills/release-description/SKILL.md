@@ -1,51 +1,14 @@
 ---
 name: release-description
-description: Generate a release description by analyzing commit titles since the last git tag. Use when the user asks to prepare release notes, update changelog, or describe what's in a new version.
+description: Draft a concise library release summary from the requested release range.
 ---
+
+<!-- Generated from .agents/skills/release-description/SKILL.md; run yarn ai-workflow:sync. -->
 
 # Release Description
 
-Generate a release summary by analyzing commits since the last tag.
+Use the release/tag range supplied by the user. Otherwise inspect reachable release tags and recent history to identify the relevant previous release; do not assume the most recently created tag belongs to this release line.
 
-## Steps
+Read commit titles and relevant diffs to establish user-visible changes. Summarize significant hook/API additions, bug fixes, compatibility changes, and performance improvements in plain language. Mention internal maintenance only when it matters to package users; do not infer behavior from a title alone.
 
-### 1. Find the latest release tag
-
-```bash
-git tag --sort=-creatordate | head -1
-```
-
-### 2. List commit titles since that tag
-
-```bash
-git log --oneline <tag>..HEAD
-```
-
-If there are no commits since the tag, stop — nothing to update.
-
-### 3. Analyze the commits
-
-Categorize by Conventional Commits prefix:
-
-| Prefix | Category |
-|--------|----------|
-| `feat:` | New features |
-| `fix:` | Bug fixes |
-| `perf:` | Performance improvements |
-| `refactor:` | Refactors / internal changes |
-| `chore:`, `docs:`, `ci:` | Maintenance (mention only if significant) |
-| No prefix | Read the title to infer category |
-
-### 4. Write the summary
-
-Compose a concise release description. Rules:
-
-- **Start with** "This version..." or "This release..."
-- **Be concise** — a few sentences, not a full changelog
-- **Highlight the most impactful changes** — lead with the biggest features or fixes
-- **Group similar changes** — e.g. "several bug fixes" instead of listing each one
-- **Use plain language** — this is user-facing, not developer-facing
-
-### 5. Report
-
-Display the release description to the user for review.
+Start with “This version…” or “This release…” when preparing the customary summary, and use a few sentences rather than reproducing the full changelog. If there are no relevant changes, report that. A wording request returns text; update changelog/release files only when requested. Committing, tagging, publishing, or pushing requires those actions to be in the user's scope.

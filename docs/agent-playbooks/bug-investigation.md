@@ -29,4 +29,4 @@ git show <commit-hash> -- path/to/file.ts
 
 ## Troubleshooting Rule
 
-When blocked, search the web for recent fixes/workarounds.
+For a dependency or platform issue that current source cannot resolve, consult version-specific official documentation. For missing repository evidence or a user-only reproduction, report the exact gap and continue independent investigation.

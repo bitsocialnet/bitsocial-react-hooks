@@ -32,6 +32,8 @@ yarn install
 
 Run `corepack enable` once per machine so plain `yarn` resolves to the pinned Yarn 4 release.
 
+AI contributor guidance starts in [AGENTS.md](AGENTS.md). Edit shared skills and roles in `.agents/`, then run `yarn ai-workflow:sync`, `yarn ai-workflow:check`, and `yarn ai-workflow:test`; commit generated native app files with their sources. See [skills and tools](docs/agent-playbooks/skills-and-tools.md) for discovery paths and [verification](docs/agent-playbooks/verification.md) for checks appropriate to each change.
+
 ---
 
 ## Table of Contents

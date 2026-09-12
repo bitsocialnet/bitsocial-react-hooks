@@ -1,31 +1,16 @@
 ---
 name: readme
-description: Generate or update a comprehensive README.md for the project. Use when the user asks to create, update, or improve the README.
+description: Create or edit requested README content while verifying package API, examples, and commands.
 ---
 
-# README Generator
+<!-- Generated from .agents/skills/readme/SKILL.md; run yarn ai-workflow:sync. -->
 
-Generate a thorough, well-structured README.md for bitsocial-react-hooks.
+# README
 
-## Key Sections
+Update the requested section in place, preserving unrelated content and tone. A small edit needs only supporting sources; research the full library when a new README or comprehensive rewrite is requested.
 
-1. **Header** — project name, badges, one-line description
-2. **Overview** — what the library does and why it exists
-3. **Installation** — how to install
-4. **Quick Start** — minimal working example
-5. **API Reference** — hooks and utilities with signatures
-6. **Testing** — how to run tests
-7. **Contributing** — development workflow
-8. **License**
+Verify public API claims against `src/index.ts`, `src/types.ts`, and relevant hooks/stores/tests. Use `@bitsocial/bitsocial-react-hooks` in import examples and preserve supported React versions, store-driven data flow, and loading/error behavior. Verify installation and test commands against `package.json` and current configuration.
 
-## Writing Principles
+For a new README, explain installation, a minimal working hook example, relevant API usage, testing/contribution commands, and license as appropriate for the audience. Do not expand a focused correction into a full API catalog or invent troubleshooting advice.
 
-1. Be thorough — every command should be copy-pasteable
-2. Use code blocks with language hints (`typescript`, `bash`)
-3. Keep the public API reference in sync with `src/index.ts`
-4. Use tables for structured reference data
-5. Write for someone who has never seen this codebase
-
-## Output
-
-Write the README directly to `README.md` in the project root.
+Follow `docs/agent-playbooks/verification.md` for document checks and regenerate `llms*.txt` when required. Commit/publish only within the user's authorization and report any unverified claim.

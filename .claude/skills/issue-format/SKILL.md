@@ -1,30 +1,18 @@
 ---
 name: issue-format
-description: Formats GitHub issue suggestions with a short title and informal problem description. Use when proposing GitHub issues for bugs, features, or improvements discovered during work.
+description: Format GitHub issue wording when the user asks for an issue suggestion or an issue is being created.
 ---
+
+<!-- Generated from .agents/skills/issue-format/SKILL.md; run yarn ai-workflow:sync. -->
 
 # Issue Format
 
-## Template
+Describe the problem in present tense, with a short title and two or three useful sentences. Include reproduction or impact when known; avoid inventing details.
 
-```
+For a chat suggestion:
+
 > **GitHub issue:**
-> - **Title:** `short issue title here`
-> - **Description:** 2-3 sentences describing the problem as if unresolved.
-```
+> - **Title:** `Short issue title`
+> - **Description:** The observed problem and its impact, with `code` references where useful.
 
-## Rules
-
-1. Title is as short as possible, wrapped in backticks
-2. Description describes the **problem**, not the solution
-3. Write as if the issue hasn't been fixed yet
-4. Use backticks for code references in the description
-5. Keep it informal and concise — 2-3 sentences max
-
-## Example
-
-```
-> **GitHub issue:**
-> - **Title:** `useReplies returns stale data after reset`
-> - **Description:** When calling `reset()` on `useReplies`, subsequent `loadMore` calls return previously cached replies instead of fetching fresh data. This causes the UI to show outdated replies after a user manually refreshes a thread.
-```
+Use one code span for the title. Do not append issue suggestions to ordinary answers unless requested. Formatting does not authorize creating an issue.
