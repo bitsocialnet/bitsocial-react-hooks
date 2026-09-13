@@ -96,6 +96,8 @@ import {
   getPreloadedReplySortType,
   getPostPageSortType,
   getReplyPageSortType,
+  getSortTimeframeSeconds,
+  isFlatSortType,
   resolvePostSortType,
   resolveReplySortType,
 } from "./lib/page-sorts";
@@ -183,6 +185,8 @@ export {
   getPreloadedReplySortType,
   getPostPageSortType,
   getReplyPageSortType,
+  getSortTimeframeSeconds,
+  isFlatSortType,
   resolvePostSortType,
   resolveReplySortType,
 };
@@ -267,6 +271,8 @@ const hooks = {
   getPreloadedReplySortType,
   getPostPageSortType,
   getReplyPageSortType,
+  getSortTimeframeSeconds,
+  isFlatSortType,
   resolvePostSortType,
   resolveReplySortType,
 };

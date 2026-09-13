@@ -239,6 +239,8 @@ resolvePostSortType(community: Community, requestedSortType?: string): string | 
 resolveReplySortType(comment: Comment, requestedSortType?: string): string | undefined
 getPostPageSortType(community: Community, requestedSortType?: string): string | undefined // page sort serving the request, e.g. the preloaded page a single-page community re-sorts client-side
 getReplyPageSortType(comment: Comment, requestedSortType?: string): string | undefined
+getSortTimeframeSeconds(sortType?: string): number | undefined // time window of top*/controversial* timeframe sorts
+isFlatSortType(sortType?: string): boolean
 ```
 
 `createCrosspost` requires a fully loaded comment with `comment.cid` and
