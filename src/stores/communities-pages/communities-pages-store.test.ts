@@ -413,6 +413,26 @@ describe("communities pages store", () => {
     );
   });
 
+  test("getCommunityFirstPageCid reads the complete preloaded page for a client-served sort", () => {
+    const community = {
+      address: "addr",
+      posts: { pages: { hot: { comments: [{ cid: "c1" }] } } },
+    };
+    // 'active' is served from the preloaded hot page, which has no next page
+    expect(getCommunityFirstPageCid(community as any, "active", "posts")).toBeUndefined();
+
+    const pagedCommunity = {
+      address: "addr",
+      posts: {
+        pages: { hot: { nextCid: "hot-next", comments: [{ cid: "c1" }] } },
+        pageCids: { active: "active-first-page" },
+      },
+    };
+    expect(getCommunityFirstPageCid(pagedCommunity as any, "active", "posts")).toBe(
+      "active-first-page",
+    );
+  });
+
   test("getCommunityFirstPageCid defaults pageType to posts", () => {
     const community = {
       address: "addr",

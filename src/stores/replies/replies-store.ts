@@ -18,6 +18,7 @@ import accountsStore from "../accounts";
 import repliesCommentsStore from "./replies-comments-store";
 import repliesPagesStore from "../replies-pages";
 import { serializeFeedKey } from "../../lib/serialize-feed-key";
+import { getReplyPageSortType } from "../../lib/page-sorts";
 import {
   getFeedsCommentsFirstPageCids,
   getLoadedFeeds,
@@ -198,7 +199,10 @@ const repliesStore = createStore<RepliesState>((setState: Function, getState: Fu
 
       // flat doesn't need nested feeds
       if (!feedOptions.flat) {
-        for (const reply of (sortType && comment.replies?.pages?.[sortType]?.comments) || []) {
+        // each comment serves the sort from its own page, e.g. its preloaded page re-sorted client-side
+        const pageSortType = getReplyPageSortType(comment, feedOptions.sortType);
+        for (const reply of (pageSortType && comment.replies?.pages?.[pageSortType]?.comments) ||
+          []) {
           addRepliesFeedsToStoreRecursively(reply);
         }
       }

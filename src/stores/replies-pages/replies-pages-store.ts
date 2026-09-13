@@ -9,7 +9,7 @@ import { addChildrenRepliesFeedsToAddToStore } from "./utils";
 import localForageLru from "../../lib/localforage-lru";
 import createStore from "zustand";
 import assert from "assert";
-import { resolveReplySortType } from "../../lib/page-sorts";
+import { getReplyPageSortType, resolveReplySortType } from "../../lib/page-sorts";
 
 const repliesPagesDatabase = localForageLru.createInstance({
   name: "bitsocialReactHooks-repliesPages",
@@ -305,15 +305,16 @@ export const getRepliesFirstPageCid = (comment: Comment, sortType?: string) => {
     sortType === undefined || (typeof sortType === "string" && sortType.length > 0),
     `getRepliesFirstPageCid sortType '${sortType}' invalid`,
   );
-  const resolvedSortType = resolveReplySortType(comment, sortType);
-  if (!resolvedSortType) {
+  // replies served client-side from a complete preloaded page read that page instead of their own
+  const pageSortType = getReplyPageSortType(comment, sortType);
+  if (!pageSortType) {
     return;
   }
   // comment has preloaded replies for sort type
-  if (comment.replies?.pages?.[resolvedSortType]?.comments) {
-    return comment.replies?.pages?.[resolvedSortType]?.nextCid;
+  if (comment.replies?.pages?.[pageSortType]?.comments) {
+    return comment.replies?.pages?.[pageSortType]?.nextCid;
   }
-  return comment.replies?.pageCids?.[resolvedSortType];
+  return comment.replies?.pageCids?.[pageSortType];
 
   // TODO: if a loaded comment doesn't have a first page, it's unclear what we should do
   // should we try to use another sort type by default, like 'best', or should we just ignore it?

@@ -1440,6 +1440,43 @@ describe("feeds", () => {
       expect(rendered.result.current.feed).toEqual([]);
     });
 
+    test("serves a standard sort client-side when every post fits in the preloaded page", async () => {
+      const simulateUpdateEvent = Community.prototype.simulateUpdateEvent;
+      Community.prototype.simulateUpdateEvent = async function () {
+        this.posts.pages = {
+          hot: {
+            comments: [
+              { cid: "newer post", communityAddress: this.address, timestamp: 200, updatedAt: 200 },
+              {
+                cid: "bumped post",
+                communityAddress: this.address,
+                timestamp: 100,
+                lastReplyTimestamp: 300,
+                updatedAt: 300,
+              },
+            ],
+          },
+        };
+        this.posts.pageCids = {};
+        this.updatedAt = 1;
+        this.updatingState = "succeeded";
+        this.emit("update", this);
+        this.emit("updatingstatechange", "succeeded");
+      };
+
+      try {
+        rendered.rerender({ communityAddresses: ["single page community"], sortType: "active" });
+        await waitFor(() => rendered.result.current.feed.length === 2);
+        expect(rendered.result.current.feed.map((post: Comment) => post.cid)).toEqual([
+          "bumped post",
+          "newer post",
+        ]);
+        expect(rendered.result.current.hasMore).toBe(false);
+      } finally {
+        Community.prototype.simulateUpdateEvent = simulateUpdateEvent;
+      }
+    });
+
     describe("getPage only has 1 page", () => {
       const getPage = Pages.prototype.getPage;
 

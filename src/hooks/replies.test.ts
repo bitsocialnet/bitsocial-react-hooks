@@ -901,7 +901,7 @@ describe("replies", () => {
       await testUtils.resetDatabasesAndStores();
     });
 
-    test("requested missing sorts do not use the single preloaded page", async () => {
+    test("requested standard sorts are served from the single preloaded page", async () => {
       const comment = {
         cid: "comment cid 1",
         postCid: "comment cid 1",
@@ -912,7 +912,10 @@ describe("replies", () => {
         replies: {
           pages: {
             best: {
-              comments: [{ cid: "best reply", communityAddress: "sub", timestamp: 1, depth: 1 }],
+              comments: [
+                { cid: "older reply", communityAddress: "sub", timestamp: 1, depth: 1 },
+                { cid: "newer reply", communityAddress: "sub", timestamp: 2, depth: 1 },
+              ],
             },
           },
           pageCids: {},
@@ -920,11 +923,27 @@ describe("replies", () => {
       };
 
       rendered.rerender({ comment, sortType: "new" });
-      await waitFor(() => rendered.result.current.hasMore === false);
-      expect(rendered.result.current.replies).toEqual([]);
+      await waitFor(() => rendered.result.current.replies.length === 2);
+      expect(rendered.result.current.replies.map((reply: any) => reply.cid)).toEqual([
+        "newer reply",
+        "older reply",
+      ]);
+      expect(rendered.result.current.hasMore).toBe(false);
 
       rendered.rerender({ comment, sortType: "old" });
-      await waitFor(() => rendered.result.current.hasMore === false);
+      await waitFor(() => rendered.result.current.replies[0]?.cid === "older reply");
+      expect(rendered.result.current.replies.map((reply: any) => reply.cid)).toEqual([
+        "older reply",
+        "newer reply",
+      ]);
+      expect(rendered.result.current.hasMore).toBe(false);
+
+      // a custom sort the comment does not publish is still not substituted
+      rendered.rerender({ comment, sortType: "customSort" });
+      await waitFor(
+        () =>
+          rendered.result.current.hasMore === false && rendered.result.current.replies.length === 0,
+      );
       expect(rendered.result.current.replies).toEqual([]);
     });
   });
@@ -1589,7 +1608,7 @@ describe("replies", () => {
       expect(rendered.result.current.repliesDepth3.replies.length).toBeGreaterThan(0);
     });
 
-    test("nested replies do not substitute best when new is requested", async () => {
+    test("nested replies serve new client-side from their complete preloaded best page", async () => {
       // mock nested replies on pages
       const pageToGet = Pages.prototype.pageToGet;
       Pages.prototype.pageToGet = function (pageCid) {
@@ -1599,11 +1618,12 @@ describe("replies", () => {
 
       rendered.rerender({ commentCid: "comment cid 1", sortType: "new" });
 
-      // as soon as depth 1 has replies, all other depths also should
-      await waitFor(() => rendered.result.current.repliesDepth1.replies.length > 0);
+      // nested replies only preload a complete 'best' page, which also serves 'new'
+      await waitFor(() => rendered.result.current.repliesDepth3.replies.length > 0);
       expect(rendered.result.current.repliesDepth1.replies.length).toBeGreaterThan(0);
-      expect(rendered.result.current.repliesDepth2.replies.length).toBe(0);
-      expect(rendered.result.current.repliesDepth3.replies.length).toBe(0);
+      expect(rendered.result.current.repliesDepth2.replies.length).toBeGreaterThan(0);
+      expect(rendered.result.current.repliesDepth3.replies.length).toBeGreaterThan(0);
+      expect(rendered.result.current.repliesDepth2.replies[0].cid).toMatch("nested 1");
 
       Pages.prototype.pageToGet = pageToGet;
     });

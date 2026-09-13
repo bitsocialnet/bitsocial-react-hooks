@@ -25,7 +25,11 @@ import {
   getMatchingCommunityRefKeys,
 } from "../../lib/community-ref";
 import Logger from "@pkcprotocol/pkc-logger";
-import { resolvePostSortType } from "../../lib/page-sorts";
+import {
+  getPostPageSortType,
+  getSortTimeframeSeconds,
+  resolvePostSortType,
+} from "../../lib/page-sorts";
 const log = Logger("bitsocial-react-hooks:feeds:stores");
 
 const getFeedCommunityRefs = (feedOptions: Partial<FeedOptions>): CommunityLookupRef[] =>
@@ -174,6 +178,7 @@ export const getFilteredSortedFeeds = (
       // use community preloaded posts if any
       const preloadedPosts = getPreloadedPosts(community, sortType);
       if (preloadedPosts) {
+        const clientTimeframeTimestamp = getClientSortTimeframeTimestamp(community, sortType);
         for (const post of preloadedPosts) {
           // posts are manually validated, could have fake communityAddress
           if (
@@ -182,9 +187,19 @@ export const getFilteredSortedFeeds = (
             break;
           }
           const nextPost = getFeedPost(post, communityRef, community, modQueue, freshestComments);
-          if (nextPost) {
-            bufferedFeedPosts.push(nextPost);
+          if (!nextPost) {
+            continue;
           }
+          // window the reconciled post: pinned is mutable moderation state, and like the pages a
+          // community windows itself, pinned posts stay regardless of age
+          if (
+            clientTimeframeTimestamp !== undefined &&
+            !nextPost.pinned &&
+            nextPost.timestamp <= clientTimeframeTimestamp
+          ) {
+            continue;
+          }
+          bufferedFeedPosts.push(nextPost);
         }
       }
 
@@ -277,11 +292,21 @@ export const getFilteredSortedFeeds = (
 };
 
 const getPreloadedPosts = (community: Community, sortType?: string) => {
-  const resolvedSortType = resolvePostSortType(community, sortType);
-  if (!resolvedSortType) {
+  const pageSortType = getPostPageSortType(community, sortType);
+  if (!pageSortType) {
     return;
   }
-  return community.posts?.pages?.[resolvedSortType]?.comments;
+  return community.posts?.pages?.[pageSortType]?.comments;
+};
+
+// a timeframe sort computed client-side from a complete preloaded page applies its own window,
+// like the pages a community publishes for that sort would
+const getClientSortTimeframeTimestamp = (community: Community, sortType?: string) => {
+  const timeframeSeconds = getSortTimeframeSeconds(sortType);
+  if (!timeframeSeconds || getPostPageSortType(community, sortType) === sortType) {
+    return;
+  }
+  return Math.floor(Date.now() / 1000) - timeframeSeconds;
 };
 
 export const getLoadedFeeds = async (

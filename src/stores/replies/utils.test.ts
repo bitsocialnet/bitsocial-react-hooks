@@ -281,12 +281,7 @@ describe("replies utils", () => {
       expect(feeds.feed1.map((reply: any) => reply.cid)).toEqual(["r2", "r1"]);
     });
 
-    test("does not substitute a single preloaded page for a missing requested sort", () => {
-      const reply = {
-        cid: "fallback-reply",
-        communityAddress: "sub1",
-        timestamp: 1,
-      };
+    test("sorts a complete preloaded page client-side for a standard sort", () => {
       const comments = {
         comment1: {
           cid: "comment1",
@@ -294,17 +289,68 @@ describe("replies utils", () => {
           updatedAt: 1,
           replies: {
             pages: {
-              otherSort: { comments: [reply], nextCid: undefined },
+              best: {
+                comments: [
+                  { cid: "older-reply", communityAddress: "sub1", timestamp: 1 },
+                  { cid: "newer-reply", communityAddress: "sub1", timestamp: 2 },
+                ],
+              },
+            },
+          },
+        },
+      };
+      const accounts = { [mockAccountId]: { pkc: {}, blockedAddresses: {}, blockedCids: {} } };
+      const toFeedsOptions = (sortType: string) => ({
+        feed1: { commentCid: "comment1", sortType, accountId: mockAccountId },
+      });
+      expect(
+        getFilteredSortedFeeds(toFeedsOptions("new"), comments, {}, accounts).feed1.map(
+          (reply: any) => reply.cid,
+        ),
+      ).toEqual(["newer-reply", "older-reply"]);
+      expect(
+        getFilteredSortedFeeds(toFeedsOptions("old"), comments, {}, accounts).feed1.map(
+          (reply: any) => reply.cid,
+        ),
+      ).toEqual(["older-reply", "newer-reply"]);
+      expect(
+        getFilteredSortedFeeds(toFeedsOptions("customSort"), comments, {}, accounts).feed1,
+      ).toEqual([]);
+    });
+
+    test("flattens a flat sort served from the preloaded hierarchical page", () => {
+      const comments = {
+        comment1: {
+          cid: "comment1",
+          communityAddress: "sub1",
+          updatedAt: 1,
+          replies: {
+            pages: {
+              best: {
+                comments: [
+                  {
+                    cid: "older-reply",
+                    communityAddress: "sub1",
+                    timestamp: 1,
+                    replies: {
+                      pages: {
+                        best: {
+                          comments: [
+                            { cid: "nested-reply", communityAddress: "sub1", timestamp: 3 },
+                          ],
+                        },
+                      },
+                    },
+                  },
+                  { cid: "newer-reply", communityAddress: "sub1", timestamp: 2 },
+                ],
+              },
             },
           },
         },
       };
       const feedsOptions = {
-        feed1: {
-          commentCid: "comment1",
-          sortType: "new",
-          accountId: mockAccountId,
-        },
+        feed1: { commentCid: "comment1", sortType: "newFlat", accountId: mockAccountId },
       };
       const feeds = getFilteredSortedFeeds(
         feedsOptions,
@@ -312,7 +358,11 @@ describe("replies utils", () => {
         {},
         { [mockAccountId]: { pkc: {}, blockedAddresses: {}, blockedCids: {} } },
       );
-      expect(feeds.feed1).toEqual([]);
+      expect(feeds.feed1.map((reply: any) => reply.cid)).toEqual([
+        "nested-reply",
+        "newer-reply",
+        "older-reply",
+      ]);
     });
   });
 
@@ -968,11 +1018,22 @@ describe("replies utils", () => {
       expect(getSortTypeFromComment(comment as any, { sortType: "custom" })).toBe("custom");
     });
 
-    test("does not substitute a similar or flat sort name", () => {
+    test("serves standard sorts from a complete preloaded page", () => {
       const comment = {
         replies: {
           pages: { topAll: { comments: [] }, newFlat: { comments: [] } },
           pageCids: {},
+        },
+      };
+      expect(getSortTypeFromComment(comment as any, { sortType: "best" })).toBe("best");
+      expect(getSortTypeFromComment(comment as any, { sortType: "new", flat: true })).toBe("new");
+    });
+
+    test("does not substitute a similar or flat sort name once pages continue", () => {
+      const comment = {
+        replies: {
+          pages: { topAll: { comments: [], nextCid: "topAll-next" } },
+          pageCids: { topAll: "topAll-cid", newFlat: "newFlat-cid" },
         },
       };
       expect(getSortTypeFromComment(comment as any, { sortType: "best" })).toBeUndefined();
