@@ -368,6 +368,39 @@ describe("replies store", () => {
     expect(feedsForComment[0]).toContain(commentCid);
   });
 
+  test("addFeedToStoreOrUpdateComment registers nested feeds through the page serving a client-side sort", async () => {
+    const commentCid = "client-sort-feed-unique-cid";
+    const nestedCid = "nested-reply-client-sort-cid";
+    const comment = new MockComment({ cid: commentCid });
+    // the replies all fit in the preloaded best page, which also serves 'new'
+    (comment as any).replies = {
+      pages: {
+        best: {
+          comments: [{ cid: nestedCid, replies: { pages: {} }, depth: 1 }],
+        },
+      },
+    };
+
+    act(() => {
+      rendered.result.current.addFeedToStoreOrUpdateComment(comment, {
+        sortType: "new",
+        commentCid,
+        accountId: mockAccount.id,
+      });
+    });
+    const feedName = feedOptionsToFeedName({
+      sortType: "new",
+      commentCid,
+      accountId: mockAccount.id,
+    });
+    await waitFor(() => rendered.result.current.feedsOptions[feedName]);
+
+    const feedsForNestedReply = Object.keys(rendered.result.current.feedsOptions).filter((fn) =>
+      fn.includes(nestedCid),
+    );
+    expect(feedsForNestedReply).toHaveLength(1);
+  });
+
   test("resetFeed resets page to 1 and clears loaded/updated", async () => {
     const commentCid = "reset-feed-cid";
     const feedOptions = { sortType: "new", commentCid, accountId: mockAccount.id };

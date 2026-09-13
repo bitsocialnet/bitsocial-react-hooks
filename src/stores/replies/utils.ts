@@ -17,7 +17,7 @@ import accountsStore from "../accounts";
 import { flattenCommentsPages, commentIsValid, removeInvalidComments } from "../../lib/utils";
 import { areEquivalentCommunityAddresses } from "../../lib/community-address";
 import Logger from "@pkcprotocol/pkc-logger";
-import { resolveReplySortType } from "../../lib/page-sorts";
+import { getReplyPageSortType, isFlatSortType, resolveReplySortType } from "../../lib/page-sorts";
 const log = Logger("bitsocial-react-hooks:replies:stores");
 
 /**
@@ -46,11 +46,13 @@ export const getFilteredSortedFeeds = (
 
     const sortType = getSortTypeFromComment(comment, feedsOptions[feedName]);
     const requestedSortIsUnavailable = requestedSortType !== undefined && sortType === undefined;
+    // the page serving the sort, re-sorted client-side when the comment preloads all of its replies
+    const pageSortType = comment ? getReplyPageSortType(comment, sortType) : undefined;
 
     // comment has loaded and cache not expired
     if (comment && !requestedSortIsUnavailable) {
       // use comment preloaded replies if any
-      const preloadedReplies = getPreloadedReplies(comment, sortType);
+      const preloadedReplies = getPreloadedReplies(comment, pageSortType);
       if (preloadedReplies) {
         for (const reply of preloadedReplies) {
           // replies are manually validated, could have fake communityAddress
@@ -78,7 +80,8 @@ export const getFilteredSortedFeeds = (
       }
     }
 
-    if (flat) {
+    // a flat sort served from a hierarchical page is flattened like the flat page pkc-js would publish
+    if (flat || (isFlatSortType(sortType) && pageSortType !== sortType)) {
       bufferedFeedReplies = flattenCommentsPages({ comments: bufferedFeedReplies });
     }
 
@@ -103,12 +106,11 @@ export const getFilteredSortedFeeds = (
   return feeds;
 };
 
-const getPreloadedReplies = (comment: Comment, sortType?: string) => {
-  const resolvedSortType = resolveReplySortType(comment, sortType);
-  if (!resolvedSortType) {
+const getPreloadedReplies = (comment: Comment, pageSortType?: string) => {
+  if (!pageSortType) {
     return;
   }
-  return comment.replies?.pages?.[resolvedSortType]?.comments;
+  return comment.replies?.pages?.[pageSortType]?.comments;
 };
 
 const previousPageNumbers: { [feedName: string]: number } = {};

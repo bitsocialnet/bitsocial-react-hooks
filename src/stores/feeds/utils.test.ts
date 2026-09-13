@@ -505,19 +505,24 @@ describe("feeds utils", () => {
       expect(feeds.feed1).toEqual([]);
     });
 
-    test("does not substitute a different single-page sort", () => {
-      const feedComment = {
-        cid: "fallback-cid",
-        communityAddress: "sub1",
-        timestamp: 1,
-      };
+    test("sorts a complete preloaded page client-side for a standard sort", () => {
       const communities = {
         sub1: {
           address: "sub1",
           updatedAt: 1,
           posts: {
             pages: {
-              otherSort: { comments: [feedComment], nextCid: undefined },
+              hot: {
+                comments: [
+                  { cid: "newer-post", communityAddress: "sub1", timestamp: 200 },
+                  {
+                    cid: "bumped-post",
+                    communityAddress: "sub1",
+                    timestamp: 100,
+                    lastReplyTimestamp: 300,
+                  },
+                ],
+              },
             },
           },
         },
@@ -525,12 +530,116 @@ describe("feeds utils", () => {
       const feedsOptions = {
         feed1: {
           communities: toCommunities(["sub1"]),
+          sortType: "active",
+          accountId: mockAccountId,
+        },
+        feed2: {
+          communities: toCommunities(["sub1"]),
           sortType: "new",
           accountId: mockAccountId,
         },
       };
       const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, makeMockAccounts());
+      expect(feeds.feed1.map((post: any) => post.cid)).toEqual(["bumped-post", "newer-post"]);
+      expect(feeds.feed2.map((post: any) => post.cid)).toEqual(["newer-post", "bumped-post"]);
+      expect(
+        getFeedsHaveMore(
+          feedsOptions,
+          { feed1: [], feed2: [] },
+          communities,
+          {},
+          makeMockAccounts(),
+        ),
+      ).toEqual({ feed1: false, feed2: false });
+    });
+
+    test("does not substitute a preloaded page for a custom sort", () => {
+      const communities = {
+        sub1: {
+          address: "sub1",
+          updatedAt: 1,
+          posts: {
+            pages: {
+              hot: {
+                comments: [{ cid: "fallback-cid", communityAddress: "sub1", timestamp: 1 }],
+              },
+            },
+          },
+        },
+      };
+      const feedsOptions = {
+        feed1: {
+          communities: toCommunities(["sub1"]),
+          sortType: "customSort",
+          accountId: mockAccountId,
+        },
+      };
+      const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, makeMockAccounts());
       expect(feeds.feed1).toEqual([]);
+      expect(
+        getFeedsHaveMore(feedsOptions, { feed1: [] }, communities, {}, makeMockAccounts()),
+      ).toEqual({
+        feed1: false,
+      });
+    });
+
+    test("applies the time window when computing a timeframe sort from the preloaded page", () => {
+      const now = Math.floor(Date.now() / 1000);
+      const communities = {
+        sub1: {
+          address: "sub1",
+          updatedAt: 1,
+          posts: {
+            pages: {
+              hot: {
+                comments: [
+                  {
+                    cid: "old-top",
+                    communityAddress: "sub1",
+                    timestamp: now - 2 * 86400,
+                    upvoteCount: 50,
+                    downvoteCount: 0,
+                  },
+                  {
+                    cid: "recent",
+                    communityAddress: "sub1",
+                    timestamp: now - 60,
+                    upvoteCount: 1,
+                    downvoteCount: 0,
+                  },
+                  {
+                    cid: "pinned-old",
+                    communityAddress: "sub1",
+                    timestamp: now - 3 * 86400,
+                    upvoteCount: 0,
+                    downvoteCount: 0,
+                    pinned: true,
+                  },
+                ],
+              },
+            },
+          },
+        },
+      };
+      const feedsOptions = {
+        topDay: {
+          communities: toCommunities(["sub1"]),
+          sortType: "topDay",
+          accountId: mockAccountId,
+        },
+        topAll: {
+          communities: toCommunities(["sub1"]),
+          sortType: "topAll",
+          accountId: mockAccountId,
+        },
+      };
+      const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, makeMockAccounts());
+      expect(feeds.topDay.map((post: any) => post.cid)).toEqual(["pinned-old", "recent"]);
+      expect(feeds.topAll.map((post: any) => post.cid)).toEqual([
+        "pinned-old",
+        "old-top",
+        "recent",
+      ]);
     });
 
     test("uses the resolved default active sort when filtering by time", () => {

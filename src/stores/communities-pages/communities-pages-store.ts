@@ -20,7 +20,7 @@ import {
   getPkcCreateCommunity,
   normalizeCommentCommunityAddress,
 } from "../../lib/pkc-compat";
-import { resolvePostSortType } from "../../lib/page-sorts";
+import { getPostPageSortType } from "../../lib/page-sorts";
 
 const communitiesPagesDatabase = localForageLru.createInstance({
   name: "bitsocialReactHooks-communitiesPages",
@@ -416,16 +416,16 @@ export const getCommunityFirstPageCid = (
     sortType === undefined || (typeof sortType === "string" && sortType.length > 0),
     `getCommunityFirstPageCid sortType '${sortType}' invalid`,
   );
-  const resolvedSortType =
-    pageType === "posts" ? resolvePostSortType(community, sortType) : sortType;
-  if (!resolvedSortType) {
+  // posts served client-side from a complete preloaded page read that page instead of their own
+  const pageSortType = pageType === "posts" ? getPostPageSortType(community, sortType) : sortType;
+  if (!pageSortType) {
     return;
   }
   // community has preloaded posts for sort type
-  if (community[pageType]?.pages?.[resolvedSortType]?.comments) {
-    return community[pageType]?.pages?.[resolvedSortType]?.nextCid;
+  if (community[pageType]?.pages?.[pageSortType]?.comments) {
+    return community[pageType]?.pages?.[pageSortType]?.nextCid;
   }
-  return community[pageType]?.pageCids?.[resolvedSortType];
+  return community[pageType]?.pageCids?.[pageSortType];
 
   // TODO: if a loaded community doesn't have a first page, it's unclear what we should do
   // should we try to use another sort type by default, like 'hot', or should we just ignore it?

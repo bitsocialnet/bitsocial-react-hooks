@@ -170,7 +170,7 @@ useBufferedFeeds({feedsOptions: UseFeedOptions[]}) // preload or buffer feeds in
 `useFeed().reset()` clears the current feed and refreshes the latest community snapshots before rebuilding it.
 `useFeed().expandTimeWindow(newerThan)` broadens `newerThan` in place without constructing a different sort name, so older posts can be appended without replacing the feed instance.
 
-Feed and reply sort names are defined by each community record, not by a fixed hooks allowlist. Omit `sortType` to use the preloaded page, or discover the published names with `getAvailablePostSortTypes(community)` and `getAvailableReplySortTypes(comment)`. A requested sort that is not published is not silently replaced with another sort. Hooks preserve protocol page order for unknown custom sorts because their scoring algorithm is not available to the client.
+Feed and reply sort names are defined by each community record, not by a fixed hooks allowlist. Omit `sortType` to use the preloaded page, or discover the requestable names with `getAvailablePostSortTypes(community)` and `getAvailableReplySortTypes(comment)`. pkc-js preloads a single sort and only publishes `pageCids` once that page overflows, so when every post or reply fits in the preloaded page the standard sorts (`hot`, `new`, `active` and `top*` for posts; `best`, `new`, `old`, `newFlat` and `oldFlat` for replies) are also requestable and are sorted client-side from that page, including the time window of `top*` timeframe sorts. `getPostPageSortType(community, sortType)` and `getReplyPageSortType(comment, sortType)` return the page that serves a sort. A requested sort that is neither published nor computable client-side is not silently replaced with another sort. Hooks preserve protocol page order for unknown custom sorts because their scoring algorithm is not available to the client.
 
 #### Actions Hooks
 
@@ -237,6 +237,8 @@ getPreloadedPostSortType(community: Community): string | undefined
 getPreloadedReplySortType(comment: Comment): string | undefined
 resolvePostSortType(community: Community, requestedSortType?: string): string | undefined
 resolveReplySortType(comment: Comment, requestedSortType?: string): string | undefined
+getPostPageSortType(community: Community, requestedSortType?: string): string | undefined // page sort serving the request, e.g. the preloaded page a single-page community re-sorts client-side
+getReplyPageSortType(comment: Comment, requestedSortType?: string): string | undefined
 ```
 
 `createCrosspost` requires a fully loaded comment with `comment.cid` and
