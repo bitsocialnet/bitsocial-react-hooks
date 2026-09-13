@@ -1,3 +1,12 @@
+## [0.1.46](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.45...v0.1.46) (2026-09-13)
+
+
+### Bug Fixes
+
+* **feeds:** serve standard sorts from a complete preloaded page ([#116](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/116)) ([8b35e6d](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/8b35e6de19dcf501fa229291dd6c2eb3895f2c78))
+
+
+
 ## [0.1.45](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.44...v0.1.45) (2026-09-09)
 
 
