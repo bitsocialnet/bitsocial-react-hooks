@@ -615,10 +615,30 @@ describe("feeds utils", () => {
                     downvoteCount: 0,
                     pinned: true,
                   },
+                  {
+                    cid: "pinned-later",
+                    communityAddress: "sub1",
+                    timestamp: now - 4 * 86400,
+                    updatedAt: now - 4 * 86400,
+                    upvoteCount: 0,
+                    downvoteCount: 0,
+                  },
                 ],
               },
             },
           },
+        },
+      };
+      // the fresher cached version of the old post was pinned after the page was published
+      const freshestComments = {
+        "pinned-later": {
+          cid: "pinned-later",
+          communityAddress: "sub1",
+          timestamp: now - 4 * 86400,
+          updatedAt: now,
+          upvoteCount: 0,
+          downvoteCount: 0,
+          pinned: true,
         },
       };
       const feedsOptions = {
@@ -633,10 +653,21 @@ describe("feeds utils", () => {
           accountId: mockAccountId,
         },
       };
-      const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, makeMockAccounts());
-      expect(feeds.topDay.map((post: any) => post.cid)).toEqual(["pinned-old", "recent"]);
+      const feeds = getFilteredSortedFeeds(
+        feedsOptions,
+        communities,
+        {},
+        makeMockAccounts(),
+        freshestComments as any,
+      );
+      expect(feeds.topDay.map((post: any) => post.cid)).toEqual([
+        "pinned-old",
+        "pinned-later",
+        "recent",
+      ]);
       expect(feeds.topAll.map((post: any) => post.cid)).toEqual([
         "pinned-old",
+        "pinned-later",
         "old-top",
         "recent",
       ]);

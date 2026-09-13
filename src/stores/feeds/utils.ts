@@ -186,18 +186,20 @@ export const getFilteredSortedFeeds = (
           ) {
             break;
           }
-          // like the pages a community windows itself, pinned posts stay regardless of age
+          const nextPost = getFeedPost(post, communityRef, community, modQueue, freshestComments);
+          if (!nextPost) {
+            continue;
+          }
+          // window the reconciled post: pinned is mutable moderation state, and like the pages a
+          // community windows itself, pinned posts stay regardless of age
           if (
             clientTimeframeTimestamp !== undefined &&
-            !post.pinned &&
-            post.timestamp <= clientTimeframeTimestamp
+            !nextPost.pinned &&
+            nextPost.timestamp <= clientTimeframeTimestamp
           ) {
             continue;
           }
-          const nextPost = getFeedPost(post, communityRef, community, modQueue, freshestComments);
-          if (nextPost) {
-            bufferedFeedPosts.push(nextPost);
-          }
+          bufferedFeedPosts.push(nextPost);
         }
       }
 

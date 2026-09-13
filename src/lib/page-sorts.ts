@@ -80,7 +80,23 @@ const getCompletePreloadedPageSortTypes = (record?: PagesRecord): string[] => {
   return sortTypes.filter((sortType) => !getSortTimeframeSeconds(sortType));
 };
 
-// a flat page cannot rebuild the reply tree, so it only serves flat sorts
+// a flat sort flattens the whole reply tree, so every nested reply chain must be complete too
+const hasCompleteReplyTree = (page: PreloadedPage): boolean =>
+  ((page?.comments as Comment[] | undefined) || []).every((comment) => {
+    const completeSortTypes = getCompletePreloadedPageSortTypes(comment?.replies);
+    if (!completeSortTypes.length) {
+      // no preloaded replies is only complete when the comment reports none, and a continued or
+      // paged chain is never complete
+      return !(comment?.replyCount > 0) && !Object.keys(comment?.replies?.pages || {}).length;
+    }
+    const hierarchicalSortType = completeSortTypes.find((sortType) => !isFlatSortType(sortType));
+    return hierarchicalSortType === undefined
+      ? true
+      : hasCompleteReplyTree(comment.replies.pages[hierarchicalSortType]);
+  });
+
+// a flat page cannot rebuild the reply tree, so it only serves flat sorts; a hierarchical page
+// serves flat sorts only when its nested reply chains are complete
 const getClientSortableSortTypes = (
   record: PagesRecord | undefined,
   clientSortableSortTypes: string[],
@@ -89,10 +105,16 @@ const getClientSortableSortTypes = (
   if (!completeSortTypes.length) {
     return [];
   }
-  if (completeSortTypes.some((sortType) => !isFlatSortType(sortType))) {
-    return clientSortableSortTypes;
+  const hierarchicalSortType = completeSortTypes.find((sortType) => !isFlatSortType(sortType));
+  if (hierarchicalSortType === undefined) {
+    return clientSortableSortTypes.filter(isFlatSortType);
   }
-  return clientSortableSortTypes.filter(isFlatSortType);
+  const canFlatten =
+    completeSortTypes.some(isFlatSortType) ||
+    hasCompleteReplyTree(record?.pages?.[hierarchicalSortType] as PreloadedPage);
+  return canFlatten
+    ? clientSortableSortTypes
+    : clientSortableSortTypes.filter((sortType) => !isFlatSortType(sortType));
 };
 
 const getAvailablePageSortTypes = (
@@ -125,7 +147,7 @@ const resolvePageSortType = (
 };
 
 // the page that serves a resolved sort: its published page, or the complete preloaded page the
-// client re-sorts (a flat sort can also be flattened from a hierarchical page)
+// client re-sorts (a flat sort prefers a complete flat page, else flattens a hierarchical one)
 const getPageSortTypeToRead = (
   record: PagesRecord | undefined,
   sortType: string | undefined,
@@ -137,10 +159,13 @@ const getPageSortTypeToRead = (
     return sortType;
   }
   const completeSortTypes = getCompletePreloadedPageSortTypes(record);
-  return (
-    completeSortTypes.find((preloadedSortType) => !isFlatSortType(preloadedSortType)) ??
-    (isFlatSortType(sortType) ? completeSortTypes[0] : undefined)
+  const hierarchicalSortType = completeSortTypes.find(
+    (preloadedSortType) => !isFlatSortType(preloadedSortType),
   );
+  if (isFlatSortType(sortType)) {
+    return completeSortTypes.find(isFlatSortType) ?? hierarchicalSortType;
+  }
+  return hierarchicalSortType;
 };
 
 export const getAvailablePostSortTypes = (community?: Community): string[] =>

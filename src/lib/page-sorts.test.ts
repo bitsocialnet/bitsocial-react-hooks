@@ -131,6 +131,37 @@ describe("page sort helpers", () => {
       expect(getPostPageSortType(windowedCommunity as any, "hot")).toBeUndefined();
     });
 
+    test("advertises flat sorts from a hierarchical page only when the nested tree is complete", () => {
+      const withNestedReplies = (replies: unknown) => ({
+        depth: 0,
+        replies: {
+          pages: { best: { comments: [{ cid: "reply", replyCount: 1, replies }] } },
+        },
+      });
+      const completeTree = withNestedReplies({
+        pages: { best: { comments: [{ cid: "nested", replyCount: 0 }] } },
+      });
+      expect(getAvailableReplySortTypes(completeTree as any)).toEqual([
+        "best",
+        "new",
+        "old",
+        "newFlat",
+        "oldFlat",
+      ]);
+      expect(getReplyPageSortType(completeTree as any, "newFlat")).toBe("best");
+
+      const continuedTree = withNestedReplies({
+        pages: { best: { comments: [{ cid: "nested" }], nextCid: "nested-next" } },
+      });
+      const pagedTree = withNestedReplies({ pages: {}, pageCids: { new: "nested-new-cid" } });
+      const missingTree = withNestedReplies(undefined);
+      for (const comment of [continuedTree, pagedTree, missingTree]) {
+        expect(getAvailableReplySortTypes(comment as any)).toEqual(["best", "new", "old"]);
+        expect(resolveReplySortType(comment as any, "newFlat")).toBeUndefined();
+        expect(resolveReplySortType(comment as any, "new")).toBe("new");
+      }
+    });
+
     test("only serves flat sorts from a flat preloaded page", () => {
       const flatComment = { replies: { pages: { newFlat: { comments: [] } } } };
       expect(getAvailableReplySortTypes(flatComment as any)).toEqual(["newFlat", "oldFlat"]);
