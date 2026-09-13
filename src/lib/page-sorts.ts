@@ -76,7 +76,8 @@ const getCompletePreloadedPageSortTypes = (record?: PagesRecord): string[] => {
   ) {
     return [];
   }
-  return sortTypes;
+  // a page windowed by a timeframe sort only holds that window, never the complete set
+  return sortTypes.filter((sortType) => !getSortTimeframeSeconds(sortType));
 };
 
 // a flat page cannot rebuild the reply tree, so it only serves flat sorts

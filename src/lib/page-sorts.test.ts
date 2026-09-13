@@ -123,6 +123,14 @@ describe("page sort helpers", () => {
       expect(getReplyPageSortType(nestedReply as any, "newFlat")).toBeUndefined();
     });
 
+    test("does not treat a timeframe-windowed preloaded page as the complete set", () => {
+      const windowedCommunity = { posts: { pages: { topDay: { comments: [{ cid: "post" }] } } } };
+      expect(getAvailablePostSortTypes(windowedCommunity as any)).toEqual(["topDay"]);
+      expect(resolvePostSortType(windowedCommunity as any, "active")).toBeUndefined();
+      expect(getPostPageSortType(windowedCommunity as any, "topDay")).toBe("topDay");
+      expect(getPostPageSortType(windowedCommunity as any, "hot")).toBeUndefined();
+    });
+
     test("only serves flat sorts from a flat preloaded page", () => {
       const flatComment = { replies: { pages: { newFlat: { comments: [] } } } };
       expect(getAvailableReplySortTypes(flatComment as any)).toEqual(["newFlat", "oldFlat"]);
