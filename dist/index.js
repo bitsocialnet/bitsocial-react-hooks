@@ -26,7 +26,7 @@ import { getEthWalletFromPkcPrivateKey, getEthPrivateKeyFromPkcPrivateKey, valid
 import { setPkcJs, restorePkcJs } from "./lib/pkc-js/index.js";
 import { deleteDatabases, deleteCaches } from "./lib/debug-utils.js";
 import { createCrosspost } from "./lib/crosspost.js";
-import { getAvailablePostSortTypes, getAvailableReplySortTypes, getPreloadedPostSortType, getPreloadedReplySortType, resolvePostSortType, resolveReplySortType, } from "./lib/page-sorts.js";
+import { getAvailablePostSortTypes, getAvailableReplySortTypes, getPreloadedPostSortType, getPreloadedReplySortType, getPostPageSortType, getReplyPageSortType, getSortTimeframeSeconds, isFlatSortType, resolvePostSortType, resolveReplySortType, } from "./lib/page-sorts.js";
 // types
 export * from "./types.js";
 // IMPORTANT: should be the same as 'export default hooks'
@@ -54,7 +54,7 @@ usePkcRpcSettings,
 // chain
 getEthWalletFromPkcPrivateKey, getEthPrivateKeyFromPkcPrivateKey, validateEthWallet, 
 // utils
-setPkcJs, restorePkcJs, deleteDatabases, deleteCaches, createCrosspost, getAvailablePostSortTypes, getAvailableReplySortTypes, getPreloadedPostSortType, getPreloadedReplySortType, resolvePostSortType, resolveReplySortType, };
+setPkcJs, restorePkcJs, deleteDatabases, deleteCaches, createCrosspost, getAvailablePostSortTypes, getAvailableReplySortTypes, getPreloadedPostSortType, getPreloadedReplySortType, getPostPageSortType, getReplyPageSortType, getSortTimeframeSeconds, isFlatSortType, resolvePostSortType, resolveReplySortType, };
 // IMPORTANT: should be the same as 'export {}'
 const hooks = {
     // accounts
@@ -133,6 +133,10 @@ const hooks = {
     getAvailableReplySortTypes,
     getPreloadedPostSortType,
     getPreloadedReplySortType,
+    getPostPageSortType,
+    getReplyPageSortType,
+    getSortTimeframeSeconds,
+    isFlatSortType,
     resolvePostSortType,
     resolveReplySortType,
 };

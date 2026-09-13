@@ -1,7 +1,8 @@
 import { UseBufferedFeedsOptions, UseBufferedFeedsResult, UseFeedOptions, UseFeedResult } from "../../types.js";
 /**
  * @param communities - The communities to fetch, e.g. [{name: 'memes.eth'}, {publicKey: '12D3KooW...'}]
- * @param sortType - A sort name published by the community. Omit it to use the preloaded sort.
+ * @param sortType - A sort name published by the community, or a standard sort computed client-side
+ * when every post fits in the preloaded page. Omit it to use the preloaded sort.
  * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
  * the active account.
  */

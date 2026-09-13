@@ -16,6 +16,7 @@ import accountsStore from "../accounts/index.js";
 import repliesCommentsStore from "./replies-comments-store.js";
 import repliesPagesStore from "../replies-pages/index.js";
 import { serializeFeedKey } from "../../lib/serialize-feed-key.js";
+import { getReplyPageSortType } from "../../lib/page-sorts.js";
 import { getFeedsCommentsFirstPageCids, getLoadedFeeds, getBufferedFeedsWithoutLoadedFeeds, getUpdatedFeeds, getFeedsReplyCounts, getFeedsHaveMore, feedsCommentsChanged, getFeedsComments, getFeedsCommentsLoadedCount, getFeedsCommentsRepliesPagesFirstUpdatedAts, getFilteredSortedFeeds, getSortTypeFromComment, addAccountsComments, } from "./utils.js";
 // reddit loads approximately 25 posts per page
 // while infinite scrolling
@@ -131,7 +132,10 @@ const repliesStore = createStore((setState, getState) => ({
                 feedsToAddToStore.push(Object.assign(Object.assign({}, feedOptions), { commentCid: comment === null || comment === void 0 ? void 0 : comment.cid, commentDepth: comment === null || comment === void 0 ? void 0 : comment.depth }));
                 // flat doesn't need nested feeds
                 if (!feedOptions.flat) {
-                    for (const reply of (sortType && ((_c = (_b = (_a = comment.replies) === null || _a === void 0 ? void 0 : _a.pages) === null || _b === void 0 ? void 0 : _b[sortType]) === null || _c === void 0 ? void 0 : _c.comments)) || []) {
+                    // each comment serves the sort from its own page, e.g. its preloaded page re-sorted client-side
+                    const pageSortType = getReplyPageSortType(comment, feedOptions.sortType);
+                    for (const reply of (pageSortType && ((_c = (_b = (_a = comment.replies) === null || _a === void 0 ? void 0 : _a.pages) === null || _b === void 0 ? void 0 : _b[pageSortType]) === null || _c === void 0 ? void 0 : _c.comments)) ||
+                        []) {
                         addRepliesFeedsToStoreRecursively(reply);
                     }
                 }
