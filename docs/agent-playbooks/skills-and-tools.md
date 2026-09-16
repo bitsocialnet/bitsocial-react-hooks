@@ -24,6 +24,8 @@ The AI directories use LF line endings through `.gitattributes` so generated tex
 
 Shared skills cover scoped implementation and debugging, README/release wording, requested cleanup, React effect/performance review, commit/issue formatting, and authorized PR review or merging. Use `find-skills` only when a missing reusable capability is requested; use Context7 for a concrete version/API question. Read individual skill roots when the task needs them.
 
+Use [retro](../../.agents/skills/retro/SKILL.md) after a bug fix or substantive review correction exposes a preventable mistake, to choose a focused check or guidance improvement.
+
 React guidance must respect this package's supported React peer range and its implementation of store subscriptions. Preserve the licensed upstream React rule files; select only relevant rules rather than importing Next.js or application-specific assumptions.
 
 ## Roles and models
