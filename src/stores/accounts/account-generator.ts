@@ -124,7 +124,7 @@ const generateDefaultAccount = async () => {
   const pkcOptions = getDefaultPkcOptions();
   const chainProviders = getDefaultChainProviders();
   const pkc = await PkcJs.PKC(
-    getPkcClientOptions(
+    await getPkcClientOptions(
       {
         chainProviders,
         pkcOptions,

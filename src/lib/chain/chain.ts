@@ -1,8 +1,23 @@
 import assert from "assert";
 import { Nft, ChainProviders, Wallet } from "../../types";
-import { ethers } from "ethers";
 import utils from "../utils";
-import { verifyMessage } from "viem";
+
+// ethers and viem are large and only needed once an author wallet, NFT avatar, or ENS record is
+// used, so they load on demand instead of with the hooks that apps import at startup. Every
+// function below that uses `ethers` awaits loadEthers() first.
+let ethers: typeof import("ethers").ethers;
+const loadEthers = async () => {
+  ethers ||= (await import("ethers")).ethers;
+  return ethers;
+};
+
+// Account setup needs ethers (the author's eth wallet) and bso-resolver (the PKC client's name
+// resolvers) as soon as pkc-js loads. Starting both downloads when the accounts store initializes
+// loads them alongside pkc-js instead of one after another, without blocking the app's first render.
+export const preloadAccountChainLibraries = () => {
+  loadEthers().catch(() => {});
+  import("@bitsocial/bso-resolver").catch(() => {});
+};
 
 // NOTE: getNftImageUrl tests are skipped, if changes are made they must be tested manually
 const getNftImageUrlNoCache = async (nftMetadataUrl: string, ipfsGatewayUrl: string) => {
@@ -67,6 +82,7 @@ const getNftMetadataUrlNoCache = async (
     `getNftMetadataUrl invalid ipfsGatewayUrl '${ipfsGatewayUrl}'`,
   );
 
+  await loadEthers();
   const chainProvider = getChainProvider(chainTicker, chainProviderUrl, chainId);
   const nftContract = new ethers.Contract(nftAddress, nftAbi, chainProvider);
   let nftMetadataUrl = await nftContract.tokenURI(nftId);
@@ -102,6 +118,7 @@ const getNftOwnerNoCache = async (
     `getNftOwner invalid chainProviderUrl '${chainProviderUrl}'`,
   );
   assert(typeof chainId === "number", `getNftOwner invalid chainId '${chainId}' not a number`);
+  await loadEthers();
   const chainProvider = getChainProvider(chainTicker, chainProviderUrl, chainId);
   const nftContract = new ethers.Contract(nftAddress, nftAbi, chainProvider);
   const currentNftOwnerAddress = await nftContract.ownerOf(nftId);
@@ -119,6 +136,7 @@ const resolveEnsTxtRecordNoCache = async (
   chainProviderUrl?: string,
   chainId?: number,
 ) => {
+  await loadEthers();
   const chainProvider = getChainProvider(chainTicker, chainProviderUrl, chainId);
   const resolver = await chainProvider.getResolver(ensName);
   if (!resolver) {
@@ -190,6 +208,7 @@ export const getEthWalletFromPkcPrivateKey = async (
   if (privateKeyBytes.length !== 32) {
     throw Error("failed getting eth address from private key not 32 bytes");
   }
+  await loadEthers();
   const publicKeyHex = ethers.utils.computePublicKey(privateKeyBytes, false);
   const privateKeyHex = ethers.utils.hexlify(privateKeyBytes);
   const ethAddress = ethers.utils.computeAddress(publicKeyHex);
@@ -216,6 +235,7 @@ export const getEthPrivateKeyFromPkcPrivateKey = async (
   if (privateKeyBytes.length !== 32) {
     throw Error("failed getting eth address from private key not 32 bytes");
   }
+  await loadEthers();
   const privateKeyHex = ethers.utils.hexlify(privateKeyBytes);
   return privateKeyHex;
 };
@@ -247,6 +267,7 @@ export const validateEthWallet = async (wallet: Wallet, authorAddress: string) =
     wallet?.timestamp <= Date.now() / 1000,
     `validateEthWallet invalid wallet.timestamp '${wallet?.timestamp}' greater than current Date.now() / 1000`,
   );
+  await loadEthers();
   const signatureAddress = ethers.utils.verifyMessage(
     getWalletMessageToSign(authorAddress, wallet.timestamp),
     wallet.signature.signature,
@@ -284,6 +305,7 @@ export const validateEthWalletViem = async (wallet: Wallet, authorAddress: strin
     wallet?.timestamp <= Date.now() / 1000,
     `validateEthWallet invalid wallet.timestamp '${wallet?.timestamp}' greater than current Date.now() / 1000`,
   );
+  const { verifyMessage } = await import("viem");
   const valid = await verifyMessage({
     address: wallet.address,
     message: getWalletMessageToSign(authorAddress, wallet.timestamp),

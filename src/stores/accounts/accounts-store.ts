@@ -3,6 +3,7 @@ import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:accounts:stores");
 import accountsDatabase from "./accounts-database";
 import accountGenerator from "./account-generator";
+import { preloadAccountChainLibraries } from "../../lib/chain";
 import {
   AccountNamesToAccountIds,
   Account,
@@ -171,6 +172,7 @@ const waitForInitialized = async () => {
   // @ts-ignore
   window.BITSOCIAL_REACT_HOOKS_ACCOUNTS_STORE_INITIALIZING = true;
 
+  preloadAccountChainLibraries();
   log("accounts store initializing started");
   try {
     await initializeAccountsStore();

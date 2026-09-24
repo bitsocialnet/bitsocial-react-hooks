@@ -1,5 +1,4 @@
 import assert from "assert";
-import { BsoResolver } from "@bitsocial/bso-resolver";
 import type {
   PkcResolveAuthorName,
   PkcResolveAuthorNameOptions,
@@ -100,8 +99,15 @@ export const getMatchingNameResolvers = (account: any, address?: string): NameRe
   return Object.values(getConfiguredNameResolverInfoByKey(account));
 };
 
-const buildConfiguredNameResolvers = (account: any, dataPath?: string) =>
-  Object.values(getConfiguredNameResolverInfoByKey(account)).map(
+const buildConfiguredNameResolvers = async (account: any, dataPath?: string) => {
+  const resolverInfos = Object.values(getConfiguredNameResolverInfoByKey(account));
+  if (!resolverInfos.length) {
+    return [];
+  }
+  // bso-resolver bundles viem; load it when a PKC client is created rather than with the hooks
+  // that apps import at startup.
+  const { BsoResolver } = await import("@bitsocial/bso-resolver");
+  return resolverInfos.map(
     (resolverInfo) =>
       new BsoResolver({
         key: resolverInfo.key,
@@ -109,6 +115,7 @@ const buildConfiguredNameResolvers = (account: any, dataPath?: string) =>
         dataPath,
       }),
   );
+};
 
 type LegacyResolveAuthorAddress = (options: { address: string }) => Promise<string> | string;
 
@@ -166,17 +173,17 @@ export const normalizeOptionsForPkcClient = <T extends Record<string, any> | und
   return normalized as T;
 };
 
-export const getPkcClientOptions = <T extends Record<string, any> | undefined>(
+export const getPkcClientOptions = async <T extends Record<string, any> | undefined>(
   account: any,
   options: T,
-): T => {
+): Promise<T> => {
   const normalized = normalizeOptionsForPkcClient(options);
 
   if (!normalized) {
     return normalized;
   }
 
-  const nameResolvers = buildConfiguredNameResolvers(account, normalized.dataPath);
+  const nameResolvers = await buildConfiguredNameResolvers(account, normalized.dataPath);
   if (nameResolvers.length) {
     normalized.nameResolvers = nameResolvers;
   }

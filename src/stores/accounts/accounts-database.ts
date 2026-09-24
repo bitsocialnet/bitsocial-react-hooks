@@ -123,7 +123,7 @@ const getAccountsFromStoredAccounts = async (storedAccounts: Accounts) => {
       ...(accounts[accountId].pkcOptions || accounts[accountId].pkcOptions),
       ...overwritePkcOptions,
     };
-    const pkc = await PkcJs.PKC(getPkcClientOptions(accounts[accountId], protocolOptions));
+    const pkc = await PkcJs.PKC(await getPkcClientOptions(accounts[accountId], protocolOptions));
     // handle errors or error events are uncaught
     // no need to log them because pkc-js already logs them
     pkc.on("error", (error: any) =>
@@ -398,7 +398,7 @@ const addAccount = async (account: Account, options?: { returnHydratedAccount?: 
       })
     )[accountToPutInDatabase.id];
   } else if (protocolOptions) {
-    const pkc = await PkcJs.PKC(getPkcClientOptions(accountToPutInDatabase, protocolOptions));
+    const pkc = await PkcJs.PKC(await getPkcClientOptions(accountToPutInDatabase, protocolOptions));
     pkc.on("error", () => {});
     void pkc.destroy?.(); // gc; errors intentionally unhandled to avoid uncounted callback
   }

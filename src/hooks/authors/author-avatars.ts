@@ -4,7 +4,6 @@ import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:authors:hooks");
 import assert from "assert";
 import { Nft, ChainProviders, Author } from "../../types";
-import { ethers } from "ethers";
 import { getNftMetadataUrl, getNftImageUrl, getNftOwner } from "../../lib/chain";
 import { getChainProviders } from "../../lib/pkc-compat";
 import createStore from "zustand";
@@ -246,6 +245,8 @@ export const verifyAuthorAvatarSignature = async (
     nft.address,
     nft.id,
   );
+  // Loaded on demand so ethers stays out of the startup bundle (see lib/chain).
+  const { ethers } = await import("ethers");
   const signatureAddress = ethers.utils.verifyMessage(
     messageThatShouldBeSigned,
     nft.signature.signature,
