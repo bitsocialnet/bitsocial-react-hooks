@@ -332,6 +332,7 @@ const post = useComment({ commentCid, onlyIfCached: true });
 
 // disable background polling and refresh on demand
 const post = useComment({ commentCid, autoUpdate: false });
+// resolves after one update cycle, also when no newer CommentUpdate exists
 await post.refresh();
 // newly published comments still absorb canonical number, postNumber, and
 // author shortAddress metadata as it arrives; later live updates stay frozen

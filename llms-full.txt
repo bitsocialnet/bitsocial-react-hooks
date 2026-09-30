@@ -364,6 +364,7 @@ const post = useComment({ commentCid, onlyIfCached: true });
 
 // disable background polling and refresh on demand
 const post = useComment({ commentCid, autoUpdate: false });
+// resolves after one update cycle, also when no newer CommentUpdate exists
 await post.refresh();
 // newly published comments still absorb canonical number, postNumber, and
 // author shortAddress metadata as it arrives; later live updates stay frozen
@@ -3241,6 +3242,15 @@ Native references: [Codex hooks](https://learn.chatgpt.com/docs/hooks), [Cursor 
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/CHANGELOG.md
 
 ```markdown
+## [0.1.46](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.45...v0.1.46) (2026-09-13)
+
+
+### Bug Fixes
+
+* **feeds:** serve standard sorts from a complete preloaded page ([#116](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/116)) ([8b35e6d](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/8b35e6de19dcf501fa229291dd6c2eb3895f2c78))
+
+
+
 ## [0.1.45](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.44...v0.1.45) (2026-09-09)
 
 

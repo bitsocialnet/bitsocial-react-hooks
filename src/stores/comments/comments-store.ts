@@ -185,6 +185,12 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
   const shouldWaitForSparseCommentFollowup = (commentCid: string, comment: Comment) =>
     sparseCommentFollowupRequested[commentCid] && isSparseCommentUpdate(comment);
 
+  // pkc-js ends an update cycle that found no newer CommentUpdate with "waiting-retry" (a
+  // retriable failure emits an error event first). Once the comment has a CommentUpdate, that
+  // state settles a one-shot update or refresh; until then, keep waiting for the first one.
+  const isUnchangedUpdateCycleEnd = (updatingState: string, comment: Comment) =>
+    updatingState === "waiting-retry" && typeof comment?.updatedAt === "number";
+
   const initializeComment = (commentCid: string, comment: Comment, account: Account) => {
     if (initializedComments.has(comment as object)) {
       liveComments[commentCid] = comment;
@@ -227,7 +233,11 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
         clearCommentUpdateFollowup(commentCid);
       }
 
-      if (updatingState === "succeeded" || updatingState === "failed") {
+      if (
+        updatingState === "succeeded" ||
+        updatingState === "failed" ||
+        isUnchangedUpdateCycleEnd(updatingState, comment)
+      ) {
         maybeStopCommentAfterOneShotUpdate(commentCid, comment);
       }
     });
@@ -334,7 +344,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
   const waitForCommentUpdateCycle = (commentCid: string, comment: Comment) =>
     new Promise<Comment>((resolve, reject) => {
       const onUpdatingStateChange = (updatingState: string) => {
-        if (updatingState === "succeeded") {
+        if (updatingState === "succeeded" || isUnchangedUpdateCycleEnd(updatingState, comment)) {
           if (shouldWaitForSparseCommentFollowup(commentCid, comment)) {
             return;
           }
