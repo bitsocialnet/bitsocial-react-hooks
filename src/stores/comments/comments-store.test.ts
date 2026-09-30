@@ -946,6 +946,43 @@ describe("comments store", () => {
     }
   });
 
+  test("addCommentToStore keeps retrying a one-shot update after a retriable fetch error", async () => {
+    const commentCid = "one-shot-retry-after-error-cid";
+    const liveComment = createUnchangedComment(commentCid, { updatedAt: 200 });
+    liveComment.update = vi.fn().mockImplementation(() => {
+      liveComment.emit("updatingstatechange", "fetching-update-ipfs");
+      setTimeout(() => {
+        // pkc-js emits the retriable error before entering waiting-retry
+        liveComment.emit("error", new Error("gateway timeout"));
+        liveComment.emit("updatingstatechange", "waiting-retry");
+        setTimeout(() => {
+          liveComment.emit("updatingstatechange", "fetching-update-ipfs");
+          liveComment.updatedAt = 300;
+          liveComment.emit("update", liveComment);
+          liveComment.emit("updatingstatechange", "succeeded");
+        }, 10);
+      }, 0);
+      return Promise.resolve();
+    });
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      await act(async () => {
+        await commentsStore.getState().addCommentToStore(commentCid, mockAccount);
+      });
+      await new Promise((r) => setTimeout(r, 5));
+      expect(liveComment.stop).not.toHaveBeenCalled();
+
+      await tlWaitFor(() => expect(liveComment.stop).toHaveBeenCalledTimes(1));
+      await tlWaitFor(() =>
+        expect(commentsStore.getState().comments[commentCid]?.updatedAt).toBe(300),
+      );
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
   test("startCommentAutoUpdate keeps a comment updating after an unchanged cycle", async () => {
     const commentCid = "auto-update-unchanged-cid";
     const liveComment = createUnchangedComment(commentCid, { updatedAt: 200 });
