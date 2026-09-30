@@ -401,6 +401,52 @@ describe("replies store", () => {
     expect(feedsForNestedReply).toHaveLength(1);
   });
 
+  test("loads a reply appended to a single preloaded page without new page cids", async () => {
+    const commentCid = "appended-preloaded-reply-cid";
+    const reply = (cid: string, timestamp: number) => ({
+      cid,
+      communityAddress: "appended community address",
+      depth: 1,
+      parentCid: commentCid,
+      postCid: commentCid,
+      timestamp,
+      updatedAt: timestamp,
+    });
+    const createComment = (updatedAt: number, replies: any[]) => ({
+      cid: commentCid,
+      communityAddress: "appended community address",
+      depth: 0,
+      postCid: commentCid,
+      replies: { pages: { new: { comments: replies } }, pageCids: {} },
+      timestamp: 1,
+      updatedAt,
+    });
+    const feedOptions = { sortType: "new", commentCid, accountId: mockAccount.id, flat: true };
+    const feedName = feedOptionsToFeedName(feedOptions);
+    const updateComment = (updatedAt: number, replies: any[]) =>
+      act(() => {
+        rendered.result.current.addFeedToStoreOrUpdateComment(
+          createComment(updatedAt, replies),
+          feedOptions,
+        );
+      });
+
+    updateComment(10, [reply("reply-2", 3), reply("reply-1", 2)]);
+    await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length === 2);
+    expect(rendered.result.current.loadedFeeds[feedName]).toHaveLength(2);
+
+    // an update that leaves the page as it was, like a vote
+    updateComment(20, [reply("reply-2", 3), reply("reply-1", 2)]);
+    await sleep(300);
+
+    // the page's first reply and page cids stay the same
+    updateComment(30, [reply("reply-2", 3), reply("reply-1", 2), reply("reply-0", 1)]);
+    await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length === 3);
+    expect(
+      rendered.result.current.loadedFeeds[feedName].map((comment: any) => comment.cid),
+    ).toContain("reply-0");
+  });
+
   test("resetFeed resets page to 1 and clears loaded/updated", async () => {
     const commentCid = "reset-feed-cid";
     const feedOptions = { sortType: "new", commentCid, accountId: mockAccount.id };
