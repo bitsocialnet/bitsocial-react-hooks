@@ -25,6 +25,8 @@ const liveCommentPromises = {};
 const commentAutoUpdateSubscribers = {};
 const stopCommentAfterNextUpdate = {};
 const sparseCommentFollowupRequested = {};
+// set when the current update attempt emitted an error, until the next attempt starts
+const commentUpdateAttemptFailed = {};
 const initializedComments = new WeakSet();
 const trackedListeners = new WeakSet();
 // reset all event listeners in between tests
@@ -153,6 +155,13 @@ const commentsStore = createStore((setState, getState) => {
         (stopCommentAfterNextUpdate[commentCid] || hasCommentAutoUpdateSubscribers(commentCid)) &&
         isSparseCommentUpdate(comment);
     const shouldWaitForSparseCommentFollowup = (commentCid, comment) => sparseCommentFollowupRequested[commentCid] && isSparseCommentUpdate(comment);
+    // pkc-js ends an update cycle that found no newer CommentUpdate with "waiting-retry". A
+    // retriable failure also ends in "waiting-retry", after an error event, and must keep retrying.
+    // Once the comment has a CommentUpdate, an error-free "waiting-retry" settles a one-shot update
+    // or refresh; until then, keep waiting for the first one.
+    const isUnchangedUpdateCycleEnd = (updatingState, commentCid, comment) => updatingState === "waiting-retry" &&
+        !commentUpdateAttemptFailed[commentCid] &&
+        typeof (comment === null || comment === void 0 ? void 0 : comment.updatedAt) === "number";
     const initializeComment = (commentCid, comment, account) => {
         var _a, _b, _c, _d;
         if (initializedComments.has(comment)) {
@@ -184,11 +193,17 @@ const commentsStore = createStore((setState, getState) => {
             if (updatingState === "failed") {
                 clearCommentUpdateFollowup(commentCid);
             }
-            if (updatingState === "succeeded" || updatingState === "failed") {
+            if (updatingState === "succeeded" ||
+                updatingState === "failed" ||
+                isUnchangedUpdateCycleEnd(updatingState, commentCid, comment)) {
                 maybeStopCommentAfterOneShotUpdate(commentCid, comment);
+            }
+            if (updatingState !== "waiting-retry") {
+                delete commentUpdateAttemptFailed[commentCid];
             }
         });
         (_c = comment === null || comment === void 0 ? void 0 : comment.on) === null || _c === void 0 ? void 0 : _c.call(comment, "error", (error) => {
+            commentUpdateAttemptFailed[commentCid] = true;
             addCommentError(commentCid, error);
         });
         // set clients on comment so the frontend can display it, dont persist in db because a reload cancels updating
@@ -269,7 +284,8 @@ const commentsStore = createStore((setState, getState) => {
         var _a, _b;
         const onUpdatingStateChange = (updatingState) => {
             var _a;
-            if (updatingState === "succeeded") {
+            if (updatingState === "succeeded" ||
+                isUnchangedUpdateCycleEnd(updatingState, commentCid, comment)) {
                 if (shouldWaitForSparseCommentFollowup(commentCid, comment)) {
                     return;
                 }
@@ -425,6 +441,9 @@ export const resetCommentsStore = () => __awaiter(void 0, void 0, void 0, functi
     }
     for (const commentCid in sparseCommentFollowupRequested) {
         delete sparseCommentFollowupRequested[commentCid];
+    }
+    for (const commentCid in commentUpdateAttemptFailed) {
+        delete commentUpdateAttemptFailed[commentCid];
     }
     for (const commentCid in liveCommentPromises) {
         delete liveCommentPromises[commentCid];
