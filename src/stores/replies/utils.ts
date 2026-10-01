@@ -646,6 +646,10 @@ export const getFeedsCommentsRepliesPagesFirstUpdatedAts = (
         feedsCommentsRepliesPagesFirstUpdatedAts +=
           page.comments[0].cid + page.comments[0].updatedAt;
       }
+      // a reply added or removed past the first one changes a preloaded page without new page cids
+      if (page?.comments?.length) {
+        feedsCommentsRepliesPagesFirstUpdatedAts += `:${page.comments.length};`;
+      }
     }
   }
   return feedsCommentsRepliesPagesFirstUpdatedAts;

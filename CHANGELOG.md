@@ -1,3 +1,14 @@
+## [0.1.47](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.46...v0.1.47) (2026-09-30)
+
+
+### Bug Fixes
+
+* **comments:** keep retrying a one-shot update after a retriable error ([0ff08c5](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/0ff08c5b97a1bcac8b73a27e8f35dea180cce22e))
+* **comments:** settle refresh when an update finds nothing newer ([8b11e02](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/8b11e0243dd3bb20fb70f78a883f48e5889b5319))
+* **replies:** load replies added to a preloaded page after its first reply ([55e179d](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/55e179da07e8cc098bcb5063927164f138adf647))
+
+
+
 ## [0.1.46](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.45...v0.1.46) (2026-09-13)
 
 

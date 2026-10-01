@@ -497,13 +497,17 @@ export const getFeedsCommentsFirstPageCids = (feedsComments) => {
 };
 // get all comments replies pages first reply updatedAts, use to check if a commentsStore change should trigger updateFeeds
 export const getFeedsCommentsRepliesPagesFirstUpdatedAts = (feedsComments) => {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     let feedsCommentsRepliesPagesFirstUpdatedAts = "";
     for (const comment of feedsComments.values()) {
         for (const page of Object.values(((_a = comment === null || comment === void 0 ? void 0 : comment.replies) === null || _a === void 0 ? void 0 : _a.pages) || {})) {
             if ((_c = (_b = page === null || page === void 0 ? void 0 : page.comments) === null || _b === void 0 ? void 0 : _b[0]) === null || _c === void 0 ? void 0 : _c.updatedAt) {
                 feedsCommentsRepliesPagesFirstUpdatedAts +=
                     page.comments[0].cid + page.comments[0].updatedAt;
+            }
+            // a reply added or removed past the first one changes a preloaded page without new page cids
+            if ((_d = page === null || page === void 0 ? void 0 : page.comments) === null || _d === void 0 ? void 0 : _d.length) {
+                feedsCommentsRepliesPagesFirstUpdatedAts += `:${page.comments.length};`;
             }
         }
     }

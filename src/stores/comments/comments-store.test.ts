@@ -86,6 +86,33 @@ const createSparseComment = (
   return liveComment;
 };
 
+// Mirrors pkc-js ending an update cycle that found no newer CommentUpdate with "waiting-retry".
+const createUnchangedComment = (commentCid: string, options: { updatedAt?: number } = {}) => {
+  const liveComment: any = new EventEmitter();
+  liveComment.cid = commentCid;
+  liveComment.clients = {};
+  liveComment.timestamp = 100;
+  liveComment.updatedAt = options.updatedAt;
+  liveComment.replyCount = 2;
+  liveComment.updatingState = "stopped";
+  liveComment.off = liveComment.off.bind(liveComment);
+  liveComment.removeAllListeners = liveComment.removeAllListeners.bind(liveComment);
+  liveComment.stop = vi.fn().mockImplementation(() => {
+    liveComment.updatingState = "stopped";
+    return Promise.resolve();
+  });
+  liveComment.update = vi.fn().mockImplementation(() => {
+    liveComment.updatingState = "fetching-update-ipfs";
+    liveComment.emit("updatingstatechange", "fetching-update-ipfs");
+    setTimeout(() => {
+      liveComment.updatingState = "waiting-retry";
+      liveComment.emit("updatingstatechange", "waiting-retry");
+    }, 0);
+    return Promise.resolve();
+  });
+  return liveComment;
+};
+
 describe("comments store", () => {
   beforeAll(async () => {
     setPkcJs(PkcJsMock);
@@ -848,6 +875,131 @@ describe("comments store", () => {
       );
       expect(liveComment.stop).toHaveBeenCalledTimes(2);
       expect(listeners).not.toContain(liveComment);
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
+  test("refreshComment settles with the current comment when the update cycle finds nothing newer", async () => {
+    const commentCid = "refresh-unchanged-cid";
+    const liveComment = createUnchangedComment(commentCid, { updatedAt: 200 });
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      const refreshedComment = await commentsStore
+        .getState()
+        .refreshComment(commentCid, mockAccount);
+
+      expect(refreshedComment).toEqual(
+        expect.objectContaining({ cid: commentCid, replyCount: 2, updatedAt: 200 }),
+      );
+      await tlWaitFor(() => expect(liveComment.stop).toHaveBeenCalledTimes(1));
+      expect(listeners).not.toContain(liveComment);
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
+  test("refreshComment keeps waiting through waiting-retry until the first CommentUpdate loads", async () => {
+    const commentCid = "refresh-first-update-cid";
+    const liveComment = createUnchangedComment(commentCid);
+    liveComment.update = vi.fn().mockImplementation(() => {
+      liveComment.emit("updatingstatechange", "waiting-retry");
+      setTimeout(() => {
+        liveComment.updatedAt = 300;
+        liveComment.emit("update", liveComment);
+        liveComment.emit("updatingstatechange", "succeeded");
+      }, 0);
+      return Promise.resolve();
+    });
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      const refreshedComment = await commentsStore
+        .getState()
+        .refreshComment(commentCid, mockAccount);
+
+      expect(refreshedComment).toEqual(expect.objectContaining({ updatedAt: 300 }));
+      expect(liveComment.update).toHaveBeenCalledTimes(1);
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
+  test("addCommentToStore stops a one-shot update that finds nothing newer", async () => {
+    const commentCid = "one-shot-unchanged-cid";
+    const liveComment = createUnchangedComment(commentCid, { updatedAt: 200 });
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      await act(async () => {
+        await commentsStore.getState().addCommentToStore(commentCid, mockAccount);
+      });
+
+      await tlWaitFor(() => expect(liveComment.stop).toHaveBeenCalledTimes(1));
+      expect(listeners).not.toContain(liveComment);
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
+  test("addCommentToStore keeps retrying a one-shot update after a retriable fetch error", async () => {
+    const commentCid = "one-shot-retry-after-error-cid";
+    const liveComment = createUnchangedComment(commentCid, { updatedAt: 200 });
+    liveComment.update = vi.fn().mockImplementation(() => {
+      liveComment.emit("updatingstatechange", "fetching-update-ipfs");
+      setTimeout(() => {
+        // pkc-js emits the retriable error before entering waiting-retry
+        liveComment.emit("error", new Error("gateway timeout"));
+        liveComment.emit("updatingstatechange", "waiting-retry");
+        setTimeout(() => {
+          liveComment.emit("updatingstatechange", "fetching-update-ipfs");
+          liveComment.updatedAt = 300;
+          liveComment.emit("update", liveComment);
+          liveComment.emit("updatingstatechange", "succeeded");
+        }, 10);
+      }, 0);
+      return Promise.resolve();
+    });
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      await act(async () => {
+        await commentsStore.getState().addCommentToStore(commentCid, mockAccount);
+      });
+      await new Promise((r) => setTimeout(r, 5));
+      expect(liveComment.stop).not.toHaveBeenCalled();
+
+      await tlWaitFor(() => expect(liveComment.stop).toHaveBeenCalledTimes(1));
+      await tlWaitFor(() =>
+        expect(commentsStore.getState().comments[commentCid]?.updatedAt).toBe(300),
+      );
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
+  test("startCommentAutoUpdate keeps a comment updating after an unchanged cycle", async () => {
+    const commentCid = "auto-update-unchanged-cid";
+    const liveComment = createUnchangedComment(commentCid, { updatedAt: 200 });
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      await act(async () => {
+        await commentsStore
+          .getState()
+          .startCommentAutoUpdate(commentCid, "subscriber-1", mockAccount);
+      });
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(liveComment.updatingState).toBe("waiting-retry");
+      expect(liveComment.stop).not.toHaveBeenCalled();
+      await commentsStore.getState().stopCommentAutoUpdate(commentCid, "subscriber-1");
     } finally {
       mockAccount.pkc.createComment = createCommentOrig;
     }
