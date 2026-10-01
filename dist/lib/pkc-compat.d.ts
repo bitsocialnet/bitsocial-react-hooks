@@ -24,7 +24,7 @@ type AuthorNameProtocolClient = {
 };
 export declare const resolveAuthorNameWithProtocol: (protocolClient: AuthorNameProtocolClient | undefined, options: PkcResolveAuthorNameOptions) => Promise<string>;
 export declare const normalizeOptionsForPkcClient: <T extends Record<string, any> | undefined>(options: T) => T;
-export declare const getPkcClientOptions: <T extends Record<string, any> | undefined>(account: any, options: T) => T;
+export declare const getPkcClientOptions: <T extends Record<string, any> | undefined>(account: any, options: T) => Promise<T>;
 export declare const normalizeAccountProtocolConfig: <T extends Record<string, any> | undefined>(account: T, defaultChainProviders?: Record<string, any>) => T;
 export declare const withProtocolAliases: <T extends Record<string, any>>(account: T, protocolClient?: any, protocolOptions?: any) => T;
 type ChallengeAnswersInput = string[] | {

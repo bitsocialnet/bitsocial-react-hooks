@@ -96,7 +96,7 @@ const getAccountsFromStoredAccounts = (storedAccounts) => __awaiter(void 0, void
             accounts[accountId].pkcOptions = getDefaultPkcOptions();
         }
         const protocolOptions = Object.assign(Object.assign({}, (accounts[accountId].pkcOptions || accounts[accountId].pkcOptions)), overwritePkcOptions);
-        const pkc = yield PkcJs.PKC(getPkcClientOptions(accounts[accountId], protocolOptions));
+        const pkc = yield PkcJs.PKC(yield getPkcClientOptions(accounts[accountId], protocolOptions));
         // handle errors or error events are uncaught
         // no need to log them because pkc-js already logs them
         pkc.on("error", (error) => log.error("uncaught pkc instance error, should never happen", { error }));
@@ -309,7 +309,7 @@ const addAccount = (account, options) => __awaiter(void 0, void 0, void 0, funct
         }))[accountToPutInDatabase.id];
     }
     else if (protocolOptions) {
-        const pkc = yield PkcJs.PKC(getPkcClientOptions(accountToPutInDatabase, protocolOptions));
+        const pkc = yield PkcJs.PKC(yield getPkcClientOptions(accountToPutInDatabase, protocolOptions));
         pkc.on("error", () => { });
         void ((_a = pkc.destroy) === null || _a === void 0 ? void 0 : _a.call(pkc)); // gc; errors intentionally unhandled to avoid uncounted callback
     }

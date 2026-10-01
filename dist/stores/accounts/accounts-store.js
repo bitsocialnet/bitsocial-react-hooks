@@ -12,6 +12,7 @@ import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:accounts:stores");
 import accountsDatabase from "./accounts-database.js";
 import accountGenerator from "./account-generator.js";
+import { preloadAccountChainLibraries } from "../../lib/chain/index.js";
 import createStore from "zustand";
 import * as accountsActions from "./accounts-actions.js";
 import * as accountsActionsInternal from "./accounts-actions-internal.js";
@@ -119,6 +120,7 @@ const waitForInitialized = () => __awaiter(void 0, void 0, void 0, function* () 
     window.BITSOCIAL_REACT_HOOKS_ACCOUNTS_STORE_INITIALIZED_ONCE = true;
     // @ts-ignore
     window.BITSOCIAL_REACT_HOOKS_ACCOUNTS_STORE_INITIALIZING = true;
+    preloadAccountChainLibraries();
     log("accounts store initializing started");
     try {
         yield initializeAccountsStore();

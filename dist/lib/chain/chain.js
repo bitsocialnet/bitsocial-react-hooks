@@ -8,9 +8,22 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import assert from "assert";
-import { ethers } from "ethers";
 import utils from "../utils/index.js";
-import { verifyMessage } from "viem";
+// ethers and viem are large and only needed once an author wallet, NFT avatar, or ENS record is
+// used, so they load on demand instead of with the hooks that apps import at startup. Every
+// function below that uses `ethers` awaits loadEthers() first.
+let ethers;
+const loadEthers = () => __awaiter(void 0, void 0, void 0, function* () {
+    ethers || (ethers = (yield import("ethers")).ethers);
+    return ethers;
+});
+// Account setup needs ethers (the author's eth wallet) and bso-resolver (the PKC client's name
+// resolvers) as soon as pkc-js loads. Starting both downloads when the accounts store initializes
+// loads them alongside pkc-js instead of one after another, without blocking the app's first render.
+export const preloadAccountChainLibraries = () => {
+    loadEthers().catch(() => { });
+    import("@bitsocial/bso-resolver").catch(() => { });
+};
 // NOTE: getNftImageUrl tests are skipped, if changes are made they must be tested manually
 const getNftImageUrlNoCache = (nftMetadataUrl, ipfsGatewayUrl) => __awaiter(void 0, void 0, void 0, function* () {
     assert(nftMetadataUrl && typeof nftMetadataUrl === "string", `getNftImageUrl invalid nftMetadataUrl '${nftMetadataUrl}'`);
@@ -41,6 +54,7 @@ const getNftMetadataUrlNoCache = (nftAddress, nftId, chainTicker, chainProviderU
     assert(chainProviderUrl && typeof chainProviderUrl === "string", `getNftMetadataUrl invalid chainProviderUrl '${chainProviderUrl}'`);
     assert(typeof chainId === "number", `getNftMetadataUrl invalid chainId '${chainId}' not a number`);
     assert(ipfsGatewayUrl && typeof ipfsGatewayUrl === "string", `getNftMetadataUrl invalid ipfsGatewayUrl '${ipfsGatewayUrl}'`);
+    yield loadEthers();
     const chainProvider = getChainProvider(chainTicker, chainProviderUrl, chainId);
     const nftContract = new ethers.Contract(nftAddress, nftAbi, chainProvider);
     let nftMetadataUrl = yield nftContract.tokenURI(nftId);
@@ -58,6 +72,7 @@ const getNftOwnerNoCache = (nftAddress, nftId, chainTicker, chainProviderUrl, ch
     assert(chainTicker && typeof chainTicker === "string", `getNftOwner invalid chainTicker '${chainTicker}'`);
     assert(chainProviderUrl && typeof chainProviderUrl === "string", `getNftOwner invalid chainProviderUrl '${chainProviderUrl}'`);
     assert(typeof chainId === "number", `getNftOwner invalid chainId '${chainId}' not a number`);
+    yield loadEthers();
     const chainProvider = getChainProvider(chainTicker, chainProviderUrl, chainId);
     const nftContract = new ethers.Contract(nftAddress, nftAbi, chainProvider);
     const currentNftOwnerAddress = yield nftContract.ownerOf(nftId);
@@ -68,6 +83,7 @@ export const getNftOwner = utils.memo(getNftOwnerNoCache, {
     maxAge: 1000 * 60 * 60 * 24,
 });
 const resolveEnsTxtRecordNoCache = (ensName, txtRecordName, chainTicker, chainProviderUrl, chainId) => __awaiter(void 0, void 0, void 0, function* () {
+    yield loadEthers();
     const chainProvider = getChainProvider(chainTicker, chainProviderUrl, chainId);
     const resolver = yield chainProvider.getResolver(ensName);
     if (!resolver) {
@@ -127,6 +143,7 @@ export const getEthWalletFromPkcPrivateKey = (privateKeyBase64, authorAddress) =
     if (privateKeyBytes.length !== 32) {
         throw Error("failed getting eth address from private key not 32 bytes");
     }
+    yield loadEthers();
     const publicKeyHex = ethers.utils.computePublicKey(privateKeyBytes, false);
     const privateKeyHex = ethers.utils.hexlify(privateKeyBytes);
     const ethAddress = ethers.utils.computeAddress(publicKeyHex);
@@ -144,6 +161,7 @@ export const getEthPrivateKeyFromPkcPrivateKey = (privateKeyBase64, authorAddres
     if (privateKeyBytes.length !== 32) {
         throw Error("failed getting eth address from private key not 32 bytes");
     }
+    yield loadEthers();
     const privateKeyHex = ethers.utils.hexlify(privateKeyBytes);
     return privateKeyHex;
 });
@@ -157,6 +175,7 @@ export const validateEthWallet = (wallet, authorAddress) => __awaiter(void 0, vo
     assert(wallet.signature.type === "eip191", `validateEthWallet invalid wallet.signature.type '${(_c = wallet === null || wallet === void 0 ? void 0 : wallet.signature) === null || _c === void 0 ? void 0 : _c.type}'`);
     assert(authorAddress && typeof authorAddress === "string", `validateEthWallet invalid authorAddress '${authorAddress}'`);
     assert((wallet === null || wallet === void 0 ? void 0 : wallet.timestamp) <= Date.now() / 1000, `validateEthWallet invalid wallet.timestamp '${wallet === null || wallet === void 0 ? void 0 : wallet.timestamp}' greater than current Date.now() / 1000`);
+    yield loadEthers();
     const signatureAddress = ethers.utils.verifyMessage(getWalletMessageToSign(authorAddress, wallet.timestamp), wallet.signature.signature);
     if (wallet.address.toLowerCase() !== signatureAddress.toLowerCase()) {
         throw Error("wallet address does not equal signature address");
@@ -173,6 +192,7 @@ export const validateEthWalletViem = (wallet, authorAddress) => __awaiter(void 0
     assert(wallet.signature.type === "eip191", `validateEthWallet invalid wallet.signature.type '${(_c = wallet === null || wallet === void 0 ? void 0 : wallet.signature) === null || _c === void 0 ? void 0 : _c.type}'`);
     assert(authorAddress && typeof authorAddress === "string", `validateEthWallet invalid authorAddress '${authorAddress}'`);
     assert((wallet === null || wallet === void 0 ? void 0 : wallet.timestamp) <= Date.now() / 1000, `validateEthWallet invalid wallet.timestamp '${wallet === null || wallet === void 0 ? void 0 : wallet.timestamp}' greater than current Date.now() / 1000`);
+    const { verifyMessage } = yield import("viem");
     const valid = yield verifyMessage({
         address: wallet.address,
         message: getWalletMessageToSign(authorAddress, wallet.timestamp),

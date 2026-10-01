@@ -8,7 +8,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import assert from "assert";
-import { BsoResolver } from "@bitsocial/bso-resolver";
 export const getProtocolClient = (account) => account === null || account === void 0 ? void 0 : account.pkc;
 export const getProtocolOptions = (account) => account === null || account === void 0 ? void 0 : account.pkcOptions;
 export const getChainProviders = (account) => { var _a; return (account === null || account === void 0 ? void 0 : account.chainProviders) || ((_a = getProtocolOptions(account)) === null || _a === void 0 ? void 0 : _a.chainProviders); };
@@ -70,11 +69,20 @@ export const getMatchingNameResolvers = (account, address) => {
     }
     return Object.values(getConfiguredNameResolverInfoByKey(account));
 };
-const buildConfiguredNameResolvers = (account, dataPath) => Object.values(getConfiguredNameResolverInfoByKey(account)).map((resolverInfo) => new BsoResolver({
-    key: resolverInfo.key,
-    provider: resolverInfo.provider,
-    dataPath,
-}));
+const buildConfiguredNameResolvers = (account, dataPath) => __awaiter(void 0, void 0, void 0, function* () {
+    const resolverInfos = Object.values(getConfiguredNameResolverInfoByKey(account));
+    if (!resolverInfos.length) {
+        return [];
+    }
+    // bso-resolver bundles viem; load it when a PKC client is created rather than with the hooks
+    // that apps import at startup.
+    const { BsoResolver } = yield import("@bitsocial/bso-resolver");
+    return resolverInfos.map((resolverInfo) => new BsoResolver({
+        key: resolverInfo.key,
+        provider: resolverInfo.provider,
+        dataPath,
+    }));
+});
 const normalizeResolvedAuthorName = (result) => {
     if (typeof result === "string") {
         return result;
@@ -104,17 +112,17 @@ export const normalizeOptionsForPkcClient = (options) => {
     delete normalized.nameResolversChainProviders;
     return normalized;
 };
-export const getPkcClientOptions = (account, options) => {
+export const getPkcClientOptions = (account, options) => __awaiter(void 0, void 0, void 0, function* () {
     const normalized = normalizeOptionsForPkcClient(options);
     if (!normalized) {
         return normalized;
     }
-    const nameResolvers = buildConfiguredNameResolvers(account, normalized.dataPath);
+    const nameResolvers = yield buildConfiguredNameResolvers(account, normalized.dataPath);
     if (nameResolvers.length) {
         normalized.nameResolvers = nameResolvers;
     }
     return normalized;
-};
+});
 export const normalizeAccountProtocolConfig = (account, defaultChainProviders) => {
     if (!account) {
         return account;

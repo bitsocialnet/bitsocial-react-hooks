@@ -12,7 +12,6 @@ import { useAccount } from "../accounts/index.js";
 import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:authors:hooks");
 import assert from "assert";
-import { ethers } from "ethers";
 import { getNftMetadataUrl, getNftImageUrl, getNftOwner } from "../../lib/chain/index.js";
 import { getChainProviders } from "../../lib/pkc-compat.js";
 import createStore from "zustand";
@@ -181,6 +180,8 @@ export const verifyAuthorAvatarSignature = (nft, authorAddress, chainProviders) 
     // get the owner of the nft at nft.id
     const currentNftOwnerAddress = yield getNftOwner(nft === null || nft === void 0 ? void 0 : nft.address, nft === null || nft === void 0 ? void 0 : nft.id, nft === null || nft === void 0 ? void 0 : nft.chainTicker, (_d = (_c = chainProviders === null || chainProviders === void 0 ? void 0 : chainProviders[nft === null || nft === void 0 ? void 0 : nft.chainTicker]) === null || _c === void 0 ? void 0 : _c.urls) === null || _d === void 0 ? void 0 : _d[0], (_e = chainProviders === null || chainProviders === void 0 ? void 0 : chainProviders[nft === null || nft === void 0 ? void 0 : nft.chainTicker]) === null || _e === void 0 ? void 0 : _e.chainId);
     const messageThatShouldBeSigned = getNftMessageToSign(authorAddress, nft.timestamp, nft.address, nft.id);
+    // Loaded on demand so ethers stays out of the startup bundle (see lib/chain).
+    const { ethers } = yield import("ethers");
     const signatureAddress = ethers.utils.verifyMessage(messageThatShouldBeSigned, nft.signature.signature);
     let verified = true;
     if (currentNftOwnerAddress !== signatureAddress) {

@@ -107,7 +107,7 @@ export const getDefaultAccountFields = () => ({
 const generateDefaultAccount = () => __awaiter(void 0, void 0, void 0, function* () {
     const pkcOptions = getDefaultPkcOptions();
     const chainProviders = getDefaultChainProviders();
-    const pkc = yield PkcJs.PKC(getPkcClientOptions({
+    const pkc = yield PkcJs.PKC(yield getPkcClientOptions({
         chainProviders,
         pkcOptions,
     }, pkcOptions));
