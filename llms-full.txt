@@ -1312,6 +1312,8 @@ const communities = useCommunities({
 
 #### (Desktop only) Edit your community settings
 
+If the account's pkc client hosts the community (it is listed in `pkc.communities`), the edit is applied locally. Otherwise it is published as a `CommunityEdit` over pubsub, even when the account is the owner, and the hosting node accepts it from the owner or an admin (only the owner can change `address` or `roles`).
+
 ```jsx
 const onChallenge = async (challenges: Challenge[], communityEdit: CommunityEdit) => {
   let challengeAnswers: string[]
@@ -3242,6 +3244,17 @@ Native references: [Codex hooks](https://learn.chatgpt.com/docs/hooks), [Cursor 
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/CHANGELOG.md
 
 ```markdown
+## [0.1.47](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.46...v0.1.47) (2026-09-30)
+
+
+### Bug Fixes
+
+* **comments:** keep retrying a one-shot update after a retriable error ([0ff08c5](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/0ff08c5b97a1bcac8b73a27e8f35dea180cce22e))
+* **comments:** settle refresh when an update finds nothing newer ([8b11e02](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/8b11e0243dd3bb20fb70f78a883f48e5889b5319))
+* **replies:** load replies added to a preloaded page after its first reply ([55e179d](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/55e179da07e8cc098bcb5063927164f138adf647))
+
+
+
 ## [0.1.46](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.45...v0.1.46) (2026-09-13)
 
 
