@@ -1980,7 +1980,12 @@ describe("accounts-actions", () => {
           });
         });
 
-        await vi.waitFor(() => expect(onChallengeVerification).toHaveBeenCalled());
+        await vi.waitFor(() =>
+          expect(onChallengeVerification).toHaveBeenCalledWith(
+            expect.objectContaining({ challengeSuccess: true }),
+            expect.anything(),
+          ),
+        );
         expect(createCommunityEditSpy).toHaveBeenCalledWith(
           expect.objectContaining({
             communityAddress: "remote-sub.eth",
