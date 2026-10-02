@@ -1503,14 +1503,18 @@ describe("accounts-actions", () => {
       }
     });
 
-    test("publishCommunityEdit uses local owner state when pkc communities list is stale", async () => {
-      const account = Object.values(accountsStore.getState().accounts)[0];
-      const getPkcCommunityAddressesSpy = vi
-        .spyOn(protocolCompat, "getPkcCommunityAddresses")
-        .mockReturnValue([]);
+    test("publishCommunityEdit edits locally when the pkc instance hosts the owner's community", async () => {
+      let community: any;
+      await act(async () => {
+        community = await accountsActions.createCommunity({ title: "hosted" });
+      });
+      const communityAddress = community.address;
+      const account = accountsStore.getState().accounts[accountsStore.getState().activeAccountId!];
+      expect(account.pkc.communities).toContain(communityAddress);
       const editCommunitySpy = vi.spyOn(communitiesStore.getState(), "editCommunity");
       const createCommunityEditSpy = vi.spyOn(account.pkc, "createCommunityEdit");
       const onChallengeVerification = vi.fn();
+      const onPublishingStateChange = vi.fn();
       const challenges = [
         {
           path: "@bitsocial/wordfilter-challenge",
@@ -1522,37 +1526,99 @@ describe("accounts-actions", () => {
       ];
 
       try {
-        communitiesStore.setState({
-          communities: {
-            "owned-community.eth": {
-              address: "owned-community.eth",
-              roles: {
-                [account.author.address]: { role: "owner" },
-              },
-            } as any,
-          },
-        });
-
         await act(async () => {
-          await accountsActions.publishCommunityEdit("owned-community.eth", {
+          await accountsActions.publishCommunityEdit(communityAddress, {
             title: "edited locally",
             challenges,
             onChallenge: () => {},
             onChallengeVerification,
+            onPublishingStateChange,
           });
         });
 
         expect(editCommunitySpy).toHaveBeenCalledWith(
-          "owned-community.eth",
+          communityAddress,
           expect.objectContaining({ title: "edited locally", challenges }),
           account,
         );
         expect(createCommunityEditSpy).not.toHaveBeenCalled();
         expect(onChallengeVerification).toHaveBeenCalledWith({ challengeSuccess: true });
+        expect(onPublishingStateChange).toHaveBeenCalledWith("succeeded");
+        expect(communitiesStore.getState().communities[communityAddress]?.title).toBe(
+          "edited locally",
+        );
       } finally {
-        getPkcCommunityAddressesSpy.mockRestore();
         editCommunitySpy.mockRestore();
         createCommunityEditSpy.mockRestore();
+      }
+    });
+
+    test("publishCommunityEdit publishes over pubsub when the pkc instance doesn't host the owner's community", async () => {
+      const communityAddress = "owned-remote-community.eth";
+      const { accounts, activeAccountId } = accountsStore.getState();
+      const account = accounts[activeAccountId!];
+      expect(account.pkc.communities).not.toContain(communityAddress);
+      // every owner signal that previously triggered a local edit
+      const ownerAccount = {
+        ...account,
+        communities: { ...account.communities, [communityAddress]: { role: { role: "owner" } } },
+      };
+      accountsStore.setState({ accounts: { ...accounts, [account.id]: ownerAccount } });
+      communitiesStore.setState({
+        communities: {
+          [communityAddress]: {
+            address: communityAddress,
+            updatedAt: 1,
+            roles: { [account.author.address]: { role: "owner" } },
+            signer: { address: account.signer.address },
+          } as any,
+        },
+      });
+      // like pkc-js RemoteCommunity, a community this pkc instance doesn't host can't be edited
+      const createCommunity = account.pkc.createCommunity.bind(account.pkc);
+      const createCommunitySpy = vi
+        .spyOn(account.pkc, "createCommunity")
+        .mockImplementation(async (options: any) => {
+          const remoteCommunity: any = await createCommunity(options);
+          remoteCommunity.edit = async () => {
+            throw Error("Can't edit a remote community");
+          };
+          return remoteCommunity;
+        });
+      const editCommunitySpy = vi.spyOn(communitiesStore.getState(), "editCommunity");
+      const createCommunityEditSpy = vi.spyOn(account.pkc, "createCommunityEdit");
+      const onChallengeVerification = vi.fn();
+      const onError = vi.fn();
+
+      try {
+        await act(async () => {
+          await accountsActions.publishCommunityEdit(communityAddress, {
+            title: "edited remotely",
+            onChallenge: (_challenge: any, communityEdit: any) =>
+              communityEdit.publishChallengeAnswers(["4"]),
+            onChallengeVerification,
+            onError,
+          });
+        });
+
+        await vi.waitFor(() => expect(onChallengeVerification).toHaveBeenCalled());
+        expect(editCommunitySpy).not.toHaveBeenCalled();
+        expect(createCommunityEditSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            communityAddress,
+            communityEdit: expect.objectContaining({ title: "edited remotely" }),
+          }),
+        );
+        expect(onChallengeVerification).toHaveBeenCalledWith(
+          expect.objectContaining({ challengeSuccess: true }),
+          expect.anything(),
+        );
+        expect(onError).not.toHaveBeenCalled();
+      } finally {
+        createCommunitySpy.mockRestore();
+        editCommunitySpy.mockRestore();
+        createCommunityEditSpy.mockRestore();
+        accountsStore.setState({ accounts });
       }
     });
 
@@ -1560,7 +1626,7 @@ describe("accounts-actions", () => {
       const account = Object.values(accountsStore.getState().accounts)[0];
       const getPkcCommunityAddressesSpy = vi
         .spyOn(protocolCompat, "getPkcCommunityAddresses")
-        .mockReturnValue([]);
+        .mockReturnValue(["owned-filtered.eth"]);
       const editCommunitySpy = vi.spyOn(communitiesStore.getState(), "editCommunity");
 
       try {
@@ -1893,19 +1959,42 @@ describe("accounts-actions", () => {
       expect(after.length).toBe(0);
     });
 
-    test("publishCommunityEdit asserts when address differs from communityAddress", async () => {
+    test("publishCommunityEdit publishes an address change for a remote community", async () => {
       await act(async () => {
         await accountsActions.createAccount();
       });
+      const { accounts, activeAccountId } = accountsStore.getState();
+      const createCommunityEditSpy = vi.spyOn(
+        accounts[activeAccountId!].pkc,
+        "createCommunityEdit",
+      );
+      const onChallengeVerification = vi.fn();
 
-      await expect(
-        accountsActions.publishCommunityEdit("remote-sub.eth", {
-          address: "other-sub.eth",
-          title: "edited",
-          onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(),
-          onChallengeVerification: () => {},
-        }),
-      ).rejects.toThrow("can't edit address of a remote community");
+      try {
+        await act(async () => {
+          await accountsActions.publishCommunityEdit("remote-sub.eth", {
+            address: "other-sub.eth",
+            title: "edited",
+            onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(),
+            onChallengeVerification,
+          });
+        });
+
+        await vi.waitFor(() =>
+          expect(onChallengeVerification).toHaveBeenCalledWith(
+            expect.objectContaining({ challengeSuccess: true }),
+            expect.anything(),
+          ),
+        );
+        expect(createCommunityEditSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            communityAddress: "remote-sub.eth",
+            communityEdit: expect.objectContaining({ address: "other-sub.eth", title: "edited" }),
+          }),
+        );
+      } finally {
+        createCommunityEditSpy.mockRestore();
+      }
     });
 
     test("setAccount with author.address change updates only the eth wallet when using pkc signer", async () => {

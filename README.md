@@ -1280,6 +1280,8 @@ const communities = useCommunities({
 
 #### (Desktop only) Edit your community settings
 
+If the account's pkc client hosts the community (it is listed in `pkc.communities`), the edit is applied locally. Otherwise it is published as a `CommunityEdit` over pubsub, even when the account is the owner, and the hosting node accepts it from the owner or an admin (only the owner can change `address` or `roles`).
+
 ```jsx
 const onChallenge = async (challenges: Challenge[], communityEdit: CommunityEdit) => {
   let challengeAnswers: string[]
