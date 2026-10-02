@@ -160,22 +160,11 @@ const syncCommentClientsSnapshot = (publishSessionId, accountId, publication) =>
         ac[session.currentIndex] = updatedAccountComment;
     }));
 };
-const accountOwnsCommunityLocally = (account, communityAddress) => {
-    var _a, _b, _c, _d, _e, _f, _g;
-    const localCommunityAddresses = getPkcCommunityAddresses(account.pkc);
-    if (localCommunityAddresses.includes(communityAddress)) {
-        return true;
-    }
-    const storedCommunity = communitiesStore.getState().communities[communityAddress];
-    if (((_b = (_a = storedCommunity === null || storedCommunity === void 0 ? void 0 : storedCommunity.roles) === null || _a === void 0 ? void 0 : _a[account.author.address]) === null || _b === void 0 ? void 0 : _b.role) === "owner") {
-        return true;
-    }
-    if (((_c = storedCommunity === null || storedCommunity === void 0 ? void 0 : storedCommunity.signer) === null || _c === void 0 ? void 0 : _c.address) &&
-        storedCommunity.signer.address === ((_d = account.signer) === null || _d === void 0 ? void 0 : _d.address)) {
-        return true;
-    }
-    return ((_g = (_f = (_e = account.communities) === null || _e === void 0 ? void 0 : _e[communityAddress]) === null || _f === void 0 ? void 0 : _f.role) === null || _g === void 0 ? void 0 : _g.role) === "owner";
-};
+// only a community hosted by the connected pkc instance can be edited with community.edit(), for any
+// other community pkc.createCommunity() returns a remote instance whose edit() throws. owner roles and
+// cached signers don't prove hosting, e.g. an owner using a client that doesn't host the community
+// must publish a CommunityEdit over pubsub, which the hosting node accepts from owners
+const pkcHostsCommunity = (account, communityAddress) => getPkcCommunityAddresses(account.pkc).includes(communityAddress);
 const createPublishSession = (accountId, index) => {
     const sessionId = uuid();
     activePublishSessions.set(sessionId, {
@@ -1602,7 +1591,8 @@ export const publishCommunityEdit = (communityAddress, publishCommunityEditOptio
         timestamp: Math.floor(Date.now() / 1000),
         author: account.author,
         signer: account.signer,
-        // not possible to edit community.address over pubsub, only locally
+        // the current address, a new address is in communityEdit.address, which the hosting node only
+        // accepts from the owner
         communityAddress,
         communityEdit: communityEditOptions,
     });
@@ -1632,8 +1622,8 @@ export const publishCommunityEdit = (communityAddress, publishCommunityEditOptio
             return nextState;
         });
     });
-    // account is the owner of the community and can edit it locally, no need to publish
-    if (accountOwnsCommunityLocally(account, communityAddress)) {
+    // the connected pkc instance hosts the community and can edit it locally, no need to publish
+    if (pkcHostsCommunity(account, communityAddress)) {
         // use the wordfiltered edit so the applied community state matches the stored account edit
         yield communitiesStore
             .getState()
@@ -1644,8 +1634,6 @@ export const publishCommunityEdit = (communityAddress, publishCommunityEditOptio
         (_a = publishCommunityEditOptions.onPublishingStateChange) === null || _a === void 0 ? void 0 : _a.call(publishCommunityEditOptions, "succeeded");
         return;
     }
-    assert(!publishCommunityEditOptions.address ||
-        publishCommunityEditOptions.address === communityAddress, `accountsActions.publishCommunityEdit can't edit address of a remote community`);
     let communityEdit = backfillPublicationCommunityAddress(yield createPkcCommunityEdit(account.pkc, createCommunityEditOptions), createCommunityEditOptions);
     let lastChallenge;
     const publishAndRetryFailedChallengeVerification = () => __awaiter(void 0, void 0, void 0, function* () {
