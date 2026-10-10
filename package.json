@@ -96,7 +96,7 @@
     "elliptic": "6.6.1",
     "bn.js": "5.2.3",
     "elliptic/bn.js": "4.12.3",
-    "handlebars@npm:^4.7.7": "4.7.9",
+    "handlebars@npm:^4.7.7": "4.7.10",
     "jose": "4.15.5",
     "lodash": "4.18.1",
     "node-forge@npm:^1.2.1": "1.4.0",
@@ -116,7 +116,9 @@
     "nanoid@npm:^5.1.5": "5.1.16",
     "ws": "8.21.0",
     "form-data": "4.0.6",
-    "js-yaml": "4.3.2"
+    "js-yaml": "4.3.2",
+    "probe-image-size": "7.4.0",
+    "tinypool": "2.1.2"
   },
   "devDependencies": {
     "@testing-library/dom": "10.4.1",
@@ -146,7 +148,7 @@
     "playwright": "1.56.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "smol-toml": "1.7.1",
+    "smol-toml": "1.9.0",
     "tcp-port-used": "1.0.2",
     "tempy": "1.0.1",
     "typescript": "6.0.3",
