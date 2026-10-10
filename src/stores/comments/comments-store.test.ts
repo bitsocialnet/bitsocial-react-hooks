@@ -620,6 +620,36 @@ describe("comments store", () => {
     }
   });
 
+  test("addCommentToStore never marks a CID-only entry succeeded before its CommentIpfs is stored", async () => {
+    const commentCid = "succeeded-before-comment-ipfs-cid";
+    const liveComment = createSparseComment(commentCid);
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+    const succeededShells: unknown[] = [];
+    const unsubscribe = commentsStore.subscribe((state) => {
+      const storedComment = state.comments[commentCid];
+      if (storedComment?.updatingState === "succeeded" && !storedComment.timestamp) {
+        succeededShells.push(storedComment);
+      }
+    });
+
+    try {
+      await act(async () => {
+        await commentsStore.getState().addCommentToStore(commentCid, mockAccount);
+      });
+
+      await tlWaitFor(() =>
+        expect(commentsStore.getState().comments[commentCid]).toEqual(
+          expect.objectContaining({ content: "sparse body", timestamp: 100, updatedAt: 200 }),
+        ),
+      );
+      expect(succeededShells).toEqual([]);
+    } finally {
+      unsubscribe();
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
   test("addCommentToStore stops one-shot sparse follow-up when update rejects", async () => {
     const commentCid = "one-shot-sparse-followup-reject-cid";
     const updateError = Error("sparse follow-up failed");
