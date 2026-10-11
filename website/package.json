@@ -1,0 +1,21 @@
+{
+  "name": "@bitsocial/hooks-website",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/prepare-docs.mjs && astro dev --host 127.0.0.1",
+    "build": "node scripts/prepare-docs.mjs && astro build",
+    "preview": "astro preview --host 127.0.0.1",
+    "check": "node scripts/prepare-docs.mjs && astro check",
+    "test": "node --test scripts/*.test.mjs"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "astro": "7.3.8",
+    "typescript": "6.0.3"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "yarn@4.13.0"
+}

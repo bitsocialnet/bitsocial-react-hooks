@@ -1,0 +1,58 @@
+---
+import '../styles/global.css';
+import Icon from '../components/Icon.astro';
+import { packageVersion, repoUrl } from '../lib/docs';
+interface Props { title?: string; description?: string; docs?: boolean; }
+const { title = 'Build your corner of the internet', description = 'React hooks for a social network anyone can build on. Start with a feed, create your own interface, and connect to Bitsocial.', docs = false } = Astro.props;
+const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site) : undefined;
+---
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#000000" />
+    <title>{title} · Bitsocial React Hooks</title>
+    {canonical && <link rel="canonical" href={canonical} />}
+    <meta property="og:title" content={`${title} · Bitsocial React Hooks`} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    {canonical && <meta property="og:url" content={canonical} />}
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="preload" href="/fonts/exo-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="AI documentation index" />
+    <script is:inline>
+      try { document.documentElement.dataset.theme = localStorage.getItem('hooks-theme') === 'light' ? 'light' : 'dark'; } catch {}
+    </script>
+  </head>
+  <body class:list={[{ 'docs-page': docs }]}>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Bitsocial React Hooks home"><img src="/logo.png" width="34" height="34" alt="" /><span>Bitsocial <span class="brand-divider">/</span> <strong>React Hooks</strong></span></a>
+      <nav aria-label="Main navigation">
+        <a href="/docs/quickstart/" aria-current={docs ? 'page' : undefined}>Docs</a>
+        <a href="/#playground" class="desktop-link">Playground</a>
+        <a href="/docs/ai/" class="desktop-link">For AI</a>
+      </nav>
+      <div class="header-tools">
+        <button class="search-trigger" data-search-open aria-label="Search documentation"><Icon name="search" size={16} /><span>Search docs</span><kbd>⌘ K</kbd></button>
+        <a class="icon-button github-link" href={repoUrl} aria-label="View source on GitHub"><Icon name="github" size={19} /></a>
+        <button class="icon-button" id="theme-toggle" aria-label="Switch to light theme"><Icon name="theme" size={20} /></button>
+      </div>
+    </header>
+    <slot />
+    <footer class="site-footer">
+      <a class="brand" href="https://bitsocial.net"><img src="/logo.png" width="28" height="28" alt="" /><span>Part of Bitsocial</span></a>
+      <p>Build the social web you want to use.</p>
+      <div><a href={repoUrl}>GitHub</a><a href="/llms.txt">llms.txt</a><a href={`${repoUrl}/blob/master/LICENSE`}>GPL-3.0-or-later</a><span>v{packageVersion}</span></div>
+    </footer>
+    <dialog id="search-dialog" aria-labelledby="search-title">
+      <div class="search-top"><Icon name="search" /><label id="search-title" class="sr-only" for="docs-search">Search documentation</label><input id="docs-search" type="search" placeholder="Search hooks, guides, and recipes…" autocomplete="off" /><button class="icon-button" data-search-close aria-label="Close search"><Icon name="close" /></button></div>
+      <p id="search-status" class="search-status" role="status">Type to find a hook or a guide.</p>
+      <div id="search-results"></div>
+      <div class="search-hint"><span><kbd>Tab</kbd> to browse results</span><span><kbd>Esc</kbd> to close</span></div>
+    </dialog>
+    <script src="../lib/site.ts"></script>
+  </body>
+</html>

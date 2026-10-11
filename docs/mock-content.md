@@ -1,19 +1,25 @@
+# Mock content
+
+Use synthetic communities and posts while developing your interface.
+
 #### Install the node module
 
 ```sh
-yarn add https://github.com/bitsocialnet/bitsocial-react-hooks
+yarn add @bitsocial/bitsocial-react-hooks
 ```
 
 If you are developing in this repo, run `corepack enable` once first so `yarn` uses the pinned Yarn 4 release.
 
 #### Add env variable for mocking
 
-- Create a .env file in your react project with the content:
+The mock client reads these `process.env` values at import time. In setups that expose `REACT_APP_*` variables to the browser bundle, add them to your React app's `.env` file:
 
 ```sh
 REACT_APP_BITSOCIAL_REACT_HOOKS_MOCK_CONTENT=1
 REACT_APP_BITSOCIAL_REACT_HOOKS_MOCK_CONTENT_LOADING_TIME=1000
 ```
+
+Your bundler must substitute these exact `process.env` keys. Adding a `.env` file alone is not sufficient in every React setup. Restart the development server after changing them.
 
 #### Get a mock feed
 
@@ -22,7 +28,7 @@ import { useFeed } from "@bitsocial/bitsocial-react-hooks";
 
 function App() {
   const { feed, hasMore, loadMore } = useFeed({
-    communityAddresses: ["news.eth"],
+    communities: [{ name: "news.eth" }],
     sortType: "new",
   });
   console.log({ feed });

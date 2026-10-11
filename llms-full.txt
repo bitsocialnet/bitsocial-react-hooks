@@ -9,6 +9,10 @@ Use this as compiled context only. Source files, tests, manifests, and live/runt
 ## Index
 
 - [README.md](#readmemd)
+- [docs/reference.md](#docsreferencemd)
+- [website/content/quickstart.md](#websitecontentquickstartmd)
+- [website/content/concepts.md](#websitecontentconceptsmd)
+- [website/content/ai.md](#websitecontentaimd)
 - [AGENTS.md](#agentsmd)
 - [docs/algorithms.md](#docsalgorithmsmd)
 - [docs/clients.md](#docsclientsmd)
@@ -30,16 +34,98 @@ Use this as compiled context only. Source files, tests, manifests, and live/runt
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/README.md
 
 ```markdown
+# Bitsocial React Hooks
+
+Build social apps with React: communities, feeds, replies, profiles, accounts, and publishing on the [Bitsocial protocol](https://bitsocial.net).
+
+[`@bitsocial/bitsocial-react-hooks`](https://www.npmjs.com/package/@bitsocial/bitsocial-react-hooks) connects your UI to shared protocol state through hooks and Zustand stores. Used by [5chan](https://github.com/bitsocialnet/5chan). Supports React 16.8 and later.
+
+## Start building
+
+Add the package to an existing React app:
+
+```bash
+yarn add @bitsocial/bitsocial-react-hooks
+```
+
+Render this component in the browser with an existing community name:
+
+```jsx
+import { useCommunity } from "@bitsocial/bitsocial-react-hooks";
+
+export default function CommunityCard({ name }) {
+  const community = useCommunity({ community: { name } });
+
+  if (!community.hasCachedData) {
+    return (
+      <p role="status">
+        {community.error?.message || "Loading community…"}
+      </p>
+    );
+  }
+
+  return (
+    <article>
+      <h1>{community.title || name}</h1>
+      <p>{community.description}</p>
+    </article>
+  );
+}
+```
+
+The package initializes a local account automatically. You can also identify a community with `{ publicKey }`, or pass both `{ name, publicKey }`. Hooks share cached data and subscriptions; use `syncState` when you need to show background refresh progress.
+
+## Explore the docs
+
+- [Quickstart](website/content/quickstart.md) — build your first feed.
+- [Core concepts](website/content/concepts.md) — communities, accounts, state, and publishing.
+- [Full API and recipes](docs/reference.md) — the complete hook reference and practical examples.
+- [Mock content](docs/mock-content.md) — develop a UI with sample data.
+- [AI context](website/content/ai.md), [llms.txt](llms.txt), and [llms-full.txt](llms-full.txt) — documentation for your coding assistant.
+
+The interactive documentation site lives in [`website/`](website/README.md). Preview it locally:
+
+```bash
+cd website
+corepack yarn install
+corepack yarn dev
+```
+
+## Contribute
+
+Use Node 22 and the repository's pinned Yarn 4 release:
+
+```bash
+nvm install
+nvm use
+corepack yarn install
+corepack yarn build
+```
+
+Read [testing and development](docs/testing.md), [contributor guidance](AGENTS.md), and [verification](docs/agent-playbooks/verification.md) for focused checks. Keep API examples aligned with the public exports and types; after documentation changes, run `corepack yarn llms:generate`.
+
+## License
+
+[GPL-3.0-or-later](LICENSE).
+```
+
+---
+
+## docs/reference.md
+
+Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/docs/reference.md
+
+```markdown
 [![CI](https://github.com/bitsocialnet/bitsocial-react-hooks/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/bitsocialnet/bitsocial-react-hooks/actions/workflows/CI.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/bitsocialnet/bitsocial-react-hooks/master/badges/coverage.json)](https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/scripts/write-coverage-badge.mjs)
 [![License](https://img.shields.io/badge/license-GPL--3.0--or--later-red.svg)](https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/LICENSE)
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
 
 <p align="left">
-  <img src="./docs/assets/readme/react-hooks-banner.jpg" alt="React Hooks banner" width="340" />
+  <img src="./assets/readme/react-hooks-banner.jpg" alt="React Hooks banner" width="340" />
 </p>
 
-# Bitsocial React Hooks
+# Full API and recipe reference
 
 React hooks for the Bitsocial protocol. Build decentralized, serverless social apps with React using a familiar hooks API — fetch feeds, comments, author profiles, manage accounts, publish content, and more, all without a central server.
 
@@ -64,7 +150,7 @@ yarn install
 
 Run `corepack enable` once per machine so plain `yarn` resolves to the pinned Yarn 4 release.
 
-AI contributor guidance starts in [AGENTS.md](AGENTS.md). Edit shared skills and roles in `.agents/`, then run `yarn ai-workflow:sync`, `yarn ai-workflow:check`, and `yarn ai-workflow:test`; commit generated native app files with their sources. See [skills and tools](docs/agent-playbooks/skills-and-tools.md) for discovery paths and [verification](docs/agent-playbooks/verification.md) for checks appropriate to each change.
+AI contributor guidance starts in [AGENTS.md](../AGENTS.md). Edit shared skills and roles in `.agents/`, then run `yarn ai-workflow:sync`, `yarn ai-workflow:check`, and `yarn ai-workflow:test`; commit generated native app files with their sources. See [skills and tools](agent-playbooks/skills-and-tools.md) for discovery paths and [verification](agent-playbooks/verification.md) for checks appropriate to each change.
 
 ---
 
@@ -543,30 +629,31 @@ if (valid === false) {
 #### Create a post or comment using callbacks
 
 ```jsx
-const onChallenge = async (challenges: Challenge[], comment: Comment) => {
-  let challengeAnswers: string[]
+const onChallenge = async (challenge, comment) => {
+  let challengeAnswers
   try {
     // ask the user to complete the challenges in a modal window
-    challengeAnswers = await getChallengeAnswersFromUser(challenges)
+    challengeAnswers = await getChallengeAnswersFromUser(challenge.challenges)
   }
   catch (e) {
-    // if he declines, throw error and don't get a challenge answer
+    // the modal rejects when the user declines
+    await abandonPublish()
+    return
   }
   if (challengeAnswers) {
-    // if user declines, publishChallengeAnswers is not called, retry loop stops
     await comment.publishChallengeAnswers(challengeAnswers)
   }
 }
 
 const onChallengeVerification = (challengeVerification, comment) => {
-  // if the challengeVerification fails, a new challenge request will be sent automatically
-  // to break the loop, the user must decline to send a challenge answer
-  // if the community owner sends more than 1 challenge for the same challenge request, subsequents will be ignored
+  // A failed verification with a reason or nonempty challengeErrors is terminal.
+  // Other failures retry automatically only if a challenge was received.
+  // Call abandonPublish() when the user cancels the challenge flow.
   if (challengeVerification.challengeSuccess === true) {
-    console.log('challenge success', {publishedCid: challengeVerification.publication.cid})
+    console.log('challenge success', {publishedCid: challengeVerification.commentUpdate?.cid})
   }
   else if (challengeVerification.challengeSuccess === false) {
-    console.error('challenge failed', {reason: challengeVerification.reason, errors: challengeVerification.errors})
+    console.error('challenge failed', {reason: challengeVerification.reason, challengeErrors: challengeVerification.challengeErrors})
   }
 }
 
@@ -629,8 +716,7 @@ const {publishComment} = usePublishComment(publishReplyOptions)
 await publishComment()
 
 // when displaying replies, it is recommended to include the user's pending replies
-// https://github.com/bitsocialnet/bitsocial-react-hooks/#get-replies-to-a-post-nested (nested)
-// https://github.com/bitsocialnet/bitsocial-react-hooks/#get-replies-to-a-post-flattened-not-nested (not nested)
+// See "Get replies to a post (nested or flat)" below for both layouts.
 ```
 
 #### Create a post or comment using hooks
@@ -654,12 +740,12 @@ const {
 } = usePublishComment(publishCommentOptions);
 
 if (challenge) {
-  // display challenges to user and call publishChallengeAnswers(challengeAnswers)
+  // display challenge.challenges and call publishChallengeAnswers(challengeAnswers)
 }
 
 if (challengeVerification) {
   // display challengeVerification.challengeSuccess to user
-  // redirect to challengeVerification.publication.cid
+  // on success, redirect once challengeVerification.commentUpdate?.cid is defined
 }
 
 if (error) {
@@ -1002,7 +1088,7 @@ console.log(error);
 
 ```jsx
 import {useAccount, setAccount, useResolvedAuthorAddress} from '@bitsocial/bitsocial-react-hooks'
-const account = useAccount() // or useAccount('Account KoXpxTwfnjA5') to use an account by name
+const account = useAccount() // or useAccount({ accountName: 'Account KoXpxTwfnjA5' }) to use an account by name
 
 // `account.author.wallets` only auto-generates an `eth` wallet by default.
 // `account.chainProviders` is the canonical chain config for wallets, NFT lookups, and other chain reads.
@@ -1315,10 +1401,10 @@ const communities = useCommunities({
 If the account's pkc client hosts the community (it is listed in `pkc.communities`), the edit is applied locally. Otherwise it is published as a `CommunityEdit` over pubsub, even when the account is the owner, and the hosting node accepts it from the owner or an admin (only the owner can change `address` or `roles`).
 
 ```jsx
-const onChallenge = async (challenges: Challenge[], communityEdit: CommunityEdit) => {
-  let challengeAnswers: string[]
+const onChallenge = async (challenge, communityEdit) => {
+  let challengeAnswers
   try {
-    challengeAnswers = await getChallengeAnswersFromUser(challenges)
+    challengeAnswers = await getChallengeAnswersFromUser(challenge.challenges)
   }
   catch (e) {}
   if (challengeAnswers) {
@@ -1395,7 +1481,7 @@ await importAccount(activeAccountJson);
 
 // Importing the same identity again uses the next available numeric suffix.
 const importedAccountName = `${activeAccountName} 2`;
-const importedAccount = useAccount(importedAccountName);
+const importedAccount = useAccount({ accountName: importedAccountName });
 
 // make imported account active account
 await setActiveAccount(importedAccountName);
@@ -1545,31 +1631,341 @@ const repliesComponents = replies.map((reply, index) => (
 #### Format short CIDs and addresses
 
 ```jsx
-import { useShortAddress, useShortCid } from "@bitsocial/bitsocial-react-hooks";
+import { useComment, useAuthorAddress } from "@bitsocial/bitsocial-react-hooks";
 
-const shortParentCid = useShortCid(comment.parentCid);
-const shortAddress = useShortAddress(address);
+const comment = useComment({ commentCid });
+const { shortAuthorAddress } = useAuthorAddress({ comment });
+
+// CID labels are presentation logic in your app; keep the full CID for links.
+const shortParentCid = comment.parentCid
+  ? `${comment.parentCid.slice(0, 8)}…${comment.parentCid.slice(-6)}`
+  : undefined;
 ```
 
 #### useBufferedFeeds with concurrency
 
+Pass several feed configurations to buffer them in the background. There is no public concurrency-limit option; choose how many feeds your app preloads.
+
 ```jsx
-const useBufferedFeedsWithConcurrency = ({feedOptions}) => {
+import { useBufferedFeeds } from "@bitsocial/bitsocial-react-hooks";
 
-  const communities = useCommunities()
+// Replace these names with the communities your app uses.
+const feedsOptions = [
+  { communities: [{ name: "news.eth" }, { name: "crypto.eth" }], sortType: "new" },
+  { communities: [{ name: "memes.eth" }], sortType: "topWeek" },
+];
 
-  return useBufferedFeeds({feedsOptions})
+function FeedPreloader() {
+  useBufferedFeeds({ feedsOptions });
+  return null;
 }
-
-const feedOptions = [
-  {communities: [{name: 'news.eth'}, {name: 'crypto.eth'}], sortType: 'new'},
-  {communities: [{name: 'memes.eth'}], sortType: 'topWeek'},
-  {communities: [{publicKey: '12D3KooW...'}, {publicKey: '12D3KooW...'}, {publicKey: '12D3KooW...'}, {publicKey: '12D3KooW...'}], sortType: 'hot'},
-  ...
-]
-
-useBufferedFeedsWithConcurrency({feedOptions})
 ```
+```
+
+---
+
+## website/content/quickstart.md
+
+Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/website/content/quickstart.md
+
+```markdown
+---
+title: Your first feed
+description: Add a Bitsocial feed to a React app, with accounts, pagination, and useful loading states already connected.
+group: Start building
+order: 1
+---
+
+Start with a feed. Bring your own components and styling; the hooks connect them to Bitsocial communities and their posts.
+
+## Install in your React app
+
+From an existing React application's directory, run:
+
+```sh
+yarn add @bitsocial/bitsocial-react-hooks
+```
+
+The package supports React 16.8 and later. Use Node.js 22 or later for your development environment. A browser-rendered React app, such as a Vite app, is a straightforward place to begin.
+
+You do not need to add a provider or create an account manually. The library loads the browser's saved accounts and creates a default local account if none exist.
+
+## Pick a community
+
+Get a real community name or public key from the community you want to display. A name is passed as `{ name: communityName }`; a public key is passed as `{ publicKey: communityPublicKey }`.
+
+The component below accepts the name as a prop, so you can connect it to a route, a community picker, or your app's configuration. It does not assume a particular community is online.
+
+## Render the feed
+
+Save this as `Feed.jsx` in your app:
+
+```jsx
+import {
+  useAccount,
+  useFeed,
+} from "@bitsocial/bitsocial-react-hooks";
+
+export default function Feed({ communityName = "" }) {
+  const name = communityName.trim();
+  const account = useAccount();
+  const { feed, hasMore, loadMore, error } = useFeed({
+    communities: name ? [{ name }] : [],
+    postsPerPage: 20,
+  });
+
+  if (!name) {
+    return <p>Choose a community to see its posts.</p>;
+  }
+
+  return (
+    <section aria-label={`Posts from ${name}`}>
+      {error && <p role="alert">{error.message}</p>}
+
+      {!account && <p role="status">Opening your local account…</p>}
+
+      {account && feed.length === 0 && (
+        <p role="status">
+          {hasMore ? "Waiting for posts…" : "No posts to show."}
+        </p>
+      )}
+
+      {feed.map((post) => (
+        <article key={post.cid}>
+          <h2>{post.title || "Untitled post"}</h2>
+          <p>{post.content}</p>
+          <small>
+            {post.author?.displayName ||
+              post.author?.shortAddress ||
+              "Anonymous"}
+          </small>
+        </article>
+      ))}
+
+      {account && feed.length > 0 && hasMore && (
+        <button type="button" onClick={() => void loadMore()}>
+          Load more
+        </button>
+      )}
+    </section>
+  );
+}
+```
+
+Render `<Feed communityName={yourCommunityName} />` from your app, using the real name you chose. For a public key, change the `communities` entry to `{ publicKey: yourCommunityPublicKey }`.
+
+The hook starts loading when the local account is ready. Omitting `sortType` lets it use the community's preloaded sort. Content renders as it arrives, and `loadMore()` requests the next page.
+
+## Make loading feel right
+
+An empty array can mean that data has not arrived yet. It does not, by itself, mean the community has no posts. Keep already loaded posts visible while more arrive, show available errors, and treat `hasMore` as a pagination signal.
+
+Do not wait for `useFeed().state === "succeeded"` before displaying content: the feed's current state is tied to whether it has more pages. Likewise, awaiting `loadMore()` does not mean the network has finished loading that page.
+
+## Using a framework with server rendering?
+
+The package accesses browser APIs, including `window`, when imported. Keep the import and the component that uses it out of server execution. Use your framework's client-only loading mechanism with server rendering disabled for that component; a client-component directive alone may still allow server prerendering.
+
+Browser storage holds the local account and cache. Treat account backup and recovery as part of your app's account experience before encouraging people to rely on it.
+
+## Build the next piece
+
+- [Understand accounts, shared state, and publishing](concepts.md).
+- [Explore feed options](../../docs/reference.md#feeds-hooks) for sorting, filtering, and preloading.
+- [Read a post and its comments](../../docs/reference.md#comments-hooks).
+- [Add publishing](../../docs/reference.md#create-a-post-or-comment-using-hooks) with a challenge and cancellation flow.
+- [Give your coding assistant the docs](ai.md).
+```
+
+---
+
+## website/content/concepts.md
+
+Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/website/content/concepts.md
+
+```markdown
+---
+title: How the hooks fit together
+description: The small set of concepts behind feeds, local accounts, shared state, and publishing to Bitsocial.
+group: Start building
+order: 2
+---
+
+Your app owns the interface. The hooks connect it to shared protocol state: communities, posts, replies, authors, accounts, and the actions people take.
+
+## Hooks read shared stores
+
+The library uses Zustand stores underneath its React hooks. Components select the data they need; stores handle protocol requests, cached data, and subscriptions. There is no provider component to wrap around your app.
+
+```jsx
+const community = useCommunity({
+  community: { name: communityName },
+});
+
+const { feed } = useFeed({
+  communities: [{ name: communityName }],
+});
+```
+
+Use these hooks wherever the data belongs in your component tree. Shared stores let components reuse fetched data and existing requests. You do not need a separate fetching effect that copies the same content into your own state.
+
+Feed options such as the account, communities, sort, and filter identify a feed. Different options can intentionally produce different feeds. A custom filter needs a stable `key` that describes its behavior so its cached results can be identified correctly.
+
+## A local account starts automatically
+
+The account store restores accounts from browser storage when the library loads. If there are none, it creates a default account and signer. This happens asynchronously, so `useAccount()` can initially return `undefined`.
+
+```jsx
+const account = useAccount();
+
+return (
+  <p>
+    {account
+      ? `Posting as ${account.author?.shortAddress}`
+      : "Opening your local account…"}
+  </p>
+);
+```
+
+Hooks use the active account by default. Where an options argument accepts `accountName`, pass `{ accountName }` to select another one. An account also carries local preferences and history, such as subscriptions, saved comments, and pending publications.
+
+An account is stored in the browser, not recovered through an email login. Include export, import, and clear explanations of local storage in an app intended for everyday use.
+
+## Communities have identifiers
+
+Reading hooks accept a community identifier object: `{ name }`, `{ publicKey }`, or both. A feed accepts an array of these objects so it can combine several communities.
+
+Posts and replies are comments in the protocol. A published comment has a content identifier, or CID. Read it with `useComment({ commentCid })`; pass the resulting comment to `useReplies({ comment })` to load its replies.
+
+```jsx
+const comment = useComment({ commentCid });
+const { replies, hasMore, loadMore } = useReplies({
+  comment,
+  repliesPerPage: 20,
+});
+```
+
+`useComment` follows updates by default. Replies can be nested or flat. Use the same replies options throughout a nested thread where possible to reuse the same loading path.
+
+## Data arrives progressively
+
+Cached content, a comment's original content, and later updates can become available at different times. Render what you have and show loading or error feedback alongside it. Avoid hiding useful content every time a request is in progress.
+
+For feeds and replies, `hasMore` drives pagination. Their `state` fields are not a promise that every network operation is idle. In particular, a feed with visible posts can still have the state `fetching-ipns` while more pages are available.
+
+Use `loadMore()` to request more items and `reset()` to rebuild a feed. The return of a pagination call is not a signal that all requested items have arrived. Let the hook's data drive rendering.
+
+## Publishing is a conversation with a community
+
+`usePublishComment` creates posts and replies. Supply a `communityAddress` and content; add a `title` for a post or `parentCid` for a reply. The selected account supplies the signing identity.
+
+```jsx
+const publication = usePublishComment({
+  communityAddress,
+  title,
+  content,
+});
+
+// Call from a submit handler.
+await publication.publishComment();
+```
+
+That awaited call starts the publication flow. It does **not** confirm that the community has accepted the post.
+
+1. A pending local comment becomes available through the result's `index`.
+2. A community may send a `challenge` message. Your interface presents its `challenges` and collects answers.
+3. Call `publishChallengeAnswers(answers)` with an array of strings in challenge order.
+4. Observe `challengeVerification.challengeSuccess`, errors, and the pending comment's eventual `cid` to show the outcome.
+
+Use `useAccountComment({ commentIndex: index })` to display the pending comment. Check `index !== undefined`, because zero is a valid index. If the person cancels the flow, call `abandonPublish()` to cancel the pending attempt and remove its local pending comment.
+
+Some failed challenge answers trigger another challenge attempt. Terminal community rejections do not. Build feedback and cancellation into the form rather than assuming every failure should be retried by your app.
+
+For replies, `accountComments: { newerThan: Infinity }` can keep local pending replies visible while canonical replies propagate. Pending comments may not have a CID yet; use their local index as a fallback key.
+
+## Choose where to go next
+
+- [Feed hooks](../../docs/reference.md#feeds-hooks) cover pagination and feed configuration.
+- [Comment hooks](../../docs/reference.md#comments-hooks) cover individual content and its updates.
+- [Action hooks](../../docs/reference.md#actions-hooks) cover publishing, votes, subscriptions, and moderation.
+- [The publishing recipe](../../docs/reference.md#create-a-post-or-comment-using-hooks) shows the challenge flow in more detail.
+```
+
+---
+
+## website/content/ai.md
+
+Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/website/content/ai.md
+
+```markdown
+---
+title: Build with AI
+description: Give your coding assistant focused documentation, a clear starting prompt, and the current public API.
+group: Start building
+order: 3
+---
+
+Give your coding assistant the same starting point you would give another developer: the package name, a small feature to build, and the relevant documentation.
+
+## Choose the right amount of context
+
+- [llms.txt](../../llms.txt) is the compact entry point to the documentation.
+- [llms-full.txt](../../llms-full.txt) contains the expanded documentation for assistants that need more context.
+- [Quickstart as Markdown](quickstart.md?raw=1) gives an assistant the first-feed example without the website interface.
+- [Core concepts as Markdown](concepts.md?raw=1) explains accounts, loading, and publication behavior.
+- [This page as Markdown](ai.md?raw=1) keeps the starting prompt easy to reuse.
+
+Start with the compact index and the page for the feature you need. Use the full file when your tool cannot follow documentation links, or when the work spans several parts of the package.
+
+These files are documentation context. The installed package's exports, types, source, and tests remain the authority for what that version supports.
+
+## A starting prompt
+
+Copy this into your coding assistant and supply your app and community details:
+
+```text
+Help me add a Bitsocial feed to my existing React app using
+@bitsocial/bitsocial-react-hooks.
+
+Read the docs site's /llms.txt, /docs/quickstart.md, and
+/docs/concepts.md first. Ask me for the docs site's base URL
+if it is not already available in this conversation.
+
+Inspect the app and installed package version before editing.
+Use a real community identifier that I supply, or leave a clearly
+labeled configuration value for it. Do not invent a live community.
+
+Build a browser-rendered feed with useFeed, pagination, and useful
+loading, empty, and error feedback. Keep loaded posts visible while
+more data arrives. Reuse my app's components and styling.
+
+No provider setup is required. Account initialization is automatic
+and asynchronous. Prevent server evaluation of browser-only imports
+if this app uses server rendering.
+
+Verify the affected behavior and report what was checked. Keep the
+scope to this feature; do not publish content or deploy the app.
+```
+
+For a new app, change the first sentence to describe what you want to make: a discussion forum, a reading app, a community browser, or another interface. Keep the first milestone small enough to run and inspect.
+
+## Give it a useful next task
+
+Once the feed works, ask for one complete interaction at a time:
+
+- Open a post and load its replies using the [comment hooks](../../docs/reference.md#comments-hooks).
+- Add a community picker and pagination using the [feed hooks](../../docs/reference.md#feeds-hooks).
+- Add a post form with challenge handling, pending feedback, and cancellation using the [publishing recipe](../../docs/reference.md#create-a-post-or-comment-using-hooks).
+
+For publishing tasks, explicitly ask the assistant to distinguish “attempt started” from “accepted by the community.” Awaiting `publishComment()` is not publication confirmation.
+
+## Keep examples aligned with the package
+
+If an assistant suggests a provider, a `communityAddresses` feed option, or waiting for `useFeed().state === "succeeded"` before rendering any posts, have it check the current documentation and source.
+
+The public package name is `@bitsocial/bitsocial-react-hooks`. Reading hooks use community identifier objects such as `{ name }` or `{ publicKey }`. Hook options and result fields can change between versions, so resolve disagreements against the version your app actually uses.
+
+The docs and website source live with the [open-source library](https://github.com/bitsocialnet/bitsocial-react-hooks). Documentation improvements can travel with the code they describe.
 ```
 
 ---
@@ -2715,22 +3111,28 @@ for (const chainProviderUrl in chainProviders) {
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/docs/mock-content.md
 
 ```markdown
+# Mock content
+
+Use synthetic communities and posts while developing your interface.
+
 #### Install the node module
 
 ```sh
-yarn add https://github.com/bitsocialnet/bitsocial-react-hooks
+yarn add @bitsocial/bitsocial-react-hooks
 ```
 
 If you are developing in this repo, run `corepack enable` once first so `yarn` uses the pinned Yarn 4 release.
 
 #### Add env variable for mocking
 
-- Create a .env file in your react project with the content:
+The mock client reads these `process.env` values at import time. In setups that expose `REACT_APP_*` variables to the browser bundle, add them to your React app's `.env` file:
 
 ```sh
 REACT_APP_BITSOCIAL_REACT_HOOKS_MOCK_CONTENT=1
 REACT_APP_BITSOCIAL_REACT_HOOKS_MOCK_CONTENT_LOADING_TIME=1000
 ```
+
+Your bundler must substitute these exact `process.env` keys. Adding a `.env` file alone is not sufficient in every React setup. Restart the development server after changing them.
 
 #### Get a mock feed
 
@@ -2739,7 +3141,7 @@ import { useFeed } from "@bitsocial/bitsocial-react-hooks";
 
 function App() {
   const { feed, hasMore, loadMore } = useFeed({
-    communityAddresses: ["news.eth"],
+    communities: [{ name: "news.eth" }],
     sortType: "new",
   });
   console.log({ feed });
@@ -3244,6 +3646,21 @@ Native references: [Codex hooks](https://learn.chatgpt.com/docs/hooks), [Cursor 
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/CHANGELOG.md
 
 ```markdown
+## [0.1.48](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.47...v0.1.48) (2026-10-11)
+
+
+### Bug Fixes
+
+* **accounts:** publish community edits over pubsub unless the pkc client hosts the community ([#120](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/120)) ([020a832](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/020a832ed459d6145e944a68ad17a7221bf56369))
+* **comments:** store comment updates before caching them (release 0.1.48) ([#121](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/121)) ([6f2710e](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/6f2710ec910e32a410eb85f9e25b566727ab75ad)), closes [#179](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/179) [-#186](https://github.com/-/issues/186) [#173](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/173) [#174](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/174) [#175](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/175) [#178](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/178) [#176](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/176) [#177](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/177)
+
+
+### Performance Improvements
+
+* **bundle:** load ethers, viem, and bso-resolver on demand ([5fbf2ff](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/5fbf2ff7695a6a0f503ddd27cfcf321f44d58925))
+
+
+
 ## [0.1.47](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.46...v0.1.47) (2026-09-30)
 
 

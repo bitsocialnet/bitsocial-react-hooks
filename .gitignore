@@ -68,3 +68,5 @@ test/**/__screenshots__/
 /.tmp
 
 .codegraph/
+# Local Vercel CLI project link and environment data
+/.vercel/
