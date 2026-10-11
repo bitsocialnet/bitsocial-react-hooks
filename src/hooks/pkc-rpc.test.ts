@@ -253,25 +253,22 @@ describe("pkc-rpc", () => {
   });
 
   test("usePkcRpcSettings timeout state-restore branch (branch 94)", async () => {
+    const rendered = renderHook<any, any>(() => usePkcRpcSettings());
+    const waitFor = testUtils.createWaitFor(rendered);
+    // the mock rpc client connects from a real 10ms timer scheduled when the account's pkc was
+    // created (before this test). fake timers don't control it and act() flushes on real
+    // macrotasks, so wait for it before faking timers or it can overwrite 'succeeded'
+    await waitFor(() => rendered.result.current.state === "connected");
+    const { accounts, activeAccountId } = accountsStore.getState();
+    const account = accounts[activeAccountId || ""];
+    const rpc = Object.values(account?.pkc?.clients?.pkcRpcClients || {})[0] as any;
+    expect(rpc?.state).toBe("connected");
     vi.useFakeTimers();
     try {
-      const rendered = renderHook<any, any>(() => usePkcRpcSettings());
-      vi.advanceTimersByTime(100);
-      await act(async () => {});
-      const { accounts, activeAccountId } = accountsStore.getState();
-      const account = accounts[activeAccountId || ""];
-      const rpc = Object.values(account?.pkc?.clients?.pkcRpcClients || {})[0] as any;
-      expect(rpc).toBeDefined();
-      await act(async () => {
-        rpc.state = "connected";
-        rpc.emit("statechange", "connected");
-        vi.advanceTimersByTime(50);
-      });
       await act(async () => {
         await rendered.result.current.setPkcRpcSettings({ challenges: {} });
       });
       expect(rendered.result.current.state).toBe("succeeded");
-      rpc.state = "connected";
       vi.advanceTimersByTime(10010);
       await act(async () => {});
       expect(rendered.result.current.state).toBe("connected");
