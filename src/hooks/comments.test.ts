@@ -6,7 +6,7 @@ import * as accountsHooks from "./accounts";
 import commentsStore from "../stores/comments";
 import communitiesPagesStore from "../stores/communities-pages";
 import accountsStore from "../stores/accounts";
-import PkcJsMock, { PKC, Comment, Pages } from "../lib/pkc-js/pkc-js-mock";
+import PkcJsMock, { PKC, Comment, Pages, simulateLoadingTime } from "../lib/pkc-js/pkc-js-mock";
 import repliesPagesStore from "../stores/replies-pages";
 
 describe("comments", () => {
@@ -940,6 +940,38 @@ describe("comments", () => {
 
       // restore mock
       PKC.prototype.createComment = createComment;
+    });
+
+    test("useComment with autoUpdate false does not freeze the CID-only comment when its CommentIpfs loads", async () => {
+      // pkc-js reports "succeeded" together with the loaded CommentIpfs, before any CommentUpdate.
+      const simulateFetchCommentIpfsUpdateEvent =
+        Comment.prototype.simulateFetchCommentIpfsUpdateEvent;
+      Comment.prototype.simulateFetchCommentIpfsUpdateEvent = async function (this: any) {
+        const commentIpfs = await new PKC().getComment({ cid: this.cid || "" });
+        if (!this.updating) {
+          return;
+        }
+        this.content = "loaded comment ipfs content";
+        this.timestamp = commentIpfs.timestamp;
+        this.updatingState = "succeeded";
+        this.emit("update", this);
+        this.emit("updatingstatechange", "succeeded");
+        simulateLoadingTime().then(() => this.simulateUpdateEvent());
+      };
+
+      try {
+        const rendered = renderHook<any, any>(() =>
+          useComment({ commentCid: "comment cid ipfs succeeded", autoUpdate: false }),
+        );
+        const waitFor = testUtils.createWaitFor(rendered);
+
+        await waitFor(() => rendered.result.current.upvoteCount === 3);
+        expect(rendered.result.current.content).toBe("loaded comment ipfs content");
+        expect(rendered.result.current.timestamp).toBe(1670000000);
+        expect(rendered.result.current.state).toBe("succeeded");
+      } finally {
+        Comment.prototype.simulateFetchCommentIpfsUpdateEvent = simulateFetchCommentIpfsUpdateEvent;
+      }
     });
 
     test("useComment with autoUpdate false can refresh manually", async () => {

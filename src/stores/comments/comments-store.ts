@@ -101,14 +101,18 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
 
   const persistComment = async (commentCid: string, nextComment: Comment) => {
     const normalizedComment = normalizeCommentCommunityAddress(utils.clone(nextComment)) as Comment;
-    await commentsDatabase.setItem(commentCid, normalizedComment);
-    log("commentsStore comment update", { commentCid, updatedComment: normalizedComment });
+    // Store the update before the database write. pkc-js emits "updatingstatechange" right after
+    // "update", so waiting on the write would let "succeeded" land on a CID-only entry, and a
+    // frozen useComment would settle on that empty shell.
     setState((state: CommentsState) => ({
       comments: { ...state.comments, [commentCid]: normalizedComment },
     }));
 
     // add comment replies pages to repliesPagesStore so they can be used in useComment
     repliesPagesStore.getState().addRepliesPageCommentsToStore(nextComment);
+
+    await commentsDatabase.setItem(commentCid, normalizedComment);
+    log("commentsStore comment update", { commentCid, updatedComment: normalizedComment });
 
     return normalizedComment;
   };
