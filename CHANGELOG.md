@@ -1,3 +1,18 @@
+## [0.1.48](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.47...v0.1.48) (2026-10-11)
+
+
+### Bug Fixes
+
+* **accounts:** publish community edits over pubsub unless the pkc client hosts the community ([#120](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/120)) ([020a832](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/020a832ed459d6145e944a68ad17a7221bf56369))
+* **comments:** store comment updates before caching them (release 0.1.48) ([#121](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/121)) ([6f2710e](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/6f2710ec910e32a410eb85f9e25b566727ab75ad)), closes [#179](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/179) [-#186](https://github.com/-/issues/186) [#173](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/173) [#174](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/174) [#175](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/175) [#178](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/178) [#176](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/176) [#177](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/177)
+
+
+### Performance Improvements
+
+* **bundle:** load ethers, viem, and bso-resolver on demand ([5fbf2ff](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/5fbf2ff7695a6a0f503ddd27cfcf321f44d58925))
+
+
+
 ## [0.1.47](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.46...v0.1.47) (2026-09-30)
 
 
