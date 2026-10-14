@@ -359,12 +359,13 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     );
   };
 
-  // Waits for the update cycle that startUpdate() begins. pkc-js runs one update loop per CID:
-  // when another instance already updates this comment (for example the account's own reply,
-  // whose update subscribes to its post), update() mirrors that shared loop instead of starting
-  // a cycle, and the loop only emits again on its next poll, up to a minute later on a quiet
-  // community. A shared loop that already has a CommentUpdate is current, so a cycle that
-  // attaches to it settles as soon as update() returns.
+  // Waits for the update cycle that startUpdate() begins or joins. pkc-js runs one update loop
+  // per CID: when another instance already updates this comment (for example the account's own
+  // reply, whose update subscribes to its post), update() mirrors that shared loop instead of
+  // starting a cycle, and when auto-update subscribers keep this comment updating, update() does
+  // nothing. Either loop only emits again on its next poll, up to a minute later on a quiet
+  // community, but its latest CommentUpdate is current, so joining a loop that has already
+  // settled settles as soon as update() returns.
   const waitForCommentUpdateCycle = (
     commentCid: string,
     comment: Comment,
