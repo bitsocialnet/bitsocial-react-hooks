@@ -265,7 +265,6 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
   }, [commentCid, commentFromStoreNotLoaded, initialComment, selectedComment]);
   selectedComment = selectedCommentWithFallback;
 
-  const selectedCommentState = getCommentStateAndReplyCount(selectedComment).state;
   const selectedCommentShortAddress = selectedComment?.author?.shortAddress;
   const initialCommentUpdatePending = Boolean(
     initialComment?.raw?.comment && !selectedComment?.raw?.commentUpdate,
@@ -296,9 +295,8 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
       return;
     }
     if (freezeSettledForCurrentCid) {
-      // A new local publication can look settled from its timestamp before the
-      // canonical number and author identity arrive. Absorb only that immutable
-      // metadata while keeping later vote and reply updates frozen.
+      // Canonical number and author identity can arrive after the first community
+      // update. Absorb only that immutable metadata while keeping later updates frozen.
       const frozenCommentForCurrentCid =
         frozenComment?.cid === commentCid ? frozenComment : undefined;
       const frozenCommentShortAddress = frozenCommentForCurrentCid?.author?.shortAddress;
@@ -329,14 +327,14 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
     }
 
     setFrozenComment(selectedComment);
-    if (selectedCommentState === "succeeded" && !initialCommentUpdatePending) {
+    // Recent immutable payloads report "succeeded" before moderation is available.
+    if (typeof selectedComment.updatedAt === "number" && !initialCommentUpdatePending) {
       setFreezeSettledCid(commentCid);
     }
   }, [
     autoUpdate,
     commentCid,
     selectedComment,
-    selectedCommentState,
     initialCommentUpdatePending,
     freezeSettledForCurrentCid,
     frozenComment,
@@ -531,7 +529,7 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
   }, [commentsStoreComments, communitiesPagesComments]);
 
   const liveCommentsSettled = liveComments.every(
-    (comment) => getCommentStateAndReplyCount(comment).state === "succeeded",
+    (comment) => typeof comment?.updatedAt === "number",
   );
   const freezeSettledForCurrentKey = freezeSettledKey === commentsKey;
 

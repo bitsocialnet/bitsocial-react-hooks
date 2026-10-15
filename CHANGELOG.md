@@ -1,3 +1,21 @@
+## [0.1.50](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.49...v0.1.50) (2026-10-14)
+
+
+### Bug Fixes
+
+* **comments:** settle refresh on a comment another instance already updates (release 0.1.50) ([823db53](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/823db534f2cc7f4867169a0370d8a633bb28c8e9))
+
+
+
+## [0.1.49](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.48...v0.1.49) (2026-10-13)
+
+
+### Bug Fixes
+
+* **comments:** wait for initial moderation before freezing (release 0.1.49) ([01c2022](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/01c20221b5311b73ebc2ae274ceb1ff1098cae62))
+
+
+
 ## [0.1.48](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.47...v0.1.48) (2026-10-11)
 
 

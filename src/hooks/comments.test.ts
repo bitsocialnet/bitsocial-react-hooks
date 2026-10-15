@@ -669,35 +669,41 @@ describe("comments", () => {
       expect(rendered.result.current.updatedAt).toBeUndefined();
     });
 
-    test("useComment uses accountComment when store not loaded (line 102)", async () => {
-      const cid = "account-comment-fallback-cid";
-      const account = Object.values(accountsStore.getState().accounts)[0];
-      const accountComment = {
-        cid,
-        timestamp: 100,
-        content: "from account",
-        communityAddress: "sub",
-      };
-      act(() => {
-        accountsStore.setState((s: any) => ({
-          accountsComments: {
-            ...s.accountsComments,
-            [account.id]: [accountComment],
-          },
-          commentCidsToAccountsComments: {
-            ...s.commentCidsToAccountsComments,
-            [cid]: { accountId: account.id, accountCommentIndex: 0 },
-          },
-        }));
-      });
-      const rendered = renderHook<any, any>(() =>
-        useComment({ commentCid: cid, onlyIfCached: true }),
-      );
-      const waitFor = testUtils.createWaitFor(rendered);
-      await waitFor(() => rendered.result.current.cid === cid);
-      expect(rendered.result.current.content).toBe("from account");
-      expect(rendered.result.current.timestamp).toBe(100);
-    });
+    test.each([true, false])(
+      "useComment keeps local pending content visible with autoUpdate %s",
+      async (autoUpdate) => {
+        const cid = "account-comment-fallback-cid";
+        const account = Object.values(accountsStore.getState().accounts)[0];
+        const accountComment = {
+          cid,
+          timestamp: Math.floor(Date.now() / 1000) - 60,
+          content: "from account",
+          pendingApproval: true,
+          communityAddress: "sub",
+        };
+        act(() => {
+          accountsStore.setState((s: any) => ({
+            accountsComments: {
+              ...s.accountsComments,
+              [account.id]: [accountComment],
+            },
+            commentCidsToAccountsComments: {
+              ...s.commentCidsToAccountsComments,
+              [cid]: { accountId: account.id, accountCommentIndex: 0 },
+            },
+          }));
+        });
+        const rendered = renderHook<any, any>(() =>
+          useComment({ commentCid: cid, onlyIfCached: true, autoUpdate }),
+        );
+        const waitFor = testUtils.createWaitFor(rendered);
+        await waitFor(() => rendered.result.current.cid === cid);
+        expect(rendered.result.current.content).toBe("from account");
+        expect(rendered.result.current.timestamp).toBe(accountComment.timestamp);
+        expect(rendered.result.current.pendingApproval).toBe(true);
+        expect(rendered.result.current.updatedAt).toBeUndefined();
+      },
+    );
 
     test("useComment reconciles canonical publication metadata after a non-updating snapshot settles", async () => {
       const cid = "canonical-author-reconciliation-cid";
@@ -705,6 +711,7 @@ describe("comments", () => {
       const canonicalComment = {
         cid,
         timestamp,
+        updatedAt: timestamp + 1,
         content: "original content",
         upvoteCount: 1,
         author: { address: "bitsocialist.bso", shortAddress: undefined as string | undefined },
@@ -973,6 +980,55 @@ describe("comments", () => {
         Comment.prototype.simulateFetchCommentIpfsUpdateEvent = simulateFetchCommentIpfsUpdateEvent;
       }
     });
+
+    test.each(["removed", "deleted"] as const)(
+      "useComment with autoUpdate false receives the first %s update for a recent comment before freezing",
+      async (moderationField) => {
+        const cid = "recent-comment-first-update";
+        const timestamp = Math.floor(Date.now() / 1000) - 60;
+        const comment = { cid, timestamp, content: "original content" };
+        act(() => {
+          commentsStore.setState({ comments: { [cid]: comment } });
+        });
+        const rendered = renderHook(() =>
+          useComment({ commentCid: cid, onlyIfCached: true, autoUpdate: false }),
+        );
+
+        try {
+          expect(rendered.result.current.state).toBe("succeeded");
+          expect(rendered.result.current.updatedAt).toBeUndefined();
+          const firstUpdate = {
+            ...comment,
+            updatedAt: timestamp + 1,
+            [moderationField]: true,
+            replyCount: 1,
+          };
+          act(() => {
+            commentsStore.setState({ comments: { [cid]: firstUpdate } });
+          });
+          expect(rendered.result.current.updatedAt).toBe(firstUpdate.updatedAt);
+          expect(rendered.result.current[moderationField]).toBe(true);
+
+          act(() => {
+            commentsStore.setState({
+              comments: {
+                [cid]: {
+                  ...firstUpdate,
+                  updatedAt: timestamp + 2,
+                  [moderationField]: false,
+                  replyCount: 2,
+                },
+              },
+            });
+          });
+          expect(rendered.result.current.updatedAt).toBe(firstUpdate.updatedAt);
+          expect(rendered.result.current[moderationField]).toBe(true);
+          expect(rendered.result.current.replyCount).toBe(1);
+        } finally {
+          rendered.unmount();
+        }
+      },
+    );
 
     test("useComment with autoUpdate false can refresh manually", async () => {
       const rendered = renderHook<any, any>(() =>
@@ -1379,6 +1435,73 @@ describe("comments", () => {
         useAccountSpy.mockRestore();
       }
     });
+
+    test.each(["removed", "deleted"] as const)(
+      "useComments with autoUpdate false receives every recent comment's first %s update before freezing",
+      async (moderationField) => {
+        const commentCids = ["recent-batch-first-update", "recent-batch-second-update"];
+        const timestamp = Math.floor(Date.now() / 1000) - 60;
+        const comments = commentCids.map((cid) => ({
+          cid,
+          timestamp,
+          content: "original content",
+        }));
+        act(() => {
+          commentsStore.setState({
+            comments: Object.fromEntries(comments.map((comment) => [comment.cid, comment])),
+          });
+        });
+        const rendered = renderHook(() =>
+          useComments({ commentCids, onlyIfCached: true, autoUpdate: false }),
+        );
+
+        try {
+          expect(rendered.result.current.state).toBe("succeeded");
+          expect(
+            rendered.result.current.comments.every((comment) => comment?.updatedAt === undefined),
+          ).toBe(true);
+
+          for (const comment of comments) {
+            act(() => {
+              commentsStore.setState((state: any) => ({
+                comments: {
+                  ...state.comments,
+                  [comment.cid]: {
+                    ...comment,
+                    updatedAt: timestamp + 1,
+                    [moderationField]: true,
+                    replyCount: 1,
+                  },
+                },
+              }));
+            });
+            const updatedComment = rendered.result.current.comments.find(
+              (entry) => entry?.cid === comment.cid,
+            );
+            expect(updatedComment?.updatedAt).toBe(timestamp + 1);
+            expect(updatedComment?.[moderationField]).toBe(true);
+          }
+
+          act(() => {
+            commentsStore.setState({
+              comments: Object.fromEntries(
+                comments.map((comment) => [
+                  comment.cid,
+                  { ...comment, updatedAt: timestamp + 2, [moderationField]: false, replyCount: 2 },
+                ]),
+              ),
+            });
+          });
+          for (const comment of rendered.result.current.comments) {
+            expect(comment?.updatedAt).toBe(timestamp + 1);
+            expect(comment?.[moderationField]).toBe(true);
+            expect(comment?.replyCount).toBe(1);
+          }
+        } finally {
+          rendered.unmount();
+        }
+      },
+    );
 
     test("useComments with autoUpdate false stays frozen while another hook keeps the same comments updating", async () => {
       const commentUpdate = Comment.prototype.update;

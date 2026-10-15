@@ -184,7 +184,6 @@ export function useComment(options) {
         return commentWithFallback;
     }, [commentCid, commentFromStoreNotLoaded, initialComment, selectedComment]);
     selectedComment = selectedCommentWithFallback;
-    const selectedCommentState = getCommentStateAndReplyCount(selectedComment).state;
     const selectedCommentShortAddress = (_a = selectedComment === null || selectedComment === void 0 ? void 0 : selectedComment.author) === null || _a === void 0 ? void 0 : _a.shortAddress;
     const initialCommentUpdatePending = Boolean(((_b = initialComment === null || initialComment === void 0 ? void 0 : initialComment.raw) === null || _b === void 0 ? void 0 : _b.comment) && !((_c = selectedComment === null || selectedComment === void 0 ? void 0 : selectedComment.raw) === null || _c === void 0 ? void 0 : _c.commentUpdate));
     const freezeSettledForCurrentCid = freezeSettledCid === commentCid;
@@ -211,9 +210,8 @@ export function useComment(options) {
             return;
         }
         if (freezeSettledForCurrentCid) {
-            // A new local publication can look settled from its timestamp before the
-            // canonical number and author identity arrive. Absorb only that immutable
-            // metadata while keeping later vote and reply updates frozen.
+            // Canonical number and author identity can arrive after the first community
+            // update. Absorb only that immutable metadata while keeping later updates frozen.
             const frozenCommentForCurrentCid = (frozenComment === null || frozenComment === void 0 ? void 0 : frozenComment.cid) === commentCid ? frozenComment : undefined;
             const frozenCommentShortAddress = (_a = frozenCommentForCurrentCid === null || frozenCommentForCurrentCid === void 0 ? void 0 : frozenCommentForCurrentCid.author) === null || _a === void 0 ? void 0 : _a.shortAddress;
             const hasReconciledPublicationMetadata = (selectedComment.number !== undefined &&
@@ -233,14 +231,14 @@ export function useComment(options) {
             return;
         }
         setFrozenComment(selectedComment);
-        if (selectedCommentState === "succeeded" && !initialCommentUpdatePending) {
+        // Recent immutable payloads report "succeeded" before moderation is available.
+        if (typeof selectedComment.updatedAt === "number" && !initialCommentUpdatePending) {
             setFreezeSettledCid(commentCid);
         }
     }, [
         autoUpdate,
         commentCid,
         selectedComment,
-        selectedCommentState,
         initialCommentUpdatePending,
         freezeSettledForCurrentCid,
         frozenComment,
@@ -381,7 +379,7 @@ export function useComments(options) {
         }
         return result;
     }, [commentsStoreComments, communitiesPagesComments]);
-    const liveCommentsSettled = liveComments.every((comment) => getCommentStateAndReplyCount(comment).state === "succeeded");
+    const liveCommentsSettled = liveComments.every((comment) => typeof (comment === null || comment === void 0 ? void 0 : comment.updatedAt) === "number");
     const freezeSettledForCurrentKey = freezeSettledKey === commentsKey;
     useEffect(() => {
         if (autoUpdate) {

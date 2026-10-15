@@ -931,6 +931,82 @@ describe("comments store", () => {
     }
   });
 
+  test("refreshComment settles when it attaches to a comment update loop that already settled", async () => {
+    const commentCid = "refresh-shared-loop-cid";
+    const liveComment = createUnchangedComment(commentCid, { updatedAt: 200 });
+    liveComment.update = vi.fn().mockImplementation(() => {
+      // pkc-js mirrors the loop another instance already runs for this CID: it takes that
+      // loop's latest CommentUpdate and state and emits "update", but no updatingstatechange
+      // until the loop's next poll.
+      liveComment.updatedAt = 250;
+      liveComment.replyCount = 3;
+      liveComment.updatingState = "waiting-retry";
+      liveComment.emit("update", liveComment);
+      return Promise.resolve();
+    });
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      const refreshedComment = await Promise.race([
+        commentsStore.getState().refreshComment(commentCid, mockAccount),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(Error("refresh waited for the shared loop's next poll")), 1000),
+        ),
+      ]);
+
+      expect(refreshedComment).toEqual(
+        expect.objectContaining({ cid: commentCid, replyCount: 3, updatedAt: 250 }),
+      );
+      expect(commentsStore.getState().comments[commentCid]?.updatedAt).toBe(250);
+      await tlWaitFor(() => expect(liveComment.stop).toHaveBeenCalledTimes(1));
+      expect(listeners).not.toContain(liveComment);
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
+  test("refreshComment settles at once on a comment that auto-update subscribers keep updating", async () => {
+    const commentCid = "refresh-auto-updating-cid";
+    const liveComment = createUnchangedComment(commentCid, { updatedAt: 200 });
+    const startUpdateCycle = liveComment.update;
+    liveComment.update = vi.fn().mockImplementation(() => {
+      // pkc-js returns from update() without starting a cycle while the comment is updating
+      if (liveComment.state === "updating") {
+        return Promise.resolve();
+      }
+      liveComment.state = "updating";
+      return startUpdateCycle();
+    });
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      await act(async () => {
+        await commentsStore
+          .getState()
+          .startCommentAutoUpdate(commentCid, "subscriber-1", mockAccount);
+      });
+      await tlWaitFor(() => expect(liveComment.updatingState).toBe("waiting-retry"));
+
+      const refreshedComment = await Promise.race([
+        commentsStore.getState().refreshComment(commentCid, mockAccount),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(Error("refresh waited for the loop's next poll")), 1000),
+        ),
+      ]);
+
+      expect(refreshedComment).toEqual(
+        expect.objectContaining({ cid: commentCid, updatedAt: 200 }),
+      );
+      expect(liveComment.update).toHaveBeenCalledTimes(2);
+      expect(liveComment.stop).not.toHaveBeenCalled();
+      await commentsStore.getState().stopCommentAutoUpdate(commentCid, "subscriber-1");
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
   test("refreshComment keeps waiting through waiting-retry until the first CommentUpdate loads", async () => {
     const commentCid = "refresh-first-update-cid";
     const liveComment = createUnchangedComment(commentCid);

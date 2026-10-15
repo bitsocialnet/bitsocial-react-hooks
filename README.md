@@ -332,7 +332,10 @@ const post = useComment({ commentCid, onlyIfCached: true });
 
 // disable background polling and refresh on demand
 const post = useComment({ commentCid, autoUpdate: false });
-// resolves after one update cycle, also when no newer CommentUpdate exists
+// the initial load includes the first community update (including moderation)
+// before freezing; a recent creation timestamp alone does not settle the snapshot
+// resolves after one update cycle, also when no newer CommentUpdate exists, and right
+// away when another instance (e.g. your own reply) already keeps the comment updating
 await post.refresh();
 // newly published comments still absorb canonical number, postNumber, and
 // author shortAddress metadata as it arrives; later live updates stay frozen

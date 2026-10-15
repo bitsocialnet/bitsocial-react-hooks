@@ -14,7 +14,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.1.48",
+  "version": "0.1.50",
   "packageManager": "yarn@4.13.0",
   "files": [
     "CHANGELOG.md",
@@ -63,7 +63,7 @@
   },
   "dependencies": {
     "@bitsocial/bso-resolver": "0.0.10",
-    "@pkcprotocol/pkc-js": "0.0.104",
+    "@pkcprotocol/pkc-js": "0.0.105",
     "@pkcprotocol/pkc-logger": "0.1.0",
     "assert": "2.1.0",
     "ethers": "5.8.0",
@@ -163,7 +163,7 @@
   },
   "husky": {
     "hooks": {
-      "prepare-commit-msg": "exec < /dev/tty && cz --hook || true",
+      "prepare-commit-msg": "(exec < /dev/tty) 2>/dev/null && exec < /dev/tty && cz --hook || true",
       "pre-commit": "lint-staged"
     }
   },
