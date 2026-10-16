@@ -7,6 +7,7 @@ import {
   getPreloadedReplySortType,
   getReplyPageSortType,
   getSortTimeframeSeconds,
+  isBuiltInPostSortType,
   resolvePostSortType,
   resolveReplySortType,
 } from "./page-sorts";
@@ -48,6 +49,25 @@ describe("page sort helpers", () => {
     expect(getPostPageSortType(community as any, "newest")).toBe("newest");
     expect(getPostPageSortType(community as any)).toBe("sage");
     expect(getReplyPageSortType(comment as any, "nestedNewest")).toBe("nestedNewest");
+  });
+
+  test("tells built-in post sorts from files published under a built-in name", () => {
+    const pageSorts = {
+      posts: {
+        hot: { name: "hot" },
+        active: {
+          name: "@pkcprotocol/active-page-sort",
+          publicOptions: { noBumpKeywords: "sage" },
+        },
+        top: {},
+      },
+    };
+    expect(isBuiltInPostSortType(community as any, "active")).toBe(true);
+    expect(isBuiltInPostSortType({ pageSorts } as any, "hot")).toBe(true);
+    expect(isBuiltInPostSortType({ pageSorts } as any, "new")).toBe(true);
+    expect(isBuiltInPostSortType({ pageSorts } as any, "active")).toBe(false);
+    // a file loaded by path publishes no name
+    expect(isBuiltInPostSortType({ pageSorts } as any, "top")).toBe(false);
   });
 
   test("falls back to the first pageCid only when no preloaded page exists", () => {

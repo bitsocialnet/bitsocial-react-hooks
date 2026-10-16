@@ -28,6 +28,7 @@ import Logger from "@pkcprotocol/pkc-logger";
 import {
   getPostPageSortType,
   getSortTimeframeSeconds,
+  isBuiltInPostSortType,
   resolvePostSortType,
 } from "../../lib/page-sorts";
 const log = Logger("bitsocial-react-hooks:feeds:stores");
@@ -241,7 +242,19 @@ export const getFilteredSortedFeeds = (
     const originalSortType =
       feedsOptions[feedName].sortType ||
       (uniqueResolvedDefaultSortTypes.size === 1 ? resolvedDefaultSortTypes[0] : undefined);
-    const sortedBufferedFeedPosts = feedSorter.sort(originalSortType, bufferedFeedPosts);
+    // one community's pages of a sort already arrive in its order; re-sorting them with the built-in
+    // sorter of the same name would undo a sort the client cannot reproduce. A sort served from
+    // another sort's complete page still needs the client sort, and feeds merging several
+    // communities need a common order, so both keep using the built-in sorter.
+    const singleCommunity = communityKeys.length === 1 ? communities[communityKeys[0]] : undefined;
+    const keepCommunityOrder =
+      !!singleCommunity &&
+      originalSortType !== undefined &&
+      getPostPageSortType(singleCommunity, originalSortType) === originalSortType &&
+      !isBuiltInPostSortType(singleCommunity, originalSortType);
+    const sortedBufferedFeedPosts = keepCommunityOrder
+      ? bufferedFeedPosts
+      : feedSorter.sort(originalSortType, bufferedFeedPosts);
 
     // filter the feed
     const filteredSortedBufferedFeedPosts = [];

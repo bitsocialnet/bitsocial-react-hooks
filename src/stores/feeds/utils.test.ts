@@ -744,6 +744,94 @@ describe("feeds utils", () => {
 
       expect(feeds.feed1.map((post: any) => post.cid)).toEqual(["first", "second"]);
     });
+
+    describe("a package published under a built-in sort name", () => {
+      // "saged" has the newest reply, but the community's no-bump sort ranks it below "bumped"
+      const makeCommunity = (activePageSort: object) => ({
+        address: "sub1",
+        updatedAt: 1,
+        pageSorts: { posts: { active: activePageSort } },
+        posts: {
+          pages: {
+            active: {
+              comments: [
+                {
+                  cid: "bumped",
+                  communityAddress: "sub1",
+                  timestamp: 10,
+                  lastReplyTimestamp: 50,
+                },
+                { cid: "saged", communityAddress: "sub1", timestamp: 20, lastReplyTimestamp: 90 },
+              ],
+            },
+          },
+        },
+      });
+      const getFeedCids = (communities: any, communityAddresses = ["sub1"]) =>
+        getFilteredSortedFeeds(
+          {
+            feed1: {
+              communities: toCommunities(communityAddresses),
+              accountId: mockAccountId,
+              sortType: "active",
+            },
+          },
+          communities,
+          {},
+          makeMockAccounts(),
+        ).feed1.map((post: any) => post.cid);
+
+      test("keeps the community's page order for a single community", () => {
+        const communities = {
+          sub1: makeCommunity({ name: "@pkcprotocol/active-page-sort" }),
+        };
+        expect(getFeedCids(communities)).toEqual(["bumped", "saged"]);
+        // a file loaded by path publishes no name
+        expect(getFeedCids({ sub1: makeCommunity({}) })).toEqual(["bumped", "saged"]);
+      });
+
+      test("re-sorts a sort the community names as the built-in", () => {
+        expect(getFeedCids({ sub1: makeCommunity({ name: "active" }) })).toEqual([
+          "saged",
+          "bumped",
+        ]);
+        expect(
+          getFeedCids({
+            sub1: makeCommunity({ name: "active", publicOptions: { pinnedFirst: "true" } }),
+          }),
+        ).toEqual(["saged", "bumped"]);
+      });
+
+      test("keeps the order of a file registered under the built-in name", () => {
+        const activePageSort = { name: "active", publicOptions: { noBumpKeywords: "sage" } };
+        expect(getFeedCids({ sub1: makeCommunity(activePageSort) })).toEqual(["bumped", "saged"]);
+      });
+
+      test("re-sorts the complete page of another sort that serves the request", () => {
+        // a single-page community only embeds its preloaded `hot` page, in hot order
+        const community = makeCommunity({ name: "@pkcprotocol/active-page-sort" });
+        community.posts = { pages: { hot: community.posts.pages.active } } as any;
+        expect(getFeedCids({ sub1: community })).toEqual(["saged", "bumped"]);
+      });
+
+      test("merges several communities with the built-in sorter", () => {
+        const communities = {
+          sub1: makeCommunity({ name: "@pkcprotocol/active-page-sort" }),
+          sub2: {
+            address: "sub2",
+            updatedAt: 1,
+            posts: {
+              pages: {
+                active: {
+                  comments: [{ cid: "other", communityAddress: "sub2", timestamp: 70 }],
+                },
+              },
+            },
+          },
+        };
+        expect(getFeedCids(communities, ["sub1", "sub2"])).toEqual(["saged", "other", "bumped"]);
+      });
+    });
   });
 
   describe("addAccountsComments replacement branches", () => {
