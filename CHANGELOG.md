@@ -1,3 +1,12 @@
+## [0.1.51](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.50...v0.1.51) (2026-10-16)
+
+
+### Bug Fixes
+
+* **feeds:** keep a community's order for a sort file under a built-in name (release 0.1.51) ([a06f8e5](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/a06f8e59a9024b409948be3f4f4da0a5e7506787))
+
+
+
 ## [0.1.50](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.49...v0.1.50) (2026-10-14)
 
 

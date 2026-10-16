@@ -138,6 +138,28 @@ export const getPreloadedPostSortType = (community) => getPreloadedPageSortType(
 export const getPreloadedReplySortType = (comment) => getPreloadedPageSortType(comment === null || comment === void 0 ? void 0 : comment.replies);
 export const resolvePostSortType = (community, requestedSortType) => resolvePageSortType(community === null || community === void 0 ? void 0 : community.posts, requestedSortType, CLIENT_SORTABLE_POST_SORT_TYPES);
 export const resolveReplySortType = (comment, requestedSortType) => resolvePageSortType(comment === null || comment === void 0 ? void 0 : comment.replies, requestedSortType, getClientSortableReplySortTypes(comment));
+// the options pkc-js applies to every sort; any other published option belongs to the sort file itself
+const RESERVED_PAGE_SORT_OPTIONS = new Set([
+    "maxAge",
+    "pinnedFirst",
+    "excludeRemovedComments",
+    "excludeDeletedComments",
+    "excludeCommentPendingApproval",
+    "excludeCommentWithApprovedFalse",
+    "excludeCommentsWithDifferentCommunityAddress",
+]);
+// a community configured with `settings.pages` publishes `community.pageSorts`, naming the file behind
+// each key; a package or path file published under a built-in key (e.g. a keyword no-bump `active`)
+// orders its pages by a score the client sorters do not reproduce. A node may also register such a
+// file under the built-in name itself, which its own options (e.g. `noBumpKeywords`) still reveal.
+// Unconfigured communities publish no `pageSorts`, so their keys are the built-ins.
+export const isBuiltInPostSortType = (community, sortType) => {
+    var _a, _b;
+    const publishedPageSort = sortType ? (_b = (_a = community === null || community === void 0 ? void 0 : community.pageSorts) === null || _a === void 0 ? void 0 : _a.posts) === null || _b === void 0 ? void 0 : _b[sortType] : undefined;
+    return (!publishedPageSort ||
+        (publishedPageSort.name === sortType &&
+            Object.keys(publishedPageSort.publicOptions || {}).every((option) => RESERVED_PAGE_SORT_OPTIONS.has(option))));
+};
 // the `community.posts` page sort that serves a request, e.g. the preloaded `hot` page when a
 // single-page community serves `active` client-side; undefined when the sort cannot be served
 export const getPostPageSortType = (community, requestedSortType) => getPageSortTypeToRead(community === null || community === void 0 ? void 0 : community.posts, resolvePostSortType(community, requestedSortType));
