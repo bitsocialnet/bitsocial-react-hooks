@@ -128,6 +128,10 @@ const getClientsSnapshotForState = (clients) => {
     return Object.keys(snapshot).length > 0 ? snapshot : undefined;
 };
 const unsafeCommentUpdatePropertyNames = new Set(["__proto__", "constructor", "prototype"]);
+// commentUpdate.signature is the community's signature over the update, not the comment's own
+// signature, which pkc-js keeps on the publication (and which a pseudonymous community re-signs).
+const commentOwnedCommentUpdatePropertyNames = new Set(["signature"]);
+const isPlainObject = (value) => !!value && typeof value === "object" && !Array.isArray(value);
 const applyChallengeVerificationCommentUpdateToPublication = (challengeVerification, publication) => {
     const commentUpdate = challengeVerification === null || challengeVerification === void 0 ? void 0 : challengeVerification.commentUpdate;
     if (!commentUpdate ||
@@ -138,9 +142,20 @@ const applyChallengeVerificationCommentUpdateToPublication = (challengeVerificat
         return;
     }
     for (const key of Object.keys(commentUpdate)) {
-        if (!unsafeCommentUpdatePropertyNames.has(key)) {
-            publication[key] = commentUpdate[key];
+        if (unsafeCommentUpdatePropertyNames.has(key) ||
+            commentOwnedCommentUpdatePropertyNames.has(key)) {
+            continue;
         }
+        // commentUpdate.author only carries community-side fields such as author.community, so merge
+        // it like pkc-js does. Replacing it drops the published author address, which in a pseudonymous
+        // community is the community-assigned alias, not the account address.
+        if (key === "author" &&
+            isPlainObject(publication.author) &&
+            isPlainObject(commentUpdate.author)) {
+            publication.author = Object.assign(Object.assign({}, publication.author), commentUpdate.author);
+            continue;
+        }
+        publication[key] = commentUpdate[key];
     }
 };
 const syncCommentClientsSnapshot = (publishSessionId, accountId, publication) => {

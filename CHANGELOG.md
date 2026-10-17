@@ -1,3 +1,12 @@
+## [0.1.52](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.51...v0.1.52) (2026-10-17)
+
+
+### Bug Fixes
+
+* **accounts:** keep the published author on pseudonymous account comments (release 0.1.52) ([792b83c](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/792b83c9451d39b92b63effe59e46861809b0053))
+
+
+
 ## [0.1.51](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.50...v0.1.51) (2026-10-16)
 
 

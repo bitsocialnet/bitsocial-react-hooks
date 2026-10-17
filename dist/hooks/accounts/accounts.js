@@ -301,7 +301,9 @@ const getAccountCommentWithAccountAuthor = (accountComment, account, accountId) 
     if (!accountId ||
         accountComment.accountId !== accountId ||
         !(accountAuthor === null || accountAuthor === void 0 ? void 0 : accountAuthor.address) ||
-        ((_a = accountComment.author) === null || _a === void 0 ? void 0 : _a.address)) {
+        ((_a = accountComment.author) === null || _a === void 0 ? void 0 : _a.address) ||
+        // a pseudonymous community published the comment under an alias, never the account identity
+        accountComment.pseudonymityMode) {
         return accountComment;
     }
     const accountShortAddress = accountAuthor.shortAddress || PkcJs.PKC.getShortAddress({ address: accountAuthor.address });
