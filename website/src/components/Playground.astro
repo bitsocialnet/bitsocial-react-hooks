@@ -14,7 +14,7 @@ function YourFeed({ communityName }) {
   return (
     <div className="preview-feed">
       <header className="preview-feed-header">
-        <span className="preview-community-icon" aria-hidden="true">b/</span>
+        <img className="preview-community-icon" src="/playground/builders-icon.webp" alt="" />
         <div><strong>Community feed</strong><small>{communityName}</small></div>
       </header>
       {feed.map(post => (
@@ -53,7 +53,7 @@ function YourCommunity({ communityName }) {
     <article className="preview-community">
       {community.suggested?.bannerUrl && <img className="preview-cover" src={community.suggested.bannerUrl} alt="A sunlit makers' workshop" />}
       <div className="preview-community-body">
-        <span className="preview-community-icon" aria-hidden="true">b/</span>
+        <img className="preview-community-icon" src="/playground/builders-icon.webp" alt="" />
         <small>{community.name || community.address}</small>
         <h1>{community.title}</h1>
         <p>{community.description}</p>

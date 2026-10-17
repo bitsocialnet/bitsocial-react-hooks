@@ -2,6 +2,13 @@
 
 Generated with the built-in Imagegen tool on 2026-10-17 for this website's simulated playground. The people are fictional. WebP copies are optimized for their display sizes; the portraits are decorative CSS backgrounds beside visible author names, with initials for other sample authors.
 
+## builders-icon.webp
+
+Saved in `website/public/playground/builders-icon.webp`. Generated with the built-in Imagegen tool on 2026-10-17; resized to 160 × 160 with transparency preserved.
+
+Use case: logo-brand. Asset type: small community avatar for a fictional makers and builders forum named builders.bso. Primary request: one friendly, polished 3D emoji-style icon of an orange-handled hammer crossed with a cobalt-blue open-ended wrench. Bold rounded silhouettes, simple recognizable tools, subtle matte clay shading, no tiny details. Composition: square, centered, the crossed tools fill 85 percent of the frame and remain recognizable at 32 pixels. Transparent background; no badge, no tile, no border, no lettering, no text, no logo initials, no watermark, no extra objects. Warm orange and cobalt blue tool handles with softly shaded silver metal tool heads.
+
+
 ## workshop.webp
 
 Saved in `website/public/playground/workshop.webp`.

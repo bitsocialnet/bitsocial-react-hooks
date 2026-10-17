@@ -502,19 +502,15 @@ kbd {
   padding: 9px 3px 14px;
 }
 .preview-community-icon {
-  display: grid;
-  place-items: center;
+  display: block;
+  object-fit: contain;
+  padding: 4px;
   width: 34px;
   height: 34px;
   flex-shrink: 0;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--blue-fill);
-  color: var(--blue);
-  font:
-    600 19px Exo,
-    Arial,
-    sans-serif;
 }
 .preview-post,
 .preview-community,
@@ -596,7 +592,6 @@ kbd {
   margin: -23px 0 10px;
   border: 3px solid var(--bg);
   border-radius: 12px;
-  font-size: 24px;
 }
 .preview-community-body > small {
   margin-bottom: 5px;
