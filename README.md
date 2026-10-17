@@ -1,8 +1,18 @@
+<img src="website/public/logo.png" alt="Bitsocial logo" width="64" height="64" />
+
 # Bitsocial React Hooks
 
-Build social apps with React: communities, feeds, replies, profiles, accounts, and publishing on the [Bitsocial protocol](https://bitsocial.net).
+<p><strong>Build your corner of the internet.</strong></p>
 
-[`@bitsocial/bitsocial-react-hooks`](https://www.npmjs.com/package/@bitsocial/bitsocial-react-hooks) connects your UI to shared protocol state through hooks and Zustand stores. Used by [5chan](https://github.com/bitsocialnet/5chan). Supports React 16.8 and later.
+React hooks for communities, feeds, conversations, profiles, accounts, and publishing on the [Bitsocial protocol](https://bitsocial.net). Bring your own interface; the hooks connect it to shared protocol state through Zustand stores.
+
+[**Documentation**](https://hooks.bitsocial.net/) · [**Try the playground**](https://hooks.bitsocial.net/#playground) · [API & recipes](docs/reference.md) · [npm](https://www.npmjs.com/package/@bitsocial/bitsocial-react-hooks)
+
+[![The Bitsocial React Hooks playground: editable React code beside a social feed with author portraits, post images, and reply counts.](docs/assets/readme/playground.jpg)](https://hooks.bitsocial.net/#playground)
+
+*Edit a component and see the result. The playground uses simulated content and publishes nothing.*
+
+Supports **React 16.8+**. Used by [5chan](https://github.com/bitsocialnet/5chan).
 
 ## Start building
 
@@ -41,18 +51,22 @@ The package initializes a local account automatically. You can also identify a c
 
 ## Explore the docs
 
+Read the guides at [hooks.bitsocial.net](https://hooks.bitsocial.net/), or browse their source here:
+
 - [Quickstart](website/content/quickstart.md) — build your first feed.
 - [Core concepts](website/content/concepts.md) — communities, accounts, state, and publishing.
 - [Full API and recipes](docs/reference.md) — the complete hook reference and practical examples.
 - [Mock content](docs/mock-content.md) — develop a UI with sample data.
 - [AI context](website/content/ai.md), [llms.txt](llms.txt), and [llms-full.txt](llms-full.txt) — documentation for your coding assistant.
 
-The interactive documentation site lives in [`website/`](website/README.md). Preview it locally:
+### Run the website locally
+
+The site lives in [`website/`](website/README.md). To open the playground and docs in your browser:
 
 ```bash
 cd website
-corepack yarn install
-corepack yarn dev
+corepack yarn install --immutable
+corepack yarn start
 ```
 
 ## Contribute

@@ -1,6 +1,6 @@
 # Bitsocial React Hooks website
 
-The public developer site for `@bitsocial/bitsocial-react-hooks`. Astro generates the documentation and highlighted examples as static HTML; React/TypeScript islands handle the playground, search, theme switch, install copy control, and Bitsocial polygon mesh. No hooks runtime or protocol connections are loaded by the preview: example data is explicitly simulated.
+The public developer site at [hooks.bitsocial.net](https://hooks.bitsocial.net/) for `@bitsocial/bitsocial-react-hooks`. Astro generates the documentation and highlighted examples as static HTML; React/TypeScript islands handle the playground, search, theme switch, install copy control, and Bitsocial polygon mesh. No hooks runtime or protocol connections are loaded by the preview: example data is explicitly simulated.
 
 ## Local development
 
@@ -46,7 +46,7 @@ After changing public docs, also run `corepack yarn llms:generate` from the repo
 
 ## Vercel CLI deployment (after local review)
 
-No Vercel project or domain is provisioned by local development. `hooks.bitsocial.net` is a proposed domain, not a configured one.
+The public site is [hooks.bitsocial.net](https://hooks.bitsocial.net/). Local development does not provision or change a Vercel project or domain.
 
 Deploy from the **repository root**, keeping the sibling package manifest and Markdown in the upload. Create/select a dedicated Vercel project and set its Root Directory to `website`, with “Include source files outside of the Root Directory in the Build Step” enabled. Do not run `vercel deploy website` in isolation: the build intentionally reads the repository docs and version.
 
