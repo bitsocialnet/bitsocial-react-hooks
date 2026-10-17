@@ -10,6 +10,7 @@ export async function GET() {
     "",
     `- [Source repository](${repoUrl})`,
     "- [Complete documentation](/llms-full.txt)",
+    "- [Bitsocial protocol documentation](https://docs.bitsocial.net/llms.txt)",
     ...groups.flatMap((group) => [
       "",
       `## ${group}`,

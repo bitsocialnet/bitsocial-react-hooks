@@ -1,6 +1,8 @@
 ---
 import '../styles/global.css';
 import Icon from '../components/Icon.astro';
+import Search from '../components/Search';
+import ThemeToggle from '../components/ThemeToggle';
 import { packageVersion, repoUrl } from '../lib/docs';
 interface Props { title?: string; description?: string; docs?: boolean; }
 const { title = 'Build your corner of the internet', description = 'React hooks for a social network anyone can build on. Start with a feed, create your own interface, and connect to Bitsocial.', docs = false } = Astro.props;
@@ -36,23 +38,24 @@ const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site) : undefin
         <a href="/docs/ai/" class="desktop-link">For AI</a>
       </nav>
       <div class="header-tools">
-        <button class="search-trigger" data-search-open aria-label="Search documentation"><Icon name="search" size={16} /><span>Search docs</span><kbd>⌘ K</kbd></button>
+        <Search client:load />
         <a class="icon-button github-link" href={repoUrl} aria-label="View source on GitHub"><Icon name="github" size={19} /></a>
-        <button class="icon-button" id="theme-toggle" aria-label="Switch to light theme"><Icon name="theme" size={20} /></button>
+        <ThemeToggle client:load />
       </div>
     </header>
     <slot />
     <footer class="site-footer">
       <a class="brand" href="https://bitsocial.net"><img src="/logo.png" width="28" height="28" alt="" /><span>Part of Bitsocial</span></a>
       <p>Build the social web you want to use.</p>
-      <div><a href={repoUrl}>GitHub</a><a href="/llms.txt">llms.txt</a><a href={`${repoUrl}/blob/master/LICENSE`}>GPL-3.0-or-later</a><span>v{packageVersion}</span></div>
+      <div><a href={repoUrl}>GitHub</a><a href="/llms.txt">llms.txt</a><a href="https://docs.bitsocial.net">Protocol docs</a><a href={`${repoUrl}/tree/master/website#assets-and-license`}>Licenses</a><span data-package-version>v{packageVersion}</span></div>
     </footer>
-    <dialog id="search-dialog" aria-labelledby="search-title">
-      <div class="search-top"><Icon name="search" /><label id="search-title" class="sr-only" for="docs-search">Search documentation</label><input id="docs-search" type="search" placeholder="Search hooks, guides, and recipes…" autocomplete="off" /><button class="icon-button" data-search-close aria-label="Close search"><Icon name="close" /></button></div>
-      <p id="search-status" class="search-status" role="status">Type to find a hook or a guide.</p>
-      <div id="search-results"></div>
-      <div class="search-hint"><span><kbd>Tab</kbd> to browse results</span><span><kbd>Esc</kbd> to close</span></div>
-    </dialog>
     <script src="../lib/site.ts"></script>
+    <script>
+      if (import.meta.env.DEV) {
+        void import('../lib/dev-tools').catch((error: unknown) => {
+          console.warn('Development tools could not load:', error);
+        });
+      }
+    </script>
   </body>
 </html>

@@ -107,6 +107,26 @@ test("website stays outside the public module surface", async () => {
   assert.ok(!JSON.stringify(pkg.exports).includes("website"));
 });
 
+test("production excludes Agentation and keeps mesh code off documentation pages", async () => {
+  const outputFiles = await files(dist);
+  const scripts = outputFiles.filter((file) => file.endsWith(".js"));
+  assert.ok(scripts.some((file) => path.basename(file).startsWith("MeshGraphic.")));
+  for (const script of scripts) {
+    const source = await readFile(script, "utf8");
+    assert.doesNotMatch(source, /agentation-dev-tools|Agentation could not load|agentation-mcp/);
+  }
+  const home = await readFile(path.join(dist, "index.html"), "utf8");
+  assert.match(home, /component-url="[^"]*Playground\./);
+  assert.match(home, /component-url="[^"]*MeshGraphic\./);
+  assert.match(home, /class="live-editor"[\s\S]*postsPerPage/, "Editable example source is server rendered");
+  for (const file of outputFiles.filter(
+    (file) => file.includes(`${path.sep}docs${path.sep}`) && file.endsWith(".html"),
+  )) {
+    const html = await readFile(file, "utf8");
+    assert.doesNotMatch(html, /MeshGraphic\.|hero-mesh|agentation-dev-tools/);
+  }
+});
+
 test("maintained onboarding links work on GitHub before a domain exists", async () => {
   const root = fileURLToPath(new URL("../../", import.meta.url));
   const sources = [

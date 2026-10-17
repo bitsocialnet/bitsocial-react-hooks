@@ -1791,7 +1791,7 @@ group: Start building
 order: 2
 ---
 
-Your app owns the interface. The hooks connect it to shared protocol state: communities, posts, replies, authors, accounts, and the actions people take.
+Your app owns the interface. The hooks connect it to shared protocol state: communities, posts, replies, authors, accounts, and the actions people take. The [Bitsocial protocol docs](https://docs.bitsocial.net/peer-to-peer-protocol/) explain how that state moves between peers without a server.
 
 ## Hooks read shared stores
 
@@ -1829,7 +1829,7 @@ return (
 
 Hooks use the active account by default. Where an options argument accepts `accountName`, pass `{ accountName }` to select another one. An account also carries local preferences and history, such as subscriptions, saved comments, and pending publications.
 
-An account is stored in the browser, not recovered through an email login. Include export, import, and clear explanations of local storage in an app intended for everyday use.
+An account is stored in the browser, not recovered through an email login. Include export, import, and clear explanations of local storage in an app intended for everyday use. [Identity and ownership](https://docs.bitsocial.net/identity-and-ownership/) covers the key-based identity model behind it.
 
 ## Communities have identifiers
 
@@ -1879,7 +1879,7 @@ That awaited call starts the publication flow. It does **not** confirm that the 
 
 Use `useAccountComment({ commentIndex: index })` to display the pending comment. Check `index !== undefined`, because zero is a valid index. If the person cancels the flow, call `abandonPublish()` to cancel the pending attempt and remove its local pending comment.
 
-Some failed challenge answers trigger another challenge attempt. Terminal community rejections do not. Build feedback and cancellation into the form rather than assuming every failure should be retried by your app.
+Each community chooses its own anti-spam challenges, described in [custom challenges](https://docs.bitsocial.net/custom-challenges/). Some failed challenge answers trigger another challenge attempt. Terminal community rejections do not. Build feedback and cancellation into the form rather than assuming every failure should be retried by your app.
 
 For replies, `accountComments: { newerThan: Infinity }` can keep local pending replies visible while canonical replies propagate. Pending comments may not have a CID yet; use their local index as a fallback key.
 
@@ -1889,6 +1889,7 @@ For replies, `accountComments: { newerThan: Infinity }` can keep local pending r
 - [Comment hooks](../../docs/reference.md#comments-hooks) cover individual content and its updates.
 - [Action hooks](../../docs/reference.md#actions-hooks) cover publishing, votes, subscriptions, and moderation.
 - [The publishing recipe](../../docs/reference.md#create-a-post-or-comment-using-hooks) shows the challenge flow in more detail.
+- [Local moderation](https://docs.bitsocial.net/local-moderation/) explains how communities moderate without a global admin.
 ```
 
 ---
