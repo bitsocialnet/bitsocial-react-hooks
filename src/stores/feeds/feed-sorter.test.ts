@@ -1439,4 +1439,42 @@ describe("feedSorter", () => {
       },
     ]);
   });
+
+  describe("merge", () => {
+    // "saged" has the newest reply, but its community's no-bump sort ranks it below "bumped"
+    const bumped = { cid: "bumped", timestamp: 10, lastReplyTimestamp: 50 };
+    const saged = { cid: "saged", timestamp: 20, lastReplyTimestamp: 90 };
+    const older = { cid: "older", timestamp: 30 };
+    const newer = { cid: "newer", timestamp: 70 };
+    const cids = (posts: any[]) => posts.map((post) => post.cid);
+
+    test("never reorders a feed that keeps its order and sorts the others", () => {
+      const merged = feedSorter.merge("active", [
+        { posts: [bumped, saged], keepOrder: true },
+        { posts: [older, newer], keepOrder: false },
+      ]);
+      expect(cids(merged)).toEqual(["newer", "bumped", "saged", "older"]);
+    });
+
+    test("returns the only non-empty feed as is when it keeps its order", () => {
+      const posts = [bumped, saged];
+      expect(
+        feedSorter.merge("active", [
+          { posts: [], keepOrder: false },
+          { posts, keepOrder: true },
+        ]),
+      ).toBe(posts);
+    });
+
+    test("merges feeds that all use the built-in sort as one sort", () => {
+      expect(
+        cids(
+          feedSorter.merge("active", [
+            { posts: [bumped, saged], keepOrder: false },
+            { posts: [older, newer], keepOrder: false },
+          ]),
+        ),
+      ).toEqual(["saged", "newer", "bumped", "older"]);
+    });
+  });
 });

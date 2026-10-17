@@ -814,22 +814,39 @@ describe("feeds utils", () => {
         expect(getFeedCids({ sub1: community })).toEqual(["saged", "bumped"]);
       });
 
-      test("merges several communities with the built-in sorter", () => {
+      test("keeps each community's order when merging several communities", () => {
         const communities = {
           sub1: makeCommunity({ name: "@pkcprotocol/active-page-sort" }),
+          // a community on the built-in sort, its page listed out of order to show it gets sorted
           sub2: {
             address: "sub2",
             updatedAt: 1,
             posts: {
               pages: {
                 active: {
-                  comments: [{ cid: "other", communityAddress: "sub2", timestamp: 70 }],
+                  comments: [
+                    { cid: "older", communityAddress: "sub2", timestamp: 30 },
+                    { cid: "newer", communityAddress: "sub2", timestamp: 70 },
+                  ],
                 },
               },
             },
           },
         };
-        expect(getFeedCids(communities, ["sub1", "sub2"])).toEqual(["saged", "other", "bumped"]);
+        expect(getFeedCids(communities, ["sub1", "sub2"])).toEqual([
+          "newer",
+          "bumped",
+          "saged",
+          "older",
+        ]);
+        // a community named as the built-in is merged with the built-in sorter
+        communities.sub1 = makeCommunity({ name: "active" });
+        expect(getFeedCids(communities, ["sub1", "sub2"])).toEqual([
+          "saged",
+          "newer",
+          "bumped",
+          "older",
+        ]);
       });
     });
   });

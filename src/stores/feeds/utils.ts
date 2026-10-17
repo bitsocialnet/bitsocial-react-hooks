@@ -159,8 +159,8 @@ export const getFilteredSortedFeeds = (
       pageType = "modQueue";
     }
 
-    // find all fetched posts
-    const bufferedFeedPosts = [];
+    // find all fetched posts, each community's in the order its pages list them
+    const communityFeedPosts: { community: Community; posts: any[] }[] = [];
 
     // add each comment from each page, do not filter at this stage, filter after sorting
     for (const [communityIndex, communityKey] of communityKeys.entries()) {
@@ -176,6 +176,7 @@ export const getFilteredSortedFeeds = (
         continue;
       }
 
+      const communityPosts = [];
       // use community preloaded posts if any
       const preloadedPosts = getPreloadedPosts(community, sortType);
       if (preloadedPosts) {
@@ -200,7 +201,7 @@ export const getFilteredSortedFeeds = (
           ) {
             continue;
           }
-          bufferedFeedPosts.push(nextPost);
+          communityPosts.push(nextPost);
         }
       }
 
@@ -227,11 +228,12 @@ export const getFilteredSortedFeeds = (
             }
             const nextPost = getFeedPost(post, communityRef, community, modQueue, freshestComments);
             if (nextPost) {
-              bufferedFeedPosts.push(nextPost);
+              communityPosts.push(nextPost);
             }
           }
         }
       }
+      communityFeedPosts.push({ community, posts: communityPosts });
     }
 
     // sort the feed before filtering to get more accurate results
@@ -242,19 +244,23 @@ export const getFilteredSortedFeeds = (
     const originalSortType =
       feedsOptions[feedName].sortType ||
       (uniqueResolvedDefaultSortTypes.size === 1 ? resolvedDefaultSortTypes[0] : undefined);
-    // one community's pages of a sort already arrive in its order; re-sorting them with the built-in
-    // sorter of the same name would undo a sort the client cannot reproduce. A sort served from
-    // another sort's complete page still needs the client sort, and feeds merging several
-    // communities need a common order, so both keep using the built-in sorter.
-    const singleCommunity = communityKeys.length === 1 ? communities[communityKeys[0]] : undefined;
-    const keepCommunityOrder =
-      !!singleCommunity &&
-      originalSortType !== undefined &&
-      getPostPageSortType(singleCommunity, originalSortType) === originalSortType &&
-      !isBuiltInPostSortType(singleCommunity, originalSortType);
-    const sortedBufferedFeedPosts = keepCommunityOrder
-      ? bufferedFeedPosts
-      : feedSorter.sort(originalSortType, bufferedFeedPosts);
+    // a community's pages of a sort file already arrive in its order; re-sorting them with the
+    // built-in sorter of the same name would undo a sort the client cannot reproduce. A sort served
+    // from another sort's complete page still needs the client sort. Feeds over several communities
+    // interleave each community's order rather than re-sorting them together.
+    const communityFeeds = communityFeedPosts.map(({ community, posts }) => ({
+      posts,
+      keepOrder:
+        originalSortType !== undefined &&
+        getPostPageSortType(community, originalSortType) === originalSortType &&
+        !isBuiltInPostSortType(community, originalSortType),
+    }));
+    const sortedBufferedFeedPosts = communityFeeds.some(({ keepOrder }) => keepOrder)
+      ? feedSorter.merge(originalSortType, communityFeeds)
+      : feedSorter.sort(
+          originalSortType,
+          communityFeeds.flatMap(({ posts }) => posts),
+        );
 
     // filter the feed
     const filteredSortedBufferedFeedPosts = [];
