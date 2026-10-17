@@ -1,0 +1,8 @@
+node_modules/
+.yarn/
+.astro/
+.generated/
+dist/
+.vercel/
+.env*
+!.env.example

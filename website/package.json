@@ -1,0 +1,38 @@
+{
+  "name": "@bitsocial/hooks-website",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/prepare-docs.mjs && node scripts/start-dev.mjs",
+    "dev": "node scripts/prepare-docs.mjs && astro dev --host 127.0.0.1",
+    "build": "node scripts/prepare-docs.mjs && astro build",
+    "preview": "astro preview --host 127.0.0.1",
+    "check": "node scripts/prepare-docs.mjs && astro check",
+    "test": "node --test scripts/*.test.mjs",
+    "doctor": "react-doctor . -y --no-telemetry",
+    "doctor:score": "react-doctor . -y --score --no-telemetry",
+    "doctor:verbose": "react-doctor . -y --verbose --no-telemetry"
+  },
+  "dependencies": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-live": "5.0.1",
+    "three": "0.182.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@astrojs/react": "7.0.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/three": "0.182.0",
+    "agentation": "3.1.2",
+    "astro": "7.3.8",
+    "portless": "0.11.1",
+    "react-doctor": "0.9.14",
+    "typescript": "6.0.3"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "packageManager": "yarn@4.13.0"
+}

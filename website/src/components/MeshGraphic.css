@@ -1,0 +1,28 @@
+.hero-mesh {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 68%, transparent);
+}
+.hero-mesh canvas,
+.hero-mesh-fallback {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.hero-mesh-fallback {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 0.8;
+  opacity: 0.23;
+}
+.hero-mesh[data-rendered="true"] .hero-mesh-fallback {
+  visibility: hidden;
+}
+.hero-mesh:not([data-rendered="true"]) canvas {
+  visibility: hidden;
+}

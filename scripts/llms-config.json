@@ -12,12 +12,16 @@
     ["Bitsocial protocol", "https://bitsocial.net"]
   ],
   "notes": [
-    "This is a package/library repo, so README.md, src exports, tests, and package manifests are source of truth.",
+    "This is a package/library repo: README.md, docs/reference.md, website/content, src exports, tests, and package manifests are source of truth.",
     "Hooks are thin selectors around Zustand stores; data flow belongs in stores and protocol clients.",
     "Generated llms files are compiled context for AI contributors, not API authority."
   ],
   "docs": [
     "README.md",
+    "docs/reference.md",
+    "website/content/quickstart.md",
+    "website/content/concepts.md",
+    "website/content/ai.md",
     "AGENTS.md",
     "docs/algorithms.md",
     "docs/clients.md",

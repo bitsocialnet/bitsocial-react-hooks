@@ -1,0 +1,61 @@
+---
+import '../styles/global.css';
+import Icon from '../components/Icon.astro';
+import Search from '../components/Search';
+import ThemeToggle from '../components/ThemeToggle';
+import { packageVersion, repoUrl } from '../lib/docs';
+interface Props { title?: string; description?: string; docs?: boolean; }
+const { title = 'Build your corner of the internet', description = 'React hooks for a social network anyone can build on. Start with a feed, create your own interface, and connect to Bitsocial.', docs = false } = Astro.props;
+const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site) : undefined;
+---
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#000000" />
+    <title>{title} · Bitsocial React Hooks</title>
+    {canonical && <link rel="canonical" href={canonical} />}
+    <meta property="og:title" content={`${title} · Bitsocial React Hooks`} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    {canonical && <meta property="og:url" content={canonical} />}
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="preload" href="/fonts/exo-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="AI documentation index" />
+    <script is:inline>
+      try { document.documentElement.dataset.theme = localStorage.getItem('hooks-theme') === 'light' ? 'light' : 'dark'; } catch {}
+    </script>
+  </head>
+  <body class:list={[{ 'docs-page': docs }]}>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Bitsocial React Hooks home"><img src="/logo.png" width="34" height="34" alt="" /><span>Bitsocial <span class="brand-divider">/</span> <strong>React Hooks</strong></span></a>
+      <nav aria-label="Main navigation">
+        <a href="/docs/quickstart/" aria-current={docs ? 'page' : undefined}>Docs</a>
+        <a href="/#playground" class="desktop-link">Playground</a>
+        <a href="/docs/ai/" class="desktop-link">For AI</a>
+      </nav>
+      <div class="header-tools">
+        <Search client:load />
+        <a class="icon-button github-link" href={repoUrl} aria-label="View source on GitHub"><Icon name="github" size={19} /></a>
+        <ThemeToggle client:load />
+      </div>
+    </header>
+    <slot />
+    <footer class="site-footer">
+      <a class="brand" href="https://bitsocial.net"><img src="/logo.png" width="28" height="28" alt="" /><span>Part of Bitsocial</span></a>
+      <p>Build the social web you want to use.</p>
+      <div><a href={repoUrl}>GitHub</a><a href="/llms.txt">llms.txt</a><a href="https://docs.bitsocial.net">Protocol docs</a><a href={`${repoUrl}/tree/master/website#assets-and-license`}>Licenses</a><span data-package-version>v{packageVersion}</span></div>
+    </footer>
+    <script src="../lib/site.ts"></script>
+    <script>
+      if (import.meta.env.DEV) {
+        void import('../lib/dev-tools').catch((error: unknown) => {
+          console.warn('Development tools could not load:', error);
+        });
+      }
+    </script>
+  </body>
+</html>

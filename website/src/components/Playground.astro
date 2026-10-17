@@ -1,0 +1,9 @@
+---
+import Playground from './Playground.tsx';
+const sources = {
+  feed: `import { useFeed } from "@bitsocial/bitsocial-react-hooks";\n\nfunction YourFeed({ communityName }) {\n  const { feed, hasMore, loadMore } = useFeed({\n    communities: [{ name: communityName }],\n    sortType: "hot",\n    postsPerPage: 3,\n  });\n\n  return (\n    <>\n      {feed.map(post => (\n        <article key={post.cid}>\n          <h2>{post.title}</h2>\n          <p>{post.content}</p>\n          <small>{post.author.shortAddress} · {post.upvoteCount} points</small>\n        </article>\n      ))}\n      {hasMore && (\n        <button onClick={() => void loadMore()}>\n          Load more\n        </button>\n      )}\n    </>\n  );\n}`,
+  community: `import { useCommunity } from "@bitsocial/bitsocial-react-hooks";\n\nfunction YourCommunity({ communityName }) {\n  const community = useCommunity({\n    community: { name: communityName },\n  });\n\n  return (\n    <header>\n      <h1>{community.title}</h1>\n      <p>{community.description}</p>\n      {community.error && (\n        <p role="alert">{community.error.message}</p>\n      )}\n    </header>\n  );\n}`,
+  thread: `import { useComment, useReplies }\n  from "@bitsocial/bitsocial-react-hooks";\n\nfunction YourThread({ commentCid }) {\n  const comment = useComment({ commentCid });\n  const { replies } = useReplies({ comment });\n\n  return (\n    <article>\n      <h1>{comment.title}</h1>\n      <p>{comment.content}</p>\n      {replies.map(reply => (\n        <section key={reply.cid}>\n          <small>{reply.author.shortAddress}</small>\n          <p>{reply.content}</p>\n        </section>\n      ))}\n    </article>\n  );\n}`,
+};
+---
+<Playground client:visible sources={sources} />
