@@ -1,9 +1,121 @@
 ---
 import Playground from './Playground.tsx';
+// The preview's CSS supplies sample portraits and styling; these remain ordinary React components.
 const sources = {
-  feed: `import { useFeed } from "@bitsocial/bitsocial-react-hooks";\n\nfunction YourFeed({ communityName }) {\n  const { feed, hasMore, loadMore } = useFeed({\n    communities: [{ name: communityName }],\n    sortType: "hot",\n    postsPerPage: 3,\n  });\n\n  return (\n    <>\n      {feed.map(post => (\n        <article key={post.cid}>\n          <h2>{post.title}</h2>\n          <p>{post.content}</p>\n          <small>{post.author.shortAddress} · {post.upvoteCount} points</small>\n        </article>\n      ))}\n      {hasMore && (\n        <button onClick={() => void loadMore()}>\n          Load more\n        </button>\n      )}\n    </>\n  );\n}`,
-  community: `import { useCommunity } from "@bitsocial/bitsocial-react-hooks";\n\nfunction YourCommunity({ communityName }) {\n  const community = useCommunity({\n    community: { name: communityName },\n  });\n\n  return (\n    <header>\n      <h1>{community.title}</h1>\n      <p>{community.description}</p>\n      {community.error && (\n        <p role="alert">{community.error.message}</p>\n      )}\n    </header>\n  );\n}`,
-  thread: `import { useComment, useReplies }\n  from "@bitsocial/bitsocial-react-hooks";\n\nfunction YourThread({ commentCid }) {\n  const comment = useComment({ commentCid });\n  const { replies } = useReplies({ comment });\n\n  return (\n    <article>\n      <h1>{comment.title}</h1>\n      <p>{comment.content}</p>\n      {replies.map(reply => (\n        <section key={reply.cid}>\n          <small>{reply.author.shortAddress}</small>\n          <p>{reply.content}</p>\n        </section>\n      ))}\n    </article>\n  );\n}`,
+  feed: `import { useFeed } from "@bitsocial/bitsocial-react-hooks";
+
+function YourFeed({ communityName }) {
+  const { feed, hasMore, loadMore } = useFeed({
+    communities: [{ name: communityName }],
+    sortType: "hot",
+    postsPerPage: 3,
+  });
+
+  return (
+    <div className="preview-feed">
+      <header className="preview-feed-header">
+        <span className="preview-community-icon" aria-hidden="true">b/</span>
+        <div><strong>Community feed</strong><small>{communityName}</small></div>
+      </header>
+      {feed.map(post => (
+        <article className="preview-post" key={post.cid}>
+          <div className="preview-byline">
+            <span className="preview-avatar" data-author={post.author.address} aria-hidden="true">
+              {post.author.displayName?.slice(0, 1)}
+            </span>
+            <div><strong>{post.author.displayName}</strong><small>{post.author.shortAddress}</small></div>
+          </div>
+          <h2>{post.title}</h2>
+          <p>{post.content}</p>
+          {post.thumbnailUrl && <img className="preview-post-image" src={post.thumbnailUrl} alt="A handmade radio on a shared workshop table" />}
+          <footer className="preview-post-meta">
+            <span>↑ {(post.upvoteCount ?? 0) - (post.downvoteCount ?? 0)} points</span>
+            <span>{post.replyCount} replies</span>
+          </footer>
+        </article>
+      ))}
+      {hasMore && (
+        <button onClick={() => void loadMore()}>
+          Load more
+        </button>
+      )}
+    </div>
+  );
+}`,
+  community: `import { useCommunity } from "@bitsocial/bitsocial-react-hooks";
+
+function YourCommunity({ communityName }) {
+  const community = useCommunity({
+    community: { name: communityName },
+  });
+
+  return (
+    <article className="preview-community">
+      {community.suggested?.bannerUrl && <img className="preview-cover" src={community.suggested.bannerUrl} alt="A sunlit makers' workshop" />}
+      <div className="preview-community-body">
+        <span className="preview-community-icon" aria-hidden="true">b/</span>
+        <small>{community.name || community.address}</small>
+        <h1>{community.title}</h1>
+        <p>{community.description}</p>
+        <div className="preview-topics" aria-label="Community topics">
+          <span>Show & tell</span><span>Side projects</span><span>Questions</span>
+        </div>
+        <div className="preview-members">
+          <div className="preview-facepile" aria-hidden="true">
+            {["mira", "alex", "jo"].map(name => (
+              <span key={name} className="preview-avatar" data-author={name + ".bso"} />
+            ))}
+          </div>
+          <span>A corner for curious people.</span>
+        </div>
+        {community.error && (
+          <p role="alert">{community.error.message}</p>
+        )}
+      </div>
+    </article>
+  );
+}`,
+  thread: `import { useComment, useReplies }
+  from "@bitsocial/bitsocial-react-hooks";
+
+function YourThread({ commentCid }) {
+  const comment = useComment({ commentCid });
+  const { replies } = useReplies({ comment });
+
+  if (!comment.author) return <p>Loading conversation…</p>;
+
+  return (
+    <article className="preview-thread">
+      <small className="preview-thread-context">Conversation in {comment.communityAddress}</small>
+      <div className="preview-byline">
+        <span className="preview-avatar" data-author={comment.author?.address} aria-hidden="true">
+          {comment.author?.displayName?.slice(0, 1)}
+        </span>
+        <div><strong>{comment.author?.displayName}</strong><small>{comment.author?.shortAddress}</small></div>
+      </div>
+      <h1>{comment.title}</h1>
+      <p>{comment.content}</p>
+      <footer className="preview-post-meta">
+        <span>↑ {(comment.upvoteCount ?? 0) - (comment.downvoteCount ?? 0)} points</span>
+        <span>{comment.replyCount} replies</span>
+      </footer>
+      <div className="preview-replies">
+        {replies.map(reply => (
+          <section className="preview-reply" key={reply.cid}>
+            <div className="preview-byline">
+              <span className="preview-avatar" data-author={reply.author.address} aria-hidden="true">
+                {reply.author.displayName?.slice(0, 1)}
+              </span>
+              <div><strong>{reply.author.displayName}</strong><small>{reply.author.shortAddress}</small></div>
+            </div>
+            <p>{reply.content}</p>
+            <small className="preview-reply-score">↑ {(reply.upvoteCount ?? 0) - (reply.downvoteCount ?? 0)} points</small>
+          </section>
+        ))}
+      </div>
+    </article>
+  );
+}`,
 };
 ---
 <Playground client:visible sources={sources} />

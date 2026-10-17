@@ -11,6 +11,7 @@ type Comment = {
   depth: number;
   title?: string;
   content: string;
+  thumbnailUrl?: string;
   timestamp: number;
   author: Author;
   upvoteCount: number;
@@ -44,6 +45,7 @@ const posts: Comment[] = postData.map(([title, content, name, upvoteCount, minut
   depth: 0,
   title,
   content,
+  thumbnailUrl: index === 1 ? "/playground/workshop.webp" : undefined,
   timestamp: now - minutesAgo * minute,
   author: author(name),
   upvoteCount,
@@ -135,6 +137,7 @@ export function useCommunity(options: { community?: CommunityIdentifier } = {}) 
     name: options.community?.name,
     title: "The builders’ corner",
     description: "A place for things worth making. Share your work, ask questions, and build the next corner of the social web.",
+    suggested: { bannerUrl: "/playground/workshop.webp" },
     createdAt: now - 90 * 24 * 3600,
     updatedAt: now - 5 * minute,
     syncState: "succeeded",
