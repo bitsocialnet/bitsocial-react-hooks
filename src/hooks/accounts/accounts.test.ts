@@ -1726,6 +1726,37 @@ describe("accounts", () => {
       ).toBeUndefined();
     });
 
+    test("account comment hooks do not attach the account identity to pseudonymous comments", async () => {
+      const accountId = accountsStore.getState().activeAccountId!;
+      const pseudonymousAuthor = { community: { postScore: 0, replyScore: 0 } };
+      accountsStore.setState((state: any) => ({
+        ...state,
+        accountsComments: {
+          ...state.accountsComments,
+          [accountId]: state.accountsComments[accountId].map((accountComment: any, index: number) =>
+            index === 0
+              ? { ...accountComment, pseudonymityMode: "per-post", author: pseudonymousAuthor }
+              : accountComment,
+          ),
+        },
+      }));
+
+      const rendered2 = renderHook(() => {
+        const accountComment = useAccountComment({ commentIndex: 0 });
+        const accountComments = useAccountComments({ commentIndices: [0] });
+        return { accountComment, accountComments };
+      });
+      const waitForPseudonymousComment = testUtils.createWaitFor(rendered2);
+      await waitForPseudonymousComment(
+        () => rendered2.result.current.accountComment.pseudonymityMode === "per-post",
+      );
+
+      expect(rendered2.result.current.accountComment.author).toEqual(pseudonymousAuthor);
+      expect(rendered2.result.current.accountComments.accountComments[0].author).toEqual(
+        pseudonymousAuthor,
+      );
+    });
+
     test(`get all account comments`, async () => {
       expect(rendered.result.current.accountComments.length).toBe(3);
       expect(rendered.result.current.accountComments[0].content).toBe("content 1");

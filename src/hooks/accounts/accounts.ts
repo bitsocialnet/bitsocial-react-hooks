@@ -430,7 +430,9 @@ const getAccountCommentWithAccountAuthor = (
     !accountId ||
     accountComment.accountId !== accountId ||
     !accountAuthor?.address ||
-    accountComment.author?.address
+    accountComment.author?.address ||
+    // a pseudonymous community published the comment under an alias, never the account identity
+    accountComment.pseudonymityMode
   ) {
     return accountComment;
   }

@@ -1211,6 +1211,81 @@ describe("accounts-actions", () => {
       expect(Object.prototype.hasOwnProperty.call(persistedComments[0], "prototype")).toBe(false);
     });
 
+    test("publishComment keeps the pseudonymous author and comment signature over the challenge commentUpdate", async () => {
+      await act(async () => {
+        await accountsActions.createAccount();
+      });
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const aliasAddress = "12D3KooWCommunityAssignedAliasAddress";
+      const cid = "pseudonymous comment cid";
+      const aliasSignature = {
+        publicKey: "alias public key",
+        signature: "comment signature",
+        type: "ed25519",
+      };
+      const communityUpdateSignature = {
+        publicKey: "community public key",
+        signature: "update signature",
+        type: "ed25519",
+      };
+      const createComment = account.pkc.createComment.bind(account.pkc);
+      vi.spyOn(account.pkc, "createComment").mockImplementation(async (opts: any) => {
+        const publication: any = await createComment(opts);
+        vi.spyOn(publication, "simulateChallengeVerificationEvent").mockImplementation(() => {
+          // pkc-js swaps in the published CommentIpfs before emitting, so a pseudonymous
+          // community's alias replaces the account author
+          publication.cid = cid;
+          publication.pseudonymityMode = "per-post";
+          publication.author = { address: aliasAddress, publicKey: aliasAddress };
+          publication.signature = aliasSignature;
+          publication.emit("challengeverification", {
+            type: "CHALLENGEVERIFICATION",
+            challengeRequestId: publication.challengeRequestId,
+            challengeAnswerId: publication.challengeAnswerId,
+            challengeSuccess: true,
+            commentUpdate: {
+              cid,
+              author: { community: { postScore: 0, replyScore: 0 } },
+              signature: communityUpdateSignature,
+            },
+          });
+          publication.publishingState = "succeeded";
+          publication.emit("publishingstatechange", "succeeded");
+        });
+        return publication;
+      });
+
+      await act(async () => {
+        await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "pseudonymous comment",
+          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+
+      const startedAt = Date.now();
+      while (Date.now() - startedAt < 2000) {
+        await act(async () => {});
+        if (accountsStore.getState().accountsComments[account.id]?.[0]?.cid === cid) {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+
+      const storedComment = accountsStore.getState().accountsComments[account.id]?.[0];
+      expect(storedComment.cid).toBe(cid);
+      expect(storedComment.author.address).toBe(aliasAddress);
+      expect(storedComment.author.address).not.toBe(account.author.address);
+      expect(storedComment.author.community).toEqual({ postScore: 0, replyScore: 0 });
+      expect(storedComment.signature).toEqual(aliasSignature);
+
+      const persistedComments = await accountsDatabase.getAccountComments(account.id);
+      expect(persistedComments[0].author.address).toBe(aliasAddress);
+      expect(persistedComments[0].author.community).toEqual({ postScore: 0, replyScore: 0 });
+      expect(persistedComments[0].signature).toEqual(aliasSignature);
+    });
+
     test("publishVote with accountName uses named account", async () => {
       await act(async () => {
         await accountsActions.createAccount();
