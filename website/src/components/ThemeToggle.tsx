@@ -1,4 +1,4 @@
-import { Moon } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { useSyncExternalStore } from "react";
 
 function subscribe(onChange: () => void) {
@@ -30,7 +30,7 @@ export default function ThemeToggle() {
       aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
       onClick={toggleTheme}
     >
-      <Moon size={20} />
+      {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
     </button>
   );
 }

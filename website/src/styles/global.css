@@ -1431,6 +1431,10 @@ body:has(dialog[open]) {
   .site-header .icon-button {
     width: 27px;
   }
+  /* The hero copy spans nearly the full width here, so the mesh needs a wider, deeper center fade. */
+  .hero-scene::after {
+    background: radial-gradient(ellipse 80% 50% at 50% 45%, var(--bg) 45%, transparent 100%);
+  }
   .hero {
     padding: 49px 0 33px;
   }
