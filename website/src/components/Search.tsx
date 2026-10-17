@@ -1,3 +1,4 @@
+import { Search as SearchIcon, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type SearchEntry = { title: string; group: string; url: string; text: string };
@@ -80,18 +81,7 @@ export default function Search() {
         onClick={() => void openSearch()}
         aria-label="Search documentation"
       >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          aria-hidden="true"
-        >
-          <circle cx="10.5" cy="10.5" r="6.5" />
-          <path d="m16 16 4 4" />
-        </svg>
+        <SearchIcon size={16} />
         <span>Search docs</span>
         <kbd>⌘ K</kbd>
       </button>
@@ -111,18 +101,7 @@ export default function Search() {
         }}
       >
         <div className="search-top">
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            aria-hidden="true"
-          >
-            <circle cx="10.5" cy="10.5" r="6.5" />
-            <path d="m16 16 4 4" />
-          </svg>
+          <SearchIcon size={20} />
           <label id="search-title" className="sr-only" htmlFor="docs-search">
             Search documentation
           </label>
@@ -141,17 +120,7 @@ export default function Search() {
             onClick={() => dialog.current?.close()}
             aria-label="Close search"
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              aria-hidden="true"
-            >
-              <path d="m6 6 12 12M6 18 18 6" />
-            </svg>
+            <X size={20} />
           </button>
         </div>
         <p id="search-status" className="search-status" role="status">

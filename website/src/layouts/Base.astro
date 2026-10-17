@@ -3,6 +3,7 @@ import '../styles/global.css';
 import Icon from '../components/Icon.astro';
 import Search from '../components/Search';
 import ThemeToggle from '../components/ThemeToggle';
+import { Check, Copy } from 'lucide-react';
 import { packageVersion, repoUrl } from '../lib/docs';
 interface Props { title?: string; description?: string; docs?: boolean; }
 const { title = 'Build your corner of the internet', description = 'React hooks for a social network anyone can build on. Start with a feed, create your own interface, and connect to Bitsocial.', docs = false } = Astro.props;
@@ -49,6 +50,7 @@ const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site) : undefin
       <p>Build the social web you want to use.</p>
       <div><a href={repoUrl}>GitHub</a><a href="/llms.txt">llms.txt</a><a href="https://docs.bitsocial.net">Protocol docs</a><a href={`${repoUrl}/tree/master/website#assets-and-license`}>Licenses</a><span data-package-version>v{packageVersion}</span></div>
     </footer>
+    <template id="copy-icons"><Copy size={14} data-icon="copy" /><Check size={14} data-icon="check" /></template>
     <script src="../lib/site.ts"></script>
     <script>
       if (import.meta.env.DEV) {

@@ -25,22 +25,22 @@ const toc = headings.filter((heading) => heading.depth <= 3);
             {allDocs.filter((doc) => doc.data.group === group).map((doc) => <a href={`/docs/${doc.id}/`} aria-current={entry.id === doc.id ? 'page' : undefined}>{doc.data.title.replace(/ Hooks$/, '').replace(/^\(Desktop only\) /, '')}</a>)}
           </details>)}
         </nav>
-        <a class="protocol-link" href="https://docs.bitsocial.net">Protocol documentation ↗</a>
+        <a class="protocol-link" href="https://docs.bitsocial.net">Protocol documentation <Icon name="external" size={13} /></a>
       </details>
     </aside>
     <main id="main" class="doc-main">
-      <div class="doc-eyebrow"><span>{entry.data.group}</span><div><a href={`/docs/${entry.id}.md`} title="Read this page as Markdown">Markdown</a><a href={`${repoUrl}/blob/master/${entry.data.source}`} title="View this page's source">Source ↗</a></div></div>
+      <div class="doc-eyebrow"><span>{entry.data.group}</span><div><a href={`/docs/${entry.id}.md`} title="Read this page as Markdown">Markdown</a><a href={`${repoUrl}/blob/master/${entry.data.source}`} title="View this page's source">Source <Icon name="external" size={12} /></a></div></div>
       <h1>{entry.data.title}</h1>
       <p class="doc-description">{entry.data.description}</p>
       <div class="prose"><Content /></div>
       <div class="doc-pagination">
-        {previous ? <a href={`/docs/${previous.id}/`}><small>Previous</small><span>← {previous.data.title}</span></a> : <span />}
-        {next && <a href={`/docs/${next.id}/`}><small>Next</small><span>{next.data.title} →</span></a>}
+        {previous ? <a href={`/docs/${previous.id}/`}><small>Previous</small><span><Icon name="arrow-left" size={14} /> {previous.data.title}</span></a> : <span />}
+        {next && <a href={`/docs/${next.id}/`}><small>Next</small><span>{next.data.title} <Icon name="arrow" size={14} /></span></a>}
       </div>
     </main>
     <aside class="on-this-page" aria-label="On this page">
       {toc.length > 0 && <><span>On this page</span><nav>{toc.map((heading) => <a href={`#${heading.slug}`}>{heading.text}</a>)}</nav></>}
-      <div class="docs-help"><Icon name="code" size={22} /><p>Building with an agent?</p><a href="/docs/ai/">Get the AI docs ↗</a></div>
+      <div class="docs-help"><Icon name="code" size={22} /><p>Building with an agent?</p><a href="/docs/ai/">Get the AI docs <Icon name="arrow" size={13} /></a></div>
     </aside>
   </div>
 </Base>

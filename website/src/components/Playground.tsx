@@ -1,7 +1,9 @@
+import { ArrowRight, Check, Copy, RotateCcw } from "lucide-react";
 import * as React from "react";
 import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { LiveEditor, LiveError, LivePreview, LiveProvider } from "react-live";
 import * as simulatedHooks from "./playground-hooks";
+import { useCopy } from "./useCopy";
 
 const examples = [
   { id: "feed", label: "A feed", filename: "YourFeed.jsx", hook: "useFeed", slug: "feeds-hooks" },
@@ -70,26 +72,12 @@ const theme: ComponentProps<typeof LiveProvider>["theme"] = {
 };
 
 function CopyButton({ source }: { source: string }) {
-  const [status, setStatus] = useState("Copy");
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(source);
-      setStatus("Copied");
-    } catch {
-      setStatus("Select code to copy");
-    }
-  }
+  const [state, copy] = useCopy(source);
 
   return (
-    <button
-      type="button"
-      className="copy-code"
-      aria-label="Copy code"
-      onClick={() => void copy()}
-      onBlur={() => setStatus("Copy")}
-    >
-      <span aria-live="polite">{status}</span>
+    <button type="button" className="copy-code" aria-label="Copy code" data-state={state} onClick={() => void copy()}>
+      {state === "copied" ? <Check size={14} /> : <Copy size={14} />}
+      <span aria-live="polite">{state === "copied" ? "Copied" : state === "failed" ? "Select code to copy" : "Copy"}</span>
     </button>
   );
 }
@@ -136,13 +124,19 @@ export default function Playground({ sources }: Props) {
           <div className="example-code">
             <div className="pane-label">
               <span id="example-filename">{activeExample.filename}</span>
-              {edited ? (
-                <button type="button" className="reset-code" onClick={() => setCodes({ ...codes, [example]: sources[example] })}>
-                  Reset
-                </button>
-              ) : (
-                <span>React</span>
-              )}
+              <div className="pane-actions">
+                {edited && (
+                  <button
+                    type="button"
+                    className="reset-code"
+                    onClick={() => setCodes({ ...codes, [example]: sources[example] })}
+                  >
+                    <RotateCcw size={14} />
+                    Reset
+                  </button>
+                )}
+                <CopyButton key={example} source={code} />
+              </div>
             </div>
             <div className="code-frame" ref={editorFrame}>
               <LiveEditor
@@ -150,7 +144,6 @@ export default function Playground({ sources }: Props) {
                 tabMode="focus"
                 onChange={(next) => setCodes((current) => ({ ...current, [example]: next }))}
               />
-              <CopyButton key={example} source={code} />
             </div>
           </div>
           <div className="example-preview">
@@ -166,7 +159,7 @@ export default function Playground({ sources }: Props) {
       <div className="playground-footnote">
         <span>Real hook APIs. Simulated content. Nothing is published.</span>
         <a id="example-doc-link" href={`/docs/api/${activeExample.slug}/`}>
-          Explore {activeExample.hook} <span aria-hidden="true">↗</span>
+          Explore {activeExample.hook} <ArrowRight size={13} />
         </a>
       </div>
     </section>

@@ -91,6 +91,10 @@ a {
 svg {
   flex-shrink: 0;
 }
+.lucide {
+  stroke-width: 1.75;
+  vertical-align: middle;
+}
 img {
   max-width: 100%;
 }
@@ -343,19 +347,33 @@ kbd {
 .install-line {
   display: inline-flex;
   align-items: center;
-  gap: 13px;
+  gap: 12px;
+  max-width: 100%;
+  padding: 11px 14px 11px 18px;
   color: var(--muted);
   font-size: 13px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  transition:
+    border-color 0.18s,
+    color 0.18s;
+}
+.install-line:hover {
+  border-color: var(--subtle);
+  color: var(--text);
 }
 .install-line > span:first-child {
   color: var(--subtle);
 }
-.install-line .icon-button {
-  width: 26px;
-}
 .install-line code {
-  font-size: 11px;
+  font-size: 12px;
+  color: var(--text);
+  text-align: left;
   overflow-wrap: anywhere;
+}
+.install-line[data-state="copied"] > svg {
+  color: var(--blue);
 }
 .playground-wrap {
   position: relative;
@@ -429,7 +447,9 @@ kbd {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 23px 10px;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 23px 4px;
   color: var(--subtle);
   font-size: 10px;
 }
@@ -450,9 +470,35 @@ kbd {
 .live-editor {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
+.pane-actions {
+  display: flex;
+  gap: 8px;
+}
+.copy-code,
 .reset-code {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-raised);
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  transition:
+    border-color 0.18s,
+    color 0.18s;
+}
+.copy-code:hover,
+.reset-code:hover {
+  border-color: var(--subtle);
+  color: var(--text);
+}
+.copy-code[data-state="copied"] {
+  border-color: var(--blue);
   color: var(--blue);
-  font-size: 10px;
 }
 .example-preview {
   padding: 0 13px;
@@ -731,13 +777,20 @@ kbd {
   flex-direction: column;
   align-items: flex-start;
 }
-.feature-symbol {
-  font-family: Exo;
-  font-size: 27px;
+.feature-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 8px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
   color: var(--blue);
-  height: 42px;
-  display: block;
-  line-height: 1;
+  transition: border-color 0.18s;
+}
+.feature:hover .feature-icon {
+  border-color: var(--blue);
 }
 .feature h3 {
   font-size: 17px;
@@ -762,6 +815,16 @@ kbd {
 .feature:hover code,
 .feature:hover h3 {
   color: var(--blue);
+}
+.feature code > svg,
+.ecosystem-links > a > svg {
+  transition:
+    transform 0.18s,
+    color 0.18s;
+}
+.feature:hover code > svg,
+.your-app:hover > svg {
+  transform: translateX(3px);
 }
 .ecosystem {
   display: grid;
@@ -800,10 +863,15 @@ kbd {
   padding: 26px 6px;
   border-bottom: 1px solid var(--line);
 }
-.ecosystem-links > a > span,
 .ecosystem-links > a > svg {
   margin-left: auto;
   color: var(--subtle);
+}
+.ecosystem-links > a:hover > svg {
+  color: var(--blue);
+}
+.ecosystem-links > a:not(.your-app):hover > svg {
+  transform: translate(2px, -2px);
 }
 .app-letter {
   width: 46px;
@@ -909,15 +977,8 @@ pre {
 }
 .code-frame .copy-code {
   position: absolute;
-  right: 12px;
+  right: 10px;
   top: 10px;
-  border: 1px solid var(--line);
-  background: var(--surface-raised);
-  color: var(--muted);
-  font-size: 10px;
-  padding: 4px 9px;
-  border-radius: 5px;
-  margin-left: 12px;
 }
 pre code {
   font-size: 12px;
@@ -1567,11 +1628,11 @@ body:has(dialog[open]) {
     padding-inline: 17px;
     font-size: 11px;
   }
+  .install-line {
+    padding-inline: 12px 10px;
+  }
   .install-line code {
     font-size: 9px;
-  }
-  .install-line .icon-button {
-    width: 20px;
   }
   .playground-toolbar {
     height: 53px;
@@ -1743,22 +1804,4 @@ body:has(dialog[open]) {
     transition: none !important;
     animation: none !important;
   }
-}
-
-#copy-install {
-  position: relative;
-}
-#copy-install[data-copied]::after {
-  content: "Copied";
-  position: absolute;
-  bottom: 100%;
-  right: -8px;
-  font:
-    10px Arial,
-    sans-serif;
-  color: var(--blue);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 3px 6px;
 }

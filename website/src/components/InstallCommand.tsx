@@ -1,47 +1,38 @@
-import { useState } from "react";
+import { Check, Copy } from "lucide-react";
+import { useRef } from "react";
+import { useCopy } from "./useCopy";
 
 const command = "npm install @bitsocial/bitsocial-react-hooks";
 
 export default function InstallCommand() {
-  const [status, setStatus] = useState("");
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(command);
-      setStatus("Install command copied");
-    } catch {
-      setStatus("Select the install command to copy it");
-    }
-  };
+  const [state, copy] = useCopy(command);
+  const code = useRef<HTMLElement>(null);
 
   return (
-    <div className="install-line">
-      <span aria-hidden="true">$</span>
-      <code>{command}</code>
+    <>
       <button
         type="button"
         id="copy-install"
-        className="icon-button"
-        aria-label="Copy install command"
-        data-copied={status === "Install command copied" || undefined}
-        onClick={() => void copy()}
-        onBlur={() => setStatus("")}
+        className="install-line"
+        aria-label={`Copy install command: ${command}`}
+        title="Copy to clipboard"
+        data-state={state}
+        onClick={async () => {
+          // Without clipboard access, select the command so the keyboard shortcut still works.
+          if (!(await copy()) && code.current) getSelection()?.selectAllChildren(code.current);
+        }}
       >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          aria-hidden="true"
-        >
-          <rect x="8" y="8" width="12" height="12" rx="2" />
-          <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" />
-        </svg>
+        <span aria-hidden="true">$</span>
+        <code ref={code}>{command}</code>
+        {state === "copied" ? <Check size={16} /> : <Copy size={16} />}
       </button>
       <span id="install-status" className="sr-only" role="status">
-        {status}
+        {state === "copied"
+          ? "Install command copied"
+          : state === "failed"
+            ? "Install command selected, copy it with your keyboard"
+            : ""}
       </span>
-    </div>
+    </>
   );
 }
