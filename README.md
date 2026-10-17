@@ -1,4 +1,6 @@
-<img src="website/public/logo.png" alt="Bitsocial logo" width="64" height="64" />
+<p align="center">
+  <img src="docs/assets/readme/social-preview.png" alt="Bitsocial React Hooks — Build decentralized, serverless social apps with React using a familiar hooks API." width="640" />
+</p>
 
 # Bitsocial React Hooks
 
