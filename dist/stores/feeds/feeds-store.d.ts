@@ -12,6 +12,9 @@ type FeedsState = {
     feedsCommunityKeysWithNewerPosts: {
         [feedName: string]: string[];
     };
+    feedsCommunityKeysWithMore: {
+        [feedName: string]: string[];
+    };
     addFeedToStore: Function;
     incrementFeedPageNumber: Function;
     expandFeedTimeWindow: Function;

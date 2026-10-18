@@ -223,6 +223,7 @@ export interface UseFeedResult extends Result {
     loadMore(): Promise<void>;
     expandTimeWindow(newerThan?: number): Promise<void>;
     communityKeysWithNewerPosts: string[];
+    communityKeysWithMore: string[];
     reset(): Promise<void>;
 }
 export interface UseBufferedFeedsOptions extends Options {

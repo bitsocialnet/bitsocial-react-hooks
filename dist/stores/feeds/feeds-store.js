@@ -7,6 +7,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 import assert from "assert";
 import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:feeds:stores");
@@ -18,7 +29,7 @@ import { getCommunityRefKeys } from "../../lib/community-ref.js";
 import accountsStore from "../accounts/index.js";
 import communitiesStore from "../communities/index.js";
 import communitiesPagesStore from "../communities-pages/index.js";
-import { getFeedsCommunitiesFirstPageCids, getLoadedFeeds, getUpdatedFeeds, getBufferedFeedsWithoutLoadedFeeds, getFeedsCommunitiesPostCounts, getFeedsHaveMore, getAccountsBlockedAddresses, feedsHaveChangedBlockedAddresses, accountsBlockedAddressesChanged, getAccountsBlockedCids, feedsHaveChangedBlockedCids, accountsBlockedCidsChanged, feedsCommunitiesChanged, getFeedsCommunities, getFeedsCommunitiesLoadedCount, getFeedsCommunitiesPostsPagesFirstUpdatedAts, getFilteredSortedFeeds, getFeedsCommunityKeysWithNewerPosts, } from "./utils.js";
+import { getFeedsCommunitiesFirstPageCids, getLoadedFeeds, getUpdatedFeeds, getBufferedFeedsWithoutLoadedFeeds, getFeedsCommunitiesPostCounts, getFeedsHaveMore, getAccountsBlockedAddresses, feedsHaveChangedBlockedAddresses, accountsBlockedAddressesChanged, getAccountsBlockedCids, feedsHaveChangedBlockedCids, accountsBlockedCidsChanged, feedsCommunitiesChanged, getFeedsCommunities, getFeedsCommunitiesLoadedCount, getFeedsCommunitiesPostsPagesFirstUpdatedAts, getFilteredSortedFeeds, getFeedsCommunityKeysWithNewerPosts, getFeedsCommunityKeysWithMore, } from "./utils.js";
 // reddit loads approximately 25 posts per page
 // while infinite scrolling
 export const defaultPostsPerPage = 25;
@@ -28,6 +39,12 @@ const communityPostsLeftBeforeNextPage = 50;
 let updateFeedsPending = false;
 let updateFeedsAgain = false;
 const updateFeedsMinIntervalTime = 100;
+// a feed whose options changed has no community keys with more until it is calculated again, so
+// useFeed reports every community as still loading instead of the previous options' result
+const withoutFeed = (feedsCommunityKeys, feedName) => {
+    const _a = feedsCommunityKeys, _b = feedName, _removedFeedCommunityKeys = _a[_b], otherFeedsCommunityKeys = __rest(_a, [typeof _b === "symbol" ? _b : _b + ""]);
+    return otherFeedsCommunityKeys;
+};
 const feedsStore = createStore((setState, getState) => ({
     feedsOptions: {},
     bufferedFeeds: {},
@@ -36,6 +53,7 @@ const feedsStore = createStore((setState, getState) => ({
     bufferedFeedsCommunitiesPostCounts: {},
     feedsHaveMore: {},
     feedsCommunityKeysWithNewerPosts: {},
+    feedsCommunityKeysWithMore: {},
     addFeedToStore(feedName, communities, communityKeys, sortType, account, isBufferedFeed, postsPerPage, filter, newerThan, accountComments, modQueue) {
         return __awaiter(this, void 0, void 0, function* () {
             // init here because must be called after async accounts store finished initializing
@@ -118,10 +136,11 @@ const feedsStore = createStore((setState, getState) => ({
         const loadedFeed = loadedFeeds[feedName] || [];
         const shouldPrefetchExpandedPage = currentFeedOptions.pageNumber > 0 &&
             loadedFeed.length >= currentFeedOptions.pageNumber * currentFeedOptions.postsPerPage;
-        setState(({ feedsOptions }) => ({
+        setState(({ feedsOptions, feedsCommunityKeysWithMore }) => ({
             feedsOptions: Object.assign(Object.assign({}, feedsOptions), { [feedName]: Object.assign(Object.assign({}, currentFeedOptions), { newerThan, pageNumber: shouldPrefetchExpandedPage
                         ? currentFeedOptions.pageNumber + 1
                         : currentFeedOptions.pageNumber }) }),
+            feedsCommunityKeysWithMore: withoutFeed(feedsCommunityKeysWithMore, feedName),
         }));
         updateFeeds();
     },
@@ -134,12 +153,13 @@ const feedsStore = createStore((setState, getState) => ({
             const { modQueue, sortType, communities, communityKeys, accountId } = feedsOptions[feedName];
             const account = accountsStore.getState().accounts[accountId];
             assert(account, `feedsActions.resetFeed account id '${accountId}' does not exist in accounts store`);
-            setState(({ feedsOptions, loadedFeeds, updatedFeeds }) => {
+            setState(({ feedsOptions, loadedFeeds, updatedFeeds, feedsCommunityKeysWithMore }) => {
                 const feedOptions = Object.assign(Object.assign({}, feedsOptions[feedName]), { pageNumber: 1 });
                 return {
                     feedsOptions: Object.assign(Object.assign({}, feedsOptions), { [feedName]: feedOptions }),
                     loadedFeeds: Object.assign(Object.assign({}, loadedFeeds), { [feedName]: [] }),
                     updatedFeeds: Object.assign(Object.assign({}, updatedFeeds), { [feedName]: [] }),
+                    feedsCommunityKeysWithMore: withoutFeed(feedsCommunityKeysWithMore, feedName),
                 };
             });
             if (modQueue === null || modQueue === void 0 ? void 0 : modQueue[0]) {
@@ -186,6 +206,7 @@ const feedsStore = createStore((setState, getState) => ({
             const bufferedFeeds = getBufferedFeedsWithoutLoadedFeeds(bufferedFeedsWithoutPreviousLoadedFeeds, loadedFeeds);
             const bufferedFeedsCommunitiesPostCounts = getFeedsCommunitiesPostCounts(feedsOptions, bufferedFeeds);
             const feedsHaveMore = getFeedsHaveMore(feedsOptions, bufferedFeeds, communities, communitiesPages, accounts);
+            const feedsCommunityKeysWithMore = getFeedsCommunityKeysWithMore(feedsOptions, bufferedFeedsCommunitiesPostCounts, communities, communitiesPages, accounts, previousState.feedsCommunityKeysWithMore);
             const feedsCommunityKeysWithNewerPosts = getFeedsCommunityKeysWithNewerPosts(feedsOptions, filteredSortedFeeds, loadedFeeds, previousState.feedsCommunityKeysWithNewerPosts);
             const updatedFeeds = yield getUpdatedFeeds(feedsOptions, filteredSortedFeeds, previousState.updatedFeeds, loadedFeeds, accounts);
             // set new feeds
@@ -196,6 +217,7 @@ const feedsStore = createStore((setState, getState) => ({
                 bufferedFeedsCommunitiesPostCounts,
                 feedsHaveMore,
                 feedsCommunityKeysWithNewerPosts,
+                feedsCommunityKeysWithMore,
             }));
             log.trace("feedsStore.updateFeeds", {
                 feedsOptions,
@@ -204,6 +226,7 @@ const feedsStore = createStore((setState, getState) => ({
                 updatedFeeds,
                 bufferedFeedsCommunitiesPostCounts,
                 feedsHaveMore,
+                feedsCommunityKeysWithMore,
                 communities,
                 communitiesPages,
                 feedsCommunityKeysWithNewerPosts,

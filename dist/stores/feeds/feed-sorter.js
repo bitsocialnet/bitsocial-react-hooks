@@ -137,5 +137,39 @@ const sort = (sortType, feed) => {
     feed = feed.filter((post) => !post.pinned);
     return [...pinnedPosts, ...sorter(feed)];
 };
-export default { sort };
+/**
+ * Interleave several communities' posts. A feed that keeps its order (a community's sort file, which
+ * the client cannot reproduce) is never reordered and the others get the built-in sort. The next post
+ * is whichever feed's next post the built-in sorter ranks first, so a thread never rises above one
+ * its own community ranks higher, and feeds that all use the built-in sort merge as one sort.
+ */
+const merge = (sortType, feeds) => {
+    const nonEmptyFeeds = feeds.filter(({ posts }) => posts.length > 0);
+    if (nonEmptyFeeds.length === 1 && nonEmptyFeeds[0].keepOrder) {
+        return nonEmptyFeeds[0].posts;
+    }
+    const ranks = new Map();
+    sort(sortType, nonEmptyFeeds.flatMap(({ posts }) => posts)).forEach((post, index) => ranks.set(post, index));
+    const rankOf = (post) => ranks.get(post);
+    const orderedFeeds = nonEmptyFeeds.map(({ posts, keepOrder }) => keepOrder ? posts : [...posts].sort((a, b) => rankOf(a) - rankOf(b)));
+    const nextIndexes = orderedFeeds.map(() => 0);
+    const postCount = orderedFeeds.reduce((count, posts) => count + posts.length, 0);
+    const merged = [];
+    while (merged.length < postCount) {
+        let nextFeedIndex = -1;
+        for (const [feedIndex, posts] of orderedFeeds.entries()) {
+            if (nextIndexes[feedIndex] === posts.length) {
+                continue;
+            }
+            if (nextFeedIndex === -1 ||
+                rankOf(posts[nextIndexes[feedIndex]]) <
+                    rankOf(orderedFeeds[nextFeedIndex][nextIndexes[nextFeedIndex]])) {
+                nextFeedIndex = feedIndex;
+            }
+        }
+        merged.push(orderedFeeds[nextFeedIndex][nextIndexes[nextFeedIndex]++]);
+    }
+    return merged;
+};
+export default { sort, merge };
 //# sourceMappingURL=feed-sorter.js.map

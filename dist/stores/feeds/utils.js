@@ -103,8 +103,8 @@ export const getFilteredSortedFeeds = (feedsOptions, communities, communitiesPag
             sortType = modQueue[0];
             pageType = "modQueue";
         }
-        // find all fetched posts
-        const bufferedFeedPosts = [];
+        // find all fetched posts, each community's in the order its pages list them
+        const communityFeedPosts = [];
         // add each comment from each page, do not filter at this stage, filter after sorting
         for (const [communityIndex, communityKey] of communityKeys.entries()) {
             const communityRef = communityRefs[communityIndex];
@@ -117,6 +117,7 @@ export const getFilteredSortedFeeds = (feedsOptions, communities, communitiesPag
             if (communityPostsCacheExpired(community) && window.navigator.onLine) {
                 continue;
             }
+            const communityPosts = [];
             // use community preloaded posts if any
             const preloadedPosts = getPreloadedPosts(community, sortType);
             if (preloadedPosts) {
@@ -137,7 +138,7 @@ export const getFilteredSortedFeeds = (feedsOptions, communities, communitiesPag
                         nextPost.timestamp <= clientTimeframeTimestamp) {
                         continue;
                     }
-                    bufferedFeedPosts.push(nextPost);
+                    communityPosts.push(nextPost);
                 }
             }
             // add all posts from community pages
@@ -151,29 +152,31 @@ export const getFilteredSortedFeeds = (feedsOptions, communities, communitiesPag
                         }
                         const nextPost = getFeedPost(post, communityRef, community, modQueue, freshestComments);
                         if (nextPost) {
-                            bufferedFeedPosts.push(nextPost);
+                            communityPosts.push(nextPost);
                         }
                     }
                 }
             }
+            communityFeedPosts.push({ community, posts: communityPosts });
         }
         // sort the feed before filtering to get more accurate results
         const resolvedDefaultSortTypes = communityKeys.map((communityKey) => resolvePostSortType(communities[communityKey], feedsOptions[feedName].sortType));
         const uniqueResolvedDefaultSortTypes = new Set(resolvedDefaultSortTypes);
         const originalSortType = feedsOptions[feedName].sortType ||
             (uniqueResolvedDefaultSortTypes.size === 1 ? resolvedDefaultSortTypes[0] : undefined);
-        // one community's pages of a sort already arrive in its order; re-sorting them with the built-in
-        // sorter of the same name would undo a sort the client cannot reproduce. A sort served from
-        // another sort's complete page still needs the client sort, and feeds merging several
-        // communities need a common order, so both keep using the built-in sorter.
-        const singleCommunity = communityKeys.length === 1 ? communities[communityKeys[0]] : undefined;
-        const keepCommunityOrder = !!singleCommunity &&
-            originalSortType !== undefined &&
-            getPostPageSortType(singleCommunity, originalSortType) === originalSortType &&
-            !isBuiltInPostSortType(singleCommunity, originalSortType);
-        const sortedBufferedFeedPosts = keepCommunityOrder
-            ? bufferedFeedPosts
-            : feedSorter.sort(originalSortType, bufferedFeedPosts);
+        // a community's pages of a sort file already arrive in its order; re-sorting them with the
+        // built-in sorter of the same name would undo a sort the client cannot reproduce. A sort served
+        // from another sort's complete page still needs the client sort. Feeds over several communities
+        // interleave each community's order rather than re-sorting them together.
+        const communityFeeds = communityFeedPosts.map(({ community, posts }) => ({
+            posts,
+            keepOrder: originalSortType !== undefined &&
+                getPostPageSortType(community, originalSortType) === originalSortType &&
+                !isBuiltInPostSortType(community, originalSortType),
+        }));
+        const sortedBufferedFeedPosts = communityFeeds.some(({ keepOrder }) => keepOrder)
+            ? feedSorter.merge(originalSortType, communityFeeds)
+            : feedSorter.sort(originalSortType, communityFeeds.flatMap(({ posts }) => posts));
         // filter the feed
         const filteredSortedBufferedFeedPosts = [];
         for (const post of sortedBufferedFeedPosts) {
@@ -539,68 +542,80 @@ export const getFeedsCommunitiesPostCounts = (feedsOptions, feeds) => {
     }
     return feedsCommunitiesPostCounts;
 };
+const getFeedPageOptions = (feedOptions) => {
+    let { sortType, modQueue } = feedOptions;
+    let pageType = "posts";
+    if (modQueue === null || modQueue === void 0 ? void 0 : modQueue[0]) {
+        // TODO: allow multiple modQueue at once, fow now only use first in array
+        sortType = modQueue[0];
+        pageType = "modQueue";
+    }
+    return { sortType, pageType };
+};
+const isFeedCommunityBlocked = (accounts, accountId, communityRef, community) => {
+    var _a;
+    return Object.keys(((_a = accounts[accountId]) === null || _a === void 0 ? void 0 : _a.blockedAddresses) || {}).some((blockedAddress) => communityRef && doesAddressMatchCommunityRef(blockedAddress, communityRef, community));
+};
+// a community has more pages until it has loaded, its posts cache is fresh and its last page has no next page
+const communityHasMorePages = (community, sortType, pageType, communitiesPages, accountId) => {
+    if (!(community === null || community === void 0 ? void 0 : community.updatedAt) || communityPostsCacheExpired(community)) {
+        return true;
+    }
+    // TODO: if a loaded community doesn't have a first page, it's unclear what we should do
+    // should we try to use another sort type by default, like 'hot', or should we just ignore it?
+    // ignore it for now
+    const firstPageCid = getCommunityFirstPageCid(community, sortType, pageType);
+    if (!firstPageCid) {
+        return false;
+    }
+    const pages = getCommunityPages(community, sortType, communitiesPages, pageType, accountId);
+    return !pages.length || !!pages[pages.length - 1].nextCid;
+};
 /**
  * Get which feeds have more posts, i.e. have not reached the final page of all subs
  */
 export const getFeedsHaveMore = (feedsOptions, bufferedFeeds, communities, communitiesPages, accounts) => {
-    var _a, _b;
+    var _a;
     const feedsHaveMore = {};
-    feedsLoop: for (const feedName in feedsOptions) {
+    for (const feedName in feedsOptions) {
         // if the feed still has buffered posts, then it still has more
         if ((_a = bufferedFeeds[feedName]) === null || _a === void 0 ? void 0 : _a.length) {
             feedsHaveMore[feedName] = true;
-            continue feedsLoop;
+            continue;
         }
         const communityRefs = getFeedCommunityRefs(feedsOptions[feedName]);
-        const communityKeys = getFeedCommunityKeys(feedsOptions[feedName]);
-        let { sortType, accountId, modQueue } = feedsOptions[feedName];
-        let pageType = "posts";
-        if (modQueue === null || modQueue === void 0 ? void 0 : modQueue[0]) {
-            // TODO: allow multiple modQueue at once, fow now only use first in array
-            sortType = modQueue[0];
-            pageType = "modQueue";
-        }
-        communityKeysLoop: for (const [communityIndex, communityKey] of communityKeys.entries()) {
-            const community = communities[communityKey];
-            const communityRef = communityRefs[communityIndex];
-            const isBlockedCommunity = Object.keys(((_b = accounts[accountId]) === null || _b === void 0 ? void 0 : _b.blockedAddresses) || {}).some((blockedAddress) => communityRef && doesAddressMatchCommunityRef(blockedAddress, communityRef, community));
-            // don't consider the sub if the address is blocked
-            if (isBlockedCommunity) {
-                continue communityKeysLoop;
-            }
-            // if at least 1 community hasn't loaded yet, then the feed still has more
-            if (!(community === null || community === void 0 ? void 0 : community.updatedAt)) {
-                feedsHaveMore[feedName] = true;
-                continue feedsLoop;
-            }
-            // if at least 1 community has posts cache expired, then the feed still has more
-            if (communityPostsCacheExpired(community)) {
-                feedsHaveMore[feedName] = true;
-                continue feedsLoop;
-            }
-            const firstPageCid = getCommunityFirstPageCid(community, sortType, pageType);
-            // TODO: if a loaded community doesn't have a first page, it's unclear what we should do
-            // should we try to use another sort type by default, like 'hot', or should we just ignore it?
-            // 'continue' to ignore it for now
-            if (!firstPageCid) {
-                continue communityKeysLoop;
-            }
-            const pages = getCommunityPages(community, sortType, communitiesPages, pageType, accountId);
-            // if first page isn't loaded yet, then the feed still has more
-            if (!pages.length) {
-                feedsHaveMore[feedName] = true;
-                continue feedsLoop;
-            }
-            const lastPage = pages[pages.length - 1];
-            if (lastPage.nextCid) {
-                feedsHaveMore[feedName] = true;
-                continue feedsLoop;
-            }
-        }
-        // if buffered feeds are empty and no last page of any community has a next page, then has more is false
-        feedsHaveMore[feedName] = false;
+        const { accountId } = feedsOptions[feedName];
+        const { sortType, pageType } = getFeedPageOptions(feedsOptions[feedName]);
+        // a blocked community is not considered
+        feedsHaveMore[feedName] = getFeedCommunityKeys(feedsOptions[feedName]).some((communityKey, communityIndex) => !isFeedCommunityBlocked(accounts, accountId, communityRefs[communityIndex], communities[communityKey]) &&
+            communityHasMorePages(communities[communityKey], sortType, pageType, communitiesPages, accountId));
     }
     return feedsHaveMore;
+};
+/**
+ * Get which communities of each feed still have more posts: buffered posts the feed has not loaded
+ * yet, or pages not fetched yet. Blocked communities are left out.
+ */
+export const getFeedsCommunityKeysWithMore = (feedsOptions, bufferedFeedsCommunitiesPostCounts, communities, communitiesPages, accounts, previousFeedsCommunityKeysWithMore) => {
+    const feedsCommunityKeysWithMore = {};
+    for (const feedName in feedsOptions) {
+        const communityRefs = getFeedCommunityRefs(feedsOptions[feedName]);
+        const { accountId } = feedsOptions[feedName];
+        const { sortType, pageType } = getFeedPageOptions(feedsOptions[feedName]);
+        const communityKeysWithMore = getFeedCommunityKeys(feedsOptions[feedName]).filter((communityKey, communityIndex) => {
+            var _a;
+            return !isFeedCommunityBlocked(accounts, accountId, communityRefs[communityIndex], communities[communityKey]) &&
+                (((_a = bufferedFeedsCommunitiesPostCounts[feedName]) === null || _a === void 0 ? void 0 : _a[communityKey]) > 0 ||
+                    communityHasMorePages(communities[communityKey], sortType, pageType, communitiesPages, accountId));
+        });
+        // keep the previous array when the data is the same to avoid rerenders
+        const previousCommunityKeysWithMore = previousFeedsCommunityKeysWithMore[feedName];
+        feedsCommunityKeysWithMore[feedName] =
+            (previousCommunityKeysWithMore === null || previousCommunityKeysWithMore === void 0 ? void 0 : previousCommunityKeysWithMore.toString()) === communityKeysWithMore.toString()
+                ? previousCommunityKeysWithMore
+                : communityKeysWithMore;
+    }
+    return feedsCommunityKeysWithMore;
 };
 // get all communities pages cids of all feeds, use to check if a communitiesStore change should trigger updateFeeds
 export const getFeedsCommunities = (feedsOptions, communities) => {

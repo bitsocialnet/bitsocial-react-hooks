@@ -1,3 +1,24 @@
+## [0.1.53](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.52...v0.1.53) (2026-10-18)
+
+
+### Bug Fixes
+
+* **feeds:** keep each community's order in feeds over several communities ([846c2ec](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/846c2ec5baaf9a61491a3a6a87fae9b8048be9cc))
+* **website:** drop the focus frame around the playground editor ([983482e](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/983482e4c47cb08562b25c6bba5e62e66046ccc9))
+* **website:** give the builders community a proper icon ([1dc5109](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/1dc5109d957c80f60f5ff90c80d2f94224e249fb))
+* **website:** make playground previews look like a social app ([ffa687a](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/ffa687a4c21f21ff13f43550ced4b6dd105694df))
+* **website:** swap the theme toggle icon and clear the mobile hero center ([046509a](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/046509aace4431ffc8a2d291230850ffe384f3f0))
+* **website:** use Lucide icons and clearer copy controls ([eed053e](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/eed053ea8202149a1c38e908edee875aa3fcad95))
+
+
+### Features
+
+* **docs:** add interactive developer website ([eb4346e](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/eb4346e416c3129f70b48e588335b11e31da52a6))
+* **feeds:** report which communities of a feed still have posts to load (release 0.1.53) ([215bc94](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/215bc94c38c7b0a0a1c4fa3eb978d0b2aec6279b))
+* **website:** move islands to React and make the playground editable ([029c40e](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/029c40ef381241680cb11ce192c0af81e3514e33))
+
+
+
 ## [0.1.52](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.51...v0.1.52) (2026-10-17)
 
 

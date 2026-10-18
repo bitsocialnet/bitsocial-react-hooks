@@ -54,6 +54,7 @@ export function useFeed(options) {
     const feedName = useFeedName(account === null || account === void 0 ? void 0 : account.id, sortType, uniqueCommunityKeys, postsPerPage, filter, newerThan, accountComments, modQueue);
     const [errors, setErrors] = useState([]);
     const communityKeysWithNewerPosts = useFeedsStore((state) => state.feedsCommunityKeysWithNewerPosts[feedName]);
+    const feedCommunityKeysWithMore = useFeedsStore((state) => state.feedsCommunityKeysWithMore[feedName]);
     // add feed to store
     useEffect(() => {
         if (!uniqueCommunityRefs.length || !account) {
@@ -124,6 +125,11 @@ export function useFeed(options) {
         });
     }
     const state = !hasMore ? "succeeded" : "fetching-ipns";
+    // until the feed is first calculated, every community still has more
+    let communityKeysWithMore = feedCommunityKeysWithMore || uniqueCommunityKeys;
+    if (!normalizedCommunityRefs.length) {
+        communityKeysWithMore = [];
+    }
     // apply the account's pending votes like useComment/useComments/useReplies do, so voting from a
     // feed updates the score immediately instead of only once the community publishes the new counts
     const normalizedFeed = useMemo(() => addOptimisticVoteCountsToComments(addCommentModerationToComments(feed), accountVotes), [feed, accountVotes]);
@@ -135,6 +141,7 @@ export function useFeed(options) {
         updatedFeed: normalizedUpdatedFeed,
         hasMore,
         communityKeysWithNewerPosts: communityKeysWithNewerPosts || [],
+        communityKeysWithMore,
         loadMore,
         expandTimeWindow,
         reset,
@@ -149,6 +156,7 @@ export function useFeed(options) {
         hasMore,
         errors,
         communityKeysWithNewerPosts,
+        communityKeysWithMore,
     ]);
 }
 /**

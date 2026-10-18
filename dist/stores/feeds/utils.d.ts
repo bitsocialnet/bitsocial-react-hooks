@@ -21,6 +21,15 @@ export declare const getFeedsCommunitiesPostCounts: (feedsOptions: FeedsOptions,
 export declare const getFeedsHaveMore: (feedsOptions: FeedsOptions, bufferedFeeds: Feeds, communities: Communities, communitiesPages: CommunitiesPages, accounts: Accounts) => {
     [feedName: string]: boolean;
 };
+/**
+ * Get which communities of each feed still have more posts: buffered posts the feed has not loaded
+ * yet, or pages not fetched yet. Blocked communities are left out.
+ */
+export declare const getFeedsCommunityKeysWithMore: (feedsOptions: FeedsOptions, bufferedFeedsCommunitiesPostCounts: FeedsCommunitiesPostCounts, communities: Communities, communitiesPages: CommunitiesPages, accounts: Accounts, previousFeedsCommunityKeysWithMore: {
+    [feedName: string]: string[];
+}) => {
+    [feedName: string]: string[];
+};
 export declare const getFeedsCommunities: (feedsOptions: FeedsOptions, communities: Communities) => Map<string, Community>;
 export declare const feedsCommunitiesChanged: (previousFeedsCommunities: Map<string, Community>, feedsCommunities: Map<string, Community>) => boolean;
 export declare const getFeedsCommunitiesFirstPageCids: (feedsCommunities: Map<string, Community>) => string[];
