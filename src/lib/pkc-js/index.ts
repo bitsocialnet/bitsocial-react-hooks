@@ -1,8 +1,7 @@
 // NOTE: don't import pkc-js directly to be able to replace the implementation
 
-import PkcJsMockContent from "./pkc-js-mock-content";
 import Logger from "@pkcprotocol/pkc-logger";
-import assert from "assert";
+import assert from "../assert";
 const log = Logger("bitsocial-react-hooks:pkc-js");
 
 let loadedDefaultPkc: any;
@@ -42,20 +41,31 @@ const loadDefaultPkc = async () => {
   return loadedDefaultPkc;
 };
 
-const createLazyDefaultPkc = () => {
+// A PKC implementation imported on first use; until then, short addresses and cids use the fallbacks.
+const createLazyPkc = (load: () => Promise<any>, getLoaded: () => any) => {
   const lazyPkc: any = async (...args: any[]) => {
-    const PKC = await loadDefaultPkc();
+    const PKC = await load();
     return PKC(...args);
   };
   lazyPkc.getShortAddress = (params: ShortAddressParams) =>
-    loadedDefaultPkc?.getShortAddress
-      ? loadedDefaultPkc.getShortAddress(normalizeShortAddressParams(params))
+    getLoaded()?.getShortAddress
+      ? getLoaded().getShortAddress(normalizeShortAddressParams(params))
       : getFallbackShortAddress(params);
   lazyPkc.getShortCid = (params: { cid?: string }) =>
-    loadedDefaultPkc?.getShortCid
-      ? loadedDefaultPkc.getShortCid(params)
-      : getFallbackShortCid(params);
+    getLoaded()?.getShortCid ? getLoaded().getShortCid(params) : getFallbackShortCid(params);
   return lazyPkc;
+};
+
+const createLazyDefaultPkc = () => createLazyPkc(loadDefaultPkc, () => loadedDefaultPkc);
+
+let loadedMockContentPkc: any;
+
+const loadMockContentPkc = async () => {
+  if (!loadedMockContentPkc) {
+    const module = await import("./pkc-js-mock-content");
+    loadedMockContentPkc = module.default;
+  }
+  return loadedMockContentPkc;
 };
 
 let defaultPkc = createLazyDefaultPkc();
@@ -83,9 +93,10 @@ export function restorePkcJs() {
 }
 
 try {
-  // mock content for front-end dev with this env var
+  // mock content for front-end dev with this env var, imported on first use so that apps built
+  // without it do not ship it
   if (process.env.REACT_APP_BITSOCIAL_REACT_HOOKS_MOCK_CONTENT) {
-    setPkcJs(PkcJsMockContent);
+    setPkcJs(createLazyPkc(loadMockContentPkc, () => loadedMockContentPkc));
   }
 } catch (e) {}
 

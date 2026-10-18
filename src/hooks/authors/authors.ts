@@ -3,7 +3,7 @@ import useInterval from "../utils/use-interval";
 import { useAccount } from "../accounts";
 import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:authors:hooks");
-import assert from "assert";
+import assert from "../../lib/assert";
 import {
   ChainProviders,
   Author,

@@ -1,4 +1,4 @@
-import assert from "assert";
+import assert from "../assert";
 import { Nft, ChainProviders, Wallet } from "../../types";
 import utils from "../utils";
 

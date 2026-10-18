@@ -8,7 +8,7 @@ import commentsStore, { CommentsState } from "../comments";
 import { addChildrenRepliesFeedsToAddToStore } from "./utils";
 import localForageLru from "../../lib/localforage-lru";
 import createStore from "zustand";
-import assert from "assert";
+import assert from "../../lib/assert";
 import { getReplyPageSortType, resolveReplySortType } from "../../lib/page-sorts";
 
 const repliesPagesDatabase = localForageLru.createInstance({

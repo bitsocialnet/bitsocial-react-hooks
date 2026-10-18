@@ -1,9 +1,9 @@
 import PkcJs from "../../lib/pkc-js";
 import validator from "../../lib/validator";
 import chain from "../../lib/chain";
-import assert from "assert";
+import assert from "../../lib/assert";
 import localForage from "localforage";
-import isEqual from "lodash.isequal";
+import isEqual from "../../lib/is-equal";
 import localForageLru from "../../lib/localforage-lru";
 import {
   Accounts,

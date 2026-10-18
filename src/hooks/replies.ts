@@ -3,7 +3,7 @@ import { useAccount } from "./accounts";
 import validator from "../lib/validator";
 import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:replies:hooks");
-import assert from "assert";
+import assert from "../lib/assert";
 import { UseRepliesOptions, UseRepliesResult } from "../types";
 import { addCommentModerationToComments } from "../lib/utils/comment-moderation";
 import useRepliesStore, {

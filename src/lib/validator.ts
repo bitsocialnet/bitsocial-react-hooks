@@ -1,4 +1,4 @@
-import assert from "assert";
+import assert from "./assert";
 import { assertCommunityRef } from "./community-ref";
 
 const toString = (value: any) => {

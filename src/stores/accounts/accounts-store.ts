@@ -1,4 +1,4 @@
-import assert from "assert";
+import assert from "../../lib/assert";
 import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:accounts:stores");
 import accountsDatabase from "./accounts-database";

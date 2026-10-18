@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useAccount } from "../accounts";
 import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:authors:hooks");
-import assert from "assert";
+import assert from "../../lib/assert";
 import { Nft, ChainProviders, Author } from "../../types";
 import { getNftMetadataUrl, getNftImageUrl, getNftOwner } from "../../lib/chain";
 import { getChainProviders } from "../../lib/pkc-compat";

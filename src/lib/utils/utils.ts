@@ -1,4 +1,4 @@
-import assert from "assert";
+import assert from "../assert";
 import QuickLru from "quick-lru";
 import Logger from "@pkcprotocol/pkc-logger";
 import PkcJs from "../pkc-js";

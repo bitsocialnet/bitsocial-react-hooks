@@ -1,4 +1,4 @@
-import assert from "assert";
+import assert from "./assert";
 import type { Comment, Crosspost } from "../types";
 import utils from "./utils";
 
