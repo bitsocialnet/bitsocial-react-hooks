@@ -277,6 +277,8 @@ export interface UseFeedResult extends Result {
   loadMore(): Promise<void>;
   expandTimeWindow(newerThan?: number): Promise<void>;
   communityKeysWithNewerPosts: string[];
+  // communities that still have posts to load, until each has loaded and fetched its last page
+  communityKeysWithMore: string[];
   reset(): Promise<void>;
 }
 

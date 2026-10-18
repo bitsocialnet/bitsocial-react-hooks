@@ -13,6 +13,7 @@ import {
   feedsHaveChangedBlockedCids,
   getAccountsBlockedCids,
   getFeedsHaveMore,
+  getFeedsCommunityKeysWithMore,
 } from "./utils";
 import accountsStore from "../accounts";
 
@@ -1387,6 +1388,126 @@ describe("feeds utils", () => {
         makeMockAccounts(),
       );
       expect(result.feed1).toBe(false);
+    });
+  });
+
+  describe("getFeedsCommunityKeysWithMore", () => {
+    const feedsOptions = {
+      feed1: {
+        communities: toCommunities([
+          "not-loaded",
+          "stale",
+          "blocked",
+          "no-pages",
+          "first-page-pending",
+          "next-page-pending",
+          "complete",
+          "buffered",
+        ]),
+        sortType: "active",
+        accountId: mockAccountId,
+      },
+    };
+    const now = Math.floor(Date.now() / 1000);
+    const withPageCid = (address: string, pageCid: string) => ({
+      address,
+      updatedAt: 1,
+      fetchedAt: now,
+      posts: { pageCids: { active: pageCid } },
+    });
+    const communities = {
+      stale: { ...withPageCid("stale", "stale-page"), fetchedAt: now - 2 * 60 * 60 },
+      blocked: withPageCid("blocked", "blocked-page"),
+      "no-pages": { address: "no-pages", updatedAt: 1, fetchedAt: now, posts: {} },
+      "first-page-pending": withPageCid("first-page-pending", "unfetched-page"),
+      "next-page-pending": withPageCid("next-page-pending", "page-with-next"),
+      complete: withPageCid("complete", "last-page"),
+      buffered: withPageCid("buffered", "buffered-last-page"),
+    };
+    const communitiesPages = {
+      "stale-page": { comments: [] },
+      "blocked-page": { comments: [], nextCid: "blocked-next" },
+      "page-with-next": { comments: [], nextCid: "unfetched-next-page" },
+      "last-page": { comments: [] },
+      "buffered-last-page": { comments: [] },
+    };
+    const accounts = makeMockAccounts({ blockedAddresses: { blocked: true } });
+    const bufferedPostCounts = { feed1: { buffered: 2, complete: 0 } };
+
+    test("lists the communities still loading, fetching pages or holding buffered posts", () => {
+      const result = getFeedsCommunityKeysWithMore(
+        feedsOptions,
+        bufferedPostCounts,
+        communities,
+        communitiesPages,
+        accounts,
+        {},
+      );
+      expect(result.feed1).toEqual([
+        "not-loaded",
+        "stale",
+        "first-page-pending",
+        "next-page-pending",
+        "buffered",
+      ]);
+    });
+
+    test("keeps the previous array when the communities are the same", () => {
+      const previous = getFeedsCommunityKeysWithMore(
+        feedsOptions,
+        bufferedPostCounts,
+        communities,
+        communitiesPages,
+        accounts,
+        {},
+      );
+      const unchanged = getFeedsCommunityKeysWithMore(
+        feedsOptions,
+        bufferedPostCounts,
+        communities,
+        communitiesPages,
+        accounts,
+        previous,
+      );
+      expect(unchanged.feed1).toBe(previous.feed1);
+      const changed = getFeedsCommunityKeysWithMore(
+        feedsOptions,
+        {},
+        communities,
+        communitiesPages,
+        accounts,
+        previous,
+      );
+      expect(changed.feed1).not.toContain("buffered");
+    });
+
+    test("reads the mod queue pages of a mod queue feed", () => {
+      const modQueueFeedsOptions = {
+        feed1: {
+          communities: toCommunities(["sub1"]),
+          sortType: "new",
+          accountId: mockAccountId,
+          modQueue: ["pendingApproval"],
+        },
+      };
+      const modQueueCommunities = {
+        sub1: {
+          address: "sub1",
+          updatedAt: 1,
+          modQueue: { pageCids: { pendingApproval: "mq1" } },
+        },
+      };
+      const pagesWithNext = { [`${mockAccountId}:mq1`]: { comments: [], nextCid: "mq2" } };
+      expect(
+        getFeedsCommunityKeysWithMore(
+          modQueueFeedsOptions,
+          {},
+          modQueueCommunities,
+          pagesWithNext,
+          makeMockAccounts(),
+          {},
+        ).feed1,
+      ).toEqual(["sub1"]);
     });
   });
 

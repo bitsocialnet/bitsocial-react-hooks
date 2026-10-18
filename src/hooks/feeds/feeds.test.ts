@@ -1991,15 +1991,19 @@ describe("feeds", () => {
         return { feed };
       });
       waitFor = testUtils.createWaitFor(rendered);
+      expect(rendered.result.current.feed.communityKeysWithMore).toEqual([]);
 
       // get feed with 1 sub with no posts
       rendered.rerender({ communityAddresses: ["community address 1"] });
       expect(rendered.result.current.feed.hasMore).toBe(true);
       expect(rendered.result.current.feed.feed.length).toBe(0);
+      // every community still has more until the feed is calculated
+      expect(rendered.result.current.feed.communityKeysWithMore).toEqual(["community address 1"]);
 
       await waitFor(() => rendered.result.current.feed.hasMore === false);
       expect(rendered.result.current.feed.hasMore).toBe(false);
       expect(rendered.result.current.feed.feed.length).toBe(1);
+      expect(rendered.result.current.feed.communityKeysWithMore).toEqual([]);
 
       Community.prototype.update = update;
     });

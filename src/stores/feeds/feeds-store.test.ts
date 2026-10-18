@@ -626,12 +626,15 @@ describe("feeds store", () => {
         ...state.updatedFeeds,
         [feedName]: [{ cid: "comment-1", timestamp: 1, communityAddress: community.name }],
       },
+      feedsCommunityKeysWithMore: { ...state.feedsCommunityKeysWithMore, [feedName]: [] },
     }));
 
     try {
       await act(async () => {
         await useFeedsStore.getState().resetFeed(feedName);
       });
+      // the reset feed counts as still loading until it is calculated again
+      expect(useFeedsStore.getState().feedsCommunityKeysWithMore).not.toHaveProperty(feedName);
 
       expect(refreshSpy).toHaveBeenCalledWith(
         community,
@@ -672,12 +675,14 @@ describe("feeds store", () => {
           newerThan: 24 * 60 * 60,
         },
       },
+      feedsCommunityKeysWithMore: { ...state.feedsCommunityKeysWithMore, [feedName]: [] },
     }));
 
     try {
       act(() => {
         useFeedsStore.getState().expandFeedTimeWindow(feedName, 7 * 24 * 60 * 60);
       });
+      expect(useFeedsStore.getState().feedsCommunityKeysWithMore).not.toHaveProperty(feedName);
 
       expect(useFeedsStore.getState().feedsOptions[feedName].pageNumber).toBe(1);
       expect(useFeedsStore.getState().feedsOptions[feedName].newerThan).toBe(7 * 24 * 60 * 60);

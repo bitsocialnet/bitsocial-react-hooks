@@ -41,6 +41,7 @@ import {
   getFeedsCommunitiesPostsPagesFirstUpdatedAts,
   getFilteredSortedFeeds,
   getFeedsCommunityKeysWithNewerPosts,
+  getFeedsCommunityKeysWithMore,
 } from "./utils";
 
 // reddit loads approximately 25 posts per page
@@ -58,6 +59,7 @@ type FeedsState = {
   bufferedFeedsCommunitiesPostCounts: FeedsCommunitiesPostCounts;
   feedsHaveMore: { [feedName: string]: boolean };
   feedsCommunityKeysWithNewerPosts: { [feedName: string]: string[] };
+  feedsCommunityKeysWithMore: { [feedName: string]: string[] };
   addFeedToStore: Function;
   incrementFeedPageNumber: Function;
   expandFeedTimeWindow: Function;
@@ -70,6 +72,13 @@ let updateFeedsPending = false;
 let updateFeedsAgain = false;
 const updateFeedsMinIntervalTime = 100;
 
+// a feed whose options changed has no community keys with more until it is calculated again, so
+// useFeed reports every community as still loading instead of the previous options' result
+const withoutFeed = (feedsCommunityKeys: { [feedName: string]: string[] }, feedName: string) => {
+  const { [feedName]: _removedFeedCommunityKeys, ...otherFeedsCommunityKeys } = feedsCommunityKeys;
+  return otherFeedsCommunityKeys;
+};
+
 const feedsStore = createStore<FeedsState>((setState: Function, getState: Function) => ({
   feedsOptions: {},
   bufferedFeeds: {},
@@ -78,6 +87,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
   bufferedFeedsCommunitiesPostCounts: {},
   feedsHaveMore: {},
   feedsCommunityKeysWithNewerPosts: {},
+  feedsCommunityKeysWithMore: {},
 
   async addFeedToStore(
     feedName: string,
@@ -243,7 +253,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
       currentFeedOptions.pageNumber > 0 &&
       loadedFeed.length >= currentFeedOptions.pageNumber * currentFeedOptions.postsPerPage;
 
-    setState(({ feedsOptions }: any) => ({
+    setState(({ feedsOptions, feedsCommunityKeysWithMore }: any) => ({
       feedsOptions: {
         ...feedsOptions,
         [feedName]: {
@@ -254,6 +264,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
             : currentFeedOptions.pageNumber,
         },
       },
+      feedsCommunityKeysWithMore: withoutFeed(feedsCommunityKeysWithMore, feedName),
     }));
 
     updateFeeds();
@@ -278,7 +289,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
       `feedsActions.resetFeed account id '${accountId}' does not exist in accounts store`,
     );
 
-    setState(({ feedsOptions, loadedFeeds, updatedFeeds }: any) => {
+    setState(({ feedsOptions, loadedFeeds, updatedFeeds, feedsCommunityKeysWithMore }: any) => {
       const feedOptions = {
         ...feedsOptions[feedName],
         pageNumber: 1,
@@ -287,6 +298,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
         feedsOptions: { ...feedsOptions, [feedName]: feedOptions },
         loadedFeeds: { ...loadedFeeds, [feedName]: [] },
         updatedFeeds: { ...updatedFeeds, [feedName]: [] },
+        feedsCommunityKeysWithMore: withoutFeed(feedsCommunityKeysWithMore, feedName),
       };
     });
 
@@ -376,6 +388,14 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
         communitiesPages,
         accounts,
       );
+      const feedsCommunityKeysWithMore = getFeedsCommunityKeysWithMore(
+        feedsOptions,
+        bufferedFeedsCommunitiesPostCounts,
+        communities,
+        communitiesPages,
+        accounts,
+        previousState.feedsCommunityKeysWithMore,
+      );
       const feedsCommunityKeysWithNewerPosts = getFeedsCommunityKeysWithNewerPosts(
         feedsOptions,
         filteredSortedFeeds,
@@ -398,6 +418,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
         bufferedFeedsCommunitiesPostCounts,
         feedsHaveMore,
         feedsCommunityKeysWithNewerPosts,
+        feedsCommunityKeysWithMore,
       }));
       log.trace("feedsStore.updateFeeds", {
         feedsOptions,
@@ -406,6 +427,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
         updatedFeeds,
         bufferedFeedsCommunitiesPostCounts,
         feedsHaveMore,
+        feedsCommunityKeysWithMore,
         communities,
         communitiesPages,
         feedsCommunityKeysWithNewerPosts,

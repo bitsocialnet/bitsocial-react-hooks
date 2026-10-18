@@ -87,6 +87,9 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
   const communityKeysWithNewerPosts = useFeedsStore(
     (state) => state.feedsCommunityKeysWithNewerPosts[feedName],
   );
+  const feedCommunityKeysWithMore = useFeedsStore(
+    (state) => state.feedsCommunityKeysWithMore[feedName],
+  );
 
   // add feed to store
   useEffect(() => {
@@ -173,6 +176,11 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
   }
 
   const state = !hasMore ? "succeeded" : "fetching-ipns";
+  // until the feed is first calculated, every community still has more
+  let communityKeysWithMore = feedCommunityKeysWithMore || uniqueCommunityKeys;
+  if (!normalizedCommunityRefs.length) {
+    communityKeysWithMore = [];
+  }
   // apply the account's pending votes like useComment/useComments/useReplies do, so voting from a
   // feed updates the score immediately instead of only once the community publishes the new counts
   const normalizedFeed = useMemo(
@@ -197,6 +205,7 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
       updatedFeed: normalizedUpdatedFeed,
       hasMore,
       communityKeysWithNewerPosts: communityKeysWithNewerPosts || [],
+      communityKeysWithMore,
       loadMore,
       expandTimeWindow,
       reset,
@@ -212,6 +221,7 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
       hasMore,
       errors,
       communityKeysWithNewerPosts,
+      communityKeysWithMore,
     ],
   );
 }
