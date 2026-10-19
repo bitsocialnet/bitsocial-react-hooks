@@ -42,14 +42,9 @@ const equalObjects = (a: any, b: any, tag: string, comparing: Map<object, object
     case "[object Error]":
       return a.name === b.name && a.message === b.message;
     case "[object Map]":
-      return (
-        a.size === b.size &&
-        [...a].every(
-          ([key, value]: [unknown, unknown]) => b.has(key) && equal(value, b.get(key), comparing),
-        )
-      );
     case "[object Set]":
-      return a.size === b.size && [...a].every((value: unknown) => b.has(value));
+      // Map entries (as [key, value] pairs) and Set members are compared deeply, in any order.
+      return a.size === b.size && equalUnordered([...a], [...b], comparing);
     case "[object ArrayBuffer]":
       return equalBytes(new Uint8Array(a), new Uint8Array(b));
   }
@@ -97,6 +92,16 @@ const equalObjects = (a: any, b: any, tag: string, comparing: Map<object, object
       bConstructor instanceof bConstructor
     )
   );
+};
+
+// Each member of `a` needs its own deeply equal member of `b`, as lodash matches collections.
+const equalUnordered = (a: unknown[], b: unknown[], comparing: Map<object, object>) => {
+  const matched = new Set<number>();
+  return a.every((value) => {
+    const index = b.findIndex((other, i) => !matched.has(i) && equal(value, other, comparing));
+    matched.add(index);
+    return index !== -1;
+  });
 };
 
 const equalBytes = (a: Uint8Array, b: Uint8Array) =>

@@ -39,6 +39,15 @@ describe("isEqual", () => {
     expect(isEqual(new Set([1]), new Set([2]))).toBe(false);
   });
 
+  test("compares Map keys and Set members deeply, in any order", () => {
+    expect(isEqual(new Map([[{ id: 1 }, "a"]]), new Map([[{ id: 1 }, "a"]]))).toBe(true);
+    expect(isEqual(new Map([[{ id: 1 }, "a"]]), new Map([[{ id: 2 }, "a"]]))).toBe(false);
+    expect(isEqual(new Set([{ id: 1 }, { id: 2 }]), new Set([{ id: 2 }, { id: 1 }]))).toBe(true);
+    expect(isEqual(new Set([{ id: 1 }]), new Set([{ id: 2 }]))).toBe(false);
+    // Each member needs its own match.
+    expect(isEqual(new Set([{ id: 1 }, { id: 1 }]), new Set([{ id: 1 }, { id: 2 }]))).toBe(false);
+  });
+
   test("tells apart objects built by different constructors", () => {
     class Point {
       constructor(public x: number) {}
