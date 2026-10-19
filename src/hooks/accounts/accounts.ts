@@ -1,10 +1,10 @@
 import { useMemo, useState, useEffect } from "react";
-import isEqual from "lodash.isequal";
+import isEqual from "../../lib/is-equal";
 import useAccountsStore from "../../stores/accounts";
 import useCommunitiesStore from "../../stores/communities";
 import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:accounts:hooks");
-import assert from "assert";
+import assert from "../../lib/assert";
 import { useListCommunities, useCommunities } from "../communities";
 import type {
   AccountComment,

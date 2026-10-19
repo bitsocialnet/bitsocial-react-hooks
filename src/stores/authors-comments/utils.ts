@@ -1,6 +1,6 @@
 import { Comment, Comments, CommentsFilter } from "../../types";
 import { commentsPerPage } from "./authors-comments-store";
-import assert from "assert";
+import assert from "../../lib/assert";
 import commentsStore from "../comments";
 
 export const getUpdatedLoadedAndBufferedComments = (

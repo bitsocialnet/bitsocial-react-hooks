@@ -14,7 +14,7 @@ import accountsStore from "../accounts";
 import communitiesStore, { CommunitiesState } from "../communities";
 import localForageLru from "../../lib/localforage-lru";
 import createStore from "zustand";
-import assert from "assert";
+import assert from "../../lib/assert";
 import {
   createPkcCommunity,
   getPkcCreateCommunity,

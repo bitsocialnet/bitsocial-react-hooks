@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 import useAccountsStore from "../../stores/accounts";
 import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:actions:hooks");
-import assert from "assert";
+import assert from "../../lib/assert";
 import { useAccount, useAccountId } from "../accounts";
 
 /** Wraps a callback to no-op when guard returns false. Exported for coverage. */

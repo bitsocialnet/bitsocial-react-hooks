@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useAccount } from "./accounts";
-import assert from "assert";
+import assert from "../lib/assert";
 import { UsePkcRpcSettingsOptions, UsePkcRpcSettingsResult, PkcRpcSettings } from "../types";
 import { getProtocolClient, getRpcClients } from "../lib/pkc-compat";
 

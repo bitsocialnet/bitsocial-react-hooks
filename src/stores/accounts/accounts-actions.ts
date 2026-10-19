@@ -7,7 +7,7 @@ import accountGenerator from "./account-generator";
 import Logger from "@pkcprotocol/pkc-logger";
 import validator from "../../lib/validator";
 import chain from "../../lib/chain";
-import assert from "assert";
+import assert from "../../lib/assert";
 const log = Logger("bitsocial-react-hooks:accounts:stores");
 import {
   Account,
@@ -52,7 +52,7 @@ import {
   getFreshestLoadedComment,
   getInitAccountCommentsToUpdate,
 } from "./utils";
-import isEqual from "lodash.isequal";
+import isEqual from "../../lib/is-equal";
 import { v4 as uuid } from "uuid";
 import utils from "../../lib/utils";
 import { addOptimisticVoteMetadata } from "../../lib/utils/optimistic-vote-counts";

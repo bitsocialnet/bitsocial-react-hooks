@@ -1,4 +1,4 @@
-import assert from "assert";
+import assert from "./assert";
 
 export const getPkcCreateCommunity = (pkc: any) => pkc?.createCommunity;
 

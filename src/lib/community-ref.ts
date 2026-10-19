@@ -1,4 +1,4 @@
-import assert from "assert";
+import assert from "./assert";
 import { Community, CommunityIdentifier } from "../types";
 import { areEquivalentCommunityAddresses } from "./community-address";
 
