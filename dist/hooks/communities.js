@@ -12,7 +12,7 @@ import { useAccount } from "./accounts/index.js";
 import validator from "../lib/validator.js";
 import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:communities:hooks");
-import assert from "assert";
+import assert from "../lib/assert.js";
 import useInterval from "./utils/use-interval.js";
 import createStore from "zustand";
 import { resolveEnsTxtRecord } from "../lib/chain/index.js";

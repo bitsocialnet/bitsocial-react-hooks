@@ -8,9 +8,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import PkcJsMockContent from "./pkc-js-mock-content.js";
 import Logger from "@pkcprotocol/pkc-logger";
-import assert from "assert";
+import assert from "../assert.js";
 const log = Logger("bitsocial-react-hooks:pkc-js");
 let loadedDefaultPkc;
 const getShortAddressValue = (params = {}) => { var _a; return (_a = params.name) !== null && _a !== void 0 ? _a : params.address; };
@@ -41,19 +40,30 @@ const loadDefaultPkc = () => __awaiter(void 0, void 0, void 0, function* () {
     }
     return loadedDefaultPkc;
 });
-const createLazyDefaultPkc = () => {
+// A PKC implementation imported on first use; until then, short addresses and cids use the fallbacks.
+const createLazyPkc = (load, getLoaded) => {
     const lazyPkc = (...args) => __awaiter(void 0, void 0, void 0, function* () {
-        const PKC = yield loadDefaultPkc();
+        const PKC = yield load();
         return PKC(...args);
     });
-    lazyPkc.getShortAddress = (params) => (loadedDefaultPkc === null || loadedDefaultPkc === void 0 ? void 0 : loadedDefaultPkc.getShortAddress)
-        ? loadedDefaultPkc.getShortAddress(normalizeShortAddressParams(params))
-        : getFallbackShortAddress(params);
-    lazyPkc.getShortCid = (params) => (loadedDefaultPkc === null || loadedDefaultPkc === void 0 ? void 0 : loadedDefaultPkc.getShortCid)
-        ? loadedDefaultPkc.getShortCid(params)
-        : getFallbackShortCid(params);
+    lazyPkc.getShortAddress = (params) => {
+        var _a;
+        return ((_a = getLoaded()) === null || _a === void 0 ? void 0 : _a.getShortAddress)
+            ? getLoaded().getShortAddress(normalizeShortAddressParams(params))
+            : getFallbackShortAddress(params);
+    };
+    lazyPkc.getShortCid = (params) => { var _a; return ((_a = getLoaded()) === null || _a === void 0 ? void 0 : _a.getShortCid) ? getLoaded().getShortCid(params) : getFallbackShortCid(params); };
     return lazyPkc;
 };
+const createLazyDefaultPkc = () => createLazyPkc(loadDefaultPkc, () => loadedDefaultPkc);
+let loadedMockContentPkc;
+const loadMockContentPkc = () => __awaiter(void 0, void 0, void 0, function* () {
+    if (!loadedMockContentPkc) {
+        const module = yield import("./pkc-js-mock-content.js");
+        loadedMockContentPkc = module.default;
+    }
+    return loadedMockContentPkc;
+});
 let defaultPkc = createLazyDefaultPkc();
 const protocolClient = {
     PKC: defaultPkc,
@@ -75,9 +85,10 @@ export function restorePkcJs() {
     log("restorePkcJs");
 }
 try {
-    // mock content for front-end dev with this env var
+    // mock content for front-end dev with this env var, imported on first use so that apps built
+    // without it do not ship it
     if (process.env.REACT_APP_BITSOCIAL_REACT_HOOKS_MOCK_CONTENT) {
-        setPkcJs(PkcJsMockContent);
+        setPkcJs(createLazyPkc(loadMockContentPkc, () => loadedMockContentPkc));
     }
 }
 catch (e) { }

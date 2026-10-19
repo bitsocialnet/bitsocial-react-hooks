@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:states:hooks");
-import assert from "assert";
+import assert from "../lib/assert.js";
 import validator from "../lib/validator.js";
 import { getPageRpcClients } from "../lib/pkc-compat.js";
 import { useCommunities } from "./communities.js";

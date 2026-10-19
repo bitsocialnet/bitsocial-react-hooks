@@ -16,7 +16,7 @@ import commentsStore from "../comments/index.js";
 import { addChildrenRepliesFeedsToAddToStore } from "./utils.js";
 import localForageLru from "../../lib/localforage-lru/index.js";
 import createStore from "zustand";
-import assert from "assert";
+import assert from "../../lib/assert.js";
 import { getReplyPageSortType, resolveReplySortType } from "../../lib/page-sorts.js";
 const repliesPagesDatabase = localForageLru.createInstance({
     name: "bitsocialReactHooks-repliesPages",

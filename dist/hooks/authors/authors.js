@@ -12,7 +12,7 @@ import useInterval from "../utils/use-interval.js";
 import { useAccount } from "../accounts/index.js";
 import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:authors:hooks");
-import assert from "assert";
+import assert from "../../lib/assert.js";
 import { useNftMetadataUrl, useNftImageUrl, useVerifiedAuthorAvatarSignature, useAuthorAvatarIsWhitelisted, } from "./author-avatars.js";
 import { useComment } from "../comments.js";
 import { useAuthorCommentsName, usePkcAddress } from "./utils.js";

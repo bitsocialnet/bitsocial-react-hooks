@@ -1,4 +1,4 @@
-import assert from "assert";
+import assert from "./assert.js";
 import utils from "./utils/index.js";
 /** Build the immutable wire payload required by pkc-js when publishing a crosspost. */
 export const createCrosspost = (comment) => {

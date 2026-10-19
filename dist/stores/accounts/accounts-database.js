@@ -10,9 +10,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import PkcJs from "../../lib/pkc-js/index.js";
 import validator from "../../lib/validator.js";
 import chain from "../../lib/chain/index.js";
-import assert from "assert";
+import assert from "../../lib/assert.js";
 import localForage from "localforage";
-import isEqual from "lodash.isequal";
+import isEqual from "../../lib/is-equal.js";
 import localForageLru from "../../lib/localforage-lru/index.js";
 import utils from "../../lib/utils/index.js";
 import { getDefaultChainProviders, getDefaultPkcOptions, overwritePkcOptions, } from "./account-generator.js";

@@ -7,7 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import assert from "assert";
+import assert from "../assert.js";
 import utils from "../utils/index.js";
 // ethers and viem are large and only needed once an author wallet, NFT avatar, or ENS record is
 // used, so they load on demand instead of with the hooks that apps import at startup. Every

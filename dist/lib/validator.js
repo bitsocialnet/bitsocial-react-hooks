@@ -1,4 +1,4 @@
-import assert from "assert";
+import assert from "./assert.js";
 import { assertCommunityRef } from "./community-ref.js";
 const toString = (value) => {
     if (typeof value === "string") {

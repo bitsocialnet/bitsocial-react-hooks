@@ -12,7 +12,7 @@ import { useAccount } from "./accounts/index.js";
 import validator from "../lib/validator.js";
 import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:replies:hooks");
-import assert from "assert";
+import assert from "../lib/assert.js";
 import { addCommentModerationToComments } from "../lib/utils/comment-moderation.js";
 import useRepliesStore, { feedOptionsToFeedName, getRepliesFirstPageSkipValidation, } from "../stores/replies/index.js";
 import useAccountsStore from "../stores/accounts/index.js";

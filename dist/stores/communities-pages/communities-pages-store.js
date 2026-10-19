@@ -15,7 +15,7 @@ import accountsStore from "../accounts/index.js";
 import communitiesStore from "../communities/index.js";
 import localForageLru from "../../lib/localforage-lru/index.js";
 import createStore from "zustand";
-import assert from "assert";
+import assert from "../../lib/assert.js";
 import { createPkcCommunity, getPkcCreateCommunity, normalizeCommentCommunityAddress, } from "../../lib/pkc-compat.js";
 import { getPostPageSortType } from "../../lib/page-sorts.js";
 const communitiesPagesDatabase = localForageLru.createInstance({

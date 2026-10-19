@@ -1,3 +1,12 @@
+## [0.1.54](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.53...v0.1.54) (2026-10-19)
+
+
+### Bug Fixes
+
+* **bundle:** stop shipping mock content and Node polyfills to apps ([#155](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/155)) ([49a1e80](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/49a1e80d9db3b4678d7a9ef3e502ea2b4188cdb4))
+
+
+
 ## [0.1.53](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.52...v0.1.53) (2026-10-18)
 
 

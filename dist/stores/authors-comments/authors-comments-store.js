@@ -10,7 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:authors:stores");
 import createStore from "zustand";
-import assert from "assert";
+import assert from "../../lib/assert.js";
 import commentsStore from "../comments/index.js";
 import QuickLru from "quick-lru";
 import { getUpdatedLoadedAndBufferedComments, getNextCommentCidToFetchNotFetched, } from "./utils.js";

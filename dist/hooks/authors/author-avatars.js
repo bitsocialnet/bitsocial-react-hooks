@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 import { useAccount } from "../accounts/index.js";
 import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:authors:hooks");
-import assert from "assert";
+import assert from "../../lib/assert.js";
 import { getNftMetadataUrl, getNftImageUrl, getNftOwner } from "../../lib/chain/index.js";
 import { getChainProviders } from "../../lib/pkc-compat.js";
 import createStore from "zustand";

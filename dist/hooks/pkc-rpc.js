@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import { useState, useMemo, useEffect } from "react";
 import { useAccount } from "./accounts/index.js";
-import assert from "assert";
+import assert from "../lib/assert.js";
 import { getProtocolClient, getRpcClients } from "../lib/pkc-compat.js";
 const getFirstRpcClient = (protocolClient) => Object.values(getRpcClients(protocolClient) || {})[0];
 /**

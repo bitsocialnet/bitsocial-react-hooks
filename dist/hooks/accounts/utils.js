@@ -8,8 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import { useMemo, useState, useEffect } from "react";
-// @ts-ignore
-import memoize from "memoizee";
+import memoize from "../../lib/memoize.js";
 import PkcJs from "../../lib/pkc-js/index.js";
 import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:accounts:hooks");
@@ -37,11 +36,7 @@ const getAccountsBlockedAddressesNoCache = (...args) => {
     }
     return accountsBlockedAddresses;
 };
-// length false because variable arguments legnth
-const getAccountsBlockedAddressesCached = memoize(getAccountsBlockedAddressesNoCache, {
-    max: 100,
-    length: false,
-});
+const getAccountsBlockedAddressesCached = memoize(getAccountsBlockedAddressesNoCache, { max: 100 });
 // accountsBlockedCids must be cached to prevent rerenders
 // TODO: add accountsBlockedCids as an object in the store that can easily be === checked for equality
 const getAccountsBlockedCidsNoCache = (...args) => {
@@ -56,11 +51,7 @@ const getAccountsBlockedCidsNoCache = (...args) => {
     }
     return accountsBlockedCids;
 };
-// length false because variable arguments legnth
-const getAccountsBlockedCidsCached = memoize(getAccountsBlockedCidsNoCache, {
-    max: 100,
-    length: false,
-});
+const getAccountsBlockedCidsCached = memoize(getAccountsBlockedCidsNoCache, { max: 100 });
 export const useCalculatedAccountsNotifications = (accounts, accountsCommentsReplies) => {
     // accountsBlockedAddresses and accountsBlockedCids must be cached to prevent rerenders
     // TODO: add accountsBlockedAddresses and accountsBlockedCids as objects in the store that can easily be === checked for equality

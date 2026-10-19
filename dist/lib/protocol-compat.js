@@ -7,7 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import assert from "assert";
+import assert from "./assert.js";
 export const getPkcCreateCommunity = (pkc) => pkc === null || pkc === void 0 ? void 0 : pkc.createCommunity;
 export const getPkcGetCommunity = (pkc) => pkc === null || pkc === void 0 ? void 0 : pkc.getCommunity;
 export const getPkcCreateCommunityEdit = (pkc) => pkc === null || pkc === void 0 ? void 0 : pkc.createCommunityEdit;

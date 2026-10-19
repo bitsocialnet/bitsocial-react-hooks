@@ -22,7 +22,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import useAccountsStore from "../../stores/accounts/index.js";
 import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:actions:hooks");
-import assert from "assert";
+import assert from "../../lib/assert.js";
 import { useAccount, useAccountId } from "../accounts/index.js";
 /** Wraps a callback to no-op when guard returns false. Exported for coverage. */
 export function withGuardActive(guardActive, fn) {

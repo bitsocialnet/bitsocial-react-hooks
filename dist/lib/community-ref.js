@@ -1,4 +1,4 @@
-import assert from "assert";
+import assert from "./assert.js";
 import { areEquivalentCommunityAddresses } from "./community-address.js";
 const getLegacyCommunityAddress = (communityRef) => communityRef.address;
 export const getCommunityRefKey = (communityRef) => {

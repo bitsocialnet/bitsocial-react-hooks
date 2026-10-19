@@ -11,8 +11,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import accountsStore, { listeners } from "./accounts-store.js";
 import accountsDatabase from "./accounts-database.js";
 import Logger from "@pkcprotocol/pkc-logger";
-import assert from "assert";
-import isEqual from "lodash.isequal";
+import assert from "../../lib/assert.js";
+import isEqual from "../../lib/is-equal.js";
 const log = Logger("bitsocial-react-hooks:accounts:stores");
 import utils from "../../lib/utils/index.js";
 import { backfillPublicationCommunityAddress, getCommentCommunityAddress, normalizePublicationOptionsForPkc, normalizePublicationOptionsForStore, } from "../../lib/pkc-compat.js";

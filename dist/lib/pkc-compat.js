@@ -7,7 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import assert from "assert";
+import assert from "./assert.js";
 export const getProtocolClient = (account) => account === null || account === void 0 ? void 0 : account.pkc;
 export const getProtocolOptions = (account) => account === null || account === void 0 ? void 0 : account.pkcOptions;
 export const getChainProviders = (account) => { var _a; return (account === null || account === void 0 ? void 0 : account.chainProviders) || ((_a = getProtocolOptions(account)) === null || _a === void 0 ? void 0 : _a.chainProviders); };

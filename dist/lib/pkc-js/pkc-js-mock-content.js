@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import markdownExample from "./fixtures/markdown-example.js";
 import EventEmitter from "events";
-import assert from "assert";
+import assert from "../assert.js";
 import { fromString as uint8ArrayFromString } from "uint8arrays/from-string";
 import { toString as uint8ArrayToString } from "uint8arrays/to-string";
 // changeable with env variable so the frontend can test with different latencies
