@@ -64,28 +64,43 @@ const normalizeCommunitySyncState = (updatingState: string): CommunitySyncState 
   return "loading";
 };
 
+const getNextSyncStatuses = (
+  state: CommunitiesState,
+  communityKey: string,
+  syncState: CommunitySyncState,
+) => {
+  const previousStatus = state.syncStatuses[communityKey];
+  const timestamp = getNowSeconds();
+  const shouldRecordAttempt = syncState === "loading" && previousStatus?.syncState !== "loading";
+  return {
+    ...state.syncStatuses,
+    [communityKey]: {
+      ...previousStatus,
+      syncState,
+      ...(shouldRecordAttempt ? { lastFetchAttemptAt: timestamp } : undefined),
+      ...(syncState === "succeeded" ? { lastSuccessfulFetchAt: timestamp } : undefined),
+    },
+  };
+};
+
 const updateCommunitySyncStatus = (
   setState: Function,
   communityKey: string,
   syncState: CommunitySyncState,
 ) => {
-  setState((state: CommunitiesState) => {
-    const previousStatus = state.syncStatuses[communityKey];
-    const timestamp = getNowSeconds();
-    const shouldRecordAttempt = syncState === "loading" && previousStatus?.syncState !== "loading";
-    return {
-      ...state,
-      syncStatuses: {
-        ...state.syncStatuses,
-        [communityKey]: {
-          ...previousStatus,
-          syncState,
-          ...(shouldRecordAttempt ? { lastFetchAttemptAt: timestamp } : undefined),
-          ...(syncState === "succeeded" ? { lastSuccessfulFetchAt: timestamp } : undefined),
-        },
-      },
-    };
-  });
+  setState((state: CommunitiesState) => ({
+    ...state,
+    syncStatuses: getNextSyncStatuses(state, communityKey, syncState),
+  }));
+};
+
+// identifies a signed community record, to recognize pkc-js re-emitting a record already in the store
+const getCommunityRecordId = (community: any): string | undefined => {
+  const signature = community?.signature?.signature;
+  if (typeof signature !== "string" || typeof community?.updatedAt !== "number") {
+    return;
+  }
+  return `${community.updatedAt}:${signature}`;
 };
 
 const createCommunityWithLookupFallback = async (
@@ -165,6 +180,12 @@ const clearStoredCommunityErrors = (state: CommunitiesState, communityKey: strin
   delete nextErrors[communityKey];
   return nextErrors;
 };
+
+// returning the same state skips notifying subscribers when there is nothing to clear
+const clearStoredCommunityErrorsState = (state: CommunitiesState, communityKey: string) =>
+  state.errors[communityKey]
+    ? { ...state, errors: clearStoredCommunityErrors(state, communityKey) }
+    : state;
 
 export const isRetriableCommunityLoadError = (error: Error) => {
   const details = (error as Error & { details?: unknown }).details;
@@ -273,6 +294,7 @@ const communitiesStore = createStore<CommunitiesState>(
 
         // try to find community in database
         let fetchedAt: number | undefined;
+        let isFromCache = false;
         if (!community) {
           const communityData: any = await communitiesDatabase.getItem(communityKey);
           const lookupName =
@@ -300,6 +322,7 @@ const communitiesStore = createStore<CommunitiesState>(
             delete communityData.fetchedAt; // not part of pkc-js schema
             try {
               community = await createPkcCommunity(account.pkc, communityData);
+              isFromCache = Boolean(community);
             } catch (e) {
               fetchedAt = undefined;
               // need to log this always or it could silently fail in production and cache never be used
@@ -349,7 +372,11 @@ const communitiesStore = createStore<CommunitiesState>(
           ...community,
           ...(fetchedAt !== undefined ? { fetchedAt } : undefined),
         });
-        await communitiesDatabase.setItem(communityKey, firstCommunityState);
+        // a cache hit already is the database entry, rewriting it would only delay the store
+        // update behind an IndexedDB write of the whole record
+        if (!isFromCache) {
+          await communitiesDatabase.setItem(communityKey, firstCommunityState);
+        }
         log("communitiesStore.addCommunityToStore", {
           communityAddressOrRef,
           communityKey,
@@ -360,13 +387,42 @@ const communitiesStore = createStore<CommunitiesState>(
           communities: { ...state.communities, [communityKey]: firstCommunityState },
         }));
 
+        // pkc-js re-emits the record a community was created with when update() starts
+        let cachedRecordId = isFromCache ? getCommunityRecordId(firstCommunityState) : undefined;
+
         // the community has published new posts
         community.on("update", async (updatedCommunity: Community) => {
           clearPendingCommunityErrors(communityKey);
-          setState((state: CommunitiesState) => ({
-            ...state,
-            errors: clearStoredCommunityErrors(state, communityKey),
-          }));
+          setState((state: CommunitiesState) =>
+            clearStoredCommunityErrorsState(state, communityKey),
+          );
+
+          const isCachedRecordReplay =
+            cachedRecordId !== undefined &&
+            getCommunityRecordId(updatedCommunity) === cachedRecordId;
+          cachedRecordId = undefined;
+          if (isCachedRecordReplay) {
+            // the replayed record is already in the store and the database, only refresh fetchedAt
+            // like a fetched update would, without cloning and rewriting the whole record
+            setState((state: CommunitiesState) => {
+              const storedCommunity = state.communities[communityKey];
+              if (!storedCommunity) {
+                return state;
+              }
+              return {
+                communities: {
+                  ...state.communities,
+                  [communityKey]: { ...storedCommunity, fetchedAt: getNowSeconds() },
+                },
+              };
+            });
+            // pass the cloned record, account state keeps references to its roles
+            accountsStore
+              .getState()
+              .accountsActionsInternal.addCommunityRoleToAccountsCommunities(firstCommunityState);
+            return;
+          }
+
           updatedCommunity = utils.clone(updatedCommunity);
 
           // add fetchedAt to be able to expire the cache
@@ -395,12 +451,12 @@ const communitiesStore = createStore<CommunitiesState>(
         });
 
         community.on("updatingstatechange", (updatingState: string) => {
-          updateCommunitySyncStatus(
-            setState,
-            communityKey,
-            normalizeCommunitySyncState(updatingState),
-          );
           setState((state: CommunitiesState) => ({
+            syncStatuses: getNextSyncStatuses(
+              state,
+              communityKey,
+              normalizeCommunitySyncState(updatingState),
+            ),
             communities: {
               ...state.communities,
               [communityKey]: { ...state.communities[communityKey], updatingState },
@@ -419,7 +475,7 @@ const communitiesStore = createStore<CommunitiesState>(
             setState((state: CommunitiesState) => {
               // make sure not undefined, sometimes happens in e2e tests
               if (!state.communities[communityKey]) {
-                return {};
+                return state;
               }
               const clients = { ...state.communities[communityKey]?.clients };
               const client = { state: clientState };
