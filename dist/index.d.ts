@@ -1,5 +1,5 @@
 import { useAccount, useAccounts, useAccountComment, useAccountComments, useAccountVotes, useAccountVote, useAccountEdits, useEditedComment, useNotifications, useAccountCommunities, usePubsubSubscribe } from "./hooks/accounts/index.js";
-import { useComment, useComments, useCrosspost, useValidateComment } from "./hooks/comments.js";
+import { useComment, useComments, useCrosspost, useValidateComment, validateComment } from "./hooks/comments.js";
 import { useReplies } from "./hooks/replies.js";
 import { useCommunity, useCommunities, useCommunityStats, useListCommunities, useResolvedCommunityAddress } from "./hooks/communities.js";
 import { useFeed, useBufferedFeeds } from "./hooks/feeds/index.js";
@@ -14,7 +14,7 @@ import { deleteDatabases, deleteCaches } from "./lib/debug-utils.js";
 import { createCrosspost } from "./lib/crosspost.js";
 import { getAvailablePostSortTypes, getAvailableReplySortTypes, getPreloadedPostSortType, getPreloadedReplySortType, getPostPageSortType, getReplyPageSortType, getSortTimeframeSeconds, isFlatSortType, resolvePostSortType, resolveReplySortType } from "./lib/page-sorts.js";
 export * from "./types.js";
-export { useAccount, useAccounts, useAccountComment, useAccountComments, useAccountVotes, useAccountVote, useAccountEdits, useAccountCommunities, useNotifications, usePubsubSubscribe, useComment, useComments, useCrosspost, useEditedComment, useValidateComment, useReplies, useCommunity, useCommunities, useCommunityStats, useListCommunities, useResolvedCommunityAddress, useAuthor, useAuthorComments, useAuthorAvatar, useResolvedAuthorAddress, useAuthorAddress, setAuthorAvatarsWhitelistedTokenAddresses, resetAuthorAddressCacheForTesting, useFeed, useBufferedFeeds, useSubscribe, useBlock, useSaveComment, usePublishComment, usePublishVote, usePublishCommentEdit, usePublishCommentModeration, usePublishCommunityEdit, useCreateCommunity, useExportCommunity, createAccount, deleteAccount, deleteComment, setAccount, setActiveAccount, setAccountsOrder, importAccount, exportAccount, deleteCommunity, useClientsStates, useCommunitiesStates, usePkcRpcSettings, getEthWalletFromPkcPrivateKey, getEthPrivateKeyFromPkcPrivateKey, validateEthWallet, setPkcJs, restorePkcJs, deleteDatabases, deleteCaches, createCrosspost, getAvailablePostSortTypes, getAvailableReplySortTypes, getPreloadedPostSortType, getPreloadedReplySortType, getPostPageSortType, getReplyPageSortType, getSortTimeframeSeconds, isFlatSortType, resolvePostSortType, resolveReplySortType, };
+export { useAccount, useAccounts, useAccountComment, useAccountComments, useAccountVotes, useAccountVote, useAccountEdits, useAccountCommunities, useNotifications, usePubsubSubscribe, useComment, useComments, useCrosspost, useEditedComment, useValidateComment, validateComment, useReplies, useCommunity, useCommunities, useCommunityStats, useListCommunities, useResolvedCommunityAddress, useAuthor, useAuthorComments, useAuthorAvatar, useResolvedAuthorAddress, useAuthorAddress, setAuthorAvatarsWhitelistedTokenAddresses, resetAuthorAddressCacheForTesting, useFeed, useBufferedFeeds, useSubscribe, useBlock, useSaveComment, usePublishComment, usePublishVote, usePublishCommentEdit, usePublishCommentModeration, usePublishCommunityEdit, useCreateCommunity, useExportCommunity, createAccount, deleteAccount, deleteComment, setAccount, setActiveAccount, setAccountsOrder, importAccount, exportAccount, deleteCommunity, useClientsStates, useCommunitiesStates, usePkcRpcSettings, getEthWalletFromPkcPrivateKey, getEthPrivateKeyFromPkcPrivateKey, validateEthWallet, setPkcJs, restorePkcJs, deleteDatabases, deleteCaches, createCrosspost, getAvailablePostSortTypes, getAvailableReplySortTypes, getPreloadedPostSortType, getPreloadedReplySortType, getPostPageSortType, getReplyPageSortType, getSortTimeframeSeconds, isFlatSortType, resolvePostSortType, resolveReplySortType, };
 declare const hooks: {
     useAccount: typeof useAccount;
     useAccounts: typeof useAccounts;
@@ -31,6 +31,7 @@ declare const hooks: {
     useCrosspost: typeof useCrosspost;
     useEditedComment: typeof useEditedComment;
     useValidateComment: typeof useValidateComment;
+    validateComment: typeof validateComment;
     useReplies: typeof useReplies;
     useCommunity: typeof useCommunity;
     useCommunities: typeof useCommunities;

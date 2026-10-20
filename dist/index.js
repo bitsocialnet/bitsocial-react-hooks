@@ -3,7 +3,7 @@ polyfill();
 // accounts
 import { useAccount, useAccounts, useAccountComment, useAccountComments, useAccountVotes, useAccountVote, useAccountEdits, useEditedComment, useNotifications, useAccountCommunities, usePubsubSubscribe, } from "./hooks/accounts/index.js";
 // comments
-import { useComment, useComments, useCrosspost, useValidateComment } from "./hooks/comments.js";
+import { useComment, useComments, useCrosspost, useValidateComment, validateComment, } from "./hooks/comments.js";
 // replies
 import { useReplies } from "./hooks/replies.js";
 // communities
@@ -34,7 +34,7 @@ export {
 // accounts
 useAccount, useAccounts, useAccountComment, useAccountComments, useAccountVotes, useAccountVote, useAccountEdits, useAccountCommunities, useNotifications, usePubsubSubscribe, 
 // comments
-useComment, useComments, useCrosspost, useEditedComment, useValidateComment, 
+useComment, useComments, useCrosspost, useEditedComment, useValidateComment, validateComment, 
 // replies
 useReplies, 
 // communities
@@ -74,6 +74,7 @@ const hooks = {
     useCrosspost,
     useEditedComment,
     useValidateComment,
+    validateComment,
     // replies
     useReplies,
     // communities

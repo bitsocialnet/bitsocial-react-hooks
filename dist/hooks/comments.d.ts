@@ -1,4 +1,4 @@
-import { Comment, UseCommentsOptions, UseCommentsResult, UseCommentOptions, UseCommentResult, UseCrosspostOptions, UseCrosspostResult, UseValidateCommentOptions, UseValidateCommentResult } from "../types.js";
+import { Comment, UseCommentsOptions, UseCommentsResult, UseCommentOptions, UseCommentResult, UseCrosspostOptions, UseCrosspostResult, UseValidateCommentOptions, UseValidateCommentResult, ValidateCommentOptions, ValidateCommentResult } from "../types.js";
 export declare function getCommentFreshness(comment: Comment | undefined): number;
 export declare function preferFresher(current: Comment | undefined, candidate: Comment | undefined): Comment | undefined;
 /**
@@ -19,5 +19,11 @@ export declare function useCrosspost(options?: UseCrosspostOptions): UseCrosspos
  * the active account.
  */
 export declare function useComments(options?: UseCommentsOptions): UseCommentsResult;
+/**
+ * Validate a comment from an untrusted source outside React, e.g. `{ cid, raw: { comment,
+ * commentUpdate } }` from a third-party provider: the author's signature, the community's
+ * signature of the commentUpdate for this cid, and that raw.comment hashes to cid.
+ */
+export declare function validateComment(comment: Comment, options?: ValidateCommentOptions): Promise<ValidateCommentResult>;
 export declare function useValidateComment(options?: UseValidateCommentOptions): UseValidateCommentResult;
 //# sourceMappingURL=comments.d.ts.map
