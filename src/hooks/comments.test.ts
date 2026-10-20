@@ -1,6 +1,15 @@
+import { vi } from "vitest";
 import { act } from "@testing-library/react";
 import testUtils, { renderHook } from "../lib/test-utils";
-import { useComment, useComments, useCrosspost, useValidateComment, setPkcJs } from "..";
+import {
+  useComment,
+  useComments,
+  useCrosspost,
+  useValidateComment,
+  validateComment,
+  createAccount,
+  setPkcJs,
+} from "..";
 import { getCommentFreshness, preferFresher } from "./comments";
 import * as accountsHooks from "./accounts";
 import commentsStore from "../stores/comments";
@@ -8,6 +17,12 @@ import communitiesPagesStore from "../stores/communities-pages";
 import accountsStore from "../stores/accounts";
 import PkcJsMock, { PKC, Comment, Pages, simulateLoadingTime } from "../lib/pkc-js/pkc-js-mock";
 import repliesPagesStore from "../stores/replies-pages";
+import { validateCommentWithPkc } from "../lib/validate-comment";
+
+// the checks themselves are tested in lib/validate-comment.test.ts, which needs a node environment
+vi.mock("../lib/validate-comment", () => ({
+  validateCommentWithPkc: vi.fn(async () => ({ valid: true })),
+}));
 
 describe("comments", () => {
   beforeAll(async () => {
@@ -1837,6 +1852,37 @@ describe("comments", () => {
       await waitFor(() => rendered.result.current.comments.length === 2);
       expect(rendered.result.current.comments[0].timestamp).toBe(10);
       expect(rendered.result.current.comments[1].timestamp).toBe(20);
+    });
+  });
+
+  describe("validateComment", () => {
+    afterEach(() => {
+      vi.mocked(validateCommentWithPkc).mockClear();
+    });
+
+    test("validates with the active account's pkc, or the named account's", async () => {
+      const comment = { cid: "comment cid 1", raw: { comment: {}, commentUpdate: {} } };
+      const community = { address: "community address 1", signature: { publicKey: "key" } };
+      const { accounts, activeAccountId } = accountsStore.getState();
+      expect(await validateComment(comment)).toEqual({ valid: true });
+      expect(validateCommentWithPkc).toHaveBeenLastCalledWith(
+        comment,
+        {},
+        accounts[activeAccountId!].pkc,
+      );
+
+      await createAccount("validate comment account");
+      const { accounts: updatedAccounts, accountNamesToAccountIds } = accountsStore.getState();
+      const accountPkc = updatedAccounts[accountNamesToAccountIds["validate comment account"]].pkc;
+      const options = { validateReplies: false, community };
+      expect(
+        await validateComment(comment, { accountName: "validate comment account", ...options }),
+      ).toEqual({ valid: true });
+      expect(validateCommentWithPkc).toHaveBeenLastCalledWith(comment, options, accountPkc);
+
+      await expect(validateComment(comment, { accountName: "missing account" })).rejects.toThrow(
+        "validateComment account 'missing account' not found",
+      );
     });
   });
 

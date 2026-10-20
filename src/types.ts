@@ -172,6 +172,19 @@ export interface UseValidateCommentResult extends Result {
   valid: boolean;
 }
 
+// validateComment(comment, options): result
+export interface ValidateCommentOptions {
+  accountName?: string;
+  /** Also validate the replies preloaded in comment.raw.commentUpdate.replies. Defaults to true. */
+  validateReplies?: boolean;
+  /**
+   * The comment's community as loaded by useCommunity. Its signer must have signed the
+   * commentUpdate. Without it, the signer must be the communityPublicKey the author signed.
+   */
+  community?: Community;
+}
+export type ValidateCommentResult = { valid: true } | { valid: false; reason: string };
+
 // useCommentThumbnailUrl(options): result
 // export interface UseCommentThumbnailUrlOptions extends Options {
 //   comment?: Comment

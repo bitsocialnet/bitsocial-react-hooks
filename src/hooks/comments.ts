@@ -14,10 +14,13 @@ import {
   UseCrosspostResult,
   UseValidateCommentOptions,
   UseValidateCommentResult,
+  ValidateCommentOptions,
+  ValidateCommentResult,
 } from "../types";
 import useCommentsStore from "../stores/comments";
 import useAccountsStore from "../stores/accounts";
 import utils, { commentIsValid } from "../lib/utils";
+import { validateCommentWithPkc } from "../lib/validate-comment";
 import {
   addCommentModeration,
   addCommentModerationToComments,
@@ -614,6 +617,31 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
     }),
     [normalizedComments, commentsKey, refresh, state],
   );
+}
+
+/**
+ * Validate a comment from an untrusted source outside React, e.g. `{ cid, raw: { comment,
+ * commentUpdate } }` from a third-party provider: the author's signature, the community's
+ * signature of the commentUpdate for this cid, and that raw.comment hashes to cid.
+ */
+export async function validateComment(
+  comment: Comment,
+  options?: ValidateCommentOptions,
+): Promise<ValidateCommentResult> {
+  assert(
+    !options || typeof options === "object",
+    `validateComment options argument '${options}' not an object`,
+  );
+  const { accountName, ...validateOptions } = options ?? {};
+  const { accounts, accountNamesToAccountIds, activeAccountId } = useAccountsStore.getState();
+  assert(
+    accounts && accountNamesToAccountIds && activeAccountId,
+    `can't use validateComment before accounts are initialized`,
+  );
+  const accountId = accountName ? accountNamesToAccountIds[accountName] : activeAccountId;
+  const pkc = accounts[accountId]?.pkc;
+  assert(pkc, `validateComment account '${accountName ?? activeAccountId}' not found`);
+  return validateCommentWithPkc(comment, validateOptions, pkc);
 }
 
 export function useValidateComment(options?: UseValidateCommentOptions): UseValidateCommentResult {
