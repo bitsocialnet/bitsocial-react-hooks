@@ -1,3 +1,17 @@
+## [0.1.55](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.54...v0.1.55) (2026-10-20)
+
+
+### Features
+
+* **comments:** add validateComment for comments from untrusted sources ([#157](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/157)) ([cd4005d](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/cd4005d145668175967cb6cef0b9eac5b42e4320))
+
+
+### Performance Improvements
+
+* **communities:** hydrate cached communities without redundant clones and writes ([#156](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/156)) ([cd691cb](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/cd691cb063afc704263638c224b155cb27cd4278))
+
+
+
 ## [0.1.54](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.53...v0.1.54) (2026-10-19)
 
 
