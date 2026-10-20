@@ -39,13 +39,23 @@ const normalizeCommunitySyncState = (updatingState) => {
     }
     return "loading";
 };
+const getNextSyncStatuses = (state, communityKey, syncState) => {
+    const previousStatus = state.syncStatuses[communityKey];
+    const timestamp = getNowSeconds();
+    const shouldRecordAttempt = syncState === "loading" && (previousStatus === null || previousStatus === void 0 ? void 0 : previousStatus.syncState) !== "loading";
+    return Object.assign(Object.assign({}, state.syncStatuses), { [communityKey]: Object.assign(Object.assign(Object.assign(Object.assign({}, previousStatus), { syncState }), (shouldRecordAttempt ? { lastFetchAttemptAt: timestamp } : undefined)), (syncState === "succeeded" ? { lastSuccessfulFetchAt: timestamp } : undefined)) });
+};
 const updateCommunitySyncStatus = (setState, communityKey, syncState) => {
-    setState((state) => {
-        const previousStatus = state.syncStatuses[communityKey];
-        const timestamp = getNowSeconds();
-        const shouldRecordAttempt = syncState === "loading" && (previousStatus === null || previousStatus === void 0 ? void 0 : previousStatus.syncState) !== "loading";
-        return Object.assign(Object.assign({}, state), { syncStatuses: Object.assign(Object.assign({}, state.syncStatuses), { [communityKey]: Object.assign(Object.assign(Object.assign(Object.assign({}, previousStatus), { syncState }), (shouldRecordAttempt ? { lastFetchAttemptAt: timestamp } : undefined)), (syncState === "succeeded" ? { lastSuccessfulFetchAt: timestamp } : undefined)) }) });
-    });
+    setState((state) => (Object.assign(Object.assign({}, state), { syncStatuses: getNextSyncStatuses(state, communityKey, syncState) })));
+};
+// identifies a signed community record, to recognize pkc-js re-emitting a record already in the store
+const getCommunityRecordId = (community) => {
+    var _a;
+    const signature = (_a = community === null || community === void 0 ? void 0 : community.signature) === null || _a === void 0 ? void 0 : _a.signature;
+    if (typeof signature !== "string" || typeof (community === null || community === void 0 ? void 0 : community.updatedAt) !== "number") {
+        return;
+    }
+    return `${community.updatedAt}:${signature}`;
 };
 const createCommunityWithLookupFallback = (pkc, communityLookupOptions, communityKey) => __awaiter(void 0, void 0, void 0, function* () {
     const supportsAddressLookup = "address" in communityLookupOptions;
@@ -98,6 +108,9 @@ const clearStoredCommunityErrors = (state, communityKey) => {
     delete nextErrors[communityKey];
     return nextErrors;
 };
+// returning the same state skips notifying subscribers when there is nothing to clear
+const clearStoredCommunityErrorsState = (state, communityKey) => state.errors[communityKey]
+    ? Object.assign(Object.assign({}, state), { errors: clearStoredCommunityErrors(state, communityKey) }) : state;
 export const isRetriableCommunityLoadError = (error) => {
     const details = error.details;
     return Boolean(details &&
@@ -167,6 +180,7 @@ const communitiesStore = createStore((setState, getState) => ({
                 }
                 // try to find community in database
                 let fetchedAt;
+                let isFromCache = false;
                 if (!community) {
                     const communityData = yield communitiesDatabase.getItem(communityKey);
                     const lookupName = "name" in communityLookupOptions ? communityLookupOptions.name : undefined;
@@ -189,6 +203,7 @@ const communitiesStore = createStore((setState, getState) => ({
                         delete communityData.fetchedAt; // not part of pkc-js schema
                         try {
                             community = yield createPkcCommunity(account.pkc, communityData);
+                            isFromCache = Boolean(community);
                         }
                         catch (e) {
                             fetchedAt = undefined;
@@ -227,7 +242,11 @@ const communitiesStore = createStore((setState, getState) => ({
                 }
                 // success getting community
                 const firstCommunityState = utils.clone(Object.assign(Object.assign({}, community), (fetchedAt !== undefined ? { fetchedAt } : undefined)));
-                yield communitiesDatabase.setItem(communityKey, firstCommunityState);
+                // a cache hit already is the database entry, rewriting it would only delay the store
+                // update behind an IndexedDB write of the whole record
+                if (!isFromCache) {
+                    yield communitiesDatabase.setItem(communityKey, firstCommunityState);
+                }
                 log("communitiesStore.addCommunityToStore", {
                     communityAddressOrRef,
                     communityKey,
@@ -237,10 +256,33 @@ const communitiesStore = createStore((setState, getState) => ({
                 setState((state) => ({
                     communities: Object.assign(Object.assign({}, state.communities), { [communityKey]: firstCommunityState }),
                 }));
+                // pkc-js re-emits the record a community was created with when update() starts
+                let cachedRecordId = isFromCache ? getCommunityRecordId(firstCommunityState) : undefined;
                 // the community has published new posts
                 community.on("update", (updatedCommunity) => __awaiter(this, void 0, void 0, function* () {
                     clearPendingCommunityErrors(communityKey);
-                    setState((state) => (Object.assign(Object.assign({}, state), { errors: clearStoredCommunityErrors(state, communityKey) })));
+                    setState((state) => clearStoredCommunityErrorsState(state, communityKey));
+                    const isCachedRecordReplay = cachedRecordId !== undefined &&
+                        getCommunityRecordId(updatedCommunity) === cachedRecordId;
+                    cachedRecordId = undefined;
+                    if (isCachedRecordReplay) {
+                        // the replayed record is already in the store and the database, only refresh fetchedAt
+                        // like a fetched update would, without cloning and rewriting the whole record
+                        setState((state) => {
+                            const storedCommunity = state.communities[communityKey];
+                            if (!storedCommunity) {
+                                return state;
+                            }
+                            return {
+                                communities: Object.assign(Object.assign({}, state.communities), { [communityKey]: Object.assign(Object.assign({}, storedCommunity), { fetchedAt: getNowSeconds() }) }),
+                            };
+                        });
+                        // pass the cloned record, account state keeps references to its roles
+                        accountsStore
+                            .getState()
+                            .accountsActionsInternal.addCommunityRoleToAccountsCommunities(firstCommunityState);
+                        return;
+                    }
                     updatedCommunity = utils.clone(updatedCommunity);
                     // add fetchedAt to be able to expire the cache
                     // NOTE: fetchedAt is undefined on owner communities because never stale
@@ -261,8 +303,8 @@ const communitiesStore = createStore((setState, getState) => ({
                     communitiesPagesStore.getState().addCommunityPageCommentsToStore(updatedCommunity);
                 }));
                 community.on("updatingstatechange", (updatingState) => {
-                    updateCommunitySyncStatus(setState, communityKey, normalizeCommunitySyncState(updatingState));
                     setState((state) => ({
+                        syncStatuses: getNextSyncStatuses(state, communityKey, normalizeCommunitySyncState(updatingState)),
                         communities: Object.assign(Object.assign({}, state.communities), { [communityKey]: Object.assign(Object.assign({}, state.communities[communityKey]), { updatingState }) }),
                     }));
                 });
@@ -275,7 +317,7 @@ const communitiesStore = createStore((setState, getState) => ({
                         var _a;
                         // make sure not undefined, sometimes happens in e2e tests
                         if (!state.communities[communityKey]) {
-                            return {};
+                            return state;
                         }
                         const clients = Object.assign({}, (_a = state.communities[communityKey]) === null || _a === void 0 ? void 0 : _a.clients);
                         const client = { state: clientState };
