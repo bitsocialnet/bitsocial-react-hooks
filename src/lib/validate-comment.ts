@@ -70,6 +70,16 @@ export const validateCommentWithPkc = async (
     return invalid(`comment.raw.comment hashes to '${calculatedCid}', not comment.cid '${cid}'`);
   }
 
+  // Preloaded replies, with their own nested updates, are trusted through this update's signature,
+  // whose signer is checked below, so they must be one of the fields it covers.
+  const signedPropertyNames = commentUpdate.signature?.signedPropertyNames;
+  if (
+    commentUpdate.replies !== undefined &&
+    !(Array.isArray(signedPropertyNames) && signedPropertyNames.includes("replies"))
+  ) {
+    return invalid("comment.raw.commentUpdate.replies is not covered by its signature");
+  }
+
   // Derive what pkc.validateComment reads from the hash-verified record, never from the wrapper.
   const communityPublicKey = getCommunityPublicKeyFromWire(commentIpfs);
   const communityName = getCommunityNameFromWire(commentIpfs);

@@ -182,6 +182,18 @@ describe("validateCommentWithPkc", () => {
     ).toBe(false);
   });
 
+  test("preloaded replies must be covered by the update's signature", async () => {
+    const pkc = createPkc();
+    const unsignedReplies = clone(commentA);
+    unsignedReplies.raw.commentUpdate.replies = { pages: {} };
+    expect((await validateCommentWithPkc(unsignedReplies, {}, pkc)).valid).toBe(false);
+    expect(pkc.validateComment).not.toHaveBeenCalled();
+
+    const signedReplies = clone(unsignedReplies);
+    signedReplies.raw.commentUpdate.signature.signedPropertyNames.push("replies");
+    expect(await validateCommentWithPkc(signedReplies, {}, pkc)).toEqual({ valid: true });
+  });
+
   test("malformed comments fail", async () => {
     const pkc = createPkc();
     for (const malformed of [
