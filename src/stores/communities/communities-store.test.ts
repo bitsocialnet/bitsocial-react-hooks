@@ -9,6 +9,7 @@ import { setPkcJs } from "../..";
 import PkcJsMock, { PKC as BasePkc } from "../../lib/pkc-js/pkc-js-mock";
 import accountsStore from "../accounts";
 import communitiesPagesStore from "../communities-pages";
+import utils from "../../lib/utils";
 
 let mockAccount: any;
 
@@ -197,6 +198,132 @@ describe("communities store", () => {
     } finally {
       mockAccount.pkc.createCommunity = createOrig;
     }
+  });
+
+  describe("cached communities", () => {
+    const address = "cached-community-address";
+    const cachedFetchedAt = 1781773422;
+    const cachedCommunity = {
+      address,
+      title: "Cached title",
+      updatedAt: 1781773000,
+      signature: { signature: "cached record signature" },
+      fetchedAt: cachedFetchedAt,
+    };
+    const db = localForageLru.createInstance({ name: "bitsocialReactHooks-communities" });
+    let createdCommunities: any[];
+    let createCommunityOriginal: any;
+    let accountsGetState: any;
+    let addRoleSpy: any;
+
+    beforeEach(async () => {
+      await db.setItem(address, cachedCommunity);
+      createdCommunities = [];
+      createCommunityOriginal = mockAccount.pkc.createCommunity;
+      // only emit events manually, like pkc-js would after community.update()
+      mockAccount.pkc.createCommunity = vi.fn(async (options: any) => {
+        const community = await createCommunityOriginal.call(mockAccount.pkc, options);
+        vi.spyOn(community, "update").mockResolvedValue(undefined);
+        createdCommunities.push(community);
+        return community;
+      });
+      addRoleSpy = vi.fn().mockResolvedValue(undefined);
+      accountsGetState = accountsStore.getState;
+      (accountsStore as any).getState = () => ({
+        ...accountsGetState(),
+        accountsActionsInternal: { addCommunityRoleToAccountsCommunities: addRoleSpy },
+      });
+    });
+    afterEach(() => {
+      mockAccount.pkc.createCommunity = createCommunityOriginal;
+      (accountsStore as any).getState = accountsGetState;
+      vi.restoreAllMocks();
+    });
+
+    test("are added to the store without rewriting their cache entry", async () => {
+      const setItemSpy = vi.spyOn(db, "setItem");
+
+      await act(async () => {
+        await communitiesStore.getState().addCommunityToStore(address, mockAccount);
+      });
+
+      expect(mockAccount.pkc.createCommunity).toHaveBeenCalledWith(
+        expect.objectContaining({ address, title: "Cached title" }),
+      );
+      expect(communitiesStore.getState().communities[address]).toEqual(
+        expect.objectContaining({ title: "Cached title", fetchedAt: cachedFetchedAt }),
+      );
+      expect(setItemSpy).not.toHaveBeenCalled();
+    });
+
+    test("replayed cached record only refreshes fetchedAt, fetched records are cached", async () => {
+      await act(async () => {
+        await communitiesStore.getState().addCommunityToStore(address, mockAccount);
+      });
+      const community = createdCommunities[0];
+      const setItemSpy = vi.spyOn(db, "setItem");
+      const cloneSpy = vi.spyOn(utils, "clone");
+      const storeListener = vi.fn();
+      const unsubscribe = communitiesStore.subscribe(storeListener);
+
+      try {
+        // pkc-js re-emits the record the community was created with when update() starts
+        act(() => {
+          community.emit("update", community);
+        });
+
+        expect(storeListener).toHaveBeenCalledTimes(1);
+        expect(communitiesStore.getState().communities[address].title).toBe("Cached title");
+        expect(communitiesStore.getState().communities[address].fetchedAt).toBeGreaterThan(
+          cachedFetchedAt,
+        );
+        expect(addRoleSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ address, title: "Cached title" }),
+        );
+        expect(addRoleSpy.mock.calls[0][0]).not.toBe(community);
+        expect(cloneSpy).not.toHaveBeenCalled();
+        expect(setItemSpy).not.toHaveBeenCalled();
+
+        // a newly fetched record is still cloned, cached and stored
+        community.title = "Fetched title";
+        community.updatedAt = cachedCommunity.updatedAt + 1;
+        community.signature = { signature: "fetched record signature" };
+        await act(async () => {
+          community.emit("update", community);
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        });
+
+        expect(setItemSpy).toHaveBeenCalledWith(
+          address,
+          expect.objectContaining({ title: "Fetched title", fetchedAt: expect.any(Number) }),
+        );
+        expect(communitiesStore.getState().communities[address].title).toBe("Fetched title");
+      } finally {
+        unsubscribe();
+      }
+    });
+
+    test("updatingstatechange updates sync status and updatingState in one store change", async () => {
+      await act(async () => {
+        await communitiesStore.getState().addCommunityToStore(address, mockAccount);
+      });
+      const storeListener = vi.fn();
+      const unsubscribe = communitiesStore.subscribe(storeListener);
+
+      try {
+        act(() => {
+          createdCommunities[0].emit("updatingstatechange", "fetching-ipns");
+        });
+
+        expect(storeListener).toHaveBeenCalledTimes(1);
+        expect(communitiesStore.getState().syncStatuses[address]?.syncState).toBe("loading");
+        expect(communitiesStore.getState().communities[address].updatingState).toBe(
+          "fetching-ipns",
+        );
+      } finally {
+        unsubscribe();
+      }
+    });
   });
 
   test("cached community create failure logs to console", async () => {
