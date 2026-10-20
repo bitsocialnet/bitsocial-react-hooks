@@ -1,0 +1,226 @@
+{
+  "source": "Real page comments from pkc-js test/fixtures/valid_page.json and valid_page_legacy_communityAddress.json (pkc-js commit 5dc9f707), as { cid, raw: { comment, commentUpdate } }",
+  "communityPublicKey": "12D3KooWN5rLmRJ8fWMwTtkDN7w2RgPPGRM4mtWTnfbjpi1Sh7zR",
+  "communitySignerPublicKey": "tkPPciAVI7kfzmSHjazd0ekx8z9bCt9RlE5RnEpFRGo",
+  "comments": [
+    {
+      "cid": "QmWLtnz85Yuah7ZKUwRFBC3tyiUhHqBSYtnXnAHXRtN5EG",
+      "raw": {
+        "comment": {
+          "content": "Random post Content b34314d9-bd56-472f-acec-43e96218f787",
+          "title": "Random post Title b64fbf9c-a739-41ff-8fe2-7e6f683d6e7d",
+          "author": {
+            "displayName": "Mock Author - 1774597004.511114"
+          },
+          "communityPublicKey": "12D3KooWN5rLmRJ8fWMwTtkDN7w2RgPPGRM4mtWTnfbjpi1Sh7zR",
+          "protocolVersion": "1.0.0",
+          "timestamp": 1774597004,
+          "signature": {
+            "type": "ed25519",
+            "signature": "xAcljLrso4JMa4jOX/m/riwObANhd2DBHcp8ZCwtgJ29F9SDofSZmrS4ReCg7S5UxJ+hnQtC7sk8BZrip7RICA",
+            "publicKey": "BxEfiid8nzdv+Mg3ZvkHu2a3p7RmlgamEXYldrFH7XA",
+            "signedPropertyNames": [
+              "content",
+              "title",
+              "author",
+              "communityPublicKey",
+              "protocolVersion",
+              "timestamp"
+            ]
+          },
+          "depth": 0,
+          "previousCid": "QmNk4ifSMg6Bqhsw1eQvoud1tRjDDiCuxoPkbnpDieVsB3"
+        },
+        "commentUpdate": {
+          "cid": "QmWLtnz85Yuah7ZKUwRFBC3tyiUhHqBSYtnXnAHXRtN5EG",
+          "upvoteCount": 1,
+          "downvoteCount": 0,
+          "replyCount": 0,
+          "childCount": 0,
+          "number": 7,
+          "postNumber": 6,
+          "updatedAt": 1774597006,
+          "author": {
+            "subplebbit": {
+              "postScore": 1,
+              "replyScore": 0,
+              "firstCommentTimestamp": 1774597004,
+              "lastCommentCid": "QmWLtnz85Yuah7ZKUwRFBC3tyiUhHqBSYtnXnAHXRtN5EG"
+            }
+          },
+          "signature": {
+            "type": "ed25519",
+            "signature": "eJlQKQDct+RXQzGBfdjEZ7DcHLhMFYSklCAw6v4eJzSBsGSF7vYxN4FzSMmuIOquu3o4cPcU1M9+RBF0evT/BQ",
+            "publicKey": "tkPPciAVI7kfzmSHjazd0ekx8z9bCt9RlE5RnEpFRGo",
+            "signedPropertyNames": [
+              "cid",
+              "upvoteCount",
+              "downvoteCount",
+              "replyCount",
+              "childCount",
+              "number",
+              "postNumber",
+              "updatedAt",
+              "author",
+              "protocolVersion"
+            ]
+          },
+          "protocolVersion": "1.0.0"
+        }
+      }
+    },
+    {
+      "cid": "QmahnKRsacnhEJP6fcoSKHQ8PPV7qpK95RYvrAx5RXYkBW",
+      "raw": {
+        "comment": {
+          "content": "Random post Content 2a79259b-3623-4164-aebe-9bd45eff74f3",
+          "title": "Random post Title ac6f85f0-3187-4168-95c3-b70c628d80cf",
+          "author": {
+            "displayName": "Mock Author - 1774597911.8550277"
+          },
+          "communityPublicKey": "12D3KooWN5rLmRJ8fWMwTtkDN7w2RgPPGRM4mtWTnfbjpi1Sh7zR",
+          "protocolVersion": "1.0.0",
+          "timestamp": 1774597912,
+          "signature": {
+            "type": "ed25519",
+            "signature": "L/+4L0TrUJcXj1eLLCmGjMlIfz4n1OUQK7uI3WLo+tjcb5XAd/nr8iUde+ESK+7BNYYLmUNPyHXTlpH9G9bfAg",
+            "publicKey": "IJjGiizXpwnXPX9jQvT6JjUugweOdQISiEHLjeV+Kok",
+            "signedPropertyNames": [
+              "content",
+              "title",
+              "author",
+              "communityPublicKey",
+              "protocolVersion",
+              "timestamp"
+            ]
+          },
+          "depth": 0,
+          "previousCid": "QmVdExCqD4iDisQJ6Q3Z92zn6bw9y8amC6FLnFty7LxKvr"
+        },
+        "commentUpdate": {
+          "cid": "QmahnKRsacnhEJP6fcoSKHQ8PPV7qpK95RYvrAx5RXYkBW",
+          "upvoteCount": 0,
+          "downvoteCount": 0,
+          "replyCount": 0,
+          "childCount": 0,
+          "number": 105,
+          "postNumber": 46,
+          "updatedAt": 1774597912,
+          "author": {
+            "subplebbit": {
+              "postScore": 0,
+              "replyScore": 0,
+              "firstCommentTimestamp": 1774597912,
+              "lastCommentCid": "QmahnKRsacnhEJP6fcoSKHQ8PPV7qpK95RYvrAx5RXYkBW"
+            }
+          },
+          "signature": {
+            "type": "ed25519",
+            "signature": "kfKoZOw/OAinkGljHVa86k51yuFV/9hU+jtg2pIGncKu5uaTncTsuPndlcvnRrIPPRev7fup5fnZkr9aPqiGDw",
+            "publicKey": "tkPPciAVI7kfzmSHjazd0ekx8z9bCt9RlE5RnEpFRGo",
+            "signedPropertyNames": [
+              "cid",
+              "upvoteCount",
+              "downvoteCount",
+              "replyCount",
+              "childCount",
+              "number",
+              "postNumber",
+              "updatedAt",
+              "author",
+              "protocolVersion"
+            ]
+          },
+          "protocolVersion": "1.0.0"
+        }
+      }
+    }
+  ],
+  "legacyComment": {
+    "cid": "QmYgRRQaybe12KWGnxjvaCetsxWutVRb9Piqcw8irgx9Xf",
+    "raw": {
+      "comment": {
+        "author": {
+          "address": "12D3KooWNMYPSuNadceoKsJ6oUQcxGcfiAsHNpVTt1RQ1zSrKKpo",
+          "displayName": "Mock Author - 1739873068.393964"
+        },
+        "content": "Random post Content 33f40b29-e743-45c6-9b3a-9fc17506f472",
+        "depth": 0,
+        "previousCid": "QmUhewN81HBUQHHyBKWPg1aJNqZdjFAy5xqPv5vhQcAg5x",
+        "protocolVersion": "1.0.0",
+        "signature": {
+          "publicKey": "ukjNiVIlaCkELCFukhzDiNCP0BtglPaD4zqowjdGrhw",
+          "signature": "2ywPvP5ZeDVXtEnC/4k+ByccyQmos4VfLvKB67uUzgxiwV2xIykqGzSViMlXMGaRbzYRT+qQ1x56c8gSg/mwAw",
+          "signedPropertyNames": [
+            "content",
+            "title",
+            "author",
+            "subplebbitAddress",
+            "protocolVersion",
+            "timestamp"
+          ],
+          "type": "ed25519"
+        },
+        "subplebbitAddress": "12D3KooWN5rLmRJ8fWMwTtkDN7w2RgPPGRM4mtWTnfbjpi1Sh7zR",
+        "timestamp": 1739873068,
+        "title": "Random post Title a8735e48-636a-40cb-80e7-deb60b35b12a"
+      },
+      "commentUpdate": {
+        "author": {
+          "subplebbit": {
+            "firstCommentTimestamp": 1739868737,
+            "lastCommentCid": "QmYgRRQaybe12KWGnxjvaCetsxWutVRb9Piqcw8irgx9Xf",
+            "postScore": 0,
+            "replyScore": 0
+          }
+        },
+        "cid": "QmYgRRQaybe12KWGnxjvaCetsxWutVRb9Piqcw8irgx9Xf",
+        "downvoteCount": 0,
+        "edit": {
+          "author": {
+            "address": "12D3KooWNMYPSuNadceoKsJ6oUQcxGcfiAsHNpVTt1RQ1zSrKKpo"
+          },
+          "commentCid": "QmYgRRQaybe12KWGnxjvaCetsxWutVRb9Piqcw8irgx9Xf",
+          "content": "mod role testing CommentEdit",
+          "protocolVersion": "1.0.0",
+          "reason": "For mod role to test editing a comment",
+          "signature": {
+            "publicKey": "ukjNiVIlaCkELCFukhzDiNCP0BtglPaD4zqowjdGrhw",
+            "signature": "Z7klvvaGpOgwEo7122nMeQC9XLcf4XCcaCG6ARbzBwIMRvTbu2+JHCzHgNj1puDjUWoaUae+xr5HPT3i1hOADQ",
+            "signedPropertyNames": [
+              "author",
+              "subplebbitAddress",
+              "protocolVersion",
+              "timestamp",
+              "commentCid",
+              "content",
+              "reason"
+            ],
+            "type": "ed25519"
+          },
+          "subplebbitAddress": "12D3KooWN5rLmRJ8fWMwTtkDN7w2RgPPGRM4mtWTnfbjpi1Sh7zR",
+          "timestamp": 1739873068
+        },
+        "protocolVersion": "1.0.0",
+        "replyCount": 0,
+        "signature": {
+          "publicKey": "tkPPciAVI7kfzmSHjazd0ekx8z9bCt9RlE5RnEpFRGo",
+          "signature": "3cuMYaweE7NHu8h77C6/ZmMHVcn7JhbkU0Qr/cii5MT2FS8aKRkRPGu56UQ4OWsub29xLgBq2sa7KgTHNk8rAg",
+          "signedPropertyNames": [
+            "cid",
+            "upvoteCount",
+            "downvoteCount",
+            "replyCount",
+            "edit",
+            "updatedAt",
+            "author",
+            "protocolVersion"
+          ],
+          "type": "ed25519"
+        },
+        "updatedAt": 1739873070,
+        "upvoteCount": 0
+      }
+    }
+  }
+}

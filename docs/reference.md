@@ -232,6 +232,7 @@ setPkcJs(PKC) // swap the underlying protocol client implementation, e.g. for mo
 deleteDatabases() // delete all databases, including all caches and accounts data
 deleteCaches() // delete the cached comments, cached communities and cached pages only, no accounts data
 createCrosspost(comment: Comment): Crosspost // build the immutable payload accepted by pkc-js
+validateComment(comment: Comment, options?: {accountName?: string, validateReplies?: boolean, community?: Community}): Promise<{valid: true} | {valid: false, reason: string}> // validate a comment from an untrusted source outside React
 getAvailablePostSortTypes(community: Community): string[]
 getAvailableReplySortTypes(comment: Comment): string[]
 getPreloadedPostSortType(community: Community): string | undefined
@@ -265,6 +266,25 @@ community is only confirmed after its signed `CommentUpdate` has loaded, exposed
 const original = useCrosspost({ crosspost: post.crosspost });
 
 return <CrosspostCard comment={original} verified={original.isCommunityVerified} />;
+```
+
+`validateComment` checks a comment received from an untrusted source, such as a third-party
+server, in the shape `{cid, raw: {comment, commentUpdate}}` used by preloaded page comments. It
+verifies the author's signature, that `raw.comment` hashes to `cid`, and that the community signed
+`raw.commentUpdate` for that `cid`, including its preloaded replies unless `validateReplies` is
+`false`. Pass the community loaded with `useCommunity` as `community` to check the update against
+its current signing key; without it, the update must be signed by the `communityPublicKey` in the
+author-signed comment, which fails for communities whose signing key changed and for old
+records that only carry a domain `subplebbitAddress`. Without
+`community` it does not check which community you expected, so compare `raw.comment.communityPublicKey`
+with the public key of the community you are displaying; `raw.comment.communityName` alone is only
+the author's claim.
+
+```js
+const results = await Promise.all(
+  untrustedComments.map((comment) => validateComment(comment, { community })),
+);
+const validComments = untrustedComments.filter((_, index) => results[index].valid);
 ```
 
 ## Recipes

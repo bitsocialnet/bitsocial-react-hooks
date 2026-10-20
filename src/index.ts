@@ -17,7 +17,13 @@ import {
 } from "./hooks/accounts";
 
 // comments
-import { useComment, useComments, useCrosspost, useValidateComment } from "./hooks/comments";
+import {
+  useComment,
+  useComments,
+  useCrosspost,
+  useValidateComment,
+  validateComment,
+} from "./hooks/comments";
 
 // replies
 import { useReplies } from "./hooks/replies";
@@ -124,6 +130,7 @@ export {
   useCrosspost,
   useEditedComment,
   useValidateComment,
+  validateComment,
   // replies
   useReplies,
   // communities
@@ -210,6 +217,7 @@ const hooks = {
   useCrosspost,
   useEditedComment,
   useValidateComment,
+  validateComment,
   // replies
   useReplies,
   // communities
