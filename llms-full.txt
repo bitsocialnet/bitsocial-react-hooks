@@ -407,7 +407,8 @@ server, in the shape `{cid, raw: {comment, commentUpdate}}` used by preloaded pa
 verifies the author's signature, that `raw.comment` hashes to `cid`, and that the community signed
 `raw.commentUpdate` for that `cid`, including its preloaded replies unless `validateReplies` is
 `false`. Pass the community loaded with `useCommunity` as `community` to check the update against
-its current signing key; without it, the update must be signed by the `communityPublicKey` in the
+its current signing key; the comment must then name that community, or carry its public key when
+either side has no name. Without it, the update must be signed by the `communityPublicKey` in the
 author-signed comment, which fails for communities whose signing key changed and for old
 records that only carry a domain `subplebbitAddress`. Without
 `community` it does not check which community you expected, so compare `raw.comment.communityPublicKey`

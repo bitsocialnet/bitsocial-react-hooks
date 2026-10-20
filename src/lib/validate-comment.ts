@@ -101,11 +101,18 @@ export const validateCommentWithPkc = async (
     if (updateSignerPublicKey !== communitySignerPublicKey) {
       return invalid("comment.raw.commentUpdate is not signed by options.community");
     }
-    // The rule pkc-js applies to page comments: names win over keys, which can rotate.
-    const belongsToCommunity = community.name
-      ? !communityName || areEquivalentCommunityAddresses(communityName, community.name)
-      : !communityPublicKey || !community.publicKey || communityPublicKey === community.publicKey;
-    if (!belongsToCommunity) {
+    // As pkc-js does for page comments, names win over keys, which can rotate. Without a name on
+    // both sides the keys must match, and a comment with no comparable identifier is rejected:
+    // another community can share this one's signing key (delegated or reused keys).
+    const namesMatch =
+      communityName && community.name
+        ? areEquivalentCommunityAddresses(communityName, community.name)
+        : undefined;
+    const keysMatch =
+      communityPublicKey && community.publicKey
+        ? communityPublicKey === community.publicKey
+        : undefined;
+    if (!(namesMatch ?? keysMatch ?? false)) {
       return invalid("comment.raw.comment belongs to a different community than options.community");
     }
   } else {

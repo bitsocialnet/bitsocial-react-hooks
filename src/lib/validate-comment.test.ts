@@ -154,6 +154,34 @@ describe("validateCommentWithPkc", () => {
     ).toBe(false);
   });
 
+  test("options.community must name or key the comment's community", async () => {
+    const pkc = createPkc();
+    const namedCommunity = { ...community, name: "named-community.bso" };
+    // The comment carries only a key: with a name on one side only, the keys decide.
+    expect(
+      await validateCommentWithPkc(clone(commentA), { community: namedCommunity }, pkc),
+    ).toEqual({ valid: true });
+    expect(
+      (
+        await validateCommentWithPkc(
+          clone(commentA),
+          { community: { ...namedCommunity, publicKey: "12D3KooWOtherCommunity" } },
+          pkc,
+        )
+      ).valid,
+    ).toBe(false);
+    // Nothing to compare: a community that only shares the signer is not enough.
+    expect(
+      (
+        await validateCommentWithPkc(
+          clone(commentA),
+          { community: { address: "keyless.bso", signature: community.signature } },
+          pkc,
+        )
+      ).valid,
+    ).toBe(false);
+  });
+
   test("malformed comments fail", async () => {
     const pkc = createPkc();
     for (const malformed of [
