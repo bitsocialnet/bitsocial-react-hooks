@@ -1,9 +1,6 @@
 // @vitest-environment node
 // jsdom's TextEncoder returns a Uint8Array from another realm, which the IPFS hashing library rejects.
 import { vi } from "vitest";
-// pkc-js is aliased to an empty module in unit tests, so the real one is imported by path to check
-// that the offline instance validates exactly like an instance with network clients.
-import PKC from "../../node_modules/@pkcprotocol/pkc-js/dist/node/index.js";
 import { restorePkcJs, setPkcJs } from "./pkc-js";
 import { calculateCommentCid, getOfflinePkc, validateCommentWithPkc } from "./validate-comment";
 import fixture from "../../test/fixtures/validate-comment/page-comments.json";
@@ -17,10 +14,17 @@ const community = {
 };
 
 describe("validateComment offline pkc instance", () => {
+  let PKC: any;
   let networkPkc: any;
   let offlinePkc: any;
 
   beforeAll(async () => {
+    // pkc-js is aliased to an empty module in unit tests, so the real one is imported by path to
+    // check that the offline instance validates exactly like an instance with network clients. Its
+    // browser build is the one apps bundle, and unlike the node build it doesn't need
+    // better-sqlite3's native addon, which CI doesn't build. Its polyfill expects a window.
+    vi.stubGlobal("window", globalThis);
+    PKC = (await import("../../node_modules/@pkcprotocol/pkc-js/dist/browser/index.js")).default;
     setPkcJs(PKC);
     // pkc-js's default gateway, pubsub provider and http router clients, created but unused, like
     // the network clients of an account's instance
@@ -30,6 +34,7 @@ describe("validateComment offline pkc instance", () => {
   afterAll(async () => {
     await Promise.all([networkPkc?.destroy(), offlinePkc?.destroy()]);
     restorePkcJs();
+    vi.unstubAllGlobals();
   });
 
   test("is created once, without network clients", async () => {
