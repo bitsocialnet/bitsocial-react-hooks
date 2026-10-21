@@ -1,3 +1,12 @@
+## [0.1.56](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.55...v0.1.56) (2026-10-21)
+
+
+### Performance Improvements
+
+* **comments:** validate comments without waiting for accounts ([#158](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/158)) ([b5a833c](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/b5a833c4828b5f4c8156be3ac4f7f1004debef16))
+
+
+
 ## [0.1.55](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.54...v0.1.55) (2026-10-20)
 
 
