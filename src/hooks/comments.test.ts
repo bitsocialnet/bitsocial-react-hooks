@@ -1878,8 +1878,12 @@ describe("comments", () => {
       });
       try {
         expect(
-          await Promise.all([validateComment(comment), validateComment(comment, options)]),
-        ).toEqual([{ valid: true }, { valid: true }]);
+          await Promise.all([
+            validateComment(comment),
+            validateComment(comment, options),
+            validateComment(comment, null as any),
+          ]),
+        ).toEqual([{ valid: true }, { valid: true }, { valid: true }]);
       } finally {
         accountsStore.setState(initializedAccountsState);
         setPkcJs(PkcJsMock);
@@ -1894,8 +1898,9 @@ describe("comments", () => {
         noData: true,
       });
       const offlinePkc = await PKC.mock.results[0].value;
-      expect(validateCommentWithPkc).toHaveBeenNthCalledWith(1, comment, undefined, offlinePkc);
+      expect(validateCommentWithPkc).toHaveBeenNthCalledWith(1, comment, {}, offlinePkc);
       expect(validateCommentWithPkc).toHaveBeenNthCalledWith(2, comment, options, offlinePkc);
+      expect(validateCommentWithPkc).toHaveBeenNthCalledWith(3, comment, {}, offlinePkc);
     });
   });
 

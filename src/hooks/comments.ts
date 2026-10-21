@@ -633,7 +633,7 @@ export async function validateComment(
     !options || typeof options === "object",
     `validateComment options argument '${options}' not an object`,
   );
-  return validateCommentWithPkc(comment, options, await getOfflinePkc());
+  return validateCommentWithPkc(comment, options ?? {}, await getOfflinePkc());
 }
 
 export function useValidateComment(options?: UseValidateCommentOptions): UseValidateCommentResult {
