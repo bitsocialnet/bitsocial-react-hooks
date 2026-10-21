@@ -2,6 +2,7 @@ import { stringify as deterministicStringify } from "safe-stable-stringify";
 import type { Comment, ValidateCommentOptions, ValidateCommentResult } from "../types";
 import { areEquivalentCommunityAddresses } from "./community-address";
 import { getPkcAddressFromPublicKey } from "./pkc-address";
+import PkcJs from "./pkc-js";
 
 const isObject = (value: unknown): value is Record<string, any> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -33,6 +34,32 @@ export const calculateCommentCid = async (commentIpfs: Record<string, any>): Pro
   return calculateIpfsHash(deterministicStringify(commentIpfs));
 };
 
+// pkc.validateComment only hashes records and verifies signatures, so it needs none of the clients an
+// account's pkc instance starts: no kubo RPC, libp2p/helia, pubsub providers, gateways or name
+// resolvers, and no storage.
+const offlinePkcOptions = {
+  ipfsGatewayUrls: [],
+  pubsubKuboRpcClientsOptions: [],
+  httpRoutersOptions: [],
+  resolveAuthorNames: false,
+  noData: true,
+};
+let offlinePkc: { PKC: any; pkc: Promise<any> } | undefined;
+
+/** A pkc instance without network clients, created on first use for the current setPkcJs implementation. */
+export const getOfflinePkc = (): Promise<any> => {
+  const PKC = PkcJs.PKC;
+  if (offlinePkc?.PKC !== PKC) {
+    const created = { PKC, pkc: (async () => PKC(offlinePkcOptions))() };
+    offlinePkc = created;
+    // Don't cache a failed creation, the next call retries.
+    created.pkc.catch(() => {
+      if (offlinePkc === created) offlinePkc = undefined;
+    });
+  }
+  return offlinePkc!.pkc;
+};
+
 /**
  * Validate a comment received from an untrusted source, such as `{ cid, raw: { comment,
  * commentUpdate } }`, the shape of a preloaded page comment. pkc.validateComment checks the
@@ -41,7 +68,7 @@ export const calculateCommentCid = async (commentIpfs: Record<string, any>): Pro
  */
 export const validateCommentWithPkc = async (
   comment: Comment,
-  { validateReplies = true, community }: Omit<ValidateCommentOptions, "accountName"> = {},
+  { validateReplies = true, community }: ValidateCommentOptions = {},
   pkc: any,
 ): Promise<ValidateCommentResult> => {
   const cid = comment?.cid;

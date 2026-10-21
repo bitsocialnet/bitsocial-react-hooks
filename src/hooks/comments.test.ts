@@ -7,7 +7,6 @@ import {
   useCrosspost,
   useValidateComment,
   validateComment,
-  createAccount,
   setPkcJs,
 } from "..";
 import { getCommentFreshness, preferFresher } from "./comments";
@@ -20,7 +19,8 @@ import repliesPagesStore from "../stores/replies-pages";
 import { validateCommentWithPkc } from "../lib/validate-comment";
 
 // the checks themselves are tested in lib/validate-comment.test.ts, which needs a node environment
-vi.mock("../lib/validate-comment", () => ({
+vi.mock("../lib/validate-comment", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/validate-comment")>()),
   validateCommentWithPkc: vi.fn(async () => ({ valid: true })),
 }));
 
@@ -1860,29 +1860,42 @@ describe("comments", () => {
       vi.mocked(validateCommentWithPkc).mockClear();
     });
 
-    test("validates with the active account's pkc, or the named account's", async () => {
+    test("validates with one offline pkc instance, before accounts are initialized", async () => {
       const comment = { cid: "comment cid 1", raw: { comment: {}, commentUpdate: {} } };
-      const community = { address: "community address 1", signature: { publicKey: "key" } };
-      const { accounts, activeAccountId } = accountsStore.getState();
-      expect(await validateComment(comment)).toEqual({ valid: true });
-      expect(validateCommentWithPkc).toHaveBeenLastCalledWith(
-        comment,
-        {},
-        accounts[activeAccountId!].pkc,
-      );
+      const options = {
+        validateReplies: false,
+        community: { address: "community address 1", signature: { publicKey: "key" } },
+      };
+      const PKC = Object.assign(vi.fn(PkcJsMock), PkcJsMock);
+      setPkcJs(PKC);
+      const initializedAccountsState = accountsStore.getState();
+      // the accounts store's state before it initializes
+      accountsStore.setState({
+        accounts: {},
+        accountIds: [],
+        activeAccountId: undefined,
+        accountNamesToAccountIds: {},
+      });
+      try {
+        expect(
+          await Promise.all([validateComment(comment), validateComment(comment, options)]),
+        ).toEqual([{ valid: true }, { valid: true }]);
+      } finally {
+        accountsStore.setState(initializedAccountsState);
+        setPkcJs(PkcJsMock);
+      }
 
-      await createAccount("validate comment account");
-      const { accounts: updatedAccounts, accountNamesToAccountIds } = accountsStore.getState();
-      const accountPkc = updatedAccounts[accountNamesToAccountIds["validate comment account"]].pkc;
-      const options = { validateReplies: false, community };
-      expect(
-        await validateComment(comment, { accountName: "validate comment account", ...options }),
-      ).toEqual({ valid: true });
-      expect(validateCommentWithPkc).toHaveBeenLastCalledWith(comment, options, accountPkc);
-
-      await expect(validateComment(comment, { accountName: "missing account" })).rejects.toThrow(
-        "validateComment account 'missing account' not found",
-      );
+      expect(PKC).toHaveBeenCalledTimes(1);
+      expect(PKC).toHaveBeenCalledWith({
+        ipfsGatewayUrls: [],
+        pubsubKuboRpcClientsOptions: [],
+        httpRoutersOptions: [],
+        resolveAuthorNames: false,
+        noData: true,
+      });
+      const offlinePkc = await PKC.mock.results[0].value;
+      expect(validateCommentWithPkc).toHaveBeenNthCalledWith(1, comment, undefined, offlinePkc);
+      expect(validateCommentWithPkc).toHaveBeenNthCalledWith(2, comment, options, offlinePkc);
     });
   });
 

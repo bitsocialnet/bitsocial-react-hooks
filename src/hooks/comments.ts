@@ -20,7 +20,7 @@ import {
 import useCommentsStore from "../stores/comments";
 import useAccountsStore from "../stores/accounts";
 import utils, { commentIsValid } from "../lib/utils";
-import { validateCommentWithPkc } from "../lib/validate-comment";
+import { getOfflinePkc, validateCommentWithPkc } from "../lib/validate-comment";
 import {
   addCommentModeration,
   addCommentModerationToComments,
@@ -622,7 +622,8 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
 /**
  * Validate a comment from an untrusted source outside React, e.g. `{ cid, raw: { comment,
  * commentUpdate } }` from a third-party provider: the author's signature, the community's
- * signature of the commentUpdate for this cid, and that raw.comment hashes to cid.
+ * signature of the commentUpdate for this cid, and that raw.comment hashes to cid. It needs no
+ * network or account, so it doesn't wait for accounts to initialize.
  */
 export async function validateComment(
   comment: Comment,
@@ -632,16 +633,7 @@ export async function validateComment(
     !options || typeof options === "object",
     `validateComment options argument '${options}' not an object`,
   );
-  const { accountName, ...validateOptions } = options ?? {};
-  const { accounts, accountNamesToAccountIds, activeAccountId } = useAccountsStore.getState();
-  assert(
-    accounts && accountNamesToAccountIds && activeAccountId,
-    `can't use validateComment before accounts are initialized`,
-  );
-  const accountId = accountName ? accountNamesToAccountIds[accountName] : activeAccountId;
-  const pkc = accounts[accountId]?.pkc;
-  assert(pkc, `validateComment account '${accountName ?? activeAccountId}' not found`);
-  return validateCommentWithPkc(comment, validateOptions, pkc);
+  return validateCommentWithPkc(comment, options, await getOfflinePkc());
 }
 
 export function useValidateComment(options?: UseValidateCommentOptions): UseValidateCommentResult {

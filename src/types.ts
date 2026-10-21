@@ -174,7 +174,6 @@ export interface UseValidateCommentResult extends Result {
 
 // validateComment(comment, options): result
 export interface ValidateCommentOptions {
-  accountName?: string;
   /** Also validate the replies preloaded in comment.raw.commentUpdate.replies. Defaults to true. */
   validateReplies?: boolean;
   /**

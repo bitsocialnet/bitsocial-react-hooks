@@ -232,7 +232,7 @@ setPkcJs(PKC) // swap the underlying protocol client implementation, e.g. for mo
 deleteDatabases() // delete all databases, including all caches and accounts data
 deleteCaches() // delete the cached comments, cached communities and cached pages only, no accounts data
 createCrosspost(comment: Comment): Crosspost // build the immutable payload accepted by pkc-js
-validateComment(comment: Comment, options?: {accountName?: string, validateReplies?: boolean, community?: Community}): Promise<{valid: true} | {valid: false, reason: string}> // validate a comment from an untrusted source outside React
+validateComment(comment: Comment, options?: {validateReplies?: boolean, community?: Community}): Promise<{valid: true} | {valid: false, reason: string}> // validate a comment from an untrusted source outside React
 getAvailablePostSortTypes(community: Community): string[]
 getAvailableReplySortTypes(comment: Comment): string[]
 getPreloadedPostSortType(community: Community): string | undefined
@@ -272,8 +272,9 @@ return <CrosspostCard comment={original} verified={original.isCommunityVerified}
 server, in the shape `{cid, raw: {comment, commentUpdate}}` used by preloaded page comments. It
 verifies the author's signature, that `raw.comment` hashes to `cid`, and that the community signed
 `raw.commentUpdate` for that `cid`, including its preloaded replies unless `validateReplies` is
-`false`. Pass the community loaded with `useCommunity` as `community` to check the update against
-its current signing key; the comment must then name that community, or carry its public key when
+`false`. It runs locally, without an account or network, so it doesn't wait for accounts to
+initialize. Pass the community loaded with `useCommunity` as `community` to check the update
+against its current signing key; the comment must then name that community, or carry its public key when
 either side has no name. Without it, the update must be signed by the `communityPublicKey` in the
 author-signed comment, which fails for communities whose signing key changed and for old
 records that only carry a domain `subplebbitAddress`. Without
