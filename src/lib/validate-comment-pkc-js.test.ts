@@ -56,6 +56,11 @@ describe("validateComment offline pkc instance", () => {
       cid: commentB.cid,
       raw: { comment: commentA.raw.comment, commentUpdate: commentB.raw.commentUpdate },
     };
+    // hashes to its cid, so pkc-js's own check of the update's cid decides
+    const otherUpdate = {
+      cid: commentA.cid,
+      raw: { comment: commentA.raw.comment, commentUpdate: commentB.raw.commentUpdate },
+    };
     const otherCommunity = { ...community, publicKey: "12D3KooWOtherCommunity" };
 
     const cases: [string, any, any, boolean][] = [
@@ -66,6 +71,7 @@ describe("validateComment offline pkc instance", () => {
       ["forged comment signature", forgedComment, {}, false],
       ["forged commentUpdate signature", forgedUpdate, {}, false],
       ["wrong cid", wrongCid, {}, false],
+      ["commentUpdate of another cid", otherUpdate, {}, false],
       ["wrong community", commentA, { community: otherCommunity }, false],
     ];
     for (const [name, comment, options, valid] of cases) {

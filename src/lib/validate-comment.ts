@@ -68,7 +68,7 @@ export const getOfflinePkc = (): Promise<any> => {
  */
 export const validateCommentWithPkc = async (
   comment: Comment,
-  { validateReplies = true, community }: ValidateCommentOptions = {},
+  { validateReplies = true, community }: Omit<ValidateCommentOptions, "accountName"> = {},
   pkc: any,
 ): Promise<ValidateCommentResult> => {
   const cid = comment?.cid;
