@@ -142,6 +142,7 @@ export interface UseValidateCommentResult extends Result {
     valid: boolean;
 }
 export interface ValidateCommentOptions {
+    /** @deprecated Ignored, validateComment no longer uses an account. */
     accountName?: string;
     /** Also validate the replies preloaded in comment.raw.commentUpdate.replies. Defaults to true. */
     validateReplies?: boolean;

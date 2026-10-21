@@ -22,7 +22,8 @@ export declare function useComments(options?: UseCommentsOptions): UseCommentsRe
 /**
  * Validate a comment from an untrusted source outside React, e.g. `{ cid, raw: { comment,
  * commentUpdate } }` from a third-party provider: the author's signature, the community's
- * signature of the commentUpdate for this cid, and that raw.comment hashes to cid.
+ * signature of the commentUpdate for this cid, and that raw.comment hashes to cid. It needs no
+ * network or account, so it doesn't wait for accounts to initialize.
  */
 export declare function validateComment(comment: Comment, options?: ValidateCommentOptions): Promise<ValidateCommentResult>;
 export declare function useValidateComment(options?: UseValidateCommentOptions): UseValidateCommentResult;

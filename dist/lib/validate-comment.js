@@ -10,6 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 import { stringify as deterministicStringify } from "safe-stable-stringify";
 import { areEquivalentCommunityAddresses } from "./community-address.js";
 import { getPkcAddressFromPublicKey } from "./pkc-address.js";
+import PkcJs from "./pkc-js/index.js";
 const isObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 const getErrorMessage = (error) => error instanceof Error ? error.message : String(error);
 const invalid = (reason) => ({ valid: false, reason });
@@ -36,6 +37,31 @@ export const calculateCommentCid = (commentIpfs) => __awaiter(void 0, void 0, vo
     const calculateIpfsHash = (_a = ipfsOnlyHash.of) !== null && _a !== void 0 ? _a : (_b = ipfsOnlyHash.default) === null || _b === void 0 ? void 0 : _b.of;
     return calculateIpfsHash(deterministicStringify(commentIpfs));
 });
+// pkc.validateComment only hashes records and verifies signatures, so it needs none of the clients an
+// account's pkc instance starts: no kubo RPC, libp2p/helia, pubsub providers, gateways or name
+// resolvers, and no storage.
+const offlinePkcOptions = {
+    ipfsGatewayUrls: [],
+    pubsubKuboRpcClientsOptions: [],
+    httpRoutersOptions: [],
+    resolveAuthorNames: false,
+    noData: true,
+};
+let offlinePkc;
+/** A pkc instance without network clients, created on first use for the current setPkcJs implementation. */
+export const getOfflinePkc = () => {
+    const PKC = PkcJs.PKC;
+    if ((offlinePkc === null || offlinePkc === void 0 ? void 0 : offlinePkc.PKC) !== PKC) {
+        const created = { PKC, pkc: (() => __awaiter(void 0, void 0, void 0, function* () { return PKC(offlinePkcOptions); }))() };
+        offlinePkc = created;
+        // Don't cache a failed creation, the next call retries.
+        created.pkc.catch(() => {
+            if (offlinePkc === created)
+                offlinePkc = undefined;
+        });
+    }
+    return offlinePkc.pkc;
+};
 /**
  * Validate a comment received from an untrusted source, such as `{ cid, raw: { comment,
  * commentUpdate } }`, the shape of a preloaded page comment. pkc.validateComment checks the

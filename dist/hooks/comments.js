@@ -7,17 +7,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __rest = (this && this.__rest) || function (s, e) {
-    var t = {};
-    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
-        t[p] = s[p];
-    if (s != null && typeof Object.getOwnPropertySymbols === "function")
-        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
-            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
-                t[p[i]] = s[p[i]];
-        }
-    return t;
-};
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAccount } from "./accounts/index.js";
 import validator from "../lib/validator.js";
@@ -27,7 +16,7 @@ import assert from "../lib/assert.js";
 import useCommentsStore from "../stores/comments/index.js";
 import useAccountsStore from "../stores/accounts/index.js";
 import utils, { commentIsValid } from "../lib/utils/index.js";
-import { validateCommentWithPkc } from "../lib/validate-comment.js";
+import { getOfflinePkc, validateCommentWithPkc } from "../lib/validate-comment.js";
 import { addCommentModeration, addCommentModerationToComments, } from "../lib/utils/comment-moderation.js";
 import useCommunitiesPagesStore from "../stores/communities-pages/index.js";
 import useRepliesPagesStore from "../stores/replies-pages/index.js";
@@ -447,19 +436,13 @@ export function useComments(options) {
 /**
  * Validate a comment from an untrusted source outside React, e.g. `{ cid, raw: { comment,
  * commentUpdate } }` from a third-party provider: the author's signature, the community's
- * signature of the commentUpdate for this cid, and that raw.comment hashes to cid.
+ * signature of the commentUpdate for this cid, and that raw.comment hashes to cid. It needs no
+ * network or account, so it doesn't wait for accounts to initialize.
  */
 export function validateComment(comment, options) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a;
         assert(!options || typeof options === "object", `validateComment options argument '${options}' not an object`);
-        const _b = options !== null && options !== void 0 ? options : {}, { accountName } = _b, validateOptions = __rest(_b, ["accountName"]);
-        const { accounts, accountNamesToAccountIds, activeAccountId } = useAccountsStore.getState();
-        assert(accounts && accountNamesToAccountIds && activeAccountId, `can't use validateComment before accounts are initialized`);
-        const accountId = accountName ? accountNamesToAccountIds[accountName] : activeAccountId;
-        const pkc = (_a = accounts[accountId]) === null || _a === void 0 ? void 0 : _a.pkc;
-        assert(pkc, `validateComment account '${accountName !== null && accountName !== void 0 ? accountName : activeAccountId}' not found`);
-        return validateCommentWithPkc(comment, validateOptions, pkc);
+        return validateCommentWithPkc(comment, options !== null && options !== void 0 ? options : {}, yield getOfflinePkc());
     });
 }
 export function useValidateComment(options) {
