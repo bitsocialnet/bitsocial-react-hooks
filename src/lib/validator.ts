@@ -236,6 +236,47 @@ const validateAccountsActionsPublishCommentModerationArguments = ({
   );
 };
 
+// communities reject a domain name with an uppercase letter, the same check as pkc-js
+// doesDomainAddressHaveCapitalLetter. public keys have no "." and are case-sensitive, so they are not checked
+const assertDomainNameIsLowercase = (name: unknown, code: string, message: string) => {
+  if (typeof name === "string" && name.includes(".") && /[A-Z]/.test(name)) {
+    const error: Error & { code?: string } = new Error(message);
+    error.code = code;
+    throw error;
+  }
+};
+
+const validateCommunityNameIsLowercase = (options: any, optionsName: string) => {
+  for (const field of ["name", "address"]) {
+    assertDomainNameIsLowercase(
+      options?.[field],
+      "ERR_COMMUNITY_NAME_HAS_CAPITAL_LETTER",
+      `${optionsName}.${field} '${options?.[field]}' has an uppercase letter, community names must be lowercase`,
+    );
+  }
+};
+
+// pkc-js publishes author.name, or author.address when the account stores its domain name there. only a
+// changed name is checked, so a name saved before this check does not block unrelated account edits
+const validateAccountsActionsSetAccountAuthorName = (author: any, previousAuthor: any) => {
+  for (const field of ["name", "address"]) {
+    if (author?.[field] !== previousAuthor?.[field]) {
+      assertDomainNameIsLowercase(
+        author?.[field],
+        "ERR_AUTHOR_NAME_HAS_CAPITAL_LETTER",
+        `setAccount account.author.${field} '${author?.[field]}' has an uppercase letter, author names must be lowercase`,
+      );
+    }
+  }
+};
+
+const validateAccountsActionsCreateCommunityArguments = (createCommunityOptions: any) => {
+  validateCommunityNameIsLowercase(
+    createCommunityOptions,
+    "createCommunity createCommunityOptions",
+  );
+};
+
 const validateAccountsActionsPublishCommunityEditArguments = ({
   communityAddress,
   publishCommunityEditOptions,
@@ -277,6 +318,10 @@ const validateAccountsActionsPublishCommunityEditArguments = ({
     !publishCommunityEditOptions.timestamp ||
       typeof publishCommunityEditOptions.timestamp === "number",
     "publishCommunityEdit publishCommunityEditOptions.timestamp is not a number",
+  );
+  validateCommunityNameIsLowercase(
+    publishCommunityEditOptions,
+    "publishCommunityEdit publishCommunityEditOptions",
   );
 };
 
@@ -670,10 +715,12 @@ const validator = {
   validateAccountsActionsPublishCommentEditArguments,
   validateAccountsActionsPublishCommentModerationArguments,
   validateAccountsActionsPublishCommunityEditArguments,
+  validateAccountsActionsCreateCommunityArguments,
   validateAccountsActionsPublishVoteArguments,
   validateAccountsActionsExportAccountArguments,
   validateAccountsActionsSetAccountsOrderArguments,
   validateAccountsActionsSetAccountArguments,
+  validateAccountsActionsSetAccountAuthorName,
   validateAccountsActionsSetActiveAccountArguments,
   validateAccountsDatabaseAddAccountArguments,
   validateAccountsDatabaseGetAccountsArguments,

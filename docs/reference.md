@@ -1043,6 +1043,10 @@ const editedAccount = {
 
 await setAccount(editedAccount)
 
+// domain names must be lowercase: setAccount throws an error with code 'ERR_AUTHOR_NAME_HAS_CAPITAL_LETTER'
+// when author.name or author.address is set to a name like 'Username.bso', and createCommunity and
+// publishCommunityEdit throw 'ERR_COMMUNITY_NAME_HAS_CAPITAL_LETTER' for a community name like 'MyBoard.bso'
+
 // check if the user has set their .eth or .bso author name properly, use {cache: false} or it won't update
 const author = {...account.author, address: 'username.bso'} // or 'username.eth'
 // authorAddress should equal to account.signer.address

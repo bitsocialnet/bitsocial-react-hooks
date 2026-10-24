@@ -712,6 +712,10 @@ export const setAccount = async (account: Account) => {
     accounts?.[account.id],
     `cannot set account with account.id '${account.id}' id does not exist in database`,
   );
+  validator.validateAccountsActionsSetAccountAuthorName(
+    account.author,
+    accounts[account.id].author,
+  );
 
   // if author.address has changed, add new community roles of author.address found in communities store
   // TODO: add test to check if roles get added
@@ -2420,6 +2424,7 @@ export const createCommunity = async (
     const accountId = accountNamesToAccountIds[accountName];
     account = accounts[accountId];
   }
+  validator.validateAccountsActionsCreateCommunityArguments(createCommunityOptions);
 
   const community = await communitiesStore
     .getState()

@@ -4035,4 +4035,83 @@ describe("accounts-actions", () => {
       ).toBeUndefined();
     });
   });
+
+  describe("domain names with uppercase letters", () => {
+    beforeEach(async () => {
+      await testUtils.resetDatabasesAndStores();
+    });
+
+    const getActiveAccount = () => {
+      const { accounts, activeAccountId } = accountsStore.getState();
+      return accounts[activeAccountId!];
+    };
+
+    test("setAccount rejects an author domain name with an uppercase letter", async () => {
+      const account = getActiveAccount();
+      for (const author of [
+        { ...account.author, address: "MyName.bso" },
+        { ...account.author, name: "Bot.eth" },
+      ]) {
+        await expect(accountsActions.setAccount({ ...account, author })).rejects.toMatchObject({
+          code: "ERR_AUTHOR_NAME_HAS_CAPITAL_LETTER",
+        });
+      }
+      expect(getActiveAccount().author).toEqual(account.author);
+    });
+
+    test("setAccount accepts lowercase names, public keys and a previously saved name", async () => {
+      const account = getActiveAccount();
+      await act(async () => {
+        await accountsActions.setAccount({
+          ...account,
+          author: { ...account.author, address: "myname.bso" },
+        });
+      });
+      expect(getActiveAccount().author.address).toBe("myname.bso");
+
+      // public keys are case-sensitive and have no "."
+      await act(async () => {
+        await accountsActions.setAccount({
+          ...account,
+          author: { ...account.author, address: "12D3KooWUpperCaseKey" },
+        });
+      });
+      expect(getActiveAccount().author.address).toBe("12D3KooWUpperCaseKey");
+
+      // a name saved before the check existed doesn't block other account edits
+      const savedAccount = {
+        ...getActiveAccount(),
+        author: { ...account.author, name: "Old.eth" },
+      };
+      accountsStore.setState(({ accounts }) => ({
+        accounts: { ...accounts, [account.id]: savedAccount },
+      }));
+      await act(async () => {
+        await accountsActions.setAccount({ ...savedAccount, mediaIpfsGatewayUrl: "https://a.b" });
+      });
+      expect(getActiveAccount().mediaIpfsGatewayUrl).toBe("https://a.b");
+    });
+
+    test("createCommunity rejects a community domain name with an uppercase letter", async () => {
+      for (const createCommunityOptions of [{ name: "MyBoard.bso" }, { address: "MyBoard.eth" }]) {
+        await expect(
+          accountsActions.createCommunity(createCommunityOptions as any),
+        ).rejects.toMatchObject({ code: "ERR_COMMUNITY_NAME_HAS_CAPITAL_LETTER" });
+      }
+    });
+
+    test("publishCommunityEdit rejects a community domain name with an uppercase letter", async () => {
+      const onChallenge = vi.fn();
+      for (const edit of [{ address: "MyBoard.bso" }, { name: "MyBoard.eth" }]) {
+        await expect(
+          accountsActions.publishCommunityEdit("sub.eth", {
+            ...edit,
+            onChallenge,
+            onChallengeVerification: () => {},
+          } as any),
+        ).rejects.toMatchObject({ code: "ERR_COMMUNITY_NAME_HAS_CAPITAL_LETTER" });
+      }
+      expect(onChallenge).not.toHaveBeenCalled();
+    });
+  });
 });
