@@ -77,6 +77,32 @@ const validateAccountsActionsPublishCommentModerationArguments = ({ publishComme
     assert(publishCommentModerationOptions.commentModeration &&
         typeof publishCommentModerationOptions.commentModeration === "object", "publishCommentModeration publishCommentModerationOptions.commentModeration is not an object");
 };
+// communities reject a domain name with an uppercase letter, the same check as pkc-js
+// doesDomainAddressHaveCapitalLetter. public keys have no "." and are case-sensitive, so they are not checked
+const assertDomainNameIsLowercase = (name, code, message) => {
+    if (typeof name === "string" && name.includes(".") && /[A-Z]/.test(name)) {
+        const error = new Error(message);
+        error.code = code;
+        throw error;
+    }
+};
+const validateCommunityNameIsLowercase = (options, optionsName) => {
+    for (const field of ["name", "address"]) {
+        assertDomainNameIsLowercase(options === null || options === void 0 ? void 0 : options[field], "ERR_COMMUNITY_NAME_HAS_CAPITAL_LETTER", `${optionsName}.${field} '${options === null || options === void 0 ? void 0 : options[field]}' has an uppercase letter, community names must be lowercase`);
+    }
+};
+// pkc-js publishes author.name, or author.address when the account stores its domain name there. only a
+// changed name is checked, so a name saved before this check does not block unrelated account edits
+const validateAccountsActionsSetAccountAuthorName = (author, previousAuthor) => {
+    for (const field of ["name", "address"]) {
+        if ((author === null || author === void 0 ? void 0 : author[field]) !== (previousAuthor === null || previousAuthor === void 0 ? void 0 : previousAuthor[field])) {
+            assertDomainNameIsLowercase(author === null || author === void 0 ? void 0 : author[field], "ERR_AUTHOR_NAME_HAS_CAPITAL_LETTER", `setAccount account.author.${field} '${author === null || author === void 0 ? void 0 : author[field]}' has an uppercase letter, author names must be lowercase`);
+        }
+    }
+};
+const validateAccountsActionsCreateCommunityArguments = (createCommunityOptions) => {
+    validateCommunityNameIsLowercase(createCommunityOptions, "createCommunity createCommunityOptions");
+};
 const validateAccountsActionsPublishCommunityEditArguments = ({ communityAddress, publishCommunityEditOptions, accountName, account, }) => {
     assert(!accountName || typeof accountName === "string", `publishCommunityEdit accountName '${accountName}' not a string`);
     assert(accountName !== "", `publishCommunityEdit accountName argument is empty string`);
@@ -90,6 +116,7 @@ const validateAccountsActionsPublishCommunityEditArguments = ({ communityAddress
     assert(typeof communityAddress === "string", "publishCommunityEdit communityAddress not a string");
     assert(!publishCommunityEditOptions.timestamp ||
         typeof publishCommunityEditOptions.timestamp === "number", "publishCommunityEdit publishCommunityEditOptions.timestamp is not a number");
+    validateCommunityNameIsLowercase(publishCommunityEditOptions, "publishCommunityEdit publishCommunityEditOptions");
 };
 const validateAccountsActionsExportAccountArguments = (accountName) => {
     assert(typeof accountName === "string", `exportAccount accountName '${accountName}' not a string`);
@@ -253,10 +280,12 @@ const validator = {
     validateAccountsActionsPublishCommentEditArguments,
     validateAccountsActionsPublishCommentModerationArguments,
     validateAccountsActionsPublishCommunityEditArguments,
+    validateAccountsActionsCreateCommunityArguments,
     validateAccountsActionsPublishVoteArguments,
     validateAccountsActionsExportAccountArguments,
     validateAccountsActionsSetAccountsOrderArguments,
     validateAccountsActionsSetAccountArguments,
+    validateAccountsActionsSetAccountAuthorName,
     validateAccountsActionsSetActiveAccountArguments,
     validateAccountsDatabaseAddAccountArguments,
     validateAccountsDatabaseGetAccountsArguments,

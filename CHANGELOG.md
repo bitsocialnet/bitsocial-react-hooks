@@ -1,3 +1,17 @@
+## [0.1.58](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.57...v0.1.58) (2026-10-24)
+
+
+### Bug Fixes
+
+* **accounts-store:** keep video dimensions when the audio probe loads first ([eaa808b](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/eaa808b53c8a849a49f884c89a84ac5e6121440f))
+
+
+### Features
+
+* **accounts-store:** reject author and community names with uppercase letters ([999dbd2](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/999dbd215af0d20a1c345a1e90c842ab38d1d0d1)), closes [#160](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/160)
+
+
+
 ## [0.1.57](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.56...v0.1.57) (2026-10-21)
 
 

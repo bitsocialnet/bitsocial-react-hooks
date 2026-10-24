@@ -513,6 +513,7 @@ export const setAccount = (account) => __awaiter(void 0, void 0, void 0, functio
     const { accounts } = accountsStore.getState();
     validator.validateAccountsActionsSetAccountArguments(account);
     assert(accounts === null || accounts === void 0 ? void 0 : accounts[account.id], `cannot set account with account.id '${account.id}' id does not exist in database`);
+    validator.validateAccountsActionsSetAccountAuthorName(account.author, accounts[account.id].author);
     // if author.address has changed, add new community roles of author.address found in communities store
     // TODO: add test to check if roles get added
     if (account.author.address !== accounts[account.id].author.address) {
@@ -1705,6 +1706,7 @@ export const createCommunity = (createCommunityOptions, accountName) => __awaite
         const accountId = accountNamesToAccountIds[accountName];
         account = accounts[accountId];
     }
+    validator.validateAccountsActionsCreateCommunityArguments(createCommunityOptions);
     const community = yield communitiesStore
         .getState()
         .createCommunity(createCommunityOptions, account);

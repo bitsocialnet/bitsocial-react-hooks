@@ -3,10 +3,12 @@ declare const validator: {
     validateAccountsActionsPublishCommentEditArguments: ({ publishCommentEditOptions, accountName, account, }: any) => void;
     validateAccountsActionsPublishCommentModerationArguments: ({ publishCommentModerationOptions, accountName, account, }: any) => void;
     validateAccountsActionsPublishCommunityEditArguments: ({ communityAddress, publishCommunityEditOptions, accountName, account, }: any) => void;
+    validateAccountsActionsCreateCommunityArguments: (createCommunityOptions: any) => void;
     validateAccountsActionsPublishVoteArguments: ({ publishVoteOptions, accountName, account, }: any) => void;
     validateAccountsActionsExportAccountArguments: (accountName: any) => void;
     validateAccountsActionsSetAccountsOrderArguments: (newOrderedAccountNames: any, accountNames: any) => void;
     validateAccountsActionsSetAccountArguments: (account: any) => void;
+    validateAccountsActionsSetAccountAuthorName: (author: any, previousAuthor: any) => void;
     validateAccountsActionsSetActiveAccountArguments: (accountName: any) => void;
     validateAccountsDatabaseAddAccountArguments: (account: any) => void;
     validateAccountsDatabaseGetAccountsArguments: (accountIds: any) => void;
