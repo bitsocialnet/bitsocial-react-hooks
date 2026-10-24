@@ -433,11 +433,14 @@ export const fetchCommentLinkDimensions = async (link: string): Promise<CommentL
     if (new URL(link).protocol !== "https:") {
       throw Error(`failed fetching comment.link dimensions for link '${link}' not https protocol`);
     }
+    // an <audio> element also loads a video file's audio track, often before the <video> element
+    // decodes a frame, so the audio result only counts once the image and video probes both failed
+    const audio = fetchAudio(link);
+    audio.catch(() => {});
     const dimensions = await promiseAny([
       fetchImageDimensions(link),
       fetchVideoDimensions(link),
-      fetchAudio(link),
-    ]);
+    ]).catch(() => audio);
     return dimensions;
   } catch (error: any) {
     log.error("fetchCommentLinkDimensions error", { error, link });

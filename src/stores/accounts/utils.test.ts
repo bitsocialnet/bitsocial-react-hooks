@@ -431,10 +431,46 @@ describe("accountsStore utils", () => {
       }
     });
 
-    test("returns audio tag name on audio success", async () => {
+    test("returns video dimensions when the audio element loads a video file first", async () => {
       const createElement = document.createElement.bind(document);
       document.createElement = ((tag: string) => {
         const el = createElement(tag);
+        if (tag === "video") {
+          Object.defineProperty(el, "videoWidth", { value: 480 });
+          Object.defineProperty(el, "videoHeight", { value: 854 });
+          (el as any).pause = () => {};
+          setTimeout(() => el.dispatchEvent(new Event("loadeddata")), 10);
+        }
+        if (tag === "audio") {
+          (el as any).pause = () => {};
+          setTimeout(() => el.dispatchEvent(new Event("loadeddata")), 0);
+        }
+        return el;
+      }) as any;
+      try {
+        const result = await utils.fetchCommentLinkDimensions("https://example.com/vid.mp4");
+        expect(result).toEqual({ linkWidth: 480, linkHeight: 854, linkHtmlTagName: "video" });
+      } finally {
+        document.createElement = createElement;
+      }
+    });
+
+    test("returns audio tag name on audio success", async () => {
+      const OriginalImage = global.Image;
+      (global as any).Image = class MockImage {
+        onload: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        src = "";
+        constructor() {
+          setTimeout(() => this.onerror?.(), 0);
+        }
+      };
+      const createElement = document.createElement.bind(document);
+      document.createElement = ((tag: string) => {
+        const el = createElement(tag);
+        if (tag === "video") {
+          setTimeout(() => el.dispatchEvent(new Event("error")), 0);
+        }
         if (tag === "audio") {
           (el as any).pause = () => {};
           setTimeout(() => el.dispatchEvent(new Event("loadeddata")), 0);
@@ -445,6 +481,7 @@ describe("accountsStore utils", () => {
         const result = await utils.fetchCommentLinkDimensions("https://example.com/audio.mp3");
         expect(result).toEqual({ linkHtmlTagName: "audio" });
       } finally {
+        (global as any).Image = OriginalImage;
         document.createElement = createElement;
       }
     });
@@ -498,6 +535,9 @@ describe("accountsStore utils", () => {
       const createElement = document.createElement.bind(document);
       document.createElement = ((tag: string) => {
         const el = createElement(tag);
+        if (tag === "video") {
+          setTimeout(() => el.dispatchEvent(new Event("error")), 0);
+        }
         if (tag === "audio") {
           (el as any).pause = () => {};
           setTimeout(() => el.dispatchEvent(new Event("loadeddata")), 0);
