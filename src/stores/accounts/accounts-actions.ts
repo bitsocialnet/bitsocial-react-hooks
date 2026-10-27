@@ -1341,7 +1341,15 @@ export const publishComment = async (
       previousComment.cid,
     );
     if (!previousCommentAuthorAddress || previousCommentAuthorAddress !== account.author?.address) {
-      delete publicationAuthor.previousCommentCid;
+      // fall back to the newest stored comment that kept the account author address
+      const previousAccountAuthorComment = accountCommentsWithCids
+        .filter((comment: AccountComment) => comment.author?.address)
+        .pop();
+      if (previousAccountAuthorComment) {
+        publicationAuthor.previousCommentCid = previousAccountAuthorComment.cid;
+      } else {
+        delete publicationAuthor.previousCommentCid;
+      }
     }
   }
 

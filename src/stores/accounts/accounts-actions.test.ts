@@ -975,16 +975,24 @@ describe("accounts-actions", () => {
 
     test("publishComment does not link a legacy stored comment published under an alternate author", async () => {
       const { publishedAuthor } = await publishWithStoredAccountComments(
-        () => [{ cid: "legacy-comment-cid", author: communityAuthor }],
+        (account) => [
+          { cid: "fresh-comment-cid", author: { address: account.author.address } },
+          { cid: "legacy-comment-cid", author: communityAuthor },
+        ],
         { getCidAuthorAddress: () => "alternate-author.bso" },
       );
 
-      expect(publishedAuthor).not.toHaveProperty("previousCommentCid");
+      // falls back to the newest stored comment that kept the account author address
+      expect(publishedAuthor.previousCommentCid).toBe("fresh-comment-cid");
     });
 
     test("publishComment does not link a legacy stored comment whose cid author fails to load", async () => {
       const { publishedAuthor } = await publishWithStoredAccountComments(
-        () => [{ cid: "legacy-comment-cid", author: communityAuthor }],
+        (account) => [
+          { cid: "older-legacy-comment-cid", author: communityAuthor },
+          { cid: "fresh-comment-cid", author: { address: account.author.address } },
+          { cid: "legacy-comment-cid", author: communityAuthor },
+        ],
         {
           getCidAuthorAddress: () => {
             throw Error("failed loading comment ipfs");
@@ -992,7 +1000,7 @@ describe("accounts-actions", () => {
         },
       );
 
-      expect(publishedAuthor).not.toHaveProperty("previousCommentCid");
+      expect(publishedAuthor.previousCommentCid).toBe("fresh-comment-cid");
     });
 
     test("publishComment stops waiting for a legacy stored comment cid author after the timeout", async () => {
