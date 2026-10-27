@@ -1288,8 +1288,14 @@ export const publishComment = async (
   // find author.previousCommentCid if any
   const accountCommentsWithCids = accountsComments[account.id]
     .filter((comment: AccountComment) => comment.cid)
-    // author can change his address, his previousCommentCid becomes invalid
-    .filter((comment: AccountComment) => comment.author?.address === account.author?.address);
+    // a pseudonymous community published the comment under an alias, linking it would reveal the account
+    .filter((comment: AccountComment) => !comment.pseudonymityMode)
+    // author can change his address, his previousCommentCid becomes invalid. hooks <= 0.1.51 replaced
+    // the stored author with commentUpdate.author, so those comments have no author.address at all
+    .filter(
+      (comment: AccountComment) =>
+        !comment.author?.address || comment.author.address === account.author?.address,
+    );
   const previousCommentCid = accountCommentsWithCids[accountCommentsWithCids.length - 1]?.cid;
   const author = { ...account.author };
   if (previousCommentCid) {
