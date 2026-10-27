@@ -7,6 +7,8 @@ description: Draft a concise library release summary from the requested release 
 
 # Release Description
 
+Read [versioning and v1 readiness](../../../docs/agent-playbooks/versioning.md) before recommending a version or preparing a release. Keep version policy and readiness progress in that playbook. For notes about an already released version, describe its actual range without retroactively changing its number.
+
 Use the release/tag range supplied by the user. Otherwise inspect reachable release tags and recent history to identify the relevant previous release; do not assume the most recently created tag belongs to this release line.
 
 Read commit titles and relevant diffs to establish user-visible changes. Summarize significant hook/API additions, bug fixes, compatibility changes, and performance improvements in plain language. Mention internal maintenance only when it matters to package users; do not infer behavior from a title alone.

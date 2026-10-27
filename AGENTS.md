@@ -34,6 +34,7 @@ For an unexpected repository-specific issue, tell the contributor and continue i
 | AI workflow files changed | Edit shared sources; run `yarn ai-workflow:sync`, `yarn ai-workflow:check`, and `yarn ai-workflow:test` |
 | Bug fix or substantive review correction exposes a preventable mistake | Use [retro](.agents/skills/retro/SKILL.md) for the smallest worthwhile prevention |
 | Public docs or AI context changed | Run `yarn llms:generate`; include resulting `llms*.txt` changes |
+| Version recommendation, version bump, or release preparation | Read [versioning and v1 readiness](docs/agent-playbooks/versioning.md) before choosing a number; recommend from the actual release diff and update relevant readiness evidence within the authorized scope |
 | PR feedback or readiness | Use `review-and-merge-pr` within the user's requested scope |
 | Commit/issue wording requested | Use [commit-issue-format.md](docs/agent-playbooks/commit-issue-format.md) |
 

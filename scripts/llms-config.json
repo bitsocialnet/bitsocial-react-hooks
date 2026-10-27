@@ -32,6 +32,7 @@
     "docs/agent-playbooks/bug-investigation.md",
     "docs/agent-playbooks/skills-and-tools.md",
     "docs/agent-playbooks/verification.md",
+    "docs/agent-playbooks/versioning.md",
     "docs/agent-playbooks/hooks-setup.md"
   ],
   "optionalDocs": ["CHANGELOG.md", "docs/TODO.md"]
