@@ -922,6 +922,167 @@ describe("accounts-actions", () => {
       expect(publishedAuthor).toMatchObject({ address: "alternate-author.bso" });
       expect(publishedAuthor).not.toHaveProperty("previousCommentCid");
     });
+
+    const setStoredAccountComments = (getStoredComments: (account: any) => any[]) => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      accountsStore.setState(({ accountsComments }) => ({
+        accountsComments: { ...accountsComments, [account.id]: getStoredComments(account) },
+      }));
+      return account;
+    };
+    const publishNextComment = (author?: any) =>
+      accountsActions.publishComment({
+        communityAddress: "sub.eth",
+        content: "next comment",
+        ...(author && { author }),
+        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallengeVerification: () => {},
+      });
+    const publishWithStoredAccountComments = async (
+      getStoredComments: (account: any) => any[],
+      {
+        // the immutable author address in the CommentIpfs of a stored comment cid
+        getCidAuthorAddress = (account: any) => account.author.address,
+        author,
+      }: { getCidAuthorAddress?: (account: any) => string; author?: any } = {},
+    ) => {
+      const account = setStoredAccountComments(getStoredComments);
+      const createComment = vi.spyOn(account.pkc, "createComment");
+      const getComment = vi
+        .spyOn(account.pkc, "getComment")
+        .mockImplementation(
+          async () => ({ author: { address: getCidAuthorAddress(account) } }) as any,
+        );
+
+      await publishNextComment(author);
+
+      return { publishedAuthor: createComment.mock.calls[0][0].author, getComment };
+    };
+    const communityAuthor = { community: { postScore: 0, replyScore: 0 } };
+
+    test("publishComment links a stored comment whose author address hooks <= 0.1.51 dropped once its cid author is the account", async () => {
+      const { publishedAuthor, getComment } = await publishWithStoredAccountComments((account) => [
+        { cid: "fresh-comment-cid", author: { address: account.author.address } },
+        // hooks <= 0.1.51 replaced the stored author with the challenge commentUpdate author
+        { cid: "legacy-comment-cid", author: communityAuthor },
+      ]);
+
+      expect(getComment).toHaveBeenCalledWith(
+        expect.objectContaining({ cid: "legacy-comment-cid" }),
+      );
+      expect(publishedAuthor.previousCommentCid).toBe("legacy-comment-cid");
+    });
+
+    test("publishComment does not link a legacy stored comment published under an alternate author", async () => {
+      const { publishedAuthor } = await publishWithStoredAccountComments(
+        (account) => [
+          { cid: "fresh-comment-cid", author: { address: account.author.address } },
+          { cid: "legacy-comment-cid", author: communityAuthor },
+        ],
+        { getCidAuthorAddress: () => "alternate-author.bso" },
+      );
+
+      // falls back to the newest stored comment that kept the account author address
+      expect(publishedAuthor.previousCommentCid).toBe("fresh-comment-cid");
+    });
+
+    test("publishComment does not link a legacy stored comment whose cid author fails to load", async () => {
+      const { publishedAuthor } = await publishWithStoredAccountComments(
+        (account) => [
+          { cid: "older-legacy-comment-cid", author: communityAuthor },
+          { cid: "fresh-comment-cid", author: { address: account.author.address } },
+          { cid: "legacy-comment-cid", author: communityAuthor },
+        ],
+        {
+          getCidAuthorAddress: () => {
+            throw Error("failed loading comment ipfs");
+          },
+        },
+      );
+
+      expect(publishedAuthor.previousCommentCid).toBe("fresh-comment-cid");
+    });
+
+    test("publishComment stops waiting for a legacy stored comment cid author after the timeout", async () => {
+      // keep the clock moving so the pkc mock loading delays still elapse after the jump
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+      try {
+        const account = setStoredAccountComments(() => [
+          { cid: "legacy-comment-cid", author: communityAuthor },
+        ]);
+        const createComment = vi.spyOn(account.pkc, "createComment");
+        vi.spyOn(account.pkc, "getComment").mockImplementation(
+          ({ abortSignal }: any) =>
+            new Promise((_resolve, reject) =>
+              abortSignal.addEventListener("abort", () => reject(Error("aborted"))),
+            ),
+        );
+
+        const publishing = publishNextComment();
+        await vi.advanceTimersByTimeAsync(10_000);
+        await publishing;
+
+        expect(createComment.mock.calls[0][0].author).not.toHaveProperty("previousCommentCid");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    test("publishComment links the latest stored comment published with the account author", async () => {
+      const { publishedAuthor, getComment } = await publishWithStoredAccountComments((account) => [
+        { cid: "legacy-comment-cid", author: communityAuthor },
+        {
+          cid: "fresh-comment-cid",
+          author: { address: account.author.address, ...communityAuthor },
+        },
+      ]);
+
+      expect(getComment).not.toHaveBeenCalled();
+      expect(publishedAuthor.previousCommentCid).toBe("fresh-comment-cid");
+    });
+
+    test("publishComment does not load a legacy stored comment author when publishing under an alternate author", async () => {
+      const { publishedAuthor, getComment } = await publishWithStoredAccountComments(
+        () => [{ cid: "legacy-comment-cid", author: communityAuthor }],
+        { author: { address: "alternate-author.bso" } },
+      );
+
+      expect(getComment).not.toHaveBeenCalled();
+      expect(publishedAuthor).not.toHaveProperty("previousCommentCid");
+    });
+
+    test("publishComment never links a stored pseudonymous comment", async () => {
+      const { publishedAuthor, getComment } = await publishWithStoredAccountComments((account) => [
+        { cid: "fresh-comment-cid", author: { address: account.author.address } },
+        {
+          cid: "pseudonymous-comment-cid",
+          pseudonymityMode: "per-post",
+          author: { address: "12D3KooWCommunityAssignedAliasAddress", ...communityAuthor },
+        },
+        // hooks <= 0.1.51 also dropped the alias address of pseudonymous comments
+        {
+          cid: "legacy-pseudonymous-comment-cid",
+          pseudonymityMode: "per-author",
+          author: communityAuthor,
+        },
+      ]);
+
+      expect(getComment).not.toHaveBeenCalled();
+      expect(publishedAuthor.previousCommentCid).toBe("fresh-comment-cid");
+    });
+
+    test("publishComment omits previousCommentCid when only pseudonymous comments are stored", async () => {
+      const { publishedAuthor, getComment } = await publishWithStoredAccountComments(() => [
+        {
+          cid: "legacy-pseudonymous-comment-cid",
+          pseudonymityMode: "per-post",
+          author: communityAuthor,
+        },
+      ]);
+
+      expect(getComment).not.toHaveBeenCalled();
+      expect(publishedAuthor).not.toHaveProperty("previousCommentCid");
+    });
   });
 
   describe("optional accountName branches", () => {

@@ -59,6 +59,7 @@ import { addOptimisticVoteMetadata } from "../../lib/utils/optimistic-vote-count
 import { applyCommunityWordfilters } from "../../lib/wordfilters";
 
 const PUBLICATION_COMMUNITY_LOAD_TIMEOUT_MS = 30_000;
+const COMMENT_AUTHOR_LOAD_TIMEOUT_MS = 10_000;
 
 const communityHasPublicationConfig = (community: any) =>
   community &&
@@ -122,6 +123,25 @@ const loadPublicationCommunity = async (communityAddress: string, account: Accou
     });
   } finally {
     await community.stop?.();
+  }
+};
+
+const loadCommentAuthorAddress = async (
+  account: Account,
+  commentCid: string,
+): Promise<string | undefined> => {
+  const abortController = new AbortController();
+  const timeout = setTimeout(() => abortController.abort(), COMMENT_AUTHOR_LOAD_TIMEOUT_MS);
+  try {
+    const comment = await account.pkc.getComment({
+      cid: commentCid,
+      abortSignal: abortController.signal,
+    });
+    return comment?.author?.address;
+  } catch (error) {
+    log.error("accountsActions.loadCommentAuthorAddress error", { commentCid, error });
+  } finally {
+    clearTimeout(timeout);
   }
 };
 
@@ -1288,12 +1308,18 @@ export const publishComment = async (
   // find author.previousCommentCid if any
   const accountCommentsWithCids = accountsComments[account.id]
     .filter((comment: AccountComment) => comment.cid)
-    // author can change his address, his previousCommentCid becomes invalid
-    .filter((comment: AccountComment) => comment.author?.address === account.author?.address);
-  const previousCommentCid = accountCommentsWithCids[accountCommentsWithCids.length - 1]?.cid;
+    // a pseudonymous community published the comment under an alias, linking it would reveal the account
+    .filter((comment: AccountComment) => !comment.pseudonymityMode)
+    // author can change his address, his previousCommentCid becomes invalid. hooks <= 0.1.51 replaced
+    // the stored author with commentUpdate.author, so those comments have no author.address at all
+    .filter(
+      (comment: AccountComment) =>
+        !comment.author?.address || comment.author.address === account.author?.address,
+    );
+  const previousComment = accountCommentsWithCids[accountCommentsWithCids.length - 1];
   const author = { ...account.author };
-  if (previousCommentCid) {
-    author.previousCommentCid = previousCommentCid;
+  if (previousComment) {
+    author.previousCommentCid = previousComment.cid;
   }
   const publicationAuthor = { ...author, ...publishCommentOptions.author };
   if (
@@ -1301,6 +1327,30 @@ export const publishComment = async (
     publishCommentOptions.author?.previousCommentCid === undefined
   ) {
     delete publicationAuthor.previousCommentCid;
+  }
+  // a comment without author.address may have been published under an alternate author passed to
+  // publishComment, so only link it once its immutable author, loaded from its cid, is the account's
+  if (
+    previousComment &&
+    !previousComment.author?.address &&
+    publishCommentOptions.author?.previousCommentCid === undefined &&
+    publicationAuthor.previousCommentCid === previousComment.cid
+  ) {
+    const previousCommentAuthorAddress = await loadCommentAuthorAddress(
+      account,
+      previousComment.cid,
+    );
+    if (!previousCommentAuthorAddress || previousCommentAuthorAddress !== account.author?.address) {
+      // fall back to the newest stored comment that kept the account author address
+      const previousAccountAuthorComment = accountCommentsWithCids
+        .filter((comment: AccountComment) => comment.author?.address)
+        .pop();
+      if (previousAccountAuthorComment) {
+        publicationAuthor.previousCommentCid = previousAccountAuthorComment.cid;
+      } else {
+        delete publicationAuthor.previousCommentCid;
+      }
+    }
   }
 
   let createCommentOptions: any = normalizePublicationOptionsForPkc(account.pkc, {
