@@ -37,6 +37,7 @@ import utils from "../../lib/utils/index.js";
 import { addOptimisticVoteMetadata } from "../../lib/utils/optimistic-vote-counts.js";
 import { applyCommunityWordfilters } from "../../lib/wordfilters.js";
 const PUBLICATION_COMMUNITY_LOAD_TIMEOUT_MS = 30000;
+const COMMENT_AUTHOR_LOAD_TIMEOUT_MS = 10000;
 const communityHasPublicationConfig = (community) => community &&
     (typeof community.updatedAt === "number" ||
         Object.prototype.hasOwnProperty.call(community, "challenges"));
@@ -94,6 +95,24 @@ const loadPublicationCommunity = (communityAddress, account) => __awaiter(void 0
     }
     finally {
         yield ((_a = community.stop) === null || _a === void 0 ? void 0 : _a.call(community));
+    }
+});
+const loadCommentAuthorAddress = (account, commentCid) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    const abortController = new AbortController();
+    const timeout = setTimeout(() => abortController.abort(), COMMENT_AUTHOR_LOAD_TIMEOUT_MS);
+    try {
+        const comment = yield account.pkc.getComment({
+            cid: commentCid,
+            abortSignal: abortController.signal,
+        });
+        return (_a = comment === null || comment === void 0 ? void 0 : comment.author) === null || _a === void 0 ? void 0 : _a.address;
+    }
+    catch (error) {
+        log.error("accountsActions.loadCommentAuthorAddress error", { commentCid, error });
+    }
+    finally {
+        clearTimeout(timeout);
     }
 });
 const applyPublicationWordfilters = (publicationType, options, account) => __awaiter(void 0, void 0, void 0, function* () {
@@ -885,7 +904,7 @@ export const unsaveComment = (commentCid, accountName) => __awaiter(void 0, void
     yield updateSavedComments(commentCid, accountName, false);
 });
 export const publishComment = (publishCommentOptions, accountName) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f, _g;
     const { accounts, accountsComments, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
     assert(accounts && accountNamesToAccountIds && activeAccountId, `can't use accountsStore.accountActions before initialized`);
     let account = accounts[activeAccountId];
@@ -901,17 +920,40 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
     // find author.previousCommentCid if any
     const accountCommentsWithCids = accountsComments[account.id]
         .filter((comment) => comment.cid)
-        // author can change his address, his previousCommentCid becomes invalid
-        .filter((comment) => { var _a, _b; return ((_a = comment.author) === null || _a === void 0 ? void 0 : _a.address) === ((_b = account.author) === null || _b === void 0 ? void 0 : _b.address); });
-    const previousCommentCid = (_a = accountCommentsWithCids[accountCommentsWithCids.length - 1]) === null || _a === void 0 ? void 0 : _a.cid;
+        // a pseudonymous community published the comment under an alias, linking it would reveal the account
+        .filter((comment) => !comment.pseudonymityMode)
+        // author can change his address, his previousCommentCid becomes invalid. hooks <= 0.1.51 replaced
+        // the stored author with commentUpdate.author, so those comments have no author.address at all
+        .filter((comment) => { var _a, _b; return !((_a = comment.author) === null || _a === void 0 ? void 0 : _a.address) || comment.author.address === ((_b = account.author) === null || _b === void 0 ? void 0 : _b.address); });
+    const previousComment = accountCommentsWithCids[accountCommentsWithCids.length - 1];
     const author = Object.assign({}, account.author);
-    if (previousCommentCid) {
-        author.previousCommentCid = previousCommentCid;
+    if (previousComment) {
+        author.previousCommentCid = previousComment.cid;
     }
     const publicationAuthor = Object.assign(Object.assign({}, author), publishCommentOptions.author);
-    if (publicationAuthor.address !== ((_b = account.author) === null || _b === void 0 ? void 0 : _b.address) &&
-        ((_c = publishCommentOptions.author) === null || _c === void 0 ? void 0 : _c.previousCommentCid) === undefined) {
+    if (publicationAuthor.address !== ((_a = account.author) === null || _a === void 0 ? void 0 : _a.address) &&
+        ((_b = publishCommentOptions.author) === null || _b === void 0 ? void 0 : _b.previousCommentCid) === undefined) {
         delete publicationAuthor.previousCommentCid;
+    }
+    // a comment without author.address may have been published under an alternate author passed to
+    // publishComment, so only link it once its immutable author, loaded from its cid, is the account's
+    if (previousComment &&
+        !((_c = previousComment.author) === null || _c === void 0 ? void 0 : _c.address) &&
+        ((_d = publishCommentOptions.author) === null || _d === void 0 ? void 0 : _d.previousCommentCid) === undefined &&
+        publicationAuthor.previousCommentCid === previousComment.cid) {
+        const previousCommentAuthorAddress = yield loadCommentAuthorAddress(account, previousComment.cid);
+        if (!previousCommentAuthorAddress || previousCommentAuthorAddress !== ((_e = account.author) === null || _e === void 0 ? void 0 : _e.address)) {
+            // fall back to the newest stored comment that kept the account author address
+            const previousAccountAuthorComment = accountCommentsWithCids
+                .filter((comment) => { var _a; return (_a = comment.author) === null || _a === void 0 ? void 0 : _a.address; })
+                .pop();
+            if (previousAccountAuthorComment) {
+                publicationAuthor.previousCommentCid = previousAccountAuthorComment.cid;
+            }
+            else {
+                delete publicationAuthor.previousCommentCid;
+            }
+        }
     }
     let createCommentOptions = normalizePublicationOptionsForPkc(account.pkc, Object.assign(Object.assign({ timestamp: Math.floor(Date.now() / 1000), signer: account.signer }, publishCommentOptions), { author: publicationAuthor }));
     delete createCommentOptions.onChallenge;
@@ -929,7 +971,7 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
     // set fetching link dimensions state
     let fetchingLinkDimensionsStates;
     if (publishCommentOptions.link) {
-        (_d = publishCommentOptions.onPublishingStateChange) === null || _d === void 0 ? void 0 : _d.call(publishCommentOptions, "fetching-link-dimensions");
+        (_f = publishCommentOptions.onPublishingStateChange) === null || _f === void 0 ? void 0 : _f.call(publishCommentOptions, "fetching-link-dimensions");
         fetchingLinkDimensionsStates = {
             state: "publishing",
             publishingState: "fetching-link-dimensions",
@@ -1001,7 +1043,7 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
     if (pendingCommentIndex !== accountCommentIndex) {
         notifyPendingComment(pendingCommentIndex, createdAccountComment);
     }
-    (_e = publishCommentOptions._onPendingCommentIndex) === null || _e === void 0 ? void 0 : _e.call(publishCommentOptions, pendingCommentIndex, createdAccountComment);
+    (_g = publishCommentOptions._onPendingCommentIndex) === null || _g === void 0 ? void 0 : _g.call(publishCommentOptions, pendingCommentIndex, createdAccountComment);
     let comment;
     (() => __awaiter(void 0, void 0, void 0, function* () {
         // fetch comment.link dimensions
