@@ -1,3 +1,12 @@
+## [0.1.60](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.59...v0.1.60) (2026-10-28)
+
+
+### Bug Fixes
+
+* **comments:** freeze autoUpdate false comments after the update requested on open ([b98e7a5](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/b98e7a59fb8b1e635943efe3a54801769e4c0ec9))
+
+
+
 ## [0.1.59](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.58...v0.1.59) (2026-10-27)
 
 

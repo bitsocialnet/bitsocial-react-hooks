@@ -7,6 +7,9 @@ export type CommentsState = {
     errors: {
         [commentCid: string]: Error[];
     };
+    openingUpdatesPending: {
+        [commentCid: string]: true;
+    };
     addCommentToStore: Function;
     startCommentAutoUpdate: Function;
     stopCommentAutoUpdate: Function;

@@ -115,6 +115,7 @@ export function useComment(options) {
     const communitiesPagesComment = useCommunitiesPagesStore((state) => state.comments[commentCid || ""]);
     const repliesPagesComment = useRepliesPagesStore((state) => state.comments[commentCid || ""]);
     const errors = useCommentsStore((state) => state.errors[commentCid || ""]);
+    const openingUpdatePending = useCommentsStore((state) => Boolean(state.openingUpdatesPending[commentCid || ""]));
     // get account comment of the cid if any
     const accountCommentInfo = useAccountsStore((state) => state.commentCidsToAccountsComments[commentCid || ""]);
     const accountComment = useAccountsStore((state) => {
@@ -187,6 +188,9 @@ export function useComment(options) {
     selectedComment = selectedCommentWithFallback;
     const selectedCommentShortAddress = (_a = selectedComment === null || selectedComment === void 0 ? void 0 : selectedComment.author) === null || _a === void 0 ? void 0 : _a.shortAddress;
     const initialCommentUpdatePending = Boolean(((_b = initialComment === null || initialComment === void 0 ? void 0 : initialComment.raw) === null || _b === void 0 ? void 0 : _b.comment) && !((_c = selectedComment === null || selectedComment === void 0 ? void 0 : selectedComment.raw) === null || _c === void 0 ? void 0 : _c.commentUpdate));
+    // A copy cached on an earlier visit loads before the network. Freeze only once the update this
+    // load requested has ended, so a returning visitor sees the current comment.
+    const openingUpdateEnded = onlyIfCached || (Boolean(commentFromStore) && !openingUpdatePending);
     const freezeSettledForCurrentCid = freezeSettledCid === commentCid;
     useEffect(() => {
         if (autoUpdate) {
@@ -233,7 +237,9 @@ export function useComment(options) {
         }
         setFrozenComment(selectedComment);
         // Recent immutable payloads report "succeeded" before moderation is available.
-        if (typeof selectedComment.updatedAt === "number" && !initialCommentUpdatePending) {
+        if (typeof selectedComment.updatedAt === "number" &&
+            !initialCommentUpdatePending &&
+            openingUpdateEnded) {
             setFreezeSettledCid(commentCid);
         }
     }, [
@@ -241,6 +247,7 @@ export function useComment(options) {
         commentCid,
         selectedComment,
         initialCommentUpdatePending,
+        openingUpdateEnded,
         freezeSettledForCurrentCid,
         frozenComment,
         selectedCommentShortAddress,
@@ -323,6 +330,7 @@ export function useComments(options) {
     const accountVotes = useAccountsStore((state) => (account === null || account === void 0 ? void 0 : account.id) ? state.accountsVotes[account.id] : undefined);
     const commentsStoreComments = useCommentsStore((state) => commentCids.map((commentCid) => state.comments[commentCid || ""]), shallow);
     const communitiesPagesComments = useCommunitiesPagesStore((state) => commentCids.map((commentCid) => state.comments[commentCid || ""]), shallow);
+    const openingUpdatesPending = useCommentsStore((state) => commentCids.map((commentCid) => Boolean(state.openingUpdatesPending[commentCid || ""])), shallow);
     const addCommentToStore = useCommentsStore((state) => state.addCommentToStore);
     const startCommentAutoUpdate = useCommentsStore((state) => state.startCommentAutoUpdate);
     const stopCommentAutoUpdate = useCommentsStore((state) => state.stopCommentAutoUpdate);
@@ -380,7 +388,10 @@ export function useComments(options) {
         }
         return result;
     }, [commentsStoreComments, communitiesPagesComments]);
-    const liveCommentsSettled = liveComments.every((comment) => typeof (comment === null || comment === void 0 ? void 0 : comment.updatedAt) === "number");
+    // like useComment, wait for each update requested on load before freezing over cached copies
+    const liveCommentsSettled = liveComments.every((comment) => typeof (comment === null || comment === void 0 ? void 0 : comment.updatedAt) === "number") &&
+        (Boolean(onlyIfCached) ||
+            commentsStoreComments.every((comment, index) => comment && !openingUpdatesPending[index]));
     const freezeSettledForCurrentKey = freezeSettledKey === commentsKey;
     useEffect(() => {
         if (autoUpdate) {
