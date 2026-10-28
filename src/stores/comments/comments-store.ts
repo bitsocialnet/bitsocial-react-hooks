@@ -31,6 +31,9 @@ export const listeners: any = [];
 export type CommentsState = {
   comments: Comments;
   errors: { [commentCid: string]: Error[] };
+  // CIDs whose update requested by addCommentToStore has not ended yet. A frozen useComment or
+  // useComments waits for it, so a copy cached on an earlier visit is not frozen in place.
+  openingUpdatesPending: { [commentCid: string]: true };
   addCommentToStore: Function;
   startCommentAutoUpdate: Function;
   stopCommentAutoUpdate: Function;
@@ -121,8 +124,31 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     delete sparseCommentFollowupRequested[commentCid];
   };
 
+  const endOpeningUpdate = (commentCid: string) => {
+    if (!getState().openingUpdatesPending[commentCid]) {
+      return;
+    }
+    setState((state: CommentsState) => {
+      const openingUpdatesPending = { ...state.openingUpdatesPending };
+      delete openingUpdatesPending[commentCid];
+      return { openingUpdatesPending };
+    });
+  };
+
+  // When the last auto-update subscriber leaves during the opening update, stopping would abort
+  // it and leave a frozen useComment on a cached copy, so stop when that update ends instead.
+  const deferStopUntilOpeningUpdateEnds = (commentCid: string) => {
+    if (!getState().openingUpdatesPending[commentCid]) {
+      return false;
+    }
+    stopCommentAfterNextUpdate[commentCid] = true;
+    return true;
+  };
+
   const stopLiveComment = async (commentCid: string, comment?: Comment) => {
     clearCommentUpdateFollowup(commentCid);
+    // a stopped comment gets no further update from this cycle
+    endOpeningUpdate(commentCid);
     const liveComment = comment || liveComments[commentCid];
     if (typeof liveComment?.stop !== "function") {
       return;
@@ -176,6 +202,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     }
 
     maybeStopCommentAfterOneShotUpdate(commentCid, comment);
+    endOpeningUpdate(commentCid);
     return updateError;
   };
 
@@ -210,7 +237,15 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
 
     comment?.on?.("update", async (updatedComment: Comment) => {
       updatedComment = normalizeCommentCommunityAddress(utils.clone(updatedComment)) as Comment;
-      await persistComment(commentCid, updatedComment);
+      // A newer CommentUpdate ends the opening update, also for a reply whose cycle pkc-js never
+      // ends. pkc-js emits "update" for other changes too, like a resolved author name.
+      const isNewerCommentUpdate =
+        (updatedComment.updatedAt ?? 0) > (getState().comments[commentCid]?.updatedAt ?? 0);
+      const persisted = persistComment(commentCid, updatedComment);
+      if (isNewerCommentUpdate) {
+        endOpeningUpdate(commentCid);
+      }
+      await persisted;
     });
 
     comment?.on?.("updatingstatechange", (updatingState: string) => {
@@ -248,6 +283,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
         isUnchangedUpdateCycleEnd(updatingState, commentCid, comment)
       ) {
         maybeStopCommentAfterOneShotUpdate(commentCid, comment);
+        endOpeningUpdate(commentCid);
       }
       if (updatingState !== "waiting-retry") {
         delete commentUpdateAttemptFailed[commentCid];
@@ -359,6 +395,14 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     );
   };
 
+  // Whether the cycle update() began or joined has already ended, for a shared loop that will
+  // emit nothing more until its next poll (see waitForCommentUpdateCycle).
+  const isJoinedUpdateCycleSettled = (commentCid: string, comment: Comment) =>
+    typeof comment?.updatedAt === "number" &&
+    (comment.updatingState === "succeeded" ||
+      isUnchangedUpdateCycleEnd(comment.updatingState, commentCid, comment)) &&
+    !shouldWaitForSparseCommentFollowup(commentCid, comment);
+
   // Waits for the update cycle that startUpdate() begins or joins. pkc-js runs one update loop
   // per CID: when another instance already updates this comment (for example the account's own
   // reply, whose update subscribes to its post), update() mirrors that shared loop instead of
@@ -412,13 +456,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
       comment?.on?.("error", onError);
 
       void startUpdate()?.then((updateStarted) => {
-        if (
-          !updateStarted ||
-          settled ||
-          typeof comment?.updatedAt !== "number" ||
-          !isSettledUpdatingState(comment?.updatingState) ||
-          shouldWaitForSparseCommentFollowup(commentCid, comment)
-        ) {
+        if (!updateStarted || settled || !isJoinedUpdateCycleSettled(commentCid, comment)) {
           return;
         }
         // No event will end this cycle, so detach a one-shot update here as the event would.
@@ -430,6 +468,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
   return {
     comments: {},
     errors: {},
+    openingUpdatesPending: {},
 
     async addCommentToStore(commentCid: string, account: Account, commentData?: Comment) {
       const { comments } = getState();
@@ -452,11 +491,13 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
           log("commentsStore.addCommentToStore", { commentCid, comment, account });
           setState((state: CommentsState) => ({
             comments: { ...state.comments, [commentCid]: utils.clone(comment) },
+            openingUpdatesPending: { ...state.openingUpdatesPending, [commentCid]: true },
           }));
         } else {
           comment = normalizeCommentCommunityAddress(comment);
           setState((state: CommentsState) => ({
             comments: { ...state.comments, [commentCid]: utils.clone(comment) },
+            openingUpdatesPending: { ...state.openingUpdatesPending, [commentCid]: true },
           }));
 
           // add comment replies pages to repliesPagesStore so they can be used in useComment
@@ -470,9 +511,18 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
         }
 
         if (comment) {
-          requestCommentUpdate(commentCid, comment, { stopAfterNextUpdate: true });
+          const liveComment = comment;
+          void requestCommentUpdate(commentCid, liveComment, { stopAfterNextUpdate: true })?.then(
+            (updateStarted: boolean) => {
+              if (updateStarted && isJoinedUpdateCycleSettled(commentCid, liveComment)) {
+                maybeStopCommentAfterOneShotUpdate(commentCid, liveComment);
+                endOpeningUpdate(commentCid);
+              }
+            },
+          );
         }
       } catch (e: any) {
+        endOpeningUpdate(commentCid);
         addCommentError(commentCid, e);
         throw e;
       } finally {
@@ -510,6 +560,9 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
       }
 
       if (!hasCommentAutoUpdateSubscribers(commentCid)) {
+        if (deferStopUntilOpeningUpdateEnds(commentCid)) {
+          return;
+        }
         await stopLiveComment(commentCid, liveComment);
         maybeReleaseStoppedLiveComment(commentCid, liveComment);
         return;
@@ -526,7 +579,10 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
         }
       }
 
-      if (hasCommentAutoUpdateSubscribers(commentCid)) {
+      if (
+        hasCommentAutoUpdateSubscribers(commentCid) ||
+        deferStopUntilOpeningUpdateEnds(commentCid)
+      ) {
         return;
       }
 

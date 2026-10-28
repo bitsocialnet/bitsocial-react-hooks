@@ -17,6 +17,7 @@ import accountsStore from "../stores/accounts";
 import PkcJsMock, { PKC, Comment, Pages, simulateLoadingTime } from "../lib/pkc-js/pkc-js-mock";
 import repliesPagesStore from "../stores/replies-pages";
 import { validateCommentWithPkc } from "../lib/validate-comment";
+import localForageLru from "../lib/localforage-lru";
 
 // the checks themselves are tested in lib/validate-comment.test.ts, which needs a node environment
 vi.mock("../lib/validate-comment", async (importOriginal) => ({
@@ -1725,6 +1726,125 @@ describe("comments", () => {
       await new Promise((r) => setTimeout(r, 0));
 
       expect(stopCommentAutoUpdate).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("comment cached on an earlier visit", () => {
+    const cacheComment = (commentCid: string) =>
+      localForageLru.createInstance({ name: "bitsocialReactHooks-comments" }).setItem(commentCid, {
+        cid: commentCid,
+        timestamp: 1,
+        updatedAt: 2,
+        upvoteCount: 1,
+        content: "cached content",
+        communityAddress: "community address 1",
+      });
+
+    let createComment: typeof PKC.prototype.createComment;
+    let commentUpdate: typeof Comment.prototype.update;
+    let updatingComments: any[];
+    let releaseOpeningUpdates: () => void;
+
+    beforeEach(() => {
+      // pkc-js keeps a cached comment's CommentUpdate, which the mock would drop
+      createComment = PKC.prototype.createComment;
+      PKC.prototype.createComment = async function (this: any, options: any) {
+        const comment = await createComment.call(this, options);
+        if (typeof options?.updatedAt === "number") {
+          comment.updatedAt = options.updatedAt;
+        }
+        return comment;
+      };
+      // hold the update requested on open, so the cached copy can be seen first
+      const openingUpdates = new Promise<void>((resolve) => {
+        releaseOpeningUpdates = resolve;
+      });
+      commentUpdate = Comment.prototype.update;
+      updatingComments = [];
+      Comment.prototype.update = async function (this: any) {
+        updatingComments.push(this);
+        await openingUpdates;
+        return commentUpdate.call(this);
+      };
+    });
+    afterEach(() => {
+      PKC.prototype.createComment = createComment;
+      Comment.prototype.update = commentUpdate;
+    });
+
+    test("useComment with autoUpdate false shows the cached copy, then freezes on the update requested on open", async () => {
+      const commentCid = "comment cid cached frozen";
+      await cacheComment(commentCid);
+      const rendered = renderHook<any, any>(() => useComment({ commentCid, autoUpdate: false }));
+      const waitFor = testUtils.createWaitFor(rendered);
+
+      await waitFor(() => rendered.result.current.upvoteCount === 1);
+      expect(rendered.result.current.content).toBe("cached content");
+      expect(rendered.result.current.upvoteCount).toBe(1);
+
+      releaseOpeningUpdates();
+      await waitFor(() => rendered.result.current.upvoteCount === 3);
+      expect(rendered.result.current.upvoteCount).toBe(3);
+
+      // updates after the one requested on open stay frozen
+      await act(async () => {
+        await updatingComments[0].stop();
+        await updatingComments[0].update();
+      });
+      await waitFor(() => commentsStore.getState().comments[commentCid]?.upvoteCount === 5);
+      expect(commentsStore.getState().comments[commentCid]?.upvoteCount).toBe(5);
+      expect(rendered.result.current.upvoteCount).toBe(3);
+    });
+
+    test("useComment with autoUpdate false keeps the update requested on open when an auto-updating hook on the comment unmounts", async () => {
+      // e.g. a link prefetch subscribes on hover, then unmounts as the frozen page opens
+      const commentCid = "comment cid cached prefetched";
+      await cacheComment(commentCid);
+      const renderedLive = renderHook<any, any>(() => useComment({ commentCid }));
+      const rendered = renderHook<any, any>(() => useComment({ commentCid, autoUpdate: false }));
+      const waitFor = testUtils.createWaitFor(rendered);
+
+      await waitFor(() => rendered.result.current.upvoteCount === 1);
+      expect(rendered.result.current.upvoteCount).toBe(1);
+
+      // unmount after the update starts and before it finishes, which a stop() would abort
+      await act(async () => {
+        releaseOpeningUpdates();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        renderedLive.unmount();
+      });
+      await waitFor(() => rendered.result.current.upvoteCount === 3);
+      expect(rendered.result.current.upvoteCount).toBe(3);
+      await waitFor(() => updatingComments[0].updatingState === "stopped");
+      expect(updatingComments[0].updatingState).toBe("stopped");
+    });
+
+    test("useComments with autoUpdate false shows the cached copies, then freezes on the updates requested on open", async () => {
+      const commentCids = ["comment cid cached frozen 1", "comment cid cached frozen 2"];
+      await Promise.all(commentCids.map(cacheComment));
+      const rendered = renderHook<any, any>(() => useComments({ commentCids, autoUpdate: false }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      const upvoteCounts = () =>
+        rendered.result.current.comments.map((comment: any) => comment?.upvoteCount);
+
+      await waitFor(() => upvoteCounts().every((upvoteCount: number) => upvoteCount === 1));
+      expect(upvoteCounts()).toEqual([1, 1]);
+
+      releaseOpeningUpdates();
+      await waitFor(() => upvoteCounts().every((upvoteCount: number) => upvoteCount === 3));
+      expect(upvoteCounts()).toEqual([3, 3]);
+
+      await act(async () => {
+        for (const comment of updatingComments.slice(0, commentCids.length)) {
+          await comment.stop();
+          await comment.update();
+        }
+      });
+      const storeUpvoteCounts = () =>
+        commentCids.map((commentCid) => commentsStore.getState().comments[commentCid]?.upvoteCount);
+      await waitFor(() => storeUpvoteCounts().every((upvoteCount) => upvoteCount === 5));
+      expect(storeUpvoteCounts()).toEqual([5, 5]);
+      expect(upvoteCounts()).toEqual([3, 3]);
     });
   });
 

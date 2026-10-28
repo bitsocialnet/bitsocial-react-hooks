@@ -676,6 +676,129 @@ describe("comments store", () => {
     }
   });
 
+  test("addCommentToStore keeps the opening update pending until an update finds nothing newer", async () => {
+    const commentCid = "opening-update-unchanged-cid";
+    const liveComment = createUnchangedComment(commentCid, { updatedAt: 100 });
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+    let sawPending = false;
+    const unsubscribe = commentsStore.subscribe((state) => {
+      if (state.openingUpdatesPending[commentCid]) {
+        sawPending = true;
+      }
+    });
+
+    try {
+      await act(async () => {
+        await commentsStore.getState().addCommentToStore(commentCid, mockAccount);
+      });
+
+      await tlWaitFor(() => expect(liveComment.update).toHaveBeenCalledTimes(1));
+      await tlWaitFor(() =>
+        expect(commentsStore.getState().openingUpdatesPending[commentCid]).toBeUndefined(),
+      );
+      expect(sawPending).toBe(true);
+    } finally {
+      unsubscribe();
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
+  test("addCommentToStore ends the opening update when comment.update() rejects", async () => {
+    const commentCid = "opening-update-reject-cid";
+    const subscriberId = "opening-update-reject-subscriber";
+    const updateError = Error("opening update failed");
+    const liveComment = createSparseComment(commentCid, {
+      sparseUpdateCalls: [],
+      rejectUpdateCalls: [1, 2],
+      updateError,
+    });
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      // an auto-update subscriber keeps the comment from being stopped, which would also end it
+      await act(async () => {
+        await Promise.all([
+          commentsStore.getState().addCommentToStore(commentCid, mockAccount),
+          commentsStore.getState().startCommentAutoUpdate(commentCid, subscriberId, mockAccount),
+        ]);
+      });
+
+      await tlWaitFor(() => expect(liveComment.update).toHaveBeenCalledTimes(2));
+      await tlWaitFor(() =>
+        expect(commentsStore.getState().openingUpdatesPending[commentCid]).toBeUndefined(),
+      );
+      expect(commentsStore.getState().errors[commentCid]).toContain(updateError);
+      expect(liveComment.stop).not.toHaveBeenCalled();
+    } finally {
+      await commentsStore.getState().stopCommentAutoUpdate(commentCid, subscriberId);
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
+  test("addCommentToStore ends the opening update when update() joins a loop that already settled", async () => {
+    const commentCid = "opening-update-shared-loop-cid";
+    const liveComment = createUnchangedComment(commentCid, { updatedAt: 200 });
+    liveComment.update = vi.fn().mockImplementation(() => {
+      // pkc-js mirrors the loop another instance runs for this CID: here it found nothing newer,
+      // and it emits no updatingstatechange until that loop's next poll
+      liveComment.updatingState = "waiting-retry";
+      liveComment.emit("update", liveComment);
+      return Promise.resolve();
+    });
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      await act(async () => {
+        await commentsStore.getState().addCommentToStore(commentCid, mockAccount);
+      });
+
+      await tlWaitFor(() =>
+        expect(commentsStore.getState().openingUpdatesPending[commentCid]).toBeUndefined(),
+      );
+      await tlWaitFor(() => expect(liveComment.stop).toHaveBeenCalledTimes(1));
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
+  test("addCommentToStore ends the opening update on a newer CommentUpdate, not on other update events", async () => {
+    const commentCid = "opening-update-newer-cid";
+    const liveComment = createUnchangedComment(commentCid, { updatedAt: 200 });
+    liveComment.update = vi.fn().mockImplementation(() => {
+      liveComment.updatingState = "fetching-update-ipns";
+      liveComment.emit("updatingstatechange", "fetching-update-ipns");
+      return Promise.resolve();
+    });
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      await act(async () => {
+        await commentsStore.getState().addCommentToStore(commentCid, mockAccount);
+      });
+      expect(commentsStore.getState().openingUpdatesPending[commentCid]).toBe(true);
+
+      // pkc-js also emits "update" for a resolved author name, with the same CommentUpdate
+      act(() => {
+        liveComment.emit("update", liveComment);
+      });
+      expect(commentsStore.getState().openingUpdatesPending[commentCid]).toBe(true);
+
+      // a reply's cycle can find a newer CommentUpdate without ever reaching an end state
+      act(() => {
+        liveComment.updatedAt = 300;
+        liveComment.emit("update", liveComment);
+      });
+      expect(commentsStore.getState().openingUpdatesPending[commentCid]).toBeUndefined();
+      expect(commentsStore.getState().comments[commentCid]?.updatedAt).toBe(300);
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
   test("startCommentAutoUpdate continues a sparse IPFS comment update to the mutable comment update", async () => {
     const commentCid = "auto-update-sparse-followup-cid";
     const liveComment = createSparseComment(commentCid);
