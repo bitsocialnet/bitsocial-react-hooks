@@ -152,7 +152,7 @@ export class PKC extends EventEmitter {
         "list community address 2",
         ...Object.keys(createdOwnerCommunities),
       ]),
-    ];
+    ].map((address) => ({ publicKey: address, address, started: false }));
   }
 
   async createComment(createCommentOptions: any) {

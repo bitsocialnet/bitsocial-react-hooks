@@ -516,7 +516,7 @@ describe("communities store", () => {
         .mockResolvedValueOnce(resolvedCommunity);
       Object.defineProperty(mockAccount.pkc, "communities", {
         configurable: true,
-        get: () => [...communitiesOrig, address],
+        get: () => [...communitiesOrig, { publicKey: address, address, started: false }],
       });
 
       await expect(

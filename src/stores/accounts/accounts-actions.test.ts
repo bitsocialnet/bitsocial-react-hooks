@@ -1746,7 +1746,9 @@ describe("accounts-actions", () => {
       });
       const communityAddress = community.address;
       const account = accountsStore.getState().accounts[accountsStore.getState().activeAccountId!];
-      expect(account.pkc.communities).toContain(communityAddress);
+      expect(account.pkc.communities).toContainEqual(
+        expect.objectContaining({ address: communityAddress }),
+      );
       const editCommunitySpy = vi.spyOn(communitiesStore.getState(), "editCommunity");
       const createCommunityEditSpy = vi.spyOn(account.pkc, "createCommunityEdit");
       const onChallengeVerification = vi.fn();
@@ -1793,7 +1795,9 @@ describe("accounts-actions", () => {
       const communityAddress = "owned-remote-community.eth";
       const { accounts, activeAccountId } = accountsStore.getState();
       const account = accounts[activeAccountId!];
-      expect(account.pkc.communities).not.toContain(communityAddress);
+      expect(account.pkc.communities).not.toContainEqual(
+        expect.objectContaining({ address: communityAddress }),
+      );
       // every owner signal that previously triggered a local edit
       const ownerAccount = {
         ...account,

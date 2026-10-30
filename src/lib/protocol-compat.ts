@@ -6,11 +6,15 @@ export const getPkcGetCommunity = (pkc: any) => pkc?.getCommunity;
 
 export const getPkcCreateCommunityEdit = (pkc: any) => pkc?.createCommunityEdit;
 
+// pkc-js >= 0.0.129 lists communities as { name?, publicKey, address, started } entries, where address is
+// computed like community.address. older pkc-js listed address strings
 export const getPkcCommunityAddresses = (pkc: any): string[] => {
-  if (Array.isArray(pkc?.communities)) {
-    return pkc.communities;
+  if (!Array.isArray(pkc?.communities)) {
+    return [];
   }
-  return [];
+  return pkc.communities
+    .map((entry: any) => (typeof entry === "string" ? entry : entry?.address))
+    .filter((address: unknown): address is string => typeof address === "string");
 };
 
 export const normalizePublicationOptionsForPkc = <T extends Record<string, any>>(
