@@ -28,7 +28,11 @@ export declare class PKC extends EventEmitter {
     getCommunity(options: {
         address: string;
     }): Promise<any>;
-    get communities(): string[];
+    get communities(): {
+        publicKey: string;
+        address: string;
+        started: boolean;
+    }[];
     createComment(createCommentOptions: any): Promise<Comment>;
     getComment(options: {
         cid: string;

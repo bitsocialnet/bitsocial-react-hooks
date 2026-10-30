@@ -1,3 +1,7 @@
+## [0.1.62](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.61...v0.1.62) (2026-10-30)
+
+
+
 ## [0.1.61](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.60...v0.1.61) (2026-10-29)
 
 
