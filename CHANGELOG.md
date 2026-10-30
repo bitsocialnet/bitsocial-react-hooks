@@ -1,3 +1,29 @@
+## [0.1.62](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.61...v0.1.62) (2026-10-30)
+
+
+
+## [0.1.61](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.60...v0.1.61) (2026-10-29)
+
+
+
+## [0.1.60](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.59...v0.1.60) (2026-10-28)
+
+
+### Bug Fixes
+
+* **comments:** freeze autoUpdate false comments after the update requested on open ([b98e7a5](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/b98e7a59fb8b1e635943efe3a54801769e4c0ec9))
+
+
+
+## [0.1.59](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.58...v0.1.59) (2026-10-27)
+
+
+### Bug Fixes
+
+* **accounts-store:** link previousCommentCid to comments stored by hooks <= 0.1.51 ([#161](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/161)) ([8efb6b5](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/8efb6b597ab14eb90285b398fd6df9e2a0fe3360))
+
+
+
 ## [0.1.58](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.57...v0.1.58) (2026-10-24)
 
 

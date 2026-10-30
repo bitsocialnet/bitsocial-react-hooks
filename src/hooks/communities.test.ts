@@ -510,6 +510,25 @@ describe("communities", () => {
     }
   });
 
+  test("useListCommunities returns the addresses of pkc-js communities entries", async () => {
+    vi.useFakeTimers();
+    try {
+      const communities = [
+        { name: "named.bso", publicKey: "12D3KooWNamed", address: "named.bso", started: true },
+        { publicKey: "12D3KooWUnnamed", address: "12D3KooWUnnamed", started: false },
+      ];
+      vi.spyOn(accountsHooks, "useAccount").mockReturnValue({ pkc: { communities } } as any);
+      const rendered = renderHook<any, any>(() => useListCommunities());
+      await act(async () => {});
+      vi.advanceTimersByTime(1100);
+      await act(async () => {});
+      expect(rendered.result.current).toEqual(["named.bso", "12D3KooWUnnamed"]);
+    } finally {
+      vi.mocked(accountsHooks.useAccount).mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   test("useListCommunities reads communities from the requested account", async () => {
     vi.useFakeTimers();
     try {

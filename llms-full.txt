@@ -491,7 +491,8 @@ const post = useComment({ commentCid, onlyIfCached: true });
 // disable background polling and refresh on demand
 const post = useComment({ commentCid, autoUpdate: false });
 // the initial load includes the first community update (including moderation)
-// before freezing; a recent creation timestamp alone does not settle the snapshot
+// before freezing; a recent creation timestamp alone does not settle the snapshot.
+// a copy cached on an earlier visit shows right away, then that update replaces it
 // resolves after one update cycle, also when no newer CommentUpdate exists, and right
 // away when another instance (e.g. your own reply) already keeps the comment updating
 await post.refresh();
@@ -3784,6 +3785,15 @@ Native references: [Codex hooks](https://learn.chatgpt.com/docs/hooks), [Cursor 
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/CHANGELOG.md
 
 ```markdown
+## [0.1.59](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.58...v0.1.59) (2026-10-27)
+
+
+### Bug Fixes
+
+* **accounts-store:** link previousCommentCid to comments stored by hooks <= 0.1.51 ([#161](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/161)) ([8efb6b5](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/8efb6b597ab14eb90285b398fd6df9e2a0fe3360))
+
+
+
 ## [0.1.58](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.57...v0.1.58) (2026-10-24)
 
 

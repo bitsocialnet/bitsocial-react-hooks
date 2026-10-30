@@ -803,7 +803,7 @@ class PKC extends EventEmitter {
     // TODO: implement event communitieschange
     get communities() {
         const communityAddresses = Object.keys(createdCommunities);
-        return communityAddresses;
+        return communityAddresses.map((address) => ({ publicKey: address, address, started: false }));
     }
     createComment(createCommentOptions) {
         return __awaiter(this, void 0, void 0, function* () {

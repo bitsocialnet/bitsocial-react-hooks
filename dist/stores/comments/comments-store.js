@@ -98,8 +98,29 @@ const commentsStore = createStore((setState, getState) => {
     const clearCommentUpdateFollowup = (commentCid) => {
         delete sparseCommentFollowupRequested[commentCid];
     };
+    const endOpeningUpdate = (commentCid) => {
+        if (!getState().openingUpdatesPending[commentCid]) {
+            return;
+        }
+        setState((state) => {
+            const openingUpdatesPending = Object.assign({}, state.openingUpdatesPending);
+            delete openingUpdatesPending[commentCid];
+            return { openingUpdatesPending };
+        });
+    };
+    // When the last auto-update subscriber leaves during the opening update, stopping would abort
+    // it and leave a frozen useComment on a cached copy, so stop when that update ends instead.
+    const deferStopUntilOpeningUpdateEnds = (commentCid) => {
+        if (!getState().openingUpdatesPending[commentCid]) {
+            return false;
+        }
+        stopCommentAfterNextUpdate[commentCid] = true;
+        return true;
+    };
     const stopLiveComment = (commentCid, comment) => __awaiter(void 0, void 0, void 0, function* () {
         clearCommentUpdateFollowup(commentCid);
+        // a stopped comment gets no further update from this cycle
+        endOpeningUpdate(commentCid);
         const liveComment = comment || liveComments[commentCid];
         if (typeof (liveComment === null || liveComment === void 0 ? void 0 : liveComment.stop) !== "function") {
             return;
@@ -149,6 +170,7 @@ const commentsStore = createStore((setState, getState) => {
             }
         }
         maybeStopCommentAfterOneShotUpdate(commentCid, comment);
+        endOpeningUpdate(commentCid);
         return updateError;
     };
     const isSparseCommentUpdate = (comment) => !!(comment === null || comment === void 0 ? void 0 : comment.timestamp) && !(comment === null || comment === void 0 ? void 0 : comment.updatedAt);
@@ -174,8 +196,16 @@ const commentsStore = createStore((setState, getState) => {
         initializedComments.add(comment);
         liveComments[commentCid] = comment;
         (_a = comment === null || comment === void 0 ? void 0 : comment.on) === null || _a === void 0 ? void 0 : _a.call(comment, "update", (updatedComment) => __awaiter(void 0, void 0, void 0, function* () {
+            var _a, _b, _c;
             updatedComment = normalizeCommentCommunityAddress(utils.clone(updatedComment));
-            yield persistComment(commentCid, updatedComment);
+            // A newer CommentUpdate ends the opening update, also for a reply whose cycle pkc-js never
+            // ends. pkc-js emits "update" for other changes too, like a resolved author name.
+            const isNewerCommentUpdate = ((_a = updatedComment.updatedAt) !== null && _a !== void 0 ? _a : 0) > ((_c = (_b = getState().comments[commentCid]) === null || _b === void 0 ? void 0 : _b.updatedAt) !== null && _c !== void 0 ? _c : 0);
+            const persisted = persistComment(commentCid, updatedComment);
+            if (isNewerCommentUpdate) {
+                endOpeningUpdate(commentCid);
+            }
+            yield persisted;
         }));
         (_b = comment === null || comment === void 0 ? void 0 : comment.on) === null || _b === void 0 ? void 0 : _b.call(comment, "updatingstatechange", (updatingState) => {
             setState((state) => ({
@@ -200,6 +230,7 @@ const commentsStore = createStore((setState, getState) => {
                 updatingState === "failed" ||
                 isUnchangedUpdateCycleEnd(updatingState, commentCid, comment)) {
                 maybeStopCommentAfterOneShotUpdate(commentCid, comment);
+                endOpeningUpdate(commentCid);
             }
             if (updatingState !== "waiting-retry") {
                 delete commentUpdateAttemptFailed[commentCid];
@@ -285,6 +316,12 @@ const commentsStore = createStore((setState, getState) => {
             return false;
         });
     };
+    // Whether the cycle update() began or joined has already ended, for a shared loop that will
+    // emit nothing more until its next poll (see waitForCommentUpdateCycle).
+    const isJoinedUpdateCycleSettled = (commentCid, comment) => typeof (comment === null || comment === void 0 ? void 0 : comment.updatedAt) === "number" &&
+        (comment.updatingState === "succeeded" ||
+            isUnchangedUpdateCycleEnd(comment.updatingState, commentCid, comment)) &&
+        !shouldWaitForSparseCommentFollowup(commentCid, comment);
     // Waits for the update cycle that startUpdate() begins or joins. pkc-js runs one update loop
     // per CID: when another instance already updates this comment (for example the account's own
     // reply, whose update subscribes to its post), update() mirrors that shared loop instead of
@@ -329,11 +366,7 @@ const commentsStore = createStore((setState, getState) => {
         (_a = comment === null || comment === void 0 ? void 0 : comment.on) === null || _a === void 0 ? void 0 : _a.call(comment, "updatingstatechange", onUpdatingStateChange);
         (_b = comment === null || comment === void 0 ? void 0 : comment.on) === null || _b === void 0 ? void 0 : _b.call(comment, "error", onError);
         void ((_c = startUpdate()) === null || _c === void 0 ? void 0 : _c.then((updateStarted) => {
-            if (!updateStarted ||
-                settled ||
-                typeof (comment === null || comment === void 0 ? void 0 : comment.updatedAt) !== "number" ||
-                !isSettledUpdatingState(comment === null || comment === void 0 ? void 0 : comment.updatingState) ||
-                shouldWaitForSparseCommentFollowup(commentCid, comment)) {
+            if (!updateStarted || settled || !isJoinedUpdateCycleSettled(commentCid, comment)) {
                 return;
             }
             // No event will end this cycle, so detach a one-shot update here as the event would.
@@ -344,8 +377,10 @@ const commentsStore = createStore((setState, getState) => {
     return {
         comments: {},
         errors: {},
+        openingUpdatesPending: {},
         addCommentToStore(commentCid, account, commentData) {
             return __awaiter(this, void 0, void 0, function* () {
+                var _a;
                 const { comments } = getState();
                 const pendingKey = commentCid + account.id;
                 // comment is in store already, do nothing
@@ -363,22 +398,31 @@ const commentsStore = createStore((setState, getState) => {
                         log("commentsStore.addCommentToStore", { commentCid, comment, account });
                         setState((state) => ({
                             comments: Object.assign(Object.assign({}, state.comments), { [commentCid]: utils.clone(comment) }),
+                            openingUpdatesPending: Object.assign(Object.assign({}, state.openingUpdatesPending), { [commentCid]: true }),
                         }));
                     }
                     else {
                         comment = normalizeCommentCommunityAddress(comment);
                         setState((state) => ({
                             comments: Object.assign(Object.assign({}, state.comments), { [commentCid]: utils.clone(comment) }),
+                            openingUpdatesPending: Object.assign(Object.assign({}, state.openingUpdatesPending), { [commentCid]: true }),
                         }));
                         // add comment replies pages to repliesPagesStore so they can be used in useComment
                         repliesPagesStore.getState().addRepliesPageCommentsToStore(comment);
                         comment = yield ensureLiveComment(commentCid, account, mergeCommentData(commentCid, comment, commentData));
                     }
                     if (comment) {
-                        requestCommentUpdate(commentCid, comment, { stopAfterNextUpdate: true });
+                        const liveComment = comment;
+                        void ((_a = requestCommentUpdate(commentCid, liveComment, { stopAfterNextUpdate: true })) === null || _a === void 0 ? void 0 : _a.then((updateStarted) => {
+                            if (updateStarted && isJoinedUpdateCycleSettled(commentCid, liveComment)) {
+                                maybeStopCommentAfterOneShotUpdate(commentCid, liveComment);
+                                endOpeningUpdate(commentCid);
+                            }
+                        }));
                     }
                 }
                 catch (e) {
+                    endOpeningUpdate(commentCid);
                     addCommentError(commentCid, e);
                     throw e;
                 }
@@ -402,6 +446,9 @@ const commentsStore = createStore((setState, getState) => {
                     }));
                 }
                 if (!hasCommentAutoUpdateSubscribers(commentCid)) {
+                    if (deferStopUntilOpeningUpdateEnds(commentCid)) {
+                        return;
+                    }
                     yield stopLiveComment(commentCid, liveComment);
                     maybeReleaseStoppedLiveComment(commentCid, liveComment);
                     return;
@@ -417,7 +464,8 @@ const commentsStore = createStore((setState, getState) => {
                         delete commentAutoUpdateSubscribers[commentCid];
                     }
                 }
-                if (hasCommentAutoUpdateSubscribers(commentCid)) {
+                if (hasCommentAutoUpdateSubscribers(commentCid) ||
+                    deferStopUntilOpeningUpdateEnds(commentCid)) {
                     return;
                 }
                 delete stopCommentAfterNextUpdate[commentCid];

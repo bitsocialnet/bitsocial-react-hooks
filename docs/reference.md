@@ -356,7 +356,8 @@ const post = useComment({ commentCid, onlyIfCached: true });
 // disable background polling and refresh on demand
 const post = useComment({ commentCid, autoUpdate: false });
 // the initial load includes the first community update (including moderation)
-// before freezing; a recent creation timestamp alone does not settle the snapshot
+// before freezing; a recent creation timestamp alone does not settle the snapshot.
+// a copy cached on an earlier visit shows right away, then that update replaces it
 // resolves after one update cycle, also when no newer CommentUpdate exists, and right
 // away when another instance (e.g. your own reply) already keeps the comment updating
 await post.refresh();

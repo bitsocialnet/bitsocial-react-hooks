@@ -1,4 +1,29 @@
-import { getPkcClientOptions } from "./pkc-compat";
+import { getPkcClientOptions, getPkcCommunityAddresses } from "./pkc-compat";
+
+describe("getPkcCommunityAddresses", () => {
+  test("returns the address of each pkc-js communities entry", () => {
+    const communities = [
+      { name: "named.bso", publicKey: "12D3KooWNamed", address: "named.bso", started: true },
+      { publicKey: "12D3KooWUnnamed", address: "12D3KooWUnnamed", started: false },
+    ];
+    expect(getPkcCommunityAddresses({ communities })).toEqual(["named.bso", "12D3KooWUnnamed"]);
+  });
+
+  test("keeps address strings listed by older pkc-js", () => {
+    expect(getPkcCommunityAddresses({ communities: ["a.bso", "12D3KooWKey"] })).toEqual([
+      "a.bso",
+      "12D3KooWKey",
+    ]);
+  });
+
+  test("skips malformed entries and treats a missing list as empty", () => {
+    expect(getPkcCommunityAddresses({ communities: [null, {}, { address: 1 }, "a.bso"] })).toEqual([
+      "a.bso",
+    ]);
+    expect(getPkcCommunityAddresses({})).toEqual([]);
+    expect(getPkcCommunityAddresses(undefined)).toEqual([]);
+  });
+});
 
 describe("getPkcClientOptions", () => {
   test("adds a bso resolver for each configured eth provider", async () => {

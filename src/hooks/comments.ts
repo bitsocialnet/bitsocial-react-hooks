@@ -158,6 +158,9 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
     (state: any) => state.comments[commentCid || ""],
   );
   const errors = useCommentsStore((state: any) => state.errors[commentCid || ""]);
+  const openingUpdatePending = useCommentsStore((state: any) =>
+    Boolean(state.openingUpdatesPending[commentCid || ""]),
+  );
 
   // get account comment of the cid if any
   const accountCommentInfo = useAccountsStore(
@@ -272,6 +275,9 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
   const initialCommentUpdatePending = Boolean(
     initialComment?.raw?.comment && !selectedComment?.raw?.commentUpdate,
   );
+  // A copy cached on an earlier visit loads before the network. Freeze only once the update this
+  // load requested has ended, so a returning visitor sees the current comment.
+  const openingUpdateEnded = onlyIfCached || (Boolean(commentFromStore) && !openingUpdatePending);
   const freezeSettledForCurrentCid = freezeSettledCid === commentCid;
 
   useEffect(() => {
@@ -331,7 +337,11 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
 
     setFrozenComment(selectedComment);
     // Recent immutable payloads report "succeeded" before moderation is available.
-    if (typeof selectedComment.updatedAt === "number" && !initialCommentUpdatePending) {
+    if (
+      typeof selectedComment.updatedAt === "number" &&
+      !initialCommentUpdatePending &&
+      openingUpdateEnded
+    ) {
       setFreezeSettledCid(commentCid);
     }
   }, [
@@ -339,6 +349,7 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
     commentCid,
     selectedComment,
     initialCommentUpdatePending,
+    openingUpdateEnded,
     freezeSettledForCurrentCid,
     frozenComment,
     selectedCommentShortAddress,
@@ -459,6 +470,11 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
     (state: any) => commentCids.map((commentCid) => state.comments[commentCid || ""]),
     shallow,
   );
+  const openingUpdatesPending: boolean[] = useCommentsStore(
+    (state: any) =>
+      commentCids.map((commentCid) => Boolean(state.openingUpdatesPending[commentCid || ""])),
+    shallow,
+  );
 
   const addCommentToStore = useCommentsStore((state: any) => state.addCommentToStore);
   const startCommentAutoUpdate = useCommentsStore((state: any) => state.startCommentAutoUpdate);
@@ -531,9 +547,11 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
     return result;
   }, [commentsStoreComments, communitiesPagesComments]);
 
-  const liveCommentsSettled = liveComments.every(
-    (comment) => typeof comment?.updatedAt === "number",
-  );
+  // like useComment, wait for each update requested on load before freezing over cached copies
+  const liveCommentsSettled =
+    liveComments.every((comment) => typeof comment?.updatedAt === "number") &&
+    (Boolean(onlyIfCached) ||
+      commentsStoreComments.every((comment, index) => comment && !openingUpdatesPending[index]));
   const freezeSettledForCurrentKey = freezeSettledKey === commentsKey;
 
   useEffect(() => {

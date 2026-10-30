@@ -11,11 +11,15 @@ import assert from "./assert.js";
 export const getPkcCreateCommunity = (pkc) => pkc === null || pkc === void 0 ? void 0 : pkc.createCommunity;
 export const getPkcGetCommunity = (pkc) => pkc === null || pkc === void 0 ? void 0 : pkc.getCommunity;
 export const getPkcCreateCommunityEdit = (pkc) => pkc === null || pkc === void 0 ? void 0 : pkc.createCommunityEdit;
+// pkc-js >= 0.0.129 lists communities as { name?, publicKey, address, started } entries, where address is
+// computed like community.address. older pkc-js listed address strings
 export const getPkcCommunityAddresses = (pkc) => {
-    if (Array.isArray(pkc === null || pkc === void 0 ? void 0 : pkc.communities)) {
-        return pkc.communities;
+    if (!Array.isArray(pkc === null || pkc === void 0 ? void 0 : pkc.communities)) {
+        return [];
     }
-    return [];
+    return pkc.communities
+        .map((entry) => (typeof entry === "string" ? entry : entry === null || entry === void 0 ? void 0 : entry.address))
+        .filter((address) => typeof address === "string");
 };
 export const normalizePublicationOptionsForPkc = (_pkc, options) => options;
 export const normalizePublicationOptionsForStore = (options) => options;
