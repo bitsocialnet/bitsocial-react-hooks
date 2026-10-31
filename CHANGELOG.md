@@ -1,3 +1,12 @@
+## [0.1.65](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.64...v0.1.65) (2026-10-31)
+
+
+### Bug Fixes
+
+* **communities:** keep the last retriable error for useCommunity ([46d3909](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/46d3909a151e77375889ff314e01a759663afb02))
+
+
+
 ## [0.1.64](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.63...v0.1.64) (2026-10-31)
 
 

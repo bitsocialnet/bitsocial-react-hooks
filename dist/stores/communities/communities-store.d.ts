@@ -4,6 +4,7 @@ interface CommunitySyncStatus {
     syncState: CommunitySyncState;
     lastFetchAttemptAt?: number;
     lastSuccessfulFetchAt?: number;
+    lastRetriableError?: Error;
 }
 export declare const isRetriableCommunityLoadError: (error: Error) => boolean;
 export type CommunitiesState = {

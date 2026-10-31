@@ -29,6 +29,11 @@ const communityUpdatePollers = {};
 const listeners = [];
 const COMMUNITY_ERROR_UPDATE_GRACE_MS = 1000;
 const pendingCommunityErrorTimers = {};
+const omitLastRetriableError = (syncStatus) => {
+    const nextSyncStatus = Object.assign({}, syncStatus);
+    delete nextSyncStatus.lastRetriableError;
+    return nextSyncStatus;
+};
 const getNowSeconds = () => Math.floor(Date.now() / 1000);
 const normalizeCommunitySyncState = (updatingState) => {
     if (updatingState === "waiting-retry") {
@@ -43,7 +48,10 @@ const getNextSyncStatuses = (state, communityKey, syncState) => {
     const previousStatus = state.syncStatuses[communityKey];
     const timestamp = getNowSeconds();
     const shouldRecordAttempt = syncState === "loading" && (previousStatus === null || previousStatus === void 0 ? void 0 : previousStatus.syncState) !== "loading";
-    return Object.assign(Object.assign({}, state.syncStatuses), { [communityKey]: Object.assign(Object.assign(Object.assign(Object.assign({}, previousStatus), { syncState }), (shouldRecordAttempt ? { lastFetchAttemptAt: timestamp } : undefined)), (syncState === "succeeded" ? { lastSuccessfulFetchAt: timestamp } : undefined)) });
+    const nextStatus = Object.assign(Object.assign(Object.assign(Object.assign({}, previousStatus), { syncState }), (shouldRecordAttempt ? { lastFetchAttemptAt: timestamp } : undefined)), (syncState === "succeeded" ? { lastSuccessfulFetchAt: timestamp } : undefined));
+    return Object.assign(Object.assign({}, state.syncStatuses), { 
+        // a success ends the retries, so their error is no longer current
+        [communityKey]: syncState === "succeeded" ? omitLastRetriableError(nextStatus) : nextStatus });
 };
 const updateCommunitySyncStatus = (setState, communityKey, syncState) => {
     setState((state) => (Object.assign(Object.assign({}, state), { syncStatuses: getNextSyncStatuses(state, communityKey, syncState) })));
@@ -109,8 +117,15 @@ const clearStoredCommunityErrors = (state, communityKey) => {
     return nextErrors;
 };
 // returning the same state skips notifying subscribers when there is nothing to clear
-const clearStoredCommunityErrorsState = (state, communityKey) => state.errors[communityKey]
-    ? Object.assign(Object.assign({}, state), { errors: clearStoredCommunityErrors(state, communityKey) }) : state;
+const clearStoredCommunityErrorsState = (state, communityKey) => {
+    const syncStatus = state.syncStatuses[communityKey];
+    const hasRetriableError = (syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastRetriableError) !== undefined;
+    if (!state.errors[communityKey] && !hasRetriableError) {
+        return state;
+    }
+    return Object.assign(Object.assign({}, state), { errors: clearStoredCommunityErrors(state, communityKey), syncStatuses: hasRetriableError
+            ? Object.assign(Object.assign({}, state.syncStatuses), { [communityKey]: omitLastRetriableError(syncStatus) }) : state.syncStatuses });
+};
 export const isRetriableCommunityLoadError = (error) => {
     const details = error.details;
     return Boolean(details &&
@@ -118,8 +133,21 @@ export const isRetriableCommunityLoadError = (error) => {
         "retriableError" in details &&
         details.retriableError === true);
 };
+const recordRetriableCommunityError = (setState, communityKey, error) => {
+    setState((state) => {
+        const syncStatus = state.syncStatuses[communityKey];
+        // a deleted community has no sync status left to report on
+        if (!syncStatus) {
+            return state;
+        }
+        return {
+            syncStatuses: Object.assign(Object.assign({}, state.syncStatuses), { [communityKey]: Object.assign(Object.assign({}, syncStatus), { lastRetriableError: error }) }),
+        };
+    });
+};
 const scheduleCommunityError = (setState, communityKey, error) => {
     if (isRetriableCommunityLoadError(error)) {
+        recordRetriableCommunityError(setState, communityKey, error);
         return;
     }
     const timeout = setTimeout(() => {
