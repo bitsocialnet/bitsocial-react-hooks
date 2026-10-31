@@ -292,7 +292,18 @@ export interface UseAuthorAddressResult extends Result {
     shortAuthorAddress: string | undefined;
     authorAddressChanged: boolean;
 }
+/** An author-signed image, video or audio attachment. Additional protocol fields are preserved. */
+export interface CommentGalleryItem {
+    url: string;
+    htmlTagName: "img" | "video" | "audio";
+    width?: number;
+    height?: number;
+    alt?: string;
+    [key: string]: unknown;
+}
 export interface UsePublishCommentOptions extends Options {
+    /** Requires the community to enable maxPostGalleryItems or maxReplyGalleryItems. */
+    gallery?: CommentGalleryItem[];
     /** Called immediately with the provisional comment, then again if persistence shifts its index. */
     onPendingComment?(accountCommentIndex: number, comment: AccountComment): void;
     onChallenge?(challenge: Challenge, comment?: Comment): Promise<void>;
@@ -466,6 +477,7 @@ export type AccountsActions = {
     [key: string]: any;
 };
 export type PublishCommentOptions = {
+    gallery?: CommentGalleryItem[];
     [key: string]: any;
 };
 export type PublishVoteOptions = {
@@ -493,6 +505,7 @@ export type ChallengeVerification = {
     [key: string]: any;
 };
 export type CreateCommentOptions = {
+    gallery?: CommentGalleryItem[];
     [key: string]: any;
 };
 export type CreateCommunityOptions = {
@@ -502,6 +515,7 @@ export type CreateVoteOptions = {
     [key: string]: any;
 };
 export type Comment = {
+    gallery?: CommentGalleryItem[];
     [key: string]: any;
 };
 export type Vote = {

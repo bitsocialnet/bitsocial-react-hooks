@@ -1,3 +1,17 @@
+## [0.1.63](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.62...v0.1.63) (2026-10-31)
+
+
+### Bug Fixes
+
+* **deps:** align UnixFS runtime with upgraded exporter ([0d47cbf](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/0d47cbfe3ba8817424ba2f3c93d47c6efbfd4436))
+
+
+### Features
+
+* **comments:** support gallery attachments with pkc-js 0.0.132 ([30917de](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/30917de84151aae1808b46951b6fcadaba55446f))
+
+
+
 ## [0.1.62](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.61...v0.1.62) (2026-10-30)
 
 

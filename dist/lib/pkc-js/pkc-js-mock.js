@@ -553,7 +553,7 @@ class Publication extends EventEmitter {
 }
 export class Comment extends Publication {
     constructor(createCommentOptions) {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r;
         super();
         this.updateCalledTimes = 0;
         this.updating = false;
@@ -568,23 +568,24 @@ export class Comment extends Publication {
         this.parentCid = (_e = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.parentCid) !== null && _e !== void 0 ? _e : rawComment === null || rawComment === void 0 ? void 0 : rawComment.parentCid;
         this.communityAddress = (_f = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.communityAddress) !== null && _f !== void 0 ? _f : rawComment === null || rawComment === void 0 ? void 0 : rawComment.communityAddress;
         this.crosspost = (_g = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.crosspost) !== null && _g !== void 0 ? _g : rawComment === null || rawComment === void 0 ? void 0 : rawComment.crosspost;
-        this.link = (_h = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.link) !== null && _h !== void 0 ? _h : rawComment === null || rawComment === void 0 ? void 0 : rawComment.link;
+        this.gallery = (_h = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.gallery) !== null && _h !== void 0 ? _h : rawComment === null || rawComment === void 0 ? void 0 : rawComment.gallery;
+        this.link = (_j = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.link) !== null && _j !== void 0 ? _j : rawComment === null || rawComment === void 0 ? void 0 : rawComment.link;
         this.raw = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.raw;
-        this.signature = (_j = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.signature) !== null && _j !== void 0 ? _j : rawComment === null || rawComment === void 0 ? void 0 : rawComment.signature;
-        this.title = (_k = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.title) !== null && _k !== void 0 ? _k : rawComment === null || rawComment === void 0 ? void 0 : rawComment.title;
+        this.signature = (_k = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.signature) !== null && _k !== void 0 ? _k : rawComment === null || rawComment === void 0 ? void 0 : rawComment.signature;
+        this.title = (_l = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.title) !== null && _l !== void 0 ? _l : rawComment === null || rawComment === void 0 ? void 0 : rawComment.title;
         this.state = "stopped";
         this.updatingState = "stopped";
         this.publishingState = "stopped";
-        if ((_l = this.author) === null || _l === void 0 ? void 0 : _l.address) {
+        if ((_m = this.author) === null || _m === void 0 ? void 0 : _m.address) {
             this.author.shortAddress = `short ${this.author.address}`;
         }
         this.replies = new Pages({ comment: this });
         // add comment.replies from createCommentOptions
-        if ((_m = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.replies) === null || _m === void 0 ? void 0 : _m.pages) {
-            this.replies.pages = (_o = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.replies) === null || _o === void 0 ? void 0 : _o.pages;
+        if ((_o = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.replies) === null || _o === void 0 ? void 0 : _o.pages) {
+            this.replies.pages = (_p = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.replies) === null || _p === void 0 ? void 0 : _p.pages;
         }
-        if ((_p = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.replies) === null || _p === void 0 ? void 0 : _p.pageCids) {
-            this.replies.pageCids = (_q = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.replies) === null || _q === void 0 ? void 0 : _q.pageCids;
+        if ((_q = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.replies) === null || _q === void 0 ? void 0 : _q.pageCids) {
+            this.replies.pageCids = (_r = createCommentOptions === null || createCommentOptions === void 0 ? void 0 : createCommentOptions.replies) === null || _r === void 0 ? void 0 : _r.pageCids;
         }
     }
     update() {
