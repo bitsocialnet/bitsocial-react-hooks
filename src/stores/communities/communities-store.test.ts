@@ -648,6 +648,25 @@ describe("communities store", () => {
         await vi.advanceTimersByTimeAsync(1000);
       });
       expect(communitiesStore.getState().errors[address]).toBeUndefined();
+      // kept on the sync status instead, so a community that never loads can say why
+      expect(communitiesStore.getState().syncStatuses[address]?.lastRetriableError).toBe(error);
+
+      act(() => {
+        community.emit("update", community);
+      });
+      expect(communitiesStore.getState().syncStatuses[address]?.lastRetriableError).toBeUndefined();
+
+      act(() => {
+        community.emit("error", error);
+      });
+      expect(communitiesStore.getState().syncStatuses[address]?.lastRetriableError).toBe(error);
+      act(() => {
+        community.emit("updatingstatechange", "succeeded");
+      });
+      expect(communitiesStore.getState().syncStatuses[address]).toEqual(
+        expect.not.objectContaining({ lastRetriableError: expect.anything() }),
+      );
+      expect(communitiesStore.getState().syncStatuses[address]?.syncState).toBe("succeeded");
     } finally {
       vi.useRealTimers();
       mockAccount.pkc.createCommunity = createOrig;

@@ -50,7 +50,16 @@ interface CommunitySyncStatus {
   syncState: CommunitySyncState;
   lastFetchAttemptAt?: number;
   lastSuccessfulFetchAt?: number;
+  // why the community is being retried; retriable errors stay out of `errors` so they do not
+  // flash in the UI, but a community that never loads needs a reason to show
+  lastRetriableError?: Error;
 }
+
+const omitLastRetriableError = (syncStatus: CommunitySyncStatus): CommunitySyncStatus => {
+  const nextSyncStatus = { ...syncStatus };
+  delete nextSyncStatus.lastRetriableError;
+  return nextSyncStatus;
+};
 
 const getNowSeconds = () => Math.floor(Date.now() / 1000);
 
@@ -72,14 +81,16 @@ const getNextSyncStatuses = (
   const previousStatus = state.syncStatuses[communityKey];
   const timestamp = getNowSeconds();
   const shouldRecordAttempt = syncState === "loading" && previousStatus?.syncState !== "loading";
+  const nextStatus: CommunitySyncStatus = {
+    ...previousStatus,
+    syncState,
+    ...(shouldRecordAttempt ? { lastFetchAttemptAt: timestamp } : undefined),
+    ...(syncState === "succeeded" ? { lastSuccessfulFetchAt: timestamp } : undefined),
+  };
   return {
     ...state.syncStatuses,
-    [communityKey]: {
-      ...previousStatus,
-      syncState,
-      ...(shouldRecordAttempt ? { lastFetchAttemptAt: timestamp } : undefined),
-      ...(syncState === "succeeded" ? { lastSuccessfulFetchAt: timestamp } : undefined),
-    },
+    // a success ends the retries, so their error is no longer current
+    [communityKey]: syncState === "succeeded" ? omitLastRetriableError(nextStatus) : nextStatus,
   };
 };
 
@@ -182,10 +193,20 @@ const clearStoredCommunityErrors = (state: CommunitiesState, communityKey: strin
 };
 
 // returning the same state skips notifying subscribers when there is nothing to clear
-const clearStoredCommunityErrorsState = (state: CommunitiesState, communityKey: string) =>
-  state.errors[communityKey]
-    ? { ...state, errors: clearStoredCommunityErrors(state, communityKey) }
-    : state;
+const clearStoredCommunityErrorsState = (state: CommunitiesState, communityKey: string) => {
+  const syncStatus = state.syncStatuses[communityKey];
+  const hasRetriableError = syncStatus?.lastRetriableError !== undefined;
+  if (!state.errors[communityKey] && !hasRetriableError) {
+    return state;
+  }
+  return {
+    ...state,
+    errors: clearStoredCommunityErrors(state, communityKey),
+    syncStatuses: hasRetriableError
+      ? { ...state.syncStatuses, [communityKey]: omitLastRetriableError(syncStatus) }
+      : state.syncStatuses,
+  };
+};
 
 export const isRetriableCommunityLoadError = (error: Error) => {
   const details = (error as Error & { details?: unknown }).details;
@@ -197,8 +218,25 @@ export const isRetriableCommunityLoadError = (error: Error) => {
   );
 };
 
+const recordRetriableCommunityError = (setState: Function, communityKey: string, error: Error) => {
+  setState((state: CommunitiesState) => {
+    const syncStatus = state.syncStatuses[communityKey];
+    // a deleted community has no sync status left to report on
+    if (!syncStatus) {
+      return state;
+    }
+    return {
+      syncStatuses: {
+        ...state.syncStatuses,
+        [communityKey]: { ...syncStatus, lastRetriableError: error },
+      },
+    };
+  });
+};
+
 const scheduleCommunityError = (setState: Function, communityKey: string, error: Error) => {
   if (isRetriableCommunityLoadError(error)) {
+    recordRetriableCommunityError(setState, communityKey, error);
     return;
   }
 

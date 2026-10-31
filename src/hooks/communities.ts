@@ -174,6 +174,7 @@ export function useCommunity(options?: UseCommunityOptions): UseCommunityResult 
       hasCachedData: typeof mergedCommunity?.updatedAt === "number",
       lastFetchAttemptAt: syncStatus?.lastFetchAttemptAt,
       lastSuccessfulFetchAt: syncStatus?.lastSuccessfulFetchAt,
+      lastRetriableError: syncStatus?.lastRetriableError,
       error: errors?.[errors.length - 1],
       errors: errors || [],
     }),

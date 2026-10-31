@@ -247,6 +247,8 @@ export interface UseCommunityResult extends Result, Community {
   hasCachedData: boolean;
   lastFetchAttemptAt: number | undefined;
   lastSuccessfulFetchAt: number | undefined;
+  /** The transient error behind the current retries, cleared once the community updates. */
+  lastRetriableError: Error | undefined;
 }
 
 // useCommunities(options): result

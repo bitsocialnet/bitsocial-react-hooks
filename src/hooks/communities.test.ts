@@ -276,13 +276,21 @@ describe("communities", () => {
         expect(rendered.result.current.syncState).toBe("loading");
         expect(rendered.result.current.lastFetchAttemptAt).toBe(1_800_000_001);
 
+        const retriableError = Object.assign(new Error("ipns record not found"), {
+          details: { retriableError: true },
+        });
+        updatingCommunities[0].emit("error", retriableError);
         updatingCommunities[0].emit("updatingstatechange", "waiting-retry");
         await waitFor(() => rendered.result.current.syncState === "retrying");
+        expect(rendered.result.current.lastRetriableError).toBe(retriableError);
+        expect(rendered.result.current.error).toBeUndefined();
 
         now += 1_000;
         updatingCommunities[0].emit("updatingstatechange", "fetching-ipns");
         await waitFor(() => rendered.result.current.syncState === "loading");
         expect(rendered.result.current.lastFetchAttemptAt).toBe(1_800_000_003);
+        // the next attempt keeps the reason the last one failed until one succeeds
+        expect(rendered.result.current.lastRetriableError).toBe(retriableError);
 
         updatingCommunities[0].updatedAt = 1_799_999_000;
         updatingCommunities[0].emit("update", updatingCommunities[0]);
@@ -292,6 +300,7 @@ describe("communities", () => {
         expect(rendered.result.current.state).toBe("succeeded");
         expect(rendered.result.current.hasCachedData).toBe(true);
         expect(rendered.result.current.lastSuccessfulFetchAt).toBe(1_800_000_004);
+        expect(rendered.result.current.lastRetriableError).toBeUndefined();
 
         updatingCommunities[0].emit("updatingstatechange", "waiting-retry");
         await waitFor(() => rendered.result.current.syncState === "retrying");

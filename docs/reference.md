@@ -132,7 +132,7 @@ useValidateComment({comment: Comment, validateReplies?: boolean}): {valid: boole
 #### Communities Hooks
 
 ```
-useCommunity({community: {name?: string, publicKey?: string}, onlyIfCached?: boolean}): Community & {syncState: "initializing" | "loading" | "retrying" | "succeeded" | "failed" | "stopped", hasCachedData: boolean, lastFetchAttemptAt: number | undefined, lastSuccessfulFetchAt: number | undefined}
+useCommunity({community: {name?: string, publicKey?: string}, onlyIfCached?: boolean}): Community & {syncState: "initializing" | "loading" | "retrying" | "succeeded" | "failed" | "stopped", hasCachedData: boolean, lastFetchAttemptAt: number | undefined, lastSuccessfulFetchAt: number | undefined, lastRetriableError: Error | undefined}
 useCommunities({communities?: CommunityIdentifier[], onlyIfCached?: boolean}): {communities: Communities[]}
 useCommunityStats({community: {name?: string, publicKey?: string}, onlyIfCached?: boolean}): CommunityStats
 useResolvedCommunityAddress({communityAddress: string, cache: boolean}): {resolvedAddress: string | undefined} // use {cache: false} when checking the user's own community address
@@ -146,7 +146,9 @@ Pass `{ publicKey, name }` when you have both so `pkc-js` can fetch through the 
 while a refresh is running. Use `syncState` for the current refresh lifecycle:
 `loading` covers active name, IPNS, and IPFS work, while `retrying` means a transient
 failure is being retried. `lastFetchAttemptAt` and `lastSuccessfulFetchAt` are Unix
-timestamps in seconds. A successful fetch only proves that a valid community record was
+timestamps in seconds. Transient failures stay out of `error` and `errors`;
+`lastRetriableError` holds the latest one until the community updates, so a community
+that never loads can show why. A successful fetch only proves that a valid community record was
 reachable; it does not prove that the community operator is currently online.
 
 #### Authors Hooks
@@ -508,6 +510,7 @@ const {
   hasCachedData,
   lastFetchAttemptAt,
   lastSuccessfulFetchAt,
+  lastRetriableError,
 } = community;
 const communityStats = useCommunityStats({
   community: { name: communityAddress, publicKey: communityPublicKey },
