@@ -678,7 +678,7 @@ export interface UsePkcRpcSettingsResult extends Result {
  */
 export type Account = { [key: string]: any };
 export type AccountsActions = { [key: string]: any };
-export type PublishCommentOptions = { gallery?: CommentGalleryItem[]; [key: string]: any };
+export type PublishCommentOptions = { [key: string]: any };
 export type PublishVoteOptions = { [key: string]: any };
 export type PublishCommentEditOptions = { [key: string]: any };
 export type PublishCommentModerationOptions = { [key: string]: any };
@@ -691,10 +691,12 @@ export interface ExportCommunityOptions {
 }
 export type Challenge = { [key: string]: any };
 export type ChallengeVerification = { [key: string]: any };
-export type CreateCommentOptions = { gallery?: CommentGalleryItem[]; [key: string]: any };
+export type CreateCommentOptions = { [key: string]: any };
 export type CreateCommunityOptions = { [key: string]: any };
 export type CreateVoteOptions = { [key: string]: any };
-export type Comment = { gallery?: CommentGalleryItem[]; [key: string]: any };
+// Keep this open shape assignable to consumers selecting arbitrary optional comment fields.
+// Adding a named optional field triggers TypeScript weak-target checks (see types.compat.test.ts).
+export type Comment = { [key: string]: any };
 export type Vote = { [key: string]: any };
 export type CommentEdit = { [key: string]: any };
 export type CommentModeration = { [key: string]: any };
