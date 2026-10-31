@@ -110,7 +110,7 @@ corepack yarn start
 
 ## Contribute
 
-Use Node 22 and the repository's pinned Yarn 4 release:
+Use Node 22.19 or newer and the repository's pinned Yarn 4 release:
 
 ```bash
 nvm install
@@ -379,6 +379,17 @@ getReplyPageSortType(comment: Comment, requestedSortType?: string): string | und
 getSortTimeframeSeconds(sortType?: string): number | undefined // time window of top*/controversial* timeframe sorts
 isFlatSortType(sortType?: string): boolean
 ```
+
+Publish multiple media attachments through `usePublishComment({ communityAddress, gallery })`.
+`gallery` is an array of `CommentGalleryItem`: `{ url, htmlTagName: "img" | "video" | "audio", width?, height?, alt? }`.
+A gallery can accompany `link` or stand alone, including in a reply with `parentCid` and `postCid`.
+The existing comment/feed/account hooks expose it as `comment.gallery`; no separate gallery hook
+is needed. Pending callbacks and local account history retain the attachments.
+
+Galleries require the community to set `features.maxPostGalleryItems` or
+`features.maxReplyGalleryItems` to a positive limit; absent or zero disables them. The protocol
+client validates item structure, and the community checks HTTPS media URLs, matching media tags,
+limits and media restrictions. Hooks do not upload media, infer gallery dimensions, or render it.
 
 `createCrosspost` requires a fully loaded comment with `comment.cid` and
 `comment.raw.comment`. Publish the returned payload through the existing action hook:
@@ -3744,6 +3755,7 @@ Statuses: **Open** means acceptance criteria remain unmet; **In progress** requi
 | Date | IDs | Progress/evidence | Remaining limits |
 |---|---|---|---|
 | 2026-10-27 | V1-01–V1-07 | Recorded the 2026-10-26 assessment and rechecked the listed source contracts at `773f1465`. | All acceptance criteria remain open. No runtime fixes, new compatibility guarantees, version bump, or release were made by this documentation change. |
+| 2026-10-31 | V1-04, V1-07 | 0.1.63 adds explicit gallery attachment types to the existing comment/publishing API and upgrades pkc-js to 0.0.132. Its Node requirement raises the supported floor to 22.19; the manifest, local runtime pin and publishing runtime now match. The explicitly requested 0.1.63 version is retained as an exception to the support-policy minor-bump rule above. | Verified locally on Node 22.23.4: 1,350 unit tests passed (six skipped), including gallery publishing/history, cached reads and real-pkc signing/schema validation; build, lint (warnings only) and Knip passed. Broader core-type and environment-matrix criteria remain open. |
 
 ## Milestone exit criteria
 
@@ -3785,6 +3797,23 @@ Native references: [Codex hooks](https://learn.chatgpt.com/docs/hooks), [Cursor 
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/CHANGELOG.md
 
 ```markdown
+## [0.1.62](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.61...v0.1.62) (2026-10-30)
+
+
+
+## [0.1.61](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.60...v0.1.61) (2026-10-29)
+
+
+
+## [0.1.60](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.59...v0.1.60) (2026-10-28)
+
+
+### Bug Fixes
+
+* **comments:** freeze autoUpdate false comments after the update requested on open ([b98e7a5](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/b98e7a59fb8b1e635943efe3a54801769e4c0ec9))
+
+
+
 ## [0.1.59](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.58...v0.1.59) (2026-10-27)
 
 

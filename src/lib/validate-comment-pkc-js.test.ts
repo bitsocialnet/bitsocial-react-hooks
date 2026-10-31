@@ -48,6 +48,37 @@ describe("validateComment offline pkc instance", () => {
     expect(Object.keys(networkPkc.clients.ipfsGateways).length).toBeGreaterThan(0);
   });
 
+  test("creates a signed gallery-only comment and rejects malformed gallery items", async () => {
+    const gallery = [
+      {
+        url: "https://example.com/image.png",
+        htmlTagName: "img",
+        width: 640,
+        height: 480,
+        alt: "Image",
+        futureField: "preserved",
+      },
+      { url: "https://example.com/video.mp4", htmlTagName: "video" },
+      { url: "https://example.com/audio.mp3", htmlTagName: "audio" },
+    ];
+    const options = {
+      communityPublicKey: fixture.communityPublicKey,
+      signer: await offlinePkc.createSigner(),
+      gallery,
+    };
+    const comment = await offlinePkc.createComment(options);
+    expect(comment.gallery).toEqual(gallery);
+    expect(comment.content).toBeUndefined();
+    expect(comment.signature.signedPropertyNames).toContain("gallery");
+    await expect(offlinePkc.createComment({ ...options, gallery: [] })).rejects.toThrow();
+    await expect(
+      offlinePkc.createComment({
+        ...options,
+        gallery: [{ url: gallery[0].url, htmlTagName: "iframe" }],
+      }),
+    ).rejects.toThrow();
+  });
+
   test("gives the same results as an instance with network clients", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 

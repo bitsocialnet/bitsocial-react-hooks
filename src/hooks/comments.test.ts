@@ -40,6 +40,29 @@ describe("comments", () => {
     await testUtils.resetDatabasesAndStores();
   });
 
+  test("useComment and useComments expose cached gallery items without transforming them", async () => {
+    const cid = "gallery cached comment";
+    const gallery = [
+      {
+        url: "https://example.com/image.png",
+        htmlTagName: "img" as const,
+        alt: "Image",
+        futureField: "preserved",
+      },
+    ];
+    commentsStore.setState({
+      comments: { [cid]: { cid, timestamp: 100, updatedAt: 100, gallery } },
+    });
+    const rendered = renderHook(() => ({
+      single: useComment({ commentCid: cid, onlyIfCached: true, autoUpdate: false }),
+      multiple: useComments({ commentCids: [cid], onlyIfCached: true, autoUpdate: false }),
+    }));
+    const waitFor = testUtils.createWaitFor(rendered);
+    await waitFor(() => Boolean(rendered.result.current.single.gallery));
+    expect(rendered.result.current.single.gallery).toEqual(gallery);
+    expect(rendered.result.current.multiple.comments[0]?.gallery).toEqual(gallery);
+  });
+
   describe("no comments in database", () => {
     afterEach(async () => {
       await testUtils.resetDatabasesAndStores();

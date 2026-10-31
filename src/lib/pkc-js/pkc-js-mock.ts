@@ -638,6 +638,7 @@ export class Comment extends Publication {
     this.parentCid = createCommentOptions?.parentCid ?? rawComment?.parentCid;
     this.communityAddress = createCommentOptions?.communityAddress ?? rawComment?.communityAddress;
     (this as any).crosspost = createCommentOptions?.crosspost ?? rawComment?.crosspost;
+    (this as any).gallery = createCommentOptions?.gallery ?? rawComment?.gallery;
     (this as any).link = createCommentOptions?.link ?? rawComment?.link;
     (this as any).raw = createCommentOptions?.raw;
     (this as any).signature = createCommentOptions?.signature ?? rawComment?.signature;

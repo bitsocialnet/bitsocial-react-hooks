@@ -245,6 +245,17 @@ getSortTimeframeSeconds(sortType?: string): number | undefined // time window of
 isFlatSortType(sortType?: string): boolean
 ```
 
+Publish multiple media attachments through `usePublishComment({ communityAddress, gallery })`.
+`gallery` is an array of `CommentGalleryItem`: `{ url, htmlTagName: "img" | "video" | "audio", width?, height?, alt? }`.
+A gallery can accompany `link` or stand alone, including in a reply with `parentCid` and `postCid`.
+The existing comment/feed/account hooks expose it as `comment.gallery`; no separate gallery hook
+is needed. Pending callbacks and local account history retain the attachments.
+
+Galleries require the community to set `features.maxPostGalleryItems` or
+`features.maxReplyGalleryItems` to a positive limit; absent or zero disables them. The protocol
+client validates item structure, and the community checks HTTPS media URLs, matching media tags,
+limits and media restrictions. Hooks do not upload media, infer gallery dimensions, or render it.
+
 `createCrosspost` requires a fully loaded comment with `comment.cid` and
 `comment.raw.comment`. Publish the returned payload through the existing action hook:
 

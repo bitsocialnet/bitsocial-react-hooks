@@ -69,6 +69,7 @@ Statuses: **Open** means acceptance criteria remain unmet; **In progress** requi
 | Date | IDs | Progress/evidence | Remaining limits |
 |---|---|---|---|
 | 2026-10-27 | V1-01–V1-07 | Recorded the 2026-10-26 assessment and rechecked the listed source contracts at `773f1465`. | All acceptance criteria remain open. No runtime fixes, new compatibility guarantees, version bump, or release were made by this documentation change. |
+| 2026-10-31 | V1-04, V1-07 | 0.1.63 adds explicit gallery attachment types to the existing comment/publishing API and upgrades pkc-js to 0.0.132. Its Node requirement raises the supported floor to 22.19; the manifest, local runtime pin and publishing runtime now match. The explicitly requested 0.1.63 version is retained as an exception to the support-policy minor-bump rule above. | Verified locally on Node 22.23.4: 1,350 unit tests passed (six skipped), including gallery publishing/history, cached reads and real-pkc signing/schema validation; build, lint (warnings only) and Knip passed. Broader core-type and environment-matrix criteria remain open. |
 
 ## Milestone exit criteria
 

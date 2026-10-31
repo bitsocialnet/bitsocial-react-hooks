@@ -972,6 +972,53 @@ describe("actions", () => {
       expect(typeof onChallengeVerification.mock.calls[0][1].timestamp).toBe("number");
     });
 
+    test("publishes a gallery-only reply and retains its media in pending and stored history", async () => {
+      const gallery = [
+        {
+          url: "https://example.com/image.png",
+          htmlTagName: "img",
+          width: 640,
+          height: 480,
+          alt: "Image",
+          futureField: "preserved",
+        },
+        { url: "https://example.com/video.mp4", htmlTagName: "video" },
+        { url: "https://example.com/audio.mp3", htmlTagName: "audio" },
+      ];
+      const onPendingComment = vi.fn();
+      const onChallenge = vi.fn();
+      rendered.rerender({
+        communityAddress: "gallery-community",
+        parentCid: "gallery-parent",
+        postCid: "gallery-parent",
+        gallery,
+        onPendingComment,
+        onChallenge,
+      });
+      await waitFor(() => rendered.result.current.state === "ready");
+      expect(rendered.result.current.state).toBe("ready");
+      await act(async () => {
+        await rendered.result.current.publishComment();
+      });
+      expect(onPendingComment).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.objectContaining({ gallery }),
+      );
+      await waitFor(() => rendered.result.current.challenge);
+      expect(onChallenge.mock.calls[0][1].gallery).toEqual(gallery);
+      expect(onChallenge.mock.calls[0][1].content).toBeUndefined();
+      await act(async () => {
+        await rendered.result.current.publishChallengeAnswers(["4"]);
+      });
+      await waitFor(() => rendered.result.current.state === "succeeded");
+      expect(rendered.result.current.state).toBe("succeeded");
+      const { activeAccountId, accountsComments } = useAccountsStore.getState();
+      const index = rendered.result.current.index;
+      expect(accountsComments[activeAccountId!][index].gallery).toEqual(gallery);
+      const stored = await accountsDatabase.getAccountComments(activeAccountId!);
+      expect(stored[index].gallery).toEqual(gallery);
+    });
+
     test("publish comment without onChallengeVerification completes successfully", async () => {
       const onChallenge = vi.fn((challenge: any, comment: any) =>
         comment.publishChallengeAnswers(),

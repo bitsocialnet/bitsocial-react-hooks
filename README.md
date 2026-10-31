@@ -73,7 +73,7 @@ corepack yarn start
 
 ## Contribute
 
-Use Node 22 and the repository's pinned Yarn 4 release:
+Use Node 22.19 or newer and the repository's pinned Yarn 4 release:
 
 ```bash
 nvm install
