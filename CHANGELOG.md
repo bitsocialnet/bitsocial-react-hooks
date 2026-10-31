@@ -1,3 +1,12 @@
+## [0.1.64](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.63...v0.1.64) (2026-10-31)
+
+
+### Bug Fixes
+
+* **types:** preserve open comment type compatibility in 0.1.64 ([278465b](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/278465bb3a8473e212f7817c73edc1fc193eb76a))
+
+
+
 ## [0.1.63](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.62...v0.1.63) (2026-10-31)
 
 

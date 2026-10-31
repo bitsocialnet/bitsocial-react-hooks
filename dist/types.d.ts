@@ -477,7 +477,6 @@ export type AccountsActions = {
     [key: string]: any;
 };
 export type PublishCommentOptions = {
-    gallery?: CommentGalleryItem[];
     [key: string]: any;
 };
 export type PublishVoteOptions = {
@@ -505,7 +504,6 @@ export type ChallengeVerification = {
     [key: string]: any;
 };
 export type CreateCommentOptions = {
-    gallery?: CommentGalleryItem[];
     [key: string]: any;
 };
 export type CreateCommunityOptions = {
@@ -515,7 +513,6 @@ export type CreateVoteOptions = {
     [key: string]: any;
 };
 export type Comment = {
-    gallery?: CommentGalleryItem[];
     [key: string]: any;
 };
 export type Vote = {
