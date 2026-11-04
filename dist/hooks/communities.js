@@ -7,7 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useAccount } from "./accounts/index.js";
 import validator from "../lib/validator.js";
 import Logger from "@pkcprotocol/pkc-logger";
@@ -21,6 +21,7 @@ import useAccountsStore from "../stores/accounts/index.js";
 import shallow from "zustand/shallow";
 import { getChainProviders, getPkcCommunityAddresses } from "../lib/pkc-compat.js";
 import { getCommunityRefKey, getUniqueSortedCommunityRefs } from "../lib/community-ref.js";
+let communityAutoUpdateSubscriptionCount = 0;
 const parseMaybeJson = (value) => (typeof value === "string" ? JSON.parse(value) : value);
 const tryParseMaybeJson = (value) => {
     try {
@@ -54,7 +55,7 @@ const parseFetchedCommunityStats = (fetchedCid) => {
 export function useCommunity(options) {
     assert(!options || typeof options === "object", `useCommunity options argument '${options}' not an object`);
     const opts = options !== null && options !== void 0 ? options : {};
-    const { community: communityInput, accountName, onlyIfCached } = opts;
+    const { community: communityInput, accountName, onlyIfCached, autoUpdate = true } = opts;
     const account = useAccount({ accountName });
     const accountId = (account === null || account === void 0 ? void 0 : account.id) || "";
     validator.validateUseCommunityArguments({
@@ -65,6 +66,9 @@ export function useCommunity(options) {
     const communityKey = communityInput ? getCommunityRefKey(communityInput) : "";
     const storedCommunity = useCommunitiesStore((state) => state.communities[communityKey]);
     const addCommunityToStore = useCommunitiesStore((state) => state.addCommunityToStore);
+    const startCommunityAutoUpdate = useCommunitiesStore((state) => state.startCommunityAutoUpdate);
+    const stopCommunityAutoUpdate = useCommunitiesStore((state) => state.stopCommunityAutoUpdate);
+    const autoUpdateSubscriptionId = useRef(`useCommunity-${++communityAutoUpdateSubscriptionCount}`);
     const errors = useCommunitiesStore((state) => state.errors[communityKey]);
     const syncStatus = useCommunitiesStore((state) => state.syncStatuses[communityKey]);
     const communityEditSummary = useAccountsStore((state) => {
@@ -84,14 +88,24 @@ export function useCommunity(options) {
         }
     });
     useEffect(() => {
-        if (!communityInput || !account) {
+        if (!communityInput || !account || onlyIfCached) {
             return;
         }
-        if (!storedCommunity && !onlyIfCached) {
-            // if community isn't already in store, add it
-            addCommunityToStore(communityInput, account).catch((error) => log.error("useCommunity addCommunityToStore error", { communityInput, error }));
+        if (!autoUpdate) {
+            // load the community once if it isn't already in store, without keeping it updating
+            if (!storedCommunity) {
+                addCommunityToStore(communityInput, account).catch((error) => log.error("useCommunity addCommunityToStore error", { communityInput, error }));
+            }
+            return;
         }
-    }, [communityKey, account === null || account === void 0 ? void 0 : account.id]);
+        // keep the community updating while mounted, it stops a grace period after the last
+        // subscriber unmounts
+        const subscriberId = autoUpdateSubscriptionId.current;
+        startCommunityAutoUpdate(communityInput, subscriberId, account).catch((error) => log.error("useCommunity startCommunityAutoUpdate error", { communityInput, error }));
+        return () => {
+            stopCommunityAutoUpdate(communityInput, subscriberId).catch((error) => log.error("useCommunity stopCommunityAutoUpdate error", { communityInput, error }));
+        };
+    }, [communityKey, account === null || account === void 0 ? void 0 : account.id, onlyIfCached, autoUpdate]);
     if (account && communityInput) {
         log("useCommunity", {
             community: communityInput,
@@ -130,7 +144,14 @@ export function useCommunity(options) {
     if (mergedCommunity === null || mergedCommunity === void 0 ? void 0 : mergedCommunity.updatedAt) {
         state = "succeeded";
     }
-    return useMemo(() => (Object.assign(Object.assign({}, mergedCommunity), { state, syncState: (syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.syncState) || (onlyIfCached ? "stopped" : "initializing"), hasCachedData: typeof (mergedCommunity === null || mergedCommunity === void 0 ? void 0 : mergedCommunity.updatedAt) === "number", lastFetchAttemptAt: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastFetchAttemptAt, lastSuccessfulFetchAt: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastSuccessfulFetchAt, lastRetriableError: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastRetriableError, error: errors === null || errors === void 0 ? void 0 : errors[errors.length - 1], errors: errors || [] })), [mergedCommunity, communityKey, errors, onlyIfCached, syncStatus]);
+    let syncState = (syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.syncState) || (onlyIfCached ? "stopped" : "initializing");
+    // the store stops a community once nothing uses it and this hook's effect restarts it, so the
+    // render before the effect does not report a terminal state for a community about to load
+    if ((syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.stoppedUntilUsed) && !onlyIfCached && autoUpdate && communityInput && account) {
+        syncState = "loading";
+    }
+    return useMemo(() => (Object.assign(Object.assign({}, mergedCommunity), { state,
+        syncState, hasCachedData: typeof (mergedCommunity === null || mergedCommunity === void 0 ? void 0 : mergedCommunity.updatedAt) === "number", lastFetchAttemptAt: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastFetchAttemptAt, lastSuccessfulFetchAt: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastSuccessfulFetchAt, lastRetriableError: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastRetriableError, error: errors === null || errors === void 0 ? void 0 : errors[errors.length - 1], errors: errors || [] })), [mergedCommunity, communityKey, errors, syncState, syncStatus]);
 }
 /**
  * @param community - The community identifier, e.g. {name: 'memes.eth'} or {publicKey: '12D3KooW...'}
@@ -221,7 +242,7 @@ const useCommunitiesStatsStore = createStore((setState) => ({
 export function useCommunities(options) {
     assert(!options || typeof options === "object", `useCommunities options argument '${options}' not an object`);
     const opts = options !== null && options !== void 0 ? options : {};
-    const { communities: communitiesInput, accountName, onlyIfCached } = opts;
+    const { communities: communitiesInput, accountName, onlyIfCached, autoUpdate = true } = opts;
     const account = useAccount({ accountName });
     validator.validateUseCommunitiesArguments({
         communities: communitiesInput,
@@ -234,6 +255,10 @@ export function useCommunities(options) {
     const communities = useCommunitiesStore((state) => communityKeys.map((communityKey) => state.communities[communityKey || ""]), shallow);
     const communitiesErrors = useCommunitiesStore((state) => communityKeys.map((communityKey) => state.errors[communityKey || ""]), shallow);
     const addCommunityToStore = useCommunitiesStore((state) => state.addCommunityToStore);
+    const startCommunityAutoUpdate = useCommunitiesStore((state) => state.startCommunityAutoUpdate);
+    const stopCommunityAutoUpdate = useCommunitiesStore((state) => state.stopCommunityAutoUpdate);
+    const autoUpdateSubscriptionId = useRef(`useCommunities-${++communityAutoUpdateSubscriptionCount}`);
+    // keyed by the community keys, so a new array of the same communities does not resubscribe
     useEffect(() => {
         if (!normalizedCommunityRefs.length || !account) {
             return;
@@ -242,10 +267,23 @@ export function useCommunities(options) {
             return;
         }
         const uniqueCommunityRefs = getUniqueSortedCommunityRefs(normalizedCommunityRefs);
-        for (const communityRef of uniqueCommunityRefs) {
-            addCommunityToStore(communityRef, account).catch((error) => log.error("useCommunities addCommunityToStore error", { communityRef, error }));
+        if (!autoUpdate) {
+            // load the communities once, without keeping them updating
+            for (const communityRef of uniqueCommunityRefs) {
+                addCommunityToStore(communityRef, account).catch((error) => log.error("useCommunities addCommunityToStore error", { communityRef, error }));
+            }
+            return;
         }
-    }, [account === null || account === void 0 ? void 0 : account.id, communityKeys.toString(), onlyIfCached, normalizedCommunityRefs]);
+        const subscriberId = autoUpdateSubscriptionId.current;
+        for (const communityRef of uniqueCommunityRefs) {
+            startCommunityAutoUpdate(communityRef, subscriberId, account).catch((error) => log.error("useCommunities startCommunityAutoUpdate error", { communityRef, error }));
+        }
+        return () => {
+            for (const communityRef of uniqueCommunityRefs) {
+                stopCommunityAutoUpdate(communityRef, subscriberId).catch((error) => log.error("useCommunities stopCommunityAutoUpdate error", { communityRef, error }));
+            }
+        };
+    }, [account === null || account === void 0 ? void 0 : account.id, communityKeys.toString(), onlyIfCached, autoUpdate]);
     if (account && normalizedCommunityRefs.length) {
         log("useCommunities", {
             requestedCommunities: normalizedCommunityRefs,

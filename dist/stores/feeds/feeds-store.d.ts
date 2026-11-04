@@ -16,6 +16,8 @@ type FeedsState = {
         [feedName: string]: string[];
     };
     addFeedToStore: Function;
+    startFeedAutoUpdate: Function;
+    stopFeedAutoUpdate: Function;
     incrementFeedPageNumber: Function;
     expandFeedTimeWindow: Function;
     resetFeed: Function;

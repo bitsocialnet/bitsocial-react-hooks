@@ -285,6 +285,7 @@ export class Community extends EventEmitter {
         var _a, _b, _c, _d, _e, _f;
         super();
         this.updateCalledTimes = 0;
+        this.stopCalledTimes = 0;
         this.updating = false;
         this.firstUpdate = true;
         this.address =
@@ -358,6 +359,19 @@ export class Community extends EventEmitter {
             });
         });
     }
+    stop() {
+        return __awaiter(this, void 0, void 0, function* () {
+            this.stopCalledTimes++;
+            if (this.state !== "updating") {
+                return;
+            }
+            this.updating = false;
+            this.state = "stopped";
+            this.updatingState = "stopped";
+            this.emit("statechange", "stopped");
+            this.emit("updatingstatechange", "stopped");
+        });
+    }
     delete() {
         return __awaiter(this, void 0, void 0, function* () {
             if (this.address) {
@@ -388,6 +402,9 @@ export class Community extends EventEmitter {
         });
     }
     simulateUpdateEvent() {
+        if (this.state === "stopped" && this.stopCalledTimes > 0) {
+            return;
+        }
         if (this.firstUpdate) {
             this.simulateFirstUpdateEvent();
             return;

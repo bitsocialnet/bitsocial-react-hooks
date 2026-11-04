@@ -1,10 +1,12 @@
 import { Communities, CommunitySyncState } from "../../types.js";
 export declare const COMMUNITY_UPDATE_INTERVAL_MS: number;
+export declare const COMMUNITY_UPDATE_STOP_GRACE_MS: number;
 interface CommunitySyncStatus {
     syncState: CommunitySyncState;
     lastFetchAttemptAt?: number;
     lastSuccessfulFetchAt?: number;
     lastRetriableError?: Error;
+    stoppedUntilUsed?: true;
 }
 export declare const isRetriableCommunityLoadError: (error: Error) => boolean;
 export type CommunitiesState = {
@@ -16,6 +18,8 @@ export type CommunitiesState = {
         [communityAddress: string]: CommunitySyncStatus;
     };
     addCommunityToStore: Function;
+    startCommunityAutoUpdate: Function;
+    stopCommunityAutoUpdate: Function;
     refreshCommunity: Function;
     editCommunity: Function;
     createCommunity: Function;

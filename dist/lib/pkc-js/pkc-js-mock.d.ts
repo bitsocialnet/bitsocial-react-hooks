@@ -74,6 +74,7 @@ export declare class Pages {
 }
 export declare class Community extends EventEmitter {
     updateCalledTimes: number;
+    stopCalledTimes: number;
     updating: boolean;
     firstUpdate: boolean;
     address: string | undefined;
@@ -89,6 +90,7 @@ export declare class Community extends EventEmitter {
     updatingState: string;
     constructor(createCommunityOptions?: any);
     update(): Promise<void>;
+    stop(): Promise<void>;
     delete(): Promise<void>;
     get exports(): any[];
     export(exportCommunityOptions?: any): Promise<{

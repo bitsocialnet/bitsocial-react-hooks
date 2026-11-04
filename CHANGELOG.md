@@ -1,3 +1,17 @@
+# [0.2.0](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.65...v0.2.0) (2026-11-04)
+
+
+### Performance Improvements
+
+* **communities:** stop community updates nothing uses ([0a83c75](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/0a83c75ce22b23a6789ab1524c39b593733288c5))
+
+
+### BREAKING CHANGES
+
+* **communities:** a loaded community no longer keeps updating forever. It stops 2 minutes after the last mounted useCommunity, useCommunities, useCommunityStats, useCommunitiesStates, useAccountCommunities, useFeed or useBufferedFeeds using it unmounts, and restarts when one mounts again. Code that reads the stores directly or uses onlyIfCached gets the last stored record of a stopped community: mount one of those hooks to keep it updating, or call useFeed().reset() for a fresh record. Apps that judge a community offline by the age of updatedAt should measure that age at lastSuccessfulFetchAt while syncStatus.stoppedUntilUsed is set or useCommunity reports syncState loading after a restart, so a community that was online when it stopped does not flash offline.
+
+
+
 ## [0.1.65](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.64...v0.1.65) (2026-10-31)
 
 

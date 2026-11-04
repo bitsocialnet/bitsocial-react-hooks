@@ -197,6 +197,8 @@ export type CommunitySyncState = "initializing" | "loading" | "retrying" | "succ
 export interface UseCommunityOptions extends Options {
     community?: CommunityIdentifier;
     onlyIfCached?: boolean;
+    /** Keep the community updating while mounted (default true). False loads it once. */
+    autoUpdate?: boolean;
 }
 export interface UseCommunityResult extends Result, Community {
     syncState: CommunitySyncState;
@@ -209,6 +211,8 @@ export interface UseCommunityResult extends Result, Community {
 export interface UseCommunitiesOptions extends Options {
     communities?: CommunityIdentifier[];
     onlyIfCached?: boolean;
+    /** Keep the communities updating while mounted (default true). False loads them once. */
+    autoUpdate?: boolean;
 }
 export interface UseCommunitiesResult extends Result {
     communities: (Community | undefined)[];
