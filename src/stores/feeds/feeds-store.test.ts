@@ -465,6 +465,96 @@ describe("feeds store", () => {
     }));
   });
 
+  test("a feed holds its communities and fetches pages only while it has subscribers", async () => {
+    const communityAddress = "feed subscribers community";
+    const communityRef = { address: communityAddress };
+    const feedName = JSON.stringify([mockAccount?.id, "new", [communityAddress], "subscribers"]);
+    const feedSubscriberId = `feed:${feedName}`;
+    const { startCommunityAutoUpdate, stopCommunityAutoUpdate } = communitiesStore.getState();
+    const { addNextCommunityPageToStore } = communitiesPagesStore.getState();
+    const startSpy = vi.fn((...args: any[]) => startCommunityAutoUpdate(...args));
+    const stopSpy = vi.fn((...args: any[]) => stopCommunityAutoUpdate(...args));
+    const addNextPageSpy = vi.fn(async () => {});
+    communitiesStore.setState({
+      startCommunityAutoUpdate: startSpy,
+      stopCommunityAutoUpdate: stopSpy,
+    });
+    const getPageFetchesForCommunity = () =>
+      addNextPageSpy.mock.calls.filter((call: any[]) => call[0]?.address === communityAddress)
+        .length;
+    const setLowBufferedPostCount = () =>
+      act(() => {
+        useFeedsStore.setState((state: any) => ({
+          bufferedFeedsCommunitiesPostCounts: {
+            ...state.bufferedFeedsCommunitiesPostCounts,
+            [feedName]: { [communityAddress]: 0 },
+          },
+        }));
+      });
+
+    try {
+      // a store-level caller adds the feed without subscribing
+      act(() => {
+        rendered.result.current.addFeedToStore(
+          feedName,
+          [communityRef],
+          [communityAddress],
+          "new",
+          mockAccount,
+        );
+      });
+      await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length > 0);
+      expect(startSpy).not.toHaveBeenCalled();
+
+      act(() => {
+        rendered.result.current.startFeedAutoUpdate(feedName, "hook 1");
+        rendered.result.current.startFeedAutoUpdate(feedName, "hook 2");
+      });
+      expect(startSpy).toHaveBeenCalledTimes(1);
+      expect(startSpy).toHaveBeenCalledWith(
+        communityRef,
+        feedSubscriberId,
+        expect.objectContaining({ id: mockAccount.id }),
+      );
+
+      act(() => rendered.result.current.stopFeedAutoUpdate(feedName, "hook 1"));
+      expect(stopSpy).not.toHaveBeenCalled();
+      act(() => rendered.result.current.stopFeedAutoUpdate(feedName, "hook 2"));
+      expect(stopSpy).toHaveBeenCalledTimes(1);
+      expect(stopSpy).toHaveBeenCalledWith(communityRef, feedSubscriberId);
+
+      // once the grace period ends, the hidden feed stops fetching pages
+      communitiesPagesStore.setState({ addNextCommunityPageToStore: addNextPageSpy });
+      const now = Date.now();
+      const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(now + 10 * 60 * 1000);
+      try {
+        setLowBufferedPostCount();
+        expect(getPageFetchesForCommunity()).toBe(0);
+
+        // a remounted useFeed adds the existing feed again before subscribing, and still fetches
+        // the pages the feed skipped
+        act(() => {
+          rendered.result.current.addFeedToStore(
+            feedName,
+            [communityRef],
+            [communityAddress],
+            "new",
+            mockAccount,
+          );
+          rendered.result.current.startFeedAutoUpdate(feedName, "hook 1");
+        });
+        expect(getPageFetchesForCommunity()).toBe(1);
+        expect(startSpy).toHaveBeenCalledTimes(2);
+      } finally {
+        dateNowSpy.mockRestore();
+      }
+    } finally {
+      act(() => rendered.result.current.stopFeedAutoUpdate(feedName, "hook 1"));
+      communitiesStore.setState({ startCommunityAutoUpdate, stopCommunityAutoUpdate });
+      communitiesPagesStore.setState({ addNextCommunityPageToStore });
+    }
+  });
+
   test("updateFeedsAgain when updateFeeds called twice quickly", async () => {
     await new Promise((r) => setTimeout(r, 300));
     const updateFeedsSpy = vi.spyOn(useFeedsStore.getState(), "updateFeeds");

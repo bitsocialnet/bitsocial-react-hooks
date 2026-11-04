@@ -20,7 +20,7 @@ import { communityPostsCacheExpired } from "../../lib/utils";
 import { getPkcGetCommunity } from "../../lib/pkc-compat";
 import { CommunityLookupRef, getCommunityRefKeys } from "../../lib/community-ref";
 import accountsStore from "../accounts";
-import communitiesStore from "../communities";
+import communitiesStore, { COMMUNITY_UPDATE_STOP_GRACE_MS } from "../communities";
 import communitiesPagesStore from "../communities-pages";
 import {
   getFeedsCommunitiesFirstPageCids,
@@ -61,6 +61,8 @@ type FeedsState = {
   feedsCommunityKeysWithNewerPosts: { [feedName: string]: string[] };
   feedsCommunityKeysWithMore: { [feedName: string]: string[] };
   addFeedToStore: Function;
+  startFeedAutoUpdate: Function;
+  stopFeedAutoUpdate: Function;
   incrementFeedPageNumber: Function;
   expandFeedTimeWindow: Function;
   resetFeed: Function;
@@ -71,6 +73,68 @@ type FeedsState = {
 let updateFeedsPending = false;
 let updateFeedsAgain = false;
 const updateFeedsMinIntervalTime = 100;
+
+// hooks that show a feed. A feed keeps its communities updating while it has subscribers, and
+// fetches more community pages while it has subscribers or was used by a store-level caller
+// within the grace period. Its loaded posts stay in the store either way.
+const feedSubscribers: { [feedName: string]: Set<string> } = {};
+const feedsActiveUntil: { [feedName: string]: number } = {};
+// inactive feeds that skipped a page fetch, checked again when a subscriber returns
+const feedsWithSkippedPageFetches = new Set<string>();
+// the communities each feed subscribed to, released with the same refs
+const feedsCommunitySubscriptions: { [feedName: string]: CommunityLookupRef[] } = {};
+
+const getFeedCommunitySubscriberId = (feedName: string) => `feed:${feedName}`;
+
+const hasFeedSubscribers = (feedName: string) => (feedSubscribers[feedName]?.size || 0) > 0;
+
+const isFeedActive = (feedName: string) =>
+  hasFeedSubscribers(feedName) || Date.now() < (feedsActiveUntil[feedName] || 0);
+
+// a store-level caller using a feed without a subscriber keeps it active for the grace period
+const touchFeed = (feedName: string) => {
+  if (!hasFeedSubscribers(feedName)) {
+    feedsActiveUntil[feedName] = Date.now() + COMMUNITY_UPDATE_STOP_GRACE_MS;
+  }
+};
+
+const subscribeFeedCommunities = (feedName: string, feedOptions: any) => {
+  if (feedsCommunitySubscriptions[feedName] || !hasFeedSubscribers(feedName) || !feedOptions) {
+    return;
+  }
+  const account = accountsStore.getState().accounts[feedOptions.accountId];
+  if (!account) {
+    return;
+  }
+  const { communities } = feedOptions;
+  feedsCommunitySubscriptions[feedName] = communities;
+  const { startCommunityAutoUpdate } = communitiesStore.getState();
+  for (const communityRef of communities) {
+    startCommunityAutoUpdate(communityRef, getFeedCommunitySubscriberId(feedName), account).catch(
+      (error: unknown) =>
+        log.error("feedsStore startCommunityAutoUpdate error", {
+          feedName,
+          communityRef,
+          error,
+        }),
+    );
+  }
+};
+
+const unsubscribeFeedCommunities = (feedName: string) => {
+  const communities = feedsCommunitySubscriptions[feedName];
+  if (!communities) {
+    return;
+  }
+  delete feedsCommunitySubscriptions[feedName];
+  const { stopCommunityAutoUpdate } = communitiesStore.getState();
+  for (const communityRef of communities) {
+    stopCommunityAutoUpdate(communityRef, getFeedCommunitySubscriberId(feedName)).catch(
+      (error: unknown) =>
+        log.error("feedsStore stopCommunityAutoUpdate error", { feedName, communityRef, error }),
+    );
+  }
+};
 
 // a feed whose options changed has no community keys with more until it is calculated again, so
 // useFeed reports every community as still loading instead of the previous options' result
@@ -164,6 +228,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
     );
 
     const { feedsOptions, updateFeeds } = getState();
+    touchFeed(feedName);
     // feed is in store already, do nothing
     // if the feed already exist but is at page 0, reset it to page 1
     if (feedsOptions[feedName] && feedsOptions[feedName].pageNumber !== 0) {
@@ -189,11 +254,47 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
     }));
 
     addCommunitiesToCommunitiesStore(communities, account);
+    subscribeFeedCommunities(feedName, feedOptions);
 
     // update feeds right away to use the already loaded communities and pages
     // if no new communities are added by the feed, like for a sort type change,
     // a feed update will never be triggered, so must be triggered it manually
     updateFeeds();
+  },
+
+  // keep a feed's communities updating and its pages loading while a subscriber shows it
+  startFeedAutoUpdate(feedName: string, subscriberId: string) {
+    assert(
+      feedName && typeof feedName === "string",
+      `feedsStore.startFeedAutoUpdate feedName '${feedName}' invalid`,
+    );
+    assert(
+      subscriberId && typeof subscriberId === "string",
+      `feedsStore.startFeedAutoUpdate subscriberId '${subscriberId}' invalid`,
+    );
+    if (!feedSubscribers[feedName]) {
+      feedSubscribers[feedName] = new Set();
+    }
+    feedSubscribers[feedName].add(subscriberId);
+    delete feedsActiveUntil[feedName];
+    subscribeFeedCommunities(feedName, getState().feedsOptions[feedName]);
+    // pages skipped while the feed was inactive are fetched now
+    if (feedsWithSkippedPageFetches.delete(feedName) && getState().feedsOptions[feedName]) {
+      previousBufferedFeedsCommunitiesPostCounts = {};
+      addCommunitiesPagesOnLowBufferedFeedsCommunitiesPostCounts();
+    }
+  },
+
+  // a feed releases its communities when its last subscriber leaves, they stop updating a grace
+  // period later, and it stops fetching pages after the same grace period
+  stopFeedAutoUpdate(feedName: string, subscriberId: string) {
+    const subscribers = feedSubscribers[feedName];
+    if (!subscribers?.delete(subscriberId) || subscribers.size > 0) {
+      return;
+    }
+    delete feedSubscribers[feedName];
+    feedsActiveUntil[feedName] = Date.now() + COMMUNITY_UPDATE_STOP_GRACE_MS;
+    unsubscribeFeedCommunities(feedName);
   },
 
   incrementFeedPageNumber(feedName: string) {
@@ -203,6 +304,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
       `feedsActions.incrementFeedPageNumber feed name '${feedName}' does not exist in feeds store`,
     );
     log("feedsActions.incrementFeedPageNumber", { feedName });
+    touchFeed(feedName);
 
     assert(
       feedsOptions[feedName].pageNumber * feedsOptions[feedName].postsPerPage <=
@@ -239,6 +341,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
     if (currentNewerThan === newerThan) {
       return;
     }
+    touchFeed(feedName);
 
     const isExpandedTimeWindow =
       typeof currentNewerThan === "number" &&
@@ -281,6 +384,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
       `feedsActions.resetFeed cannot reset feed page number '${feedsOptions[feedName].pageNumber}' lower than 1`,
     );
     log("feedsActions.resetFeed", { feedName });
+    touchFeed(feedName);
 
     const { modQueue, sortType, communities, communityKeys, accountId } = feedsOptions[feedName];
     const account = accountsStore.getState().accounts[accountId];
@@ -568,7 +672,7 @@ const updateFeedsOnFeedsCommunitiesPagesChange = (communitiesPagesStoreState: an
 let previousBufferedFeedsCommunitiesPostCountsPageCids: string[] = [];
 let previousBufferedFeedsCommunities = new Map<string, Community>();
 let previousBufferedFeedsCommunitiesPostCounts: FeedsCommunitiesPostCounts = {};
-const addCommunitiesPagesOnLowBufferedFeedsCommunitiesPostCounts = (feedsStoreState: any) => {
+const addCommunitiesPagesOnLowBufferedFeedsCommunitiesPostCounts = () => {
   const { bufferedFeedsCommunitiesPostCounts, feedsOptions } = feedsStore.getState();
   const { communities } = communitiesStore.getState();
 
@@ -607,6 +711,11 @@ const addCommunitiesPagesOnLowBufferedFeedsCommunitiesPostCounts = (feedsStoreSt
 
   // bufferedFeedsCommunitiesPostCounts have changed, check if any of them are low
   for (const feedName in bufferedFeedsCommunitiesPostCounts) {
+    // a feed nothing shows doesn't need more pages, it fetches them again once shown
+    if (!isFeedActive(feedName)) {
+      feedsWithSkippedPageFetches.add(feedName);
+      continue;
+    }
     const account = accounts[feedsOptions[feedName].accountId];
     const communitiesPostCounts = bufferedFeedsCommunitiesPostCounts[feedName];
     const { sortType, modQueue } = feedsOptions[feedName];
@@ -755,6 +864,16 @@ export const resetFeedsStore = async () => {
   previousAccountsCommentsCids = "";
   updateFeedsPending = false;
   updateFeedsAgain = false;
+  for (const feedName in feedSubscribers) {
+    delete feedSubscribers[feedName];
+  }
+  for (const feedName in feedsActiveUntil) {
+    delete feedsActiveUntil[feedName];
+  }
+  for (const feedName in feedsCommunitySubscriptions) {
+    delete feedsCommunitySubscriptions[feedName];
+  }
+  feedsWithSkippedPageFetches.clear();
   // destroy all component subscriptions to the store
   feedsStore.destroy();
   // restore original state

@@ -295,6 +295,7 @@ export class Pages {
 
 export class Community extends EventEmitter {
   updateCalledTimes = 0;
+  stopCalledTimes = 0;
   updating = false;
   firstUpdate = true;
   address: string | undefined;
@@ -393,6 +394,18 @@ export class Community extends EventEmitter {
     });
   }
 
+  async stop() {
+    this.stopCalledTimes++;
+    if (this.state !== "updating") {
+      return;
+    }
+    this.updating = false;
+    this.state = "stopped";
+    this.updatingState = "stopped";
+    this.emit("statechange", "stopped");
+    this.emit("updatingstatechange", "stopped");
+  }
+
   async delete() {
     if (this.address) {
       delete createdOwnerCommunities[this.address];
@@ -422,6 +435,9 @@ export class Community extends EventEmitter {
   }
 
   simulateUpdateEvent() {
+    if (this.state === "stopped" && this.stopCalledTimes > 0) {
+      return;
+    }
     if (this.firstUpdate) {
       this.simulateFirstUpdateEvent();
       return;

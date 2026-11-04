@@ -2,6 +2,7 @@ import { act } from "@testing-library/react";
 import testUtils, { renderHook } from "../../lib/test-utils";
 import communitiesStore, {
   COMMUNITY_UPDATE_INTERVAL_MS,
+  COMMUNITY_UPDATE_STOP_GRACE_MS,
   resetCommunitiesDatabaseAndStore,
 } from "./communities-store";
 import localForageLru from "../../lib/localforage-lru";
@@ -399,7 +400,7 @@ describe("communities store", () => {
     updateSpy.mockRestore();
   });
 
-  test("addCommunityToStore refreshes community updates every 15 minutes", async () => {
+  test("a subscribed community refreshes its updates every 15 minutes", async () => {
     vi.useFakeTimers();
     const address = "periodic-update-address";
     const pkc = await PkcJsMock();
@@ -411,7 +412,9 @@ describe("communities store", () => {
 
     try {
       await act(async () => {
-        await communitiesStore.getState().addCommunityToStore(address, mockAccount);
+        await communitiesStore
+          .getState()
+          .startCommunityAutoUpdate(address, "subscriber", mockAccount);
       });
 
       expect(updateSpy).toHaveBeenCalledTimes(1);
@@ -431,6 +434,272 @@ describe("communities store", () => {
       await resetCommunitiesDatabaseAndStore();
       vi.useRealTimers();
     }
+  });
+
+  describe("update loop lifecycle", () => {
+    const address = "lifecycle-community-address";
+    let community: any;
+    let updateSpy: any;
+    let stopSpy: any;
+    let createCommunityOrig: any;
+
+    beforeEach(async () => {
+      vi.useFakeTimers();
+      const pkc = await PkcJsMock();
+      community = await pkc.createCommunity({ address });
+      // only emit events manually, like pkc-js would after community.update()
+      updateSpy = vi.spyOn(community, "update").mockResolvedValue(undefined);
+      stopSpy = vi.spyOn(community, "stop").mockResolvedValue(undefined);
+      createCommunityOrig = mockAccount.pkc.createCommunity;
+      mockAccount.pkc.createCommunity = vi.fn().mockResolvedValue(community);
+    });
+    afterEach(async () => {
+      mockAccount.pkc.createCommunity = createCommunityOrig;
+      await resetCommunitiesDatabaseAndStore();
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    });
+
+    const advance = (ms: number) =>
+      act(async () => {
+        await vi.advanceTimersByTimeAsync(ms);
+      });
+    const start = (subscriberId: string) =>
+      act(async () => {
+        await communitiesStore
+          .getState()
+          .startCommunityAutoUpdate(address, subscriberId, mockAccount);
+      });
+    const stop = (subscriberId: string) =>
+      act(async () => {
+        await communitiesStore.getState().stopCommunityAutoUpdate(address, subscriberId);
+      });
+    const emitFetchedRecord = (updatedAt: number, signature: string) =>
+      act(async () => {
+        community.updatedAt = updatedAt;
+        community.signature = { signature };
+        community.emit("update", community);
+        community.emit("updatingstatechange", "succeeded");
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+    test("a community nothing subscribes to stops after the grace period once its first fetch ends", async () => {
+      await act(async () => {
+        await communitiesStore.getState().addCommunityToStore(address, mockAccount);
+      });
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+
+      // the first fetch is still pending, a store-level caller still waits for the record
+      await advance(COMMUNITY_UPDATE_STOP_GRACE_MS);
+      expect(stopSpy).not.toHaveBeenCalled();
+
+      await emitFetchedRecord(100, "first record");
+      expect(stopSpy).toHaveBeenCalledTimes(1);
+      expect(communitiesStore.getState().communities[address].updatedAt).toBe(100);
+
+      // the 15 minute refresh does not restart a stopped community
+      await advance(COMMUNITY_UPDATE_INTERVAL_MS);
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test("a failed first fetch also ends the wait before stopping", async () => {
+      await act(async () => {
+        await communitiesStore.getState().addCommunityToStore(address, mockAccount);
+      });
+      await advance(COMMUNITY_UPDATE_STOP_GRACE_MS);
+      expect(stopSpy).not.toHaveBeenCalled();
+
+      act(() => {
+        community.emit("updatingstatechange", "waiting-retry");
+      });
+      await advance(0);
+      expect(stopSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test("stops a grace period after the last subscriber leaves", async () => {
+      await start("subscriber 1");
+      await start("subscriber 2");
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+      await emitFetchedRecord(100, "first record");
+
+      await stop("subscriber 1");
+      await advance(COMMUNITY_UPDATE_STOP_GRACE_MS * 2);
+      expect(stopSpy).not.toHaveBeenCalled();
+
+      await stop("subscriber 2");
+      await advance(COMMUNITY_UPDATE_STOP_GRACE_MS - 1000);
+      expect(stopSpy).not.toHaveBeenCalled();
+      // a subscriber returning within the grace period keeps the loop running
+      await start("subscriber 1");
+      await advance(COMMUNITY_UPDATE_STOP_GRACE_MS * 2);
+      expect(stopSpy).not.toHaveBeenCalled();
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+
+      await stop("subscriber 1");
+      await advance(COMMUNITY_UPDATE_STOP_GRACE_MS);
+      expect(stopSpy).toHaveBeenCalledTimes(1);
+      await advance(COMMUNITY_UPDATE_INTERVAL_MS);
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test("restarts a stopped community without marking its replayed record as fetched", async () => {
+      vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+      await start("subscriber");
+      await emitFetchedRecord(100, "first record");
+      const firstFetchedAt = communitiesStore.getState().communities[address].fetchedAt;
+      expect(typeof firstFetchedAt).toBe("number");
+
+      // pkc-js stopping on its own while the loop runs is not a stop the next subscriber undoes
+      act(() => {
+        community.emit("updatingstatechange", "stopped");
+      });
+      expect(communitiesStore.getState().syncStatuses[address].stoppedUntilUsed).toBeUndefined();
+
+      await stop("subscriber");
+      await advance(COMMUNITY_UPDATE_STOP_GRACE_MS);
+      expect(stopSpy).toHaveBeenCalledTimes(1);
+      act(() => {
+        community.emit("updatingstatechange", "stopped");
+      });
+      expect(communitiesStore.getState().syncStatuses[address]).toEqual(
+        expect.objectContaining({ syncState: "stopped", stoppedUntilUsed: true }),
+      );
+
+      vi.setSystemTime(new Date("2026-01-01T03:00:00Z"));
+      await start("subscriber");
+      expect(updateSpy).toHaveBeenCalledTimes(2);
+      act(() => {
+        community.emit("updatingstatechange", "fetching-ipns");
+      });
+      expect(communitiesStore.getState().syncStatuses[address].stoppedUntilUsed).toBeUndefined();
+
+      // pkc-js re-emits the record the stopped instance still holds when update() starts
+      const db = localForageLru.createInstance({ name: "bitsocialReactHooks-communities" });
+      const setItemSpy = vi.spyOn(db, "setItem");
+      const storedCommunity = communitiesStore.getState().communities[address];
+      act(() => {
+        community.emit("update", community);
+      });
+      await advance(0);
+      expect(communitiesStore.getState().communities[address]).toBe(storedCommunity);
+      expect(setItemSpy).not.toHaveBeenCalled();
+
+      // the record fetched after the restart is stored as fetched
+      await emitFetchedRecord(200, "second record");
+      expect(communitiesStore.getState().communities[address].updatedAt).toBe(200);
+      expect(communitiesStore.getState().communities[address].fetchedAt).toBeGreaterThan(
+        firstFetchedAt,
+      );
+
+      // the restarted loop refreshes every 15 minutes again
+      await advance(COMMUNITY_UPDATE_INTERVAL_MS);
+      expect(updateSpy).toHaveBeenCalledTimes(3);
+    });
+
+    test("a restart waits for a stop in progress", async () => {
+      let resolveStop: () => void = () => {};
+      stopSpy.mockImplementation(() => new Promise<void>((resolve) => (resolveStop = resolve)));
+      await start("subscriber");
+      await emitFetchedRecord(100, "first record");
+      await stop("subscriber");
+      await advance(COMMUNITY_UPDATE_STOP_GRACE_MS);
+      expect(stopSpy).toHaveBeenCalledTimes(1);
+
+      const restarted = communitiesStore
+        .getState()
+        .startCommunityAutoUpdate(address, "subscriber", mockAccount);
+      await advance(0);
+      // update() would be a no-op while the stop is still running
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        resolveStop();
+        await restarted;
+      });
+      expect(updateSpy).toHaveBeenCalledTimes(2);
+    });
+
+    test("a restart that joins an already updating shared instance takes its state", async () => {
+      await start("subscriber");
+      await emitFetchedRecord(100, "first record");
+      await stop("subscriber");
+      await advance(COMMUNITY_UPDATE_STOP_GRACE_MS);
+      act(() => {
+        community.emit("updatingstatechange", "stopped");
+      });
+
+      // another consumer kept the shared pkc-js instance updating, so update() emits no state
+      updateSpy.mockImplementation(async () => {
+        community.updatingState = "succeeded";
+      });
+      await start("subscriber");
+      expect(communitiesStore.getState().syncStatuses[address]).toEqual(
+        expect.objectContaining({ syncState: "succeeded" }),
+      );
+      expect(communitiesStore.getState().syncStatuses[address].stoppedUntilUsed).toBeUndefined();
+      expect(communitiesStore.getState().communities[address].updatingState).toBe("succeeded");
+    });
+
+    test("a second load of the same community by another account does not start a second loop", async () => {
+      const pkc = await PkcJsMock();
+      const otherCommunity = await pkc.createCommunity({ address });
+      const otherUpdateSpy = vi.spyOn(otherCommunity, "update").mockResolvedValue(undefined);
+      const otherAccount = {
+        id: "other-account-id",
+        pkc: { ...mockAccount.pkc, createCommunity: vi.fn().mockResolvedValue(otherCommunity) },
+      };
+      Object.setPrototypeOf(otherAccount.pkc, Object.getPrototypeOf(mockAccount.pkc));
+
+      await act(async () => {
+        await Promise.all([
+          communitiesStore.getState().addCommunityToStore(address, mockAccount),
+          communitiesStore.getState().addCommunityToStore(address, otherAccount),
+        ]);
+      });
+      expect(updateSpy.mock.calls.length + otherUpdateSpy.mock.calls.length).toBe(1);
+
+      // the community nothing subscribes to stops once, with no loop left behind
+      await emitFetchedRecord(100, "first record");
+      act(() => {
+        otherCommunity.emit("updatingstatechange", "succeeded");
+      });
+      await advance(COMMUNITY_UPDATE_STOP_GRACE_MS + COMMUNITY_UPDATE_INTERVAL_MS);
+      expect(updateSpy.mock.calls.length + otherUpdateSpy.mock.calls.length).toBe(1);
+    });
+
+    test("a fetched record is stored before pkc-js reports the fetch succeeded", async () => {
+      await start("subscriber");
+      await emitFetchedRecord(100, "old record");
+      const syncStatesWithOldRecord: string[] = [];
+      const unsubscribe = communitiesStore.subscribe((state: any) => {
+        if (state.communities[address]?.updatedAt === 100) {
+          syncStatesWithOldRecord.push(state.syncStatuses[address]?.syncState);
+        }
+      });
+      try {
+        act(() => {
+          community.emit("updatingstatechange", "fetching-ipns");
+          // pkc-js emits the record, then the succeeded state, synchronously
+          community.updatedAt = 200;
+          community.signature = { signature: "new record" };
+          community.emit("update", community);
+          community.emit("updatingstatechange", "succeeded");
+        });
+        await advance(0);
+        expect(syncStatesWithOldRecord).not.toContain("succeeded");
+        expect(communitiesStore.getState().communities[address].updatedAt).toBe(200);
+      } finally {
+        unsubscribe();
+      }
+    });
+
+    test("an unknown subscriber leaving does not schedule a stop", async () => {
+      await start("subscriber");
+      await emitFetchedRecord(100, "first record");
+      await stop("unknown subscriber");
+      await advance(COMMUNITY_UPDATE_STOP_GRACE_MS);
+      expect(stopSpy).not.toHaveBeenCalled();
+    });
   });
 
   test("deleteCommunity stops update polling and listeners for deleted communities", async () => {

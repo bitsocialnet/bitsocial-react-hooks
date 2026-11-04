@@ -449,6 +449,118 @@ describe("communities", () => {
     });
   });
 
+  describe("auto update subscriptions", () => {
+    let startSpy: any;
+    let stopSpy: any;
+    let addSpy: any;
+    beforeEach(() => {
+      startSpy = vi.fn().mockResolvedValue(undefined);
+      stopSpy = vi.fn().mockResolvedValue(undefined);
+      addSpy = vi.fn().mockResolvedValue(undefined);
+      communityStore.setState({
+        startCommunityAutoUpdate: startSpy,
+        stopCommunityAutoUpdate: stopSpy,
+        addCommunityToStore: addSpy,
+      });
+    });
+
+    test("useCommunity keeps its community updating until it unmounts", async () => {
+      const rendered = renderHook<any, any>((community) => useCommunity({ community }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      rendered.rerender({ address: "subscribed community" });
+      await waitFor(() => startSpy.mock.calls.length === 1);
+      const [community, subscriberId] = startSpy.mock.calls[0];
+      expect(community).toEqual({ address: "subscribed community" });
+      expect(subscriberId).toMatch(/^useCommunity-/);
+
+      // a new object for the same community does not resubscribe
+      rendered.rerender({ address: "subscribed community" });
+      expect(startSpy).toHaveBeenCalledTimes(1);
+      expect(stopSpy).not.toHaveBeenCalled();
+
+      rendered.rerender({ address: "other community" });
+      expect(stopSpy).toHaveBeenCalledWith({ address: "subscribed community" }, subscriberId);
+      expect(startSpy).toHaveBeenCalledTimes(2);
+
+      rendered.unmount();
+      expect(stopSpy).toHaveBeenCalledWith({ address: "other community" }, subscriberId);
+      expect(addSpy).not.toHaveBeenCalled();
+    });
+
+    test("useCommunity autoUpdate false and onlyIfCached don't keep it updating", async () => {
+      const rendered = renderHook<any, any>((options) => useCommunity(options));
+      const waitFor = testUtils.createWaitFor(rendered);
+      rendered.rerender({ community: { address: "one-shot community" }, autoUpdate: false });
+      await waitFor(() => addSpy.mock.calls.length === 1);
+      expect(addSpy.mock.calls[0][0]).toEqual({ address: "one-shot community" });
+
+      rendered.rerender({ community: { address: "cached community" }, onlyIfCached: true });
+      await new Promise((r) => setTimeout(r, 20));
+      expect(addSpy).toHaveBeenCalledTimes(1);
+      expect(startSpy).not.toHaveBeenCalled();
+      rendered.unmount();
+      expect(stopSpy).not.toHaveBeenCalled();
+    });
+
+    test("useCommunity reports a stopped community it restarts as loading", async () => {
+      const address = "stopped community";
+      communityStore.setState((state: any) => ({
+        communities: { ...state.communities, [address]: { address, updatedAt: 100 } },
+        syncStatuses: {
+          ...state.syncStatuses,
+          [address]: { syncState: "stopped", lastSuccessfulFetchAt: 100, stoppedUntilUsed: true },
+        },
+      }));
+      const rendered = renderHook<any, any>((options) => useCommunity(options));
+      const waitFor = testUtils.createWaitFor(rendered);
+      rendered.rerender({ community: { address } });
+      await waitFor(() => startSpy.mock.calls.length === 1);
+      expect(rendered.result.current.syncState).toBe("loading");
+      expect(rendered.result.current.lastSuccessfulFetchAt).toBe(100);
+
+      rendered.rerender({ community: { address }, onlyIfCached: true });
+      expect(rendered.result.current.syncState).toBe("stopped");
+    });
+
+    test("useCommunities keeps its communities updating until it unmounts", async () => {
+      const rendered = renderHook<any, any>((communityAddresses) =>
+        useCommunities({ communities: toCommunities(communityAddresses) }),
+      );
+      const waitFor = testUtils.createWaitFor(rendered);
+      rendered.rerender(["community b", "community a", "community b"]);
+      await waitFor(() => startSpy.mock.calls.length === 2);
+      const subscriberId = startSpy.mock.calls[0][1];
+      expect(subscriberId).toMatch(/^useCommunities-/);
+      expect(startSpy.mock.calls.map((call: any[]) => call[0].address).sort()).toEqual([
+        "community a",
+        "community b",
+      ]);
+
+      // a new array of the same communities does not resubscribe
+      rendered.rerender(["community b", "community a", "community b"]);
+      expect(startSpy).toHaveBeenCalledTimes(2);
+
+      rendered.unmount();
+      expect(stopSpy.mock.calls.map((call: any[]) => call[0].address).sort()).toEqual([
+        "community a",
+        "community b",
+      ]);
+      expect(stopSpy.mock.calls.every((call: any[]) => call[1] === subscriberId)).toBe(true);
+    });
+
+    test("useCommunities autoUpdate false loads its communities once", async () => {
+      const rendered = renderHook<any, any>((communityAddresses) =>
+        useCommunities({ communities: toCommunities(communityAddresses), autoUpdate: false }),
+      );
+      const waitFor = testUtils.createWaitFor(rendered);
+      rendered.rerender(["community a", "community b"]);
+      await waitFor(() => addSpy.mock.calls.length === 2);
+      rendered.unmount();
+      expect(startSpy).not.toHaveBeenCalled();
+      expect(stopSpy).not.toHaveBeenCalled();
+    });
+  });
+
   test("useListCommunities", async () => {
     const rendered = renderHook<any, any>(() => useListCommunities());
     const waitFor = testUtils.createWaitFor(rendered);

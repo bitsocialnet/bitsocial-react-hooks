@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useAccount } from "./accounts";
 import validator from "../lib/validator";
 import Logger from "@pkcprotocol/pkc-logger";
@@ -8,6 +8,7 @@ import {
   Community,
   CommunityStats,
   ChainProviders,
+  CommunitySyncState,
   UseResolvedCommunityAddressOptions,
   UseResolvedCommunityAddressResult,
   UseCommunityOptions,
@@ -25,6 +26,8 @@ import useAccountsStore from "../stores/accounts";
 import shallow from "zustand/shallow";
 import { getChainProviders, getPkcCommunityAddresses } from "../lib/pkc-compat";
 import { getCommunityRefKey, getUniqueSortedCommunityRefs } from "../lib/community-ref";
+
+let communityAutoUpdateSubscriptionCount = 0;
 
 const parseMaybeJson = (value: unknown) => (typeof value === "string" ? JSON.parse(value) : value);
 
@@ -68,7 +71,7 @@ export function useCommunity(options?: UseCommunityOptions): UseCommunityResult 
     `useCommunity options argument '${options}' not an object`,
   );
   const opts = options ?? {};
-  const { community: communityInput, accountName, onlyIfCached } = opts;
+  const { community: communityInput, accountName, onlyIfCached, autoUpdate = true } = opts;
   const account = useAccount({ accountName });
   const accountId = account?.id || "";
   validator.validateUseCommunityArguments({
@@ -79,6 +82,13 @@ export function useCommunity(options?: UseCommunityOptions): UseCommunityResult 
   const communityKey = communityInput ? getCommunityRefKey(communityInput) : "";
   const storedCommunity = useCommunitiesStore((state: any) => state.communities[communityKey]);
   const addCommunityToStore = useCommunitiesStore((state: any) => state.addCommunityToStore);
+  const startCommunityAutoUpdate = useCommunitiesStore(
+    (state: any) => state.startCommunityAutoUpdate,
+  );
+  const stopCommunityAutoUpdate = useCommunitiesStore(
+    (state: any) => state.stopCommunityAutoUpdate,
+  );
+  const autoUpdateSubscriptionId = useRef(`useCommunity-${++communityAutoUpdateSubscriptionCount}`);
   const errors = useCommunitiesStore((state: any) => state.errors[communityKey]);
   const syncStatus = useCommunitiesStore((state: any) => state.syncStatuses[communityKey]);
   const communityEditSummary = useAccountsStore((state: any) => {
@@ -101,16 +111,30 @@ export function useCommunity(options?: UseCommunityOptions): UseCommunityResult 
   });
 
   useEffect(() => {
-    if (!communityInput || !account) {
+    if (!communityInput || !account || onlyIfCached) {
       return;
     }
-    if (!storedCommunity && !onlyIfCached) {
-      // if community isn't already in store, add it
-      addCommunityToStore(communityInput, account).catch((error: unknown) =>
-        log.error("useCommunity addCommunityToStore error", { communityInput, error }),
-      );
+    if (!autoUpdate) {
+      // load the community once if it isn't already in store, without keeping it updating
+      if (!storedCommunity) {
+        addCommunityToStore(communityInput, account).catch((error: unknown) =>
+          log.error("useCommunity addCommunityToStore error", { communityInput, error }),
+        );
+      }
+      return;
     }
-  }, [communityKey, account?.id]);
+    // keep the community updating while mounted, it stops a grace period after the last
+    // subscriber unmounts
+    const subscriberId = autoUpdateSubscriptionId.current;
+    startCommunityAutoUpdate(communityInput, subscriberId, account).catch((error: unknown) =>
+      log.error("useCommunity startCommunityAutoUpdate error", { communityInput, error }),
+    );
+    return () => {
+      stopCommunityAutoUpdate(communityInput, subscriberId).catch((error: unknown) =>
+        log.error("useCommunity stopCommunityAutoUpdate error", { communityInput, error }),
+      );
+    };
+  }, [communityKey, account?.id, onlyIfCached, autoUpdate]);
 
   if (account && communityInput) {
     log("useCommunity", {
@@ -166,11 +190,19 @@ export function useCommunity(options?: UseCommunityOptions): UseCommunityResult 
     state = "succeeded";
   }
 
+  let syncState: CommunitySyncState =
+    syncStatus?.syncState || (onlyIfCached ? "stopped" : "initializing");
+  // the store stops a community once nothing uses it and this hook's effect restarts it, so the
+  // render before the effect does not report a terminal state for a community about to load
+  if (syncStatus?.stoppedUntilUsed && !onlyIfCached && autoUpdate && communityInput && account) {
+    syncState = "loading";
+  }
+
   return useMemo(
     () => ({
       ...mergedCommunity,
       state,
-      syncState: syncStatus?.syncState || (onlyIfCached ? "stopped" : "initializing"),
+      syncState,
       hasCachedData: typeof mergedCommunity?.updatedAt === "number",
       lastFetchAttemptAt: syncStatus?.lastFetchAttemptAt,
       lastSuccessfulFetchAt: syncStatus?.lastSuccessfulFetchAt,
@@ -178,7 +210,7 @@ export function useCommunity(options?: UseCommunityOptions): UseCommunityResult 
       error: errors?.[errors.length - 1],
       errors: errors || [],
     }),
-    [mergedCommunity, communityKey, errors, onlyIfCached, syncStatus],
+    [mergedCommunity, communityKey, errors, syncState, syncStatus],
   );
 }
 
@@ -302,7 +334,7 @@ export function useCommunities(options?: UseCommunitiesOptions): UseCommunitiesR
     `useCommunities options argument '${options}' not an object`,
   );
   const opts = options ?? {};
-  const { communities: communitiesInput, accountName, onlyIfCached } = opts;
+  const { communities: communitiesInput, accountName, onlyIfCached, autoUpdate = true } = opts;
   const account = useAccount({ accountName });
   validator.validateUseCommunitiesArguments({
     communities: communitiesInput,
@@ -324,7 +356,17 @@ export function useCommunities(options?: UseCommunitiesOptions): UseCommunitiesR
     shallow,
   );
   const addCommunityToStore = useCommunitiesStore((state: any) => state.addCommunityToStore);
+  const startCommunityAutoUpdate = useCommunitiesStore(
+    (state: any) => state.startCommunityAutoUpdate,
+  );
+  const stopCommunityAutoUpdate = useCommunitiesStore(
+    (state: any) => state.stopCommunityAutoUpdate,
+  );
+  const autoUpdateSubscriptionId = useRef(
+    `useCommunities-${++communityAutoUpdateSubscriptionCount}`,
+  );
 
+  // keyed by the community keys, so a new array of the same communities does not resubscribe
   useEffect(() => {
     if (!normalizedCommunityRefs.length || !account) {
       return;
@@ -333,12 +375,29 @@ export function useCommunities(options?: UseCommunitiesOptions): UseCommunitiesR
       return;
     }
     const uniqueCommunityRefs = getUniqueSortedCommunityRefs(normalizedCommunityRefs);
+    if (!autoUpdate) {
+      // load the communities once, without keeping them updating
+      for (const communityRef of uniqueCommunityRefs) {
+        addCommunityToStore(communityRef, account).catch((error: unknown) =>
+          log.error("useCommunities addCommunityToStore error", { communityRef, error }),
+        );
+      }
+      return;
+    }
+    const subscriberId = autoUpdateSubscriptionId.current;
     for (const communityRef of uniqueCommunityRefs) {
-      addCommunityToStore(communityRef, account).catch((error: unknown) =>
-        log.error("useCommunities addCommunityToStore error", { communityRef, error }),
+      startCommunityAutoUpdate(communityRef, subscriberId, account).catch((error: unknown) =>
+        log.error("useCommunities startCommunityAutoUpdate error", { communityRef, error }),
       );
     }
-  }, [account?.id, communityKeys.toString(), onlyIfCached, normalizedCommunityRefs]);
+    return () => {
+      for (const communityRef of uniqueCommunityRefs) {
+        stopCommunityAutoUpdate(communityRef, subscriberId).catch((error: unknown) =>
+          log.error("useCommunities stopCommunityAutoUpdate error", { communityRef, error }),
+        );
+      }
+    };
+  }, [account?.id, communityKeys.toString(), onlyIfCached, autoUpdate]);
 
   if (account && normalizedCommunityRefs.length) {
     log("useCommunities", {

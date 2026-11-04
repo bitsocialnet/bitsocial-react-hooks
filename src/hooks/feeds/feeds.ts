@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAccount } from "../accounts";
 import validator from "../../lib/validator";
 import Logger from "@pkcprotocol/pkc-logger";
@@ -24,6 +24,8 @@ import {
   getUniqueSortedCommunityRefs,
 } from "../../lib/community-ref";
 import { serializeFeedKey } from "../../lib/serialize-feed-key";
+
+let feedAutoUpdateSubscriptionCount = 0;
 
 /**
  * @param communities - The communities to fetch, e.g. [{name: 'memes.eth'}, {publicKey: '12D3KooW...'}]
@@ -64,6 +66,9 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
     account?.id ? state.accountsVotes[account.id] : undefined,
   );
   const addFeedToStore = useFeedsStore((state) => state.addFeedToStore);
+  const startFeedAutoUpdate = useFeedsStore((state) => state.startFeedAutoUpdate);
+  const stopFeedAutoUpdate = useFeedsStore((state) => state.stopFeedAutoUpdate);
+  const autoUpdateSubscriptionId = useRef(`useFeed-${++feedAutoUpdateSubscriptionCount}`);
   const incrementFeedPageNumber = useFeedsStore((state) => state.incrementFeedPageNumber);
   const expandFeedTimeWindow = useFeedsStore((state) => state.expandFeedTimeWindow);
   const resetFeed = useFeedsStore((state) => state.resetFeed);
@@ -110,6 +115,16 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
       accountComments,
       modQueue,
     ).catch((error: unknown) => log.error("useFeed addFeedToStore error", { feedName, error }));
+  }, [feedName]);
+
+  // keep the feed's communities updating while mounted, after the feed was added above
+  useEffect(() => {
+    if (!uniqueCommunityRefs.length || !account) {
+      return;
+    }
+    const subscriberId = autoUpdateSubscriptionId.current;
+    startFeedAutoUpdate(feedName, subscriberId);
+    return () => stopFeedAutoUpdate(feedName, subscriberId);
   }, [feedName]);
 
   const feedKey = feedName;
@@ -244,6 +259,9 @@ export function useBufferedFeeds(options?: UseBufferedFeedsOptions): UseBuffered
   validator.validateUseBufferedFeedsArguments({ feedsOptions, accountName });
   const account = useAccount({ accountName });
   const addFeedToStore = useFeedsStore((state) => state.addFeedToStore);
+  const startFeedAutoUpdate = useFeedsStore((state) => state.startFeedAutoUpdate);
+  const stopFeedAutoUpdate = useFeedsStore((state) => state.stopFeedAutoUpdate);
+  const autoUpdateSubscriptionId = useRef(`useBufferedFeeds-${++feedAutoUpdateSubscriptionCount}`);
 
   // do a bunch of calculations to get feedsOptionsFlattened and feedNames
   const feedsOpts = feedsOptions;
@@ -338,6 +356,24 @@ export function useBufferedFeeds(options?: UseBufferedFeedsOptions): UseBuffered
       }
     }
   }, [feedNames]);
+
+  // keep the buffered feeds' communities updating while mounted, keyed by the names so
+  // inline options recreated on every render do not resubscribe
+  useEffect(() => {
+    if (!account) {
+      return;
+    }
+    const subscriberId = autoUpdateSubscriptionId.current;
+    const subscribedFeedNames = feedNames.filter((_, i) => communityRefsArrays[i]?.length);
+    for (const feedName of subscribedFeedNames) {
+      startFeedAutoUpdate(feedName, subscriberId);
+    }
+    return () => {
+      for (const feedName of subscribedFeedNames) {
+        stopFeedAutoUpdate(feedName, subscriberId);
+      }
+    };
+  }, [JSON.stringify(feedNames), account?.id]);
 
   // only give to the user the buffered feeds he requested
   const bufferedFeedsArray: Feed[] = useMemo(() => {

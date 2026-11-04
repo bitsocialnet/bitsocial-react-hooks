@@ -132,8 +132,8 @@ useValidateComment({comment: Comment, validateReplies?: boolean}): {valid: boole
 #### Communities Hooks
 
 ```
-useCommunity({community: {name?: string, publicKey?: string}, onlyIfCached?: boolean}): Community & {syncState: "initializing" | "loading" | "retrying" | "succeeded" | "failed" | "stopped", hasCachedData: boolean, lastFetchAttemptAt: number | undefined, lastSuccessfulFetchAt: number | undefined, lastRetriableError: Error | undefined}
-useCommunities({communities?: CommunityIdentifier[], onlyIfCached?: boolean}): {communities: Communities[]}
+useCommunity({community: {name?: string, publicKey?: string}, onlyIfCached?: boolean, autoUpdate?: boolean}): Community & {syncState: "initializing" | "loading" | "retrying" | "succeeded" | "failed" | "stopped", hasCachedData: boolean, lastFetchAttemptAt: number | undefined, lastSuccessfulFetchAt: number | undefined, lastRetriableError: Error | undefined}
+useCommunities({communities?: CommunityIdentifier[], onlyIfCached?: boolean, autoUpdate?: boolean}): {communities: Communities[]}
 useCommunityStats({community: {name?: string, publicKey?: string}, onlyIfCached?: boolean}): CommunityStats
 useResolvedCommunityAddress({communityAddress: string, cache: boolean}): {resolvedAddress: string | undefined} // use {cache: false} when checking the user's own community address
 ```
@@ -150,6 +150,18 @@ timestamps in seconds. Transient failures stay out of `error` and `errors`;
 `lastRetriableError` holds the latest one until the community updates, so a community
 that never loads can show why. A successful fetch only proves that a valid community record was
 reachable; it does not prove that the community operator is currently online.
+
+A community keeps updating while a `useCommunity`, `useCommunities`, `useCommunityStats`,
+`useCommunitiesStates`, `useAccountCommunities`, `useFeed`, or `useBufferedFeeds` that uses it is
+mounted, and stops updating 2 minutes after the last one unmounts.
+Mounting one again restarts its updates: the store keeps the last record, and `useCommunity`
+reports `syncState` `loading` until the next fetch, with `lastSuccessfulFetchAt` still the time of
+the last one. Every restart downloads the whole community record again, which the 2 minute delay
+avoids during quick back-and-forth navigation. `autoUpdate: false` loads communities once
+without keeping them updating, and `onlyIfCached: true` reads only communities already loaded.
+A community read with `onlyIfCached` while nothing keeps it updating has `syncState` `stopped`.
+Code that reads the stores directly gets the last stored record of a stopped community; it
+restarts only when one of these hooks mounts, and `useFeed().reset()` fetches a fresh record.
 
 #### Authors Hooks
 
@@ -169,6 +181,7 @@ useFeed({communities?: CommunityIdentifier[], sortType?: string, postsPerPage?: 
 useBufferedFeeds({feedsOptions: UseFeedOptions[]}) // preload or buffer feeds in the background, so they load faster when you call `useFeed`
 ```
 
+`useFeed()` and `useBufferedFeeds()` keep their communities updating while mounted. A feed keeps its loaded posts after it unmounts, and stops fetching more pages 2 minutes later, until it is mounted again.
 `useFeed().reset()` clears the current feed and refreshes the latest community snapshots before rebuilding it.
 `useFeed().expandTimeWindow(newerThan)` broadens `newerThan` in place without constructing a different sort name, so older posts can be appended without replacing the feed instance.
 `useFeed().communityKeysWithMore` lists the feed's communities that still have posts to load: not loaded yet, a stale posts cache, a page not fetched yet, or posts buffered beyond the loaded pages. It holds every community until the feed is first calculated, and again right after `reset()` or `expandTimeWindow()`, so a client that needs a feed's complete set (to sort it locally, say) can wait until it is empty or only lists communities that failed to load.
@@ -523,8 +536,14 @@ const { communities } = useCommunities({
   ],
 });
 
-// fetched communities are refreshed immediately and then every 15 minutes
-// so long-lived tabs keep following community IPNS updates
+// mounted communities keep following community IPNS updates, and stop
+// updating 2 minutes after the last hook using them unmounts
+
+// load communities once, e.g. to read their roles, without keeping them updating
+const { communities: loadedOnceCommunities } = useCommunities({
+  communities: [{ name: communityAddress, publicKey: communityPublicKey }],
+  autoUpdate: false,
+});
 
 // use without affecting performance
 const { communities: cachedCommunities } = useCommunities({

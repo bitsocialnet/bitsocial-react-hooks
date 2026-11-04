@@ -120,6 +120,69 @@ describe("feeds", () => {
       }
     });
 
+    test("useFeed subscribes to its feed until it unmounts", async () => {
+      const { startFeedAutoUpdate, stopFeedAutoUpdate } = feedsStore.getState();
+      const startSpy = vi.fn((...args: any[]) => startFeedAutoUpdate(...args));
+      const stopSpy = vi.fn((...args: any[]) => stopFeedAutoUpdate(...args));
+      feedsStore.setState({ startFeedAutoUpdate: startSpy, stopFeedAutoUpdate: stopSpy });
+      try {
+        rendered.rerender({ communityAddresses: ["community address 1"] });
+        await waitFor(() => startSpy.mock.calls.length === 1);
+        const [feedName, subscriberId] = startSpy.mock.calls[0];
+        expect(feedsStore.getState().feedsOptions[feedName]).toBeDefined();
+        expect(subscriberId).toMatch(/^useFeed-/);
+
+        rendered.rerender({ communityAddresses: ["community address 1"], sortType: "new" });
+        expect(stopSpy).toHaveBeenCalledWith(feedName, subscriberId);
+        await waitFor(() => startSpy.mock.calls.length === 2);
+
+        rendered.unmount();
+        expect(stopSpy).toHaveBeenCalledTimes(2);
+        expect(stopSpy).toHaveBeenLastCalledWith(startSpy.mock.calls[1][0], subscriberId);
+      } finally {
+        feedsStore.setState({ startFeedAutoUpdate, stopFeedAutoUpdate });
+      }
+    });
+
+    test("useBufferedFeeds subscribes to its feeds until it unmounts", async () => {
+      const { startFeedAutoUpdate, stopFeedAutoUpdate } = feedsStore.getState();
+      const startSpy = vi.fn((...args: any[]) => startFeedAutoUpdate(...args));
+      const stopSpy = vi.fn((...args: any[]) => stopFeedAutoUpdate(...args));
+      feedsStore.setState({ startFeedAutoUpdate: startSpy, stopFeedAutoUpdate: stopSpy });
+      try {
+        const bufferedRendered = renderHook<any, any>((props: any) =>
+          useBufferedFeeds(toBufferedFeedsOptions(props)),
+        );
+        const bufferedWaitFor = testUtils.createWaitFor(bufferedRendered);
+        bufferedRendered.rerender({
+          feedsOptions: [
+            { communityAddresses: ["community address 1"], sortType: "new" },
+            { communityAddresses: ["community address 2"], sortType: "hot" },
+          ],
+        });
+        await bufferedWaitFor(() => startSpy.mock.calls.length === 2);
+        const subscriberId = startSpy.mock.calls[0][1];
+        expect(subscriberId).toMatch(/^useBufferedFeeds-/);
+
+        // new inline options for the same feeds do not resubscribe
+        bufferedRendered.rerender({
+          feedsOptions: [
+            { communityAddresses: ["community address 1"], sortType: "new" },
+            { communityAddresses: ["community address 2"], sortType: "hot" },
+          ],
+        });
+        expect(startSpy).toHaveBeenCalledTimes(2);
+        expect(stopSpy).not.toHaveBeenCalled();
+
+        bufferedRendered.unmount();
+        expect(stopSpy.mock.calls.map((call: any[]) => call[0])).toEqual(
+          startSpy.mock.calls.map((call: any[]) => call[0]),
+        );
+      } finally {
+        feedsStore.setState({ startFeedAutoUpdate, stopFeedAutoUpdate });
+      }
+    });
+
     test("useFeed hasMore false when communities empty", async () => {
       rendered.rerender({});
       expect(rendered.result.current.hasMore).toBe(false);

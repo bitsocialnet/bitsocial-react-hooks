@@ -29,14 +29,40 @@ import {
 
 export const COMMUNITY_UPDATE_INTERVAL_MS = 15 * 60 * 1000;
 
+// How long a community keeps updating after nothing uses it anymore. pkc-js forgets the record
+// CIDs and gateway ETags it already loaded when a community stops, so every restart downloads the
+// whole record again, while a running loop downloads it once per publish. Communities publish
+// between every ~20 seconds when busy and every 15 minutes when idle, so 2 minutes keeps quick
+// back-and-forth navigation from re-downloading records and bounds what an abandoned busy
+// community costs to about one restart's worth of downloads.
+export const COMMUNITY_UPDATE_STOP_GRACE_MS = 2 * 60 * 1000;
+
 let pkcGetCommunityPending: { [key: string]: boolean } = {};
-// Key pollers by community so delete/reset can stop the matching live instance.
-const communityUpdatePollers: {
-  [communityKey: string]: {
-    community: any;
-    updateInterval: ReturnType<typeof setInterval>;
-  };
-} = {};
+
+// The pkc-js instance kept for each community in the store, keyed by community so
+// delete/reset can stop it and subscribers can stop and restart its update loop.
+type LiveCommunity = {
+  community: any;
+  communityAddressOrRef: string | CommunityIdentifier;
+  // defined while the update loop runs
+  updateInterval?: ReturnType<typeof setInterval>;
+  updateCall?: Promise<void>;
+  stopping?: Promise<void>;
+  // update() re-emits the record the instance already holds, recognized so it is not stored as
+  // a new fetch
+  replayRecordId?: string;
+  // the cached record replayed on the first update() counts as fetched, a record replayed on a
+  // restart keeps the fetchedAt of its real fetch
+  replayRefreshesFetchedAt: boolean;
+  // the loop started and has neither fetched a record nor failed yet
+  openingUpdatePending: boolean;
+  stopWhenOpeningUpdateEnds: boolean;
+  onUpdatingStateChange: (updatingState: string) => void;
+};
+const liveCommunities: { [communityKey: string]: LiveCommunity } = {};
+// hooks and feeds that need a community kept updating, the loop stops after the last one leaves
+const communityUpdateSubscribers: { [communityKey: string]: Set<string> } = {};
+const communityStopTimers: { [communityKey: string]: ReturnType<typeof setTimeout> } = {};
 
 // reset all event listeners in between tests
 const listeners: any = [];
@@ -53,6 +79,8 @@ interface CommunitySyncStatus {
   // why the community is being retried; retriable errors stay out of `errors` so they do not
   // flash in the UI, but a community that never loads needs a reason to show
   lastRetriableError?: Error;
+  // stopped because nothing used it, the next subscriber restarts it
+  stoppedUntilUsed?: true;
 }
 
 const omitLastRetriableError = (syncStatus: CommunitySyncStatus): CommunitySyncStatus => {
@@ -127,55 +155,160 @@ const createCommunityWithLookupFallback = async (
   throw Error(`communitiesStore.addCommunityToStore failed getting community '${communityKey}'`);
 };
 
-const updateCommunity = (
-  community: Community,
-  {
-    communityAddressOrRef,
-    communityKey,
-  }: { communityAddressOrRef: string | CommunityIdentifier; communityKey: string },
-) => {
-  community.update().catch((error: unknown) =>
-    log.trace("community.update error", {
-      communityAddressOrRef,
-      communityKey,
-      community,
-      error,
-    }),
+const getCommunityKey = (communityAddressOrRef: string | CommunityIdentifier) =>
+  typeof communityAddressOrRef === "string"
+    ? communityAddressOrRef
+    : getCommunityRefKey(communityAddressOrRef);
+
+const hasCommunityUpdateSubscribers = (communityKey: string) =>
+  (communityUpdateSubscribers[communityKey]?.size || 0) > 0;
+
+const updateCommunity = (communityKey: string, liveCommunity: LiveCommunity) => {
+  const { community, communityAddressOrRef } = liveCommunity;
+  liveCommunity.updateCall = Promise.resolve()
+    .then(() => community.update())
+    .catch((error: unknown) =>
+      log.trace("community.update error", {
+        communityAddressOrRef,
+        communityKey,
+        community,
+        error,
+      }),
+    );
+};
+
+const startCommunityUpdatePolling = (communityKey: string, liveCommunity: LiveCommunity) => {
+  clearInterval(liveCommunity.updateInterval);
+  liveCommunity.openingUpdatePending = true;
+  liveCommunity.stopWhenOpeningUpdateEnds = false;
+  updateCommunity(communityKey, liveCommunity);
+  liveCommunity.updateInterval = setInterval(
+    () => updateCommunity(communityKey, liveCommunity),
+    COMMUNITY_UPDATE_INTERVAL_MS,
   );
 };
 
-const startCommunityUpdatePolling = (
-  community: Community,
-  {
-    communityAddressOrRef,
-    communityKey,
-  }: { communityAddressOrRef: string | CommunityIdentifier; communityKey: string },
-) => {
-  stopCommunityUpdatePolling(communityKey);
-  updateCommunity(community, { communityAddressOrRef, communityKey });
-  communityUpdatePollers[communityKey] = {
-    community,
-    updateInterval: setInterval(
-      () => updateCommunity(community, { communityAddressOrRef, communityKey }),
-      COMMUNITY_UPDATE_INTERVAL_MS,
-    ),
-  };
+const pauseCommunityUpdatePolling = (communityKey: string) => {
+  const liveCommunity = liveCommunities[communityKey];
+  if (!liveCommunity?.updateInterval) {
+    return;
+  }
+  clearInterval(liveCommunity.updateInterval);
+  liveCommunity.updateInterval = undefined;
+  liveCommunity.openingUpdatePending = false;
+  liveCommunity.stopWhenOpeningUpdateEnds = false;
+  liveCommunity.replayRecordId = undefined;
+  clearPendingCommunityErrors(communityKey);
+  const { community, updateCall } = liveCommunity;
+  // stopping while update() is still attaching to the shared updating instance would leave its
+  // listeners attached, so wait for the call to return first
+  const stopping = (async () => {
+    await updateCall;
+    if (typeof community.stop !== "function") {
+      return;
+    }
+    try {
+      await community.stop();
+    } catch (error) {
+      log.trace("community.stop error", { communityKey, community, error });
+    }
+  })();
+  liveCommunity.stopping = stopping;
+  stopping.finally(() => {
+    if (liveCommunity.stopping === stopping) {
+      liveCommunity.stopping = undefined;
+    }
+  });
+  log("communitiesStore community update loop stopped", { communityKey });
+};
+
+const resumeCommunityUpdatePolling = async (communityKey: string) => {
+  const liveCommunity = liveCommunities[communityKey];
+  if (!liveCommunity || liveCommunity.updateInterval) {
+    return;
+  }
+  // update() is a no-op until a stop in progress ends
+  if (liveCommunity.stopping) {
+    await liveCommunity.stopping;
+  }
+  if (
+    liveCommunities[communityKey] !== liveCommunity ||
+    liveCommunity.updateInterval ||
+    !hasCommunityUpdateSubscribers(communityKey)
+  ) {
+    return;
+  }
+  liveCommunity.replayRecordId = getCommunityRecordId(liveCommunity.community);
+  liveCommunity.replayRefreshesFetchedAt = false;
+  startCommunityUpdatePolling(communityKey, liveCommunity);
+  log("communitiesStore community update loop restarted", { communityKey });
+  // joining a shared pkc-js instance that another consumer kept updating emits no state change
+  // until its next fetch, so take its current state
+  await liveCommunity.updateCall;
+  const { updatingState } = liveCommunity.community;
+  if (
+    liveCommunity.updateInterval &&
+    typeof updatingState === "string" &&
+    updatingState !== "stopped" &&
+    communitiesStore.getState().syncStatuses[communityKey]?.stoppedUntilUsed
+  ) {
+    liveCommunity.onUpdatingStateChange(updatingState);
+  }
+};
+
+const clearCommunityStopTimer = (communityKey: string) => {
+  clearTimeout(communityStopTimers[communityKey]);
+  delete communityStopTimers[communityKey];
+};
+
+const scheduleCommunityUpdateStop = (communityKey: string) => {
+  clearCommunityStopTimer(communityKey);
+  communityStopTimers[communityKey] = setTimeout(() => {
+    delete communityStopTimers[communityKey];
+    const liveCommunity = liveCommunities[communityKey];
+    if (hasCommunityUpdateSubscribers(communityKey) || !liveCommunity?.updateInterval) {
+      return;
+    }
+    // stopping before the first fetch ends would leave a store-level caller without the record
+    // it loaded the community for
+    if (liveCommunity.openingUpdatePending) {
+      liveCommunity.stopWhenOpeningUpdateEnds = true;
+      return;
+    }
+    pauseCommunityUpdatePolling(communityKey);
+  }, COMMUNITY_UPDATE_STOP_GRACE_MS);
+};
+
+const endOpeningCommunityUpdate = (communityKey: string, liveCommunity: LiveCommunity) => {
+  if (!liveCommunity.openingUpdatePending) {
+    return;
+  }
+  liveCommunity.openingUpdatePending = false;
+  if (!liveCommunity.stopWhenOpeningUpdateEnds) {
+    return;
+  }
+  liveCommunity.stopWhenOpeningUpdateEnds = false;
+  if (!hasCommunityUpdateSubscribers(communityKey)) {
+    pauseCommunityUpdatePolling(communityKey);
+  }
 };
 
 const stopCommunityUpdatePolling = (communityKey: string) => {
-  const polling = communityUpdatePollers[communityKey];
-  if (!polling) {
+  clearCommunityStopTimer(communityKey);
+  const liveCommunity = liveCommunities[communityKey];
+  if (!liveCommunity) {
     return;
   }
 
   clearPendingCommunityErrors(communityKey);
-  clearInterval(polling.updateInterval);
-  polling.community.removeAllListeners();
-  const listenerIndex = listeners.indexOf(polling.community);
+  clearInterval(liveCommunity.updateInterval);
+  liveCommunity.updateInterval = undefined;
+  liveCommunity.community.removeAllListeners();
+  const listenerIndex = listeners.indexOf(liveCommunity.community);
   if (listenerIndex >= 0) {
     listeners.splice(listenerIndex, 1);
   }
-  delete communityUpdatePollers[communityKey];
+  delete liveCommunities[communityKey];
 };
 
 const clearPendingCommunityErrors = (communityKey: string) => {
@@ -274,6 +407,8 @@ export type CommunitiesState = {
   errors: { [communityAddress: string]: Error[] };
   syncStatuses: { [communityAddress: string]: CommunitySyncStatus };
   addCommunityToStore: Function;
+  startCommunityAutoUpdate: Function;
+  stopCommunityAutoUpdate: Function;
   refreshCommunity: Function;
   editCommunity: Function;
   createCommunity: Function;
@@ -415,6 +550,11 @@ const communitiesStore = createStore<CommunitiesState>(
         if (!isFromCache) {
           await communitiesDatabase.setItem(communityKey, firstCommunityState);
         }
+        // another load of this community, e.g. by another account, finished first and keeps it
+        // updating, so this instance is discarded before it starts updating
+        if (liveCommunities[communityKey]) {
+          return;
+        }
         log("communitiesStore.addCommunityToStore", {
           communityAddressOrRef,
           communityKey,
@@ -425,8 +565,45 @@ const communitiesStore = createStore<CommunitiesState>(
           communities: { ...state.communities, [communityKey]: firstCommunityState },
         }));
 
-        // pkc-js re-emits the record a community was created with when update() starts
-        let cachedRecordId = isFromCache ? getCommunityRecordId(firstCommunityState) : undefined;
+        const liveCommunity: LiveCommunity = {
+          community,
+          communityAddressOrRef,
+          // pkc-js re-emits the record a community was created with when update() starts
+          replayRecordId: isFromCache ? getCommunityRecordId(firstCommunityState) : undefined,
+          replayRefreshesFetchedAt: true,
+          openingUpdatePending: false,
+          stopWhenOpeningUpdateEnds: false,
+          onUpdatingStateChange: (updatingState: string) => {
+            setState((state: CommunitiesState) => {
+              const syncStatuses = getNextSyncStatuses(
+                state,
+                communityKey,
+                normalizeCommunitySyncState(updatingState),
+              );
+              const { stoppedUntilUsed: _stoppedUntilUsed, ...syncStatus } =
+                syncStatuses[communityKey];
+              // the loop is not running when the store stopped the community itself
+              syncStatuses[communityKey] =
+                updatingState === "stopped" && !liveCommunity.updateInterval
+                  ? { ...syncStatus, stoppedUntilUsed: true }
+                  : syncStatus;
+              return {
+                syncStatuses,
+                communities: {
+                  ...state.communities,
+                  [communityKey]: { ...state.communities[communityKey], updatingState },
+                },
+              };
+            });
+            if (
+              updatingState === "succeeded" ||
+              updatingState === "failed" ||
+              updatingState === "waiting-retry"
+            ) {
+              endOpeningCommunityUpdate(communityKey, liveCommunity);
+            }
+          },
+        };
 
         // the community has published new posts
         community.on("update", async (updatedCommunity: Community) => {
@@ -435,11 +612,15 @@ const communitiesStore = createStore<CommunitiesState>(
             clearStoredCommunityErrorsState(state, communityKey),
           );
 
-          const isCachedRecordReplay =
-            cachedRecordId !== undefined &&
-            getCommunityRecordId(updatedCommunity) === cachedRecordId;
-          cachedRecordId = undefined;
-          if (isCachedRecordReplay) {
+          const isRecordReplay =
+            liveCommunity.replayRecordId !== undefined &&
+            getCommunityRecordId(updatedCommunity) === liveCommunity.replayRecordId;
+          liveCommunity.replayRecordId = undefined;
+          if (isRecordReplay && !liveCommunity.replayRefreshesFetchedAt) {
+            // a restarted loop replays the record the store already has, it was not fetched now
+            return;
+          }
+          if (isRecordReplay) {
             // the replayed record is already in the store and the database, only refresh fetchedAt
             // like a fetched update would, without cloning and rewriting the whole record
             setState((state: CommunitiesState) => {
@@ -467,17 +648,20 @@ const communitiesStore = createStore<CommunitiesState>(
           // NOTE: fetchedAt is undefined on owner communities because never stale
           updatedCommunity.fetchedAt = Math.floor(Date.now() / 1000);
 
-          await communitiesDatabase.setItem(communityKey, updatedCommunity);
+          // pkc-js reports the fetch succeeded right after this event, so store the record first:
+          // a succeeded sync state must not be shown with the previous record, e.g. a stale one
+          // kept while the community was not updating
+          setState((state: any) => ({
+            ...state,
+            communities: { ...state.communities, [communityKey]: updatedCommunity },
+          }));
           log("communitiesStore community update", {
             communityAddressOrRef,
             communityKey,
             updatedCommunity,
             account,
           });
-          setState((state: any) => ({
-            ...state,
-            communities: { ...state.communities, [communityKey]: updatedCommunity },
-          }));
+          await communitiesDatabase.setItem(communityKey, updatedCommunity);
 
           // if a community has a role with an account's address add it to the account.communities
           accountsStore
@@ -486,21 +670,11 @@ const communitiesStore = createStore<CommunitiesState>(
 
           // add page comments to communitiesPagesStore so they can be used in useComment
           communitiesPagesStore.getState().addCommunityPageCommentsToStore(updatedCommunity);
+
+          endOpeningCommunityUpdate(communityKey, liveCommunity);
         });
 
-        community.on("updatingstatechange", (updatingState: string) => {
-          setState((state: CommunitiesState) => ({
-            syncStatuses: getNextSyncStatuses(
-              state,
-              communityKey,
-              normalizeCommunitySyncState(updatingState),
-            ),
-            communities: {
-              ...state.communities,
-              [communityKey]: { ...state.communities[communityKey], updatingState },
-            },
-          }));
-        });
+        community.on("updatingstatechange", liveCommunity.onUpdatingStateChange);
 
         community.on("error", (error: Error) => {
           scheduleCommunityError(setState, communityKey, error);
@@ -534,12 +708,68 @@ const communitiesStore = createStore<CommunitiesState>(
         );
 
         listeners.push(community);
-        startCommunityUpdatePolling(community, { communityAddressOrRef, communityKey });
+        liveCommunities[communityKey] = liveCommunity;
+        startCommunityUpdatePolling(communityKey, liveCommunity);
+        // loaded without a subscriber, e.g. by a store-level caller: update until the grace period
+        // ends, and at least until the first fetch ends
+        if (!hasCommunityUpdateSubscribers(communityKey)) {
+          scheduleCommunityUpdateStop(communityKey);
+        }
       } catch (error) {
         updateCommunitySyncStatus(setState, communityKey, "failed");
         throw error;
       } finally {
         pkcGetCommunityPending[pendingKey] = false;
+      }
+    },
+
+    // keep a community updating while a subscriber (a mounted hook or feed) needs it, and restart
+    // its update loop if it stopped after its previous subscribers left
+    async startCommunityAutoUpdate(
+      communityAddressOrRef: string | CommunityIdentifier,
+      subscriberId: string,
+      account: Account,
+    ) {
+      const communityKey = getCommunityKey(communityAddressOrRef);
+      assert(
+        communityKey !== "" && typeof communityKey === "string",
+        `communitiesStore.startCommunityAutoUpdate invalid communityAddress argument '${communityAddressOrRef}'`,
+      );
+      assert(
+        subscriberId && typeof subscriberId === "string",
+        `communitiesStore.startCommunityAutoUpdate invalid subscriberId argument '${subscriberId}'`,
+      );
+      if (!communityUpdateSubscribers[communityKey]) {
+        communityUpdateSubscribers[communityKey] = new Set();
+      }
+      communityUpdateSubscribers[communityKey].add(subscriberId);
+      clearCommunityStopTimer(communityKey);
+
+      const liveCommunity = liveCommunities[communityKey];
+      if (liveCommunity) {
+        liveCommunity.stopWhenOpeningUpdateEnds = false;
+        await resumeCommunityUpdatePolling(communityKey);
+        return;
+      }
+      await getState().addCommunityToStore(communityAddressOrRef, account);
+    },
+
+    // the community stops updating a grace period after its last subscriber leaves
+    async stopCommunityAutoUpdate(
+      communityAddressOrRef: string | CommunityIdentifier,
+      subscriberId: string,
+    ) {
+      const communityKey = getCommunityKey(communityAddressOrRef);
+      const subscribers = communityUpdateSubscribers[communityKey];
+      if (!subscribers?.delete(subscriberId)) {
+        return;
+      }
+      if (subscribers.size > 0) {
+        return;
+      }
+      delete communityUpdateSubscribers[communityKey];
+      if (liveCommunities[communityKey]) {
+        scheduleCommunityUpdateStop(communityKey);
       }
     },
 
@@ -706,7 +936,11 @@ export const resetCommunitiesStore = async () => {
   // remove all event listeners
   listeners.forEach((listener: any) => listener.removeAllListeners());
   listeners.length = 0;
-  Object.keys(communityUpdatePollers).forEach(stopCommunityUpdatePolling);
+  Object.keys(liveCommunities).forEach(stopCommunityUpdatePolling);
+  Object.keys(communityStopTimers).forEach(clearCommunityStopTimer);
+  for (const communityKey in communityUpdateSubscribers) {
+    delete communityUpdateSubscribers[communityKey];
+  }
   // destroy all component subscriptions to the store
   communitiesStore.destroy();
   // restore original state
