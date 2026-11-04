@@ -8,7 +8,8 @@ const version = process.argv[2] ?? packageJson.version;
 const changelog = readFileSync(resolve(root, 'CHANGELOG.md'), 'utf8').replaceAll('\r\n', '\n');
 const lines = changelog.split('\n');
 const escapedVersion = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const versionHeader = new RegExp(`^## \\[${escapedVersion}\\](?:\\(|\\s|$)`);
+// the angular changelog heads minor and major releases with `#` and patch releases with `##`
+const versionHeader = new RegExp(`^#{1,2} \\[${escapedVersion}\\](?:\\(|\\s|$)`);
 const start = lines.findIndex((line) => versionHeader.test(line));
 
 if (start === -1) {
@@ -16,7 +17,7 @@ if (start === -1) {
   process.exit(1);
 }
 
-const next = lines.findIndex((line, index) => index > start && /^##\s+/.test(line));
+const next = lines.findIndex((line, index) => index > start && /^#{1,2}\s+/.test(line));
 const section = lines.slice(start, next === -1 ? undefined : next).join('\n').trim();
 
 console.log(`${section}\n`);
