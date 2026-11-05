@@ -82,7 +82,7 @@ corepack yarn install
 corepack yarn build
 ```
 
-Read [testing and development](docs/testing.md), [contributor guidance](AGENTS.md), and [verification](docs/agent-playbooks/verification.md) for focused checks. Keep API examples aligned with the public exports and types; after documentation changes, run `corepack yarn llms:generate`.
+Read the [contributing guide](CONTRIBUTING.md) before opening a pull request, then [testing and development](docs/testing.md) and [verification](docs/agent-playbooks/verification.md) for focused checks. Keep API examples aligned with the public exports and types; after documentation changes, run `corepack yarn llms:generate`.
 
 ## License
 
