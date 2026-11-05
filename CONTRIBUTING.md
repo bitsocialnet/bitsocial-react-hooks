@@ -5,7 +5,7 @@
 Before you start, read:
 
 - [README.md](README.md#contribute) for setup, and [docs/testing.md](docs/testing.md) for running tests.
-- [AGENTS.md](AGENTS.md) for code conventions. It is written for coding agents, but the rules apply to everyone.
+- [AGENTS.md](AGENTS.md#code-and-architecture) for code conventions. Its code and architecture rules apply to everyone; the rest of the file covers coding-agent workflow.
 - [Versioning and v1 readiness](docs/agent-playbooks/versioning.md) for the compatibility policy and the work needed before 1.0.
 
 ## Where to help
@@ -17,7 +17,7 @@ Before you start, read:
 
 These are maintainer decisions, not open questions:
 
-- **Compatibility within `0.1.x`.** Apps depend on `^0.1.x`, so changes must not break supported usage: exports, types, arguments, return values, loading and error states, or supported React and Node versions. A deliberate break needs a minor-version boundary and migration notes; propose it on an issue before writing it.
+- **Compatibility within the current minor line.** Apps depend on caret ranges such as `^0.2.0`, which accept later `0.2.x` releases but not `0.3.0`. Changes must not break supported usage: exports, types, arguments, return values, loading and error states, or supported React and Node versions. A deliberate break needs the next minor version and migration notes; propose it on an issue before writing it.
 - **Stores own protocol state; hooks are thin wrappers.** Fetching, caching, request deduplication, and subscriptions live in `src/stores/`. Hooks in `src/hooks/` select from stores and expose their actions. Pull requests that add fetching effects to hooks will be asked to move that logic into a store.
 - **Protocol behavior belongs in [pkc-js](https://github.com/pkcprotocol/pkc-js).** Signing, validation, networking, and challenges are fixed there. This package wraps pkc-js for React.
 - **No interface.** The package stays UI-agnostic; components and styling belong in client apps.
