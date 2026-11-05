@@ -1284,6 +1284,24 @@ export const unsaveComment = async (commentCid: string, accountName?: string) =>
   await updateSavedComments(commentCid, accountName, false);
 };
 
+// callbacks passed with the comment publish options, never part of the published comment
+const publishCommentCallbackNames = [
+  "onChallenge",
+  "onChallengeVerification",
+  "onError",
+  "onPendingComment",
+  "onPublishingStateChange",
+  "onBeforeRepublish",
+  "_onPendingCommentIndex",
+];
+const omitPublishCommentCallbacks = (options: PublishCommentOptions) => {
+  const publicationOptions = { ...options };
+  for (const callbackName of publishCommentCallbackNames) {
+    delete publicationOptions[callbackName];
+  }
+  return publicationOptions;
+};
+
 export const publishComment = async (
   publishCommentOptions: PublishCommentOptions,
   accountName?: string,
@@ -1321,62 +1339,82 @@ export const publishComment = async (
   if (previousComment) {
     author.previousCommentCid = previousComment.cid;
   }
-  const publicationAuthor = { ...author, ...publishCommentOptions.author };
-  if (
-    publicationAuthor.address !== account.author?.address &&
-    publishCommentOptions.author?.previousCommentCid === undefined
-  ) {
-    delete publicationAuthor.previousCommentCid;
-  }
-  // a comment without author.address may have been published under an alternate author passed to
-  // publishComment, so only link it once its immutable author, loaded from its cid, is the account's
-  if (
-    previousComment &&
-    !previousComment.author?.address &&
-    publishCommentOptions.author?.previousCommentCid === undefined &&
-    publicationAuthor.previousCommentCid === previousComment.cid
-  ) {
-    const previousCommentAuthorAddress = await loadCommentAuthorAddress(
-      account,
-      previousComment.cid,
-    );
-    if (!previousCommentAuthorAddress || previousCommentAuthorAddress !== account.author?.address) {
-      // fall back to the newest stored comment that kept the account author address
-      const previousAccountAuthorComment = accountCommentsWithCids
-        .filter((comment: AccountComment) => comment.author?.address)
-        .pop();
-      if (previousAccountAuthorComment) {
-        publicationAuthor.previousCommentCid = previousAccountAuthorComment.cid;
-      } else {
-        delete publicationAuthor.previousCommentCid;
+  let previousCommentAuthorAddressPromise: Promise<string | undefined> | undefined;
+  // builds the options pkc-js publishes from the client's options without callbacks, for the first
+  // publish and for each republish whose options onBeforeRepublish returned
+  const createPublishCommentOptions = async (options: PublishCommentOptions) => {
+    const publicationAuthor = { ...author, ...options.author };
+    if (
+      publicationAuthor.address !== account.author?.address &&
+      options.author?.previousCommentCid === undefined
+    ) {
+      delete publicationAuthor.previousCommentCid;
+    }
+    // a comment without author.address may have been published under an alternate author passed to
+    // publishComment, so only link it once its immutable author, loaded from its cid, is the account's
+    if (
+      previousComment &&
+      !previousComment.author?.address &&
+      options.author?.previousCommentCid === undefined &&
+      publicationAuthor.previousCommentCid === previousComment.cid
+    ) {
+      // loaded once, a republish reuses it
+      previousCommentAuthorAddressPromise ??= loadCommentAuthorAddress(
+        account,
+        previousComment.cid,
+      );
+      const previousCommentAuthorAddress = await previousCommentAuthorAddressPromise;
+      if (
+        !previousCommentAuthorAddress ||
+        previousCommentAuthorAddress !== account.author?.address
+      ) {
+        // fall back to the newest stored comment that kept the account author address
+        const previousAccountAuthorComment = accountCommentsWithCids
+          .filter((comment: AccountComment) => comment.author?.address)
+          .pop();
+        if (previousAccountAuthorComment) {
+          publicationAuthor.previousCommentCid = previousAccountAuthorComment.cid;
+        } else {
+          delete publicationAuthor.previousCommentCid;
+        }
       }
     }
-  }
 
-  let createCommentOptions: any = normalizePublicationOptionsForPkc(account.pkc, {
-    timestamp: Math.floor(Date.now() / 1000),
-    signer: account.signer,
-    ...publishCommentOptions,
-    author: publicationAuthor,
-  });
-  delete createCommentOptions.onChallenge;
-  delete createCommentOptions.onChallengeVerification;
-  delete createCommentOptions.onError;
-  delete createCommentOptions.onPendingComment;
-  delete createCommentOptions.onPublishingStateChange;
-  delete createCommentOptions._onPendingCommentIndex;
-  createCommentOptions = await applyPublicationWordfilters(
-    "comment",
-    createCommentOptions,
-    account,
-  );
-  const storedCreateCommentOptions = normalizePublicationOptionsForStore(createCommentOptions);
+    const createCommentOptions: any = normalizePublicationOptionsForPkc(account.pkc, {
+      timestamp: Math.floor(Date.now() / 1000),
+      signer: account.signer,
+      ...options,
+      author: publicationAuthor,
+    });
+    return applyPublicationWordfilters("comment", createCommentOptions, account);
+  };
+  const createAccountComment = (createCommentOptions: any, index: number) =>
+    addShortAddressesToAccountComment(
+      sanitizeAccountCommentForState({
+        ...normalizePublicationOptionsForStore(createCommentOptions),
+        // try to get comment depth needed for custom depth flat account replies
+        depth: getAccountCommentDepth(createCommentOptions),
+        index,
+        accountId: account.id,
+      }),
+    ) as AccountComment;
+  const commentLinkDimensionsPromises = new Map<
+    string,
+    ReturnType<typeof fetchCommentLinkDimensions>
+  >();
+  const getCommentLinkDimensions = (link: string) => {
+    if (!commentLinkDimensionsPromises.has(link)) {
+      commentLinkDimensionsPromises.set(link, fetchCommentLinkDimensions(link));
+    }
+    return commentLinkDimensionsPromises.get(link)!;
+  };
+
+  // the client's options, without callbacks, as last published: onBeforeRepublish receives them
+  let publicationOptions = omitPublishCommentCallbacks(publishCommentOptions);
+  let createCommentOptions: any = await createPublishCommentOptions(publicationOptions);
 
   // make sure the options dont throw
   await account.pkc.createComment(createCommentOptions);
-
-  // try to get comment depth needed for custom depth flat account replies
-  const depth = getAccountCommentDepth(createCommentOptions);
 
   // set fetching link dimensions state
   let fetchingLinkDimensionsStates: { state: string; publishingState: string };
@@ -1442,15 +1480,7 @@ export const publishComment = async (
     });
     return persistedIndex;
   };
-  let createdAccountComment = {
-    ...storedCreateCommentOptions,
-    depth,
-    index: accountCommentIndex,
-    accountId: account.id,
-  };
-  createdAccountComment = addShortAddressesToAccountComment(
-    sanitizeAccountCommentForState(createdAccountComment),
-  );
+  let createdAccountComment = createAccountComment(createCommentOptions, accountCommentIndex);
   const reportOnPendingCommentError = (error: unknown, pendingCommentIndex: number) => {
     log.error("accountsActions.publishComment onPendingComment callback error", {
       accountId: account.id,
@@ -1483,7 +1513,7 @@ export const publishComment = async (
   (async () => {
     // fetch comment.link dimensions
     if (publishCommentOptions.link) {
-      const commentLinkDimensions = await fetchCommentLinkDimensions(publishCommentOptions.link);
+      const commentLinkDimensions = await getCommentLinkDimensions(publishCommentOptions.link);
       createCommentOptions = { ...createCommentOptions, ...commentLinkDimensions };
       // save dimensions to db
       createdAccountComment = { ...createdAccountComment, ...commentLinkDimensions };
@@ -1552,6 +1582,58 @@ export const publishComment = async (
     queueCleanupFailedPublishSession(activeComment);
     publishCommentOptions.onError?.(error, activeComment);
   };
+  // the options onBeforeRepublish returns go through the same pipeline as the first publish; resolves
+  // to false when the publish was abandoned while onBeforeRepublish ran
+  const createRepublishCommentOptions = async (timestamp: number) => {
+    const nextOptions = await publishCommentOptions.onBeforeRepublish({
+      ...publicationOptions,
+      timestamp,
+    });
+    if (isPublishSessionAbandoned(publishSessionId)) {
+      return false;
+    }
+    assert(
+      nextOptions && typeof nextOptions === "object",
+      "publishComment publishCommentOptions.onBeforeRepublish did not return an object",
+    );
+    const nextPublicationOptions = omitPublishCommentCallbacks(nextOptions);
+    validator.validateAccountsActionsPublishCommentArguments({
+      publishCommentOptions: {
+        ...nextPublicationOptions,
+        onChallenge: publishCommentOptions.onChallenge,
+        onChallengeVerification: publishCommentOptions.onChallengeVerification,
+      },
+      accountName,
+      account,
+    });
+    let nextCreateCommentOptions = await createPublishCommentOptions(nextPublicationOptions);
+    if (nextPublicationOptions.link) {
+      nextCreateCommentOptions = {
+        ...nextCreateCommentOptions,
+        ...(await getCommentLinkDimensions(nextPublicationOptions.link)),
+      };
+    }
+    // make sure the options dont throw
+    await account.pkc.createComment(nextCreateCommentOptions);
+    publicationOptions = nextPublicationOptions;
+    createCommentOptions = nextCreateCommentOptions;
+    createdAccountComment = createAccountComment(createCommentOptions, createdAccountComment.index);
+    return true;
+  };
+  // the failed comment was detached for the republish, so its stopped/failed state events were ignored:
+  // reattach it to end the publish with that state and the error, like any other publish error
+  const failRepublish = (error: unknown, failedComment: any) => {
+    const session = getPublishSession(publishSessionId);
+    if (!session || isPublishSessionAbandoned(publishSessionId)) return;
+    updatePublishSessionComment(publishSessionId, failedComment);
+    accountsStore.setState(({ accountsComments }) =>
+      maybeUpdateAccountComment(accountsComments, account.id, session.currentIndex, (ac, acc) => {
+        ac[session.currentIndex] = { ...acc, state: "stopped", publishingState: "failed" };
+      }),
+    );
+    publishCommentOptions.onPublishingStateChange?.("failed");
+    reportActivePublishCommentError(error, failedComment);
+  };
   async function publishAndRetryFailedChallengeVerification() {
     if (isPublishSessionAbandoned(publishSessionId)) {
       return;
@@ -1578,11 +1660,25 @@ export const publishComment = async (
           lastChallenge &&
           !hasTerminalChallengeVerificationError(challengeVerification)
         ) {
-          // publish again automatically on fail
+          // publish again automatically on fail, unless the publish was abandoned meanwhile
+          if (isPublishSessionAbandoned(publishSessionId)) {
+            return;
+          }
           const timestamp = Math.floor(Date.now() / 1000);
-          createCommentOptions = { ...createCommentOptions, timestamp };
-          createdAccountComment = { ...createdAccountComment, timestamp };
           updatePublishSessionComment(publishSessionId, undefined);
+          if (publishCommentOptions.onBeforeRepublish) {
+            try {
+              if (!(await createRepublishCommentOptions(timestamp))) {
+                return;
+              }
+            } catch (error) {
+              failRepublish(error, activeComment);
+              return;
+            }
+          } else {
+            createCommentOptions = { ...createCommentOptions, timestamp };
+            createdAccountComment = { ...createdAccountComment, timestamp };
+          }
           await saveCreatedAccountComment(createdAccountComment);
           if (isPublishSessionAbandoned(publishSessionId)) {
             return;
