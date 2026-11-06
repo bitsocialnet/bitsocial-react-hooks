@@ -1,4 +1,4 @@
-import { Account, PublishCommentOptions, PublishVoteOptions, PublishCommentEditOptions, PublishCommentModerationOptions, PublishCommunityEditOptions, CreateCommunityOptions, ExportCommunityOptions, CommunityExport } from "../../types.js";
+import { Account, PublishCommentOptions, PublishVoteOptions, PublishCommentEditOptions, PublishCommentModerationOptions, PublishCommunityEditOptions, CreateCommunityOptions, ExportCommunityOptions, CommunityExport, AccountComment } from "../../types.js";
 /** Returns state update or {} when accountComment not yet in state (no-op). Exported for coverage. */
 export declare const maybeUpdateAccountComment: (accountsComments: Record<string, any[]>, accountId: string, index: number, updater: (accountComments: any[], accountComment: any) => void) => {
     accountsComments?: undefined;
@@ -38,7 +38,7 @@ export declare const blockCid: (cid: string, accountName?: string) => Promise<vo
 export declare const unblockCid: (cid: string, accountName?: string) => Promise<void>;
 export declare const saveComment: (commentCid: string, accountName?: string) => Promise<void>;
 export declare const unsaveComment: (commentCid: string, accountName?: string) => Promise<void>;
-export declare const publishComment: (publishCommentOptions: PublishCommentOptions, accountName?: string) => Promise<any>;
+export declare const publishComment: (publishCommentOptions: PublishCommentOptions, accountName?: string) => Promise<AccountComment>;
 export declare const deleteComment: (commentCidOrAccountCommentIndex: string | number, accountName?: string) => Promise<void>;
 export declare const publishVote: (publishVoteOptions: PublishVoteOptions, accountName?: string) => Promise<void>;
 /**

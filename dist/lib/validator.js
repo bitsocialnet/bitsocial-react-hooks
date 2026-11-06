@@ -23,6 +23,8 @@ const validateAccountsActionsPublishCommentArguments = ({ publishCommentOptions,
     assert(!publishCommentOptions.onError || typeof publishCommentOptions.onError === "function", "publishComment publishCommentOptions.onError not a function");
     assert(publishCommentOptions.onPendingComment == null ||
         typeof publishCommentOptions.onPendingComment === "function", "publishComment publishCommentOptions.onPendingComment not a function");
+    assert(publishCommentOptions.onBeforeRepublish == null ||
+        typeof publishCommentOptions.onBeforeRepublish === "function", "publishComment publishCommentOptions.onBeforeRepublish not a function");
     assert(typeof getPublicationCommunityAddress(publishCommentOptions) === "string", "publishComment publishCommentOptions.communityAddress/communityAddress not a string");
     assert(!publishCommentOptions.parentCid || typeof publishCommentOptions.parentCid === "string", "publishComment publishCommentOptions.parentCid not a string");
     assert(!publishCommentOptions.timestamp || typeof publishCommentOptions.timestamp === "number", "publishComment publishCommentOptions.timestamp is not a number");

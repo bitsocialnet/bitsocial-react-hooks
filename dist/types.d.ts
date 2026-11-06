@@ -314,6 +314,15 @@ export interface UsePublishCommentOptions extends Options {
     onPendingComment?(accountCommentIndex: number, comment: AccountComment): void;
     onChallenge?(challenge: Challenge, comment?: Comment): Promise<void>;
     onChallengeVerification?(challengeVerification: ChallengeVerification, comment?: Comment): Promise<void>;
+    /**
+     * Called before each automatic republish after a failed challenge answer, with the options about to be
+     * republished: the last published options, without callbacks, with timestamp set to the current time
+     * (the same as the last timestamp if the republish happens within the same second). Resolves to the
+     * options to publish instead, which go through the same validation and wordfilters as the first
+     * publish. A rejection ends the publish and is reported through onError. While it runs, the pending
+     * comment keeps its last publishing state.
+     */
+    onBeforeRepublish?(publishCommentOptions: PublishCommentOptions): PublishCommentOptions | Promise<PublishCommentOptions>;
     [publishOption: string]: any;
 }
 export interface UsePublishCommentResult extends Result {
