@@ -2394,6 +2394,282 @@ describe("accounts-actions", () => {
     });
   });
 
+  describe("publishComment onBeforeRepublish", () => {
+    beforeEach(async () => {
+      await testUtils.resetDatabasesAndStores();
+    });
+
+    // the first `failures` published comments fail their challenge verification without a terminal
+    // error, so each is republished automatically; returns the published comments in order
+    const failChallengeVerifications = (account: any, failures: number) => {
+      const publishedComments: any[] = [];
+      const origCreateComment = account.pkc.createComment.bind(account.pkc);
+      const createComment = vi
+        .spyOn(account.pkc, "createComment")
+        .mockImplementation(async (opts: any) => {
+          const comment = await origCreateComment(opts);
+          const succeed = comment.simulateChallengeVerificationEvent.bind(comment);
+          comment.simulateChallengeVerificationEvent = function () {
+            publishedComments.push(this);
+            if (publishedComments.length > failures) return succeed();
+            // same order as pkc-js: the terminal states are set silently, then emitted after the
+            // challengeverification event
+            this.state = "stopped";
+            this.publishingState = "failed";
+            this.emit("challengeverification", {
+              type: "CHALLENGEVERIFICATION",
+              challengeSuccess: false,
+            });
+            this.emit("statechange", "stopped");
+            this.emit("publishingstatechange", "failed");
+          };
+          return comment;
+        });
+      return { publishedComments, createComment };
+    };
+    const waitFor = async (condition: () => boolean) => {
+      const start = Date.now();
+      while (!condition() && Date.now() - start < 3000) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      expect(condition()).toBe(true);
+    };
+    const getAccountComments = (account: any) =>
+      accountsStore.getState().accountsComments[account.id] || [];
+
+    test("runs before each automatic republish and publishes the options it returns", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const { publishedComments } = failChallengeVerifications(account, 2);
+      let signatures = 0;
+      const onBeforeRepublish = vi.fn(async (options: any) => ({
+        ...options,
+        author: { ...options.author, displayName: `signed ${++signatures}` },
+      }));
+
+      await act(async () => {
+        await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "republish signed",
+          timestamp: 1,
+          author: { displayName: "unsigned" },
+          onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+          onBeforeRepublish,
+        });
+      });
+      await waitFor(() => getAccountComments(account).some((comment: any) => comment.cid));
+
+      expect(onBeforeRepublish).toHaveBeenCalledTimes(2);
+      const [firstOptions] = onBeforeRepublish.mock.calls[0];
+      const [secondOptions] = onBeforeRepublish.mock.calls[1];
+      // the options about to be republished: the client's own, without callbacks, with a new timestamp
+      expect(firstOptions).toEqual({
+        communityAddress: "sub.eth",
+        content: "republish signed",
+        timestamp: expect.any(Number),
+        author: { displayName: "unsigned" },
+      });
+      expect(firstOptions.timestamp).toBeGreaterThan(1);
+      // each republish starts from the options the previous one returned
+      expect(secondOptions.author.displayName).toBe("signed 1");
+
+      expect(publishedComments.map((comment) => comment.author.displayName)).toEqual([
+        "unsigned",
+        "signed 1",
+        "signed 2",
+      ]);
+      expect(publishedComments[2].timestamp).toBe(secondOptions.timestamp);
+      // the account's own author fields are still merged in, as on the first publish
+      expect(publishedComments[2].author.address).toBe(account.author.address);
+      const [accountComment] = getAccountComments(account);
+      expect(accountComment.author.displayName).toBe("signed 2");
+      expect(accountComment.timestamp).toBe(secondOptions.timestamp);
+      expect(accountComment.cid).toBe("republish signed cid");
+    });
+
+    test("applies wordfilters to the options it returns", async () => {
+      communitiesStore.setState({
+        communities: {
+          "sub.eth": {
+            address: "sub.eth",
+            updatedAt: 1,
+            challenges: [
+              {
+                publicOptions: {
+                  "wordfilter/v1/rules": JSON.stringify([{ src: "plebbit", dst: "bitcoin" }]),
+                },
+              },
+            ],
+          },
+        },
+      } as any);
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const { publishedComments } = failChallengeVerifications(account, 1);
+
+      await act(async () => {
+        await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "first",
+          onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+          onBeforeRepublish: (options: any) => ({ ...options, content: "plebbit retry" }),
+        });
+      });
+      await waitFor(() => getAccountComments(account).some((comment: any) => comment.cid));
+
+      expect(publishedComments[1].content).toBe("bitcoin retry");
+      expect(getAccountComments(account)[0].content).toBe("bitcoin retry");
+    });
+
+    test.each([
+      ["rejects", async () => Promise.reject(new Error("signing failed")), "signing failed"],
+      [
+        "throws",
+        () => {
+          throw new Error("signing failed");
+        },
+        "signing failed",
+      ],
+      ["returns no options", () => undefined, "onBeforeRepublish did not return an object"],
+    ])(
+      "does not republish when onBeforeRepublish %s",
+      async (_name, onBeforeRepublish, errorMessage) => {
+        const account = Object.values(accountsStore.getState().accounts)[0];
+        const { publishedComments, createComment } = failChallengeVerifications(account, 1);
+        const onError = vi.fn();
+        const onPublishingStateChange = vi.fn();
+
+        await act(async () => {
+          await accountsActions.publishComment({
+            communityAddress: "sub.eth",
+            content: "republish failed",
+            onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+            onChallengeVerification: () => {},
+            onError,
+            onPublishingStateChange,
+            onBeforeRepublish,
+          });
+        });
+        await waitFor(() => onError.mock.calls.length > 0);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        expect(onError).toHaveBeenCalledTimes(1);
+        expect(onError.mock.calls[0][0].message).toContain(errorMessage);
+        // one options-validation call plus the first published comment, nothing republished
+        expect(createComment).toHaveBeenCalledTimes(2);
+        expect(publishedComments).toHaveLength(1);
+        expect(onPublishingStateChange).toHaveBeenLastCalledWith("failed");
+        expect(
+          onPublishingStateChange.mock.calls.filter(([state]) => state === "failed"),
+        ).toHaveLength(1);
+        const [accountComment] = getAccountComments(account);
+        expect(accountComment.cid).toBeUndefined();
+        expect(accountComment.error.message).toContain(errorMessage);
+        expect(accountComment.state).toBe("stopped");
+        expect(accountComment.publishingState).toBe("failed");
+      },
+    );
+
+    test("is not called for a publish abandoned before its failed verification", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const { publishedComments, createComment } = failChallengeVerifications(account, 1);
+      const onBeforeRepublish = vi.fn((options: any) => options);
+      const onError = vi.fn();
+
+      await act(async () => {
+        await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "abandoned before verification",
+          onChallenge: async (_challenge: any, comment: any) => {
+            // the verification is still in flight when the user abandons
+            const answered = comment.publishChallengeAnswers(["4"]);
+            await accountsActions.deleteComment(0);
+            await answered;
+          },
+          onChallengeVerification: () => {},
+          onError,
+          onBeforeRepublish,
+        });
+      });
+      await waitFor(() => publishedComments.length === 1);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(onBeforeRepublish).not.toHaveBeenCalled();
+      expect(onError).not.toHaveBeenCalled();
+      expect(createComment).toHaveBeenCalledTimes(2);
+      expect(getAccountComments(account)).toHaveLength(0);
+    });
+
+    test("does not republish or report an error when abandoned while onBeforeRepublish runs", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const { publishedComments, createComment } = failChallengeVerifications(account, 1);
+      const onError = vi.fn();
+      const onBeforeRepublish = vi.fn(async (options: any) => {
+        await accountsActions.deleteComment(0);
+        return { ...options, content: "signed too late" };
+      });
+
+      await act(async () => {
+        await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "abandoned while signing",
+          onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+          onError,
+          onBeforeRepublish,
+        });
+      });
+      await waitFor(() => onBeforeRepublish.mock.results.length === 1);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(onError).not.toHaveBeenCalled();
+      // nothing is built from the returned options: only the first publish's two calls
+      expect(createComment).toHaveBeenCalledTimes(2);
+      expect(publishedComments).toHaveLength(1);
+      expect(getAccountComments(account)).toHaveLength(0);
+    });
+
+    test("publishComment rejects a non-function onBeforeRepublish", async () => {
+      await expect(
+        accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "invalid republish callback",
+          onBeforeRepublish: true,
+          onChallenge: () => {},
+          onChallengeVerification: () => {},
+        }),
+      ).rejects.toThrow("publishComment publishCommentOptions.onBeforeRepublish not a function");
+    });
+
+    test("without onBeforeRepublish republishes the same options with a new timestamp", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const { publishedComments, createComment } = failChallengeVerifications(account, 1);
+
+      await act(async () => {
+        await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "republish unchanged",
+          timestamp: 1,
+          author: { displayName: "unsigned" },
+          onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+      await waitFor(() => getAccountComments(account).some((comment: any) => comment.cid));
+
+      // options validation, the first published comment, the republished comment, then the clone
+      // that updates the verified comment
+      expect(createComment).toHaveBeenCalledTimes(4);
+      expect(publishedComments).toHaveLength(2);
+      const firstOptions = createComment.mock.calls[1][0] as any;
+      const republishedOptions = createComment.mock.calls[2][0] as any;
+      expect(firstOptions.timestamp).toBe(1);
+      expect(republishedOptions.timestamp).toBeGreaterThan(1);
+      expect({ ...republishedOptions, timestamp: 1 }).toEqual(firstOptions);
+      expect(getAccountComments(account)[0].author.displayName).toBe("unsigned");
+    });
+  });
+
   describe("publish retry loops (challengeSuccess === false && lastChallenge)", () => {
     beforeEach(async () => {
       setPkcJs(createRetryPkcMock());

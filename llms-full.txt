@@ -873,6 +873,35 @@ const { publishComment } = usePublishComment(publishCommentOptions);
 await publishComment();
 ```
 
+#### Re-sign a comment before an automatic republish
+
+After a wrong challenge answer, the comment is republished automatically with `timestamp` set to the current time, which is the same as the last timestamp if the republish happens within the same second. A client that signs over its publish options, such as a proof in `author.displayName`, re-signs them in `onBeforeRepublish`.
+
+```jsx
+const timestamp = Math.floor(Date.now() / 1000);
+const publishCommentOptions = {
+  content: "hello",
+  communityAddress: "12D3KooW...",
+  timestamp,
+  author: { displayName: await signDisplayName({ content: "hello", timestamp }) },
+  onChallenge,
+  onChallengeVerification,
+  onError,
+  // receives the options about to be republished, without callbacks and with timestamp set to the
+  // current time, and resolves to the options to publish instead
+  onBeforeRepublish: async (options) => ({
+    ...options,
+    author: { ...options.author, displayName: await signDisplayName(options) },
+  }),
+};
+
+const { publishComment } = usePublishComment(publishCommentOptions);
+await publishComment();
+// the returned options go through the same validation and wordfilters as the first publish.
+// if onBeforeRepublish rejects, nothing is republished: the pending comment ends as failed
+// and the error is reported through onError
+```
+
 #### Create a vote
 
 ```jsx

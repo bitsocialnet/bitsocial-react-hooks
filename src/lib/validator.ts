@@ -52,6 +52,11 @@ const validateAccountsActionsPublishCommentArguments = ({
     "publishComment publishCommentOptions.onPendingComment not a function",
   );
   assert(
+    publishCommentOptions.onBeforeRepublish == null ||
+      typeof publishCommentOptions.onBeforeRepublish === "function",
+    "publishComment publishCommentOptions.onBeforeRepublish not a function",
+  );
+  assert(
     typeof getPublicationCommunityAddress(publishCommentOptions) === "string",
     "publishComment publishCommentOptions.communityAddress/communityAddress not a string",
   );
