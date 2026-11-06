@@ -1,3 +1,12 @@
+## [0.2.1](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.2.0...v0.2.1) (2026-11-06)
+
+
+### Features
+
+* **accounts:** let clients rebuild a comment's options before its automatic republish ([#164](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/164)) ([4dae767](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/4dae767bbb8ca1bbf40318fb94e4ee5a7ac64f91))
+
+
+
 # [0.2.0](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.1.65...v0.2.0) (2026-11-04)
 
 
