@@ -31,10 +31,75 @@ const getCommunityPageStoreKey = (pageCid, pageType, accountId) => {
 };
 /** Freshness for comparison: max(updatedAt, timestamp, 0). Used to decide add vs replace per CID. Exported for coverage. */
 export const getCommentFreshness = (comment) => { var _a, _b; return Math.max((_a = comment === null || comment === void 0 ? void 0 : comment.updatedAt) !== null && _a !== void 0 ? _a : 0, (_b = comment === null || comment === void 0 ? void 0 : comment.timestamp) !== null && _b !== void 0 ? _b : 0, 0); };
+let storedCommunityPageKeys = {};
+// The page keys community records link to: the first page cids of every sort, followed through the
+// stored pages' nextCid. A superset of the chain getCommunityPages walks for one sort.
+const getLinkedCommunityPageKeys = (communityRecords, communitiesPages, pageType, accountId) => {
+    var _a;
+    const linkedPageKeys = new Set();
+    for (const communityRecord of communityRecords) {
+        const pages = communityRecord === null || communityRecord === void 0 ? void 0 : communityRecord[pageType];
+        const firstPageCids = [
+            ...Object.values((pages === null || pages === void 0 ? void 0 : pages.pageCids) || {}),
+            ...Object.values((pages === null || pages === void 0 ? void 0 : pages.pages) || {}).map((page) => page === null || page === void 0 ? void 0 : page.nextCid),
+        ];
+        for (let pageCid of firstPageCids) {
+            while (typeof pageCid === "string" && pageCid) {
+                const pageKey = getCommunityPageStoreKey(pageCid, pageType, accountId);
+                if (linkedPageKeys.has(pageKey)) {
+                    break;
+                }
+                linkedPageKeys.add(pageKey);
+                pageCid = (_a = communitiesPages[pageKey]) === null || _a === void 0 ? void 0 : _a.nextCid;
+            }
+        }
+    }
+    return linkedPageKeys;
+};
+// A community update replaces its page cids, and getCommunityPages only walks from the current ones,
+// so the previous page chains are never read again. Without dropping them, a feed left open keeps a
+// copy of its communities' pages for every update it fetched pages after. Only pages of this
+// community are checked, against its stored records and the record the caller fetched with, so a
+// page fetched with a record that was replaced meanwhile doesn't drop the current chain. A later
+// page shared by the old and new chains is dropped until the new chain reaches it again, and is then
+// read back from the pages database.
+const removeUnlinkedCommunityPages = (communitiesPages, community) => {
+    var _a;
+    const storedPageKeys = storedCommunityPageKeys[community.address];
+    if (!storedPageKeys) {
+        return;
+    }
+    const communityRecords = [
+        community,
+        ...Object.values(((_a = communitiesStore.getState()) === null || _a === void 0 ? void 0 : _a.communities) || {}).filter((communityRecord) => (communityRecord === null || communityRecord === void 0 ? void 0 : communityRecord.address) === community.address),
+    ];
+    const linkedPageKeys = {};
+    const unlinkedPageKeys = [];
+    for (const pageKey in storedPageKeys) {
+        if (!communitiesPages[pageKey]) {
+            // already removed, e.g. by invalidateCommunityPages
+            delete storedPageKeys[pageKey];
+            continue;
+        }
+        const { pageType, accountId } = storedPageKeys[pageKey];
+        const pageTypeAndAccount = `${pageType}:${accountId}`;
+        if (!linkedPageKeys[pageTypeAndAccount]) {
+            linkedPageKeys[pageTypeAndAccount] = getLinkedCommunityPageKeys(communityRecords, communitiesPages, pageType, accountId);
+        }
+        if (!linkedPageKeys[pageTypeAndAccount].has(pageKey)) {
+            unlinkedPageKeys.push(pageKey);
+        }
+    }
+    for (const pageKey of unlinkedPageKeys) {
+        delete communitiesPages[pageKey];
+        delete storedPageKeys[pageKey];
+    }
+};
 // reset all event listeners in between tests
 const listeners = [];
 const communitiesPagesStore = createStore((setState, getState) => ({
-    // TODO: eventually clear old pages and comments from memory
+    // pages a community no longer links to are dropped when one of its pages is added
+    // TODO: eventually clear old comments from memory
     communitiesPages: {},
     comments: {},
     addNextCommunityPageToStore: (community, sortType, account, modQueue) => __awaiter(void 0, void 0, void 0, function* () {
@@ -116,10 +181,11 @@ const communitiesPagesStore = createStore((setState, getState) => ({
                 }
             }
         }
+        storedCommunityPageKeys[community.address] = Object.assign(Object.assign({}, storedCommunityPageKeys[community.address]), { [pageStoreKeyToAdd]: { pageType, accountId: account.id } });
         setState(({ communitiesPages, comments }) => {
-            const newState = {
-                communitiesPages: Object.assign(Object.assign({}, communitiesPages), { [pageStoreKeyToAdd]: page }),
-            };
+            const nextCommunitiesPages = Object.assign(Object.assign({}, communitiesPages), { [pageStoreKeyToAdd]: page });
+            removeUnlinkedCommunityPages(nextCommunitiesPages, community);
+            const newState = { communitiesPages: nextCommunitiesPages };
             if (hasNewComments) {
                 newState.comments = Object.assign(Object.assign({}, comments), newComments);
             }
@@ -302,6 +368,7 @@ const originalState = communitiesPagesStore.getState();
 // async function because some stores have async init
 export const resetCommunitiesPagesStore = () => __awaiter(void 0, void 0, void 0, function* () {
     fetchPagePending = {};
+    storedCommunityPageKeys = {};
     for (const accountId in fetchPageCommunities) {
         delete fetchPageCommunities[accountId];
     }

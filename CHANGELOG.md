@@ -1,3 +1,12 @@
+## [0.2.2](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.2.1...v0.2.2) (2026-11-07)
+
+
+### Bug Fixes
+
+* **feeds:** drop community pages a community update no longer links to ([779abd5](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/779abd51301ee14be6b4a1d837d469eb3e61e698)), closes [bitsocialnet/seedit#869](https://github.com/bitsocialnet/seedit/issues/869)
+
+
+
 ## [0.2.1](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.2.0...v0.2.1) (2026-11-06)
 
 
