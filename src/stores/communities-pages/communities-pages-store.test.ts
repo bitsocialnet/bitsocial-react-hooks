@@ -312,6 +312,103 @@ describe("communities pages store", () => {
     expect(createCommunityB).toHaveBeenCalledTimes(1);
   });
 
+  test("addNextCommunityPageToStore drops the pages a community update no longer links to", async () => {
+    const communityAddress = "superseded-pages-community";
+    const modQueuePageCid = "superseded-pages mod queue page cid";
+    const getPage = async ({ cid }: any) => ({
+      nextCid: cid.endsWith(" 2") ? undefined : `${cid} 2`,
+      comments: [],
+    });
+    const account: any = {
+      id: "superseded-pages-account",
+      pkc: {
+        createCommunity: async ({ address }: any) => ({
+          address,
+          posts: { getPage, clients: {} },
+          modQueue: { getPage, clients: {} },
+          removeAllListeners() {},
+        }),
+      },
+    };
+    const getCommunityRecord = (version: string) => ({
+      address: communityAddress,
+      posts: { pageCids: { new: `${version} new page cid`, hot: "unchanged hot page cid" } },
+      modQueue: { pageCids: { pendingApproval: modQueuePageCid } },
+    });
+    // a community missing from the communities store keeps its pages
+    const otherCommunity = {
+      address: "superseded-pages-other-community",
+      posts: { pageCids: { new: "other community new page cid" } },
+    };
+    const previousCommunities = communitiesStore.getState().communities;
+    const pageKeys = () => Object.keys(useCommunitiesPagesStore.getState().communitiesPages).sort();
+
+    try {
+      const firstRecord = getCommunityRecord("v1");
+      communitiesStore.setState({
+        communities: { ...previousCommunities, [communityAddress]: firstRecord },
+      });
+      const { addNextCommunityPageToStore } = useCommunitiesPagesStore.getState();
+      await addNextCommunityPageToStore(firstRecord, "new", account);
+      await addNextCommunityPageToStore(firstRecord, "new", account);
+      await addNextCommunityPageToStore(firstRecord, "hot", account);
+      await addNextCommunityPageToStore(firstRecord, "new", account, ["pendingApproval"]);
+      await addNextCommunityPageToStore(otherCommunity, "new", account);
+      expect(pageKeys()).toEqual(
+        [
+          "v1 new page cid",
+          "v1 new page cid 2",
+          "unchanged hot page cid",
+          `${account.id}:${modQueuePageCid}`,
+          "other community new page cid",
+        ].sort(),
+      );
+
+      // a community update replaces the "new" page chain and the feed fetches the new one
+      const updatedRecord = getCommunityRecord("v2");
+      communitiesStore.setState({
+        communities: { ...previousCommunities, [communityAddress]: updatedRecord },
+      });
+      await addNextCommunityPageToStore(updatedRecord, "new", account);
+      expect(pageKeys()).toEqual(
+        [
+          "v2 new page cid",
+          "unchanged hot page cid",
+          `${account.id}:${modQueuePageCid}`,
+          "other community new page cid",
+        ].sort(),
+      );
+
+      // a page fetched with the replaced record, e.g. in flight during the update, keeps the
+      // stored record's chain
+      await addNextCommunityPageToStore(firstRecord, "new", account);
+      expect(pageKeys()).toContain("v2 new page cid");
+      expect(pageKeys()).toContain("v1 new page cid");
+
+      // the next page of the current chain drops it, and a replaced mod queue chain is dropped too
+      const modQueueUpdatedRecord = {
+        ...updatedRecord,
+        modQueue: { pageCids: { pendingApproval: "superseded-pages new mod queue page cid" } },
+      };
+      communitiesStore.setState({
+        communities: { ...previousCommunities, [communityAddress]: modQueueUpdatedRecord },
+      });
+      await addNextCommunityPageToStore(modQueueUpdatedRecord, "new", account);
+      await addNextCommunityPageToStore(modQueueUpdatedRecord, "new", account, ["pendingApproval"]);
+      expect(pageKeys()).toEqual(
+        [
+          "v2 new page cid",
+          "v2 new page cid 2",
+          "unchanged hot page cid",
+          `${account.id}:superseded-pages new mod queue page cid`,
+          "other community new page cid",
+        ].sort(),
+      );
+    } finally {
+      communitiesStore.setState({ communities: previousCommunities });
+    }
+  });
+
   test("invalidateCommunityPages clears stored page chains for posts", async () => {
     const firstPageCid = "invalidate-posts-page-1";
     const secondPageCid = "invalidate-posts-page-2";
