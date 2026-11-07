@@ -97,6 +97,15 @@ Each community chooses its own anti-spam challenges, described in [custom challe
 
 For replies, `accountComments: { newerThan: Infinity }` can keep local pending replies visible while canonical replies propagate. Pending comments may not have a CID yet; use their local index as a fallback key.
 
+## Shared conventions are BSIPs
+
+Bitsocial Improvement Proposals, or [BSIPs](https://bsips.bitsocial.net/), are the specifications that let independent clients work together. Each BSIP has a [category](https://bsips.bitsocial.net/bsip-1#bsip-types) that says how binding it is. Two categories matter most when you build with the hooks:
+
+- **Core** BSIPs define comments, communities, publishing, votes, edits, moderation, and names. The hooks rely on [pkc-js](https://github.com/pkcprotocol/pkc-js) to implement them, so your app follows them by using the hooks.
+- **Application** BSIPs are conventions that apps agree on above the protocol, such as [community lists](https://bsips.bitsocial.net/bsip-15) and [directories](https://bsips.bitsocial.net/bsip-19). They are opt-in: adopt the ones that fit your app. If your app claims to implement one, implement it as specified.
+
+Directories are the convention most apps meet first. A directory is a named slot such as `/biz/` that several communities compete for, and the client opens whichever one currently ranks first. The hooks do not resolve directories, so an app with slots like this implements [BSIP-19](https://bsips.bitsocial.net/bsip-19) itself. Following it means `/biz/` opens the same community in your app as in 5chan or Seedit. It also means subscriptions and links store the community's address rather than the code, so they stay with the community the person chose when another one takes the slot.
+
 ## Choose where to go next
 
 - [Feed hooks](../../docs/reference.md#feeds-hooks) cover pagination and feed configuration.
@@ -104,3 +113,4 @@ For replies, `accountComments: { newerThan: Infinity }` can keep local pending r
 - [Action hooks](../../docs/reference.md#actions-hooks) cover publishing, votes, subscriptions, and moderation.
 - [The publishing recipe](../../docs/reference.md#create-a-post-or-comment-using-hooks) shows the challenge flow in more detail.
 - [Local moderation](https://docs.bitsocial.net/local-moderation/) explains how communities moderate without a global admin.
+- [BSIPs](https://bsips.bitsocial.net/) list the shared specifications, including opt-in conventions such as directories.
