@@ -41,6 +41,8 @@ communitiesPagesStore {
   // actions
   // a community instance only knows its first page CID, so take the first page CID as an argument
   // and scroll through every community next page in the store until you find the last page, then add it
+  // adding a page also drops the community's pages its records no longer link to, e.g. the previous
+  // page chain after a community update
   addNextCommunityPageToStore: (communityFirstPageCid: string) => void
 }
 ```
