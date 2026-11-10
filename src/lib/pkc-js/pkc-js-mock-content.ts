@@ -1372,6 +1372,8 @@ class Publication extends EventEmitter {
   }
 }
 
+const commentUpdateLoops = new WeakMap<object, number>();
+
 class Comment extends Publication {
   author: any;
   updating: boolean;
@@ -1454,12 +1456,15 @@ class Comment extends Publication {
     this.updating = true;
     this.updatingState = "fetching-ipfs";
     this.emit("updatingstatechange", "fetching-ipfs");
+    // a loop started before stop() ends even if update() started a new one before it woke up
+    const updateLoop = (commentUpdateLoops.get(this) || 0) + 1;
+    commentUpdateLoops.set(this, updateLoop);
     (async () => {
       while (this.updating) {
         await simulateLoadingTime();
         await simulateLoadingTime();
         await simulateLoadingTime();
-        if (!this.updating) {
+        if (!this.updating || commentUpdateLoops.get(this) !== updateLoop) {
           return;
         }
         this.simulateUpdateEvent();
