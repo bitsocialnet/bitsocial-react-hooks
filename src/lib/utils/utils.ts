@@ -393,20 +393,14 @@ const repliesAreValid = async (
     }
   }
 
-  // signature verification
-  try {
-    const promises = normalizedReplies.map((reply) =>
-      commentIsValid(reply, { validateReplies: false, blockCommunity: true }, pkc),
-    );
-    await Promise.all(promises);
-  } catch (e: any) {
-    if (blockCommunity && commentCommunityAddress) {
-      communitiesWithInvalidComments[commentCommunityAddress] = true;
-    }
-    console.log("invalid comment", { comment, error: e });
-    return false;
-  }
-  return true;
+  // signature verification, commentIsValid returns false instead of throwing, and blocks the
+  // community of an invalid reply itself
+  const repliesValidity = await Promise.all(
+    normalizedReplies.map((reply) =>
+      commentIsValid(reply, { validateReplies: false, blockCommunity }, pkc),
+    ),
+  );
+  return !repliesValidity.includes(false);
 };
 
 const utils = {

@@ -66,6 +66,57 @@ describe("utils", () => {
         expect.objectContaining({ validateReplies: false }),
       );
     });
+
+    const getCommentWithReply = (communityAddress: string) => ({
+      cid: `${communityAddress} comment`,
+      depth: 0,
+      communityAddress,
+      replies: {
+        pages: {
+          new: {
+            comments: [
+              {
+                cid: `${communityAddress} reply`,
+                depth: 1,
+                parentCid: `${communityAddress} comment`,
+                communityAddress,
+              },
+            ],
+          },
+        },
+      },
+    });
+    const invalidSignaturePkc = {
+      validateComment: async () => {
+        throw Error("invalid reply signature");
+      },
+    };
+
+    test("rejects replies whose signature is invalid", async () => {
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        const comment = getCommentWithReply("invalid-reply-signature.bso");
+        await expect(utils.repliesAreValid(comment as any, {}, invalidSignaturePkc)).resolves.toBe(
+          false,
+        );
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
+
+    test("doesn't block the community of an invalid reply when blockCommunity is false", async () => {
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        const comment = getCommentWithReply("invalid-reply-not-blocked.bso");
+        await expect(
+          utils.repliesAreValid(comment as any, { blockCommunity: false }, invalidSignaturePkc),
+        ).resolves.toBe(false);
+        const validPkc = { validateComment: async () => {} };
+        await expect(utils.repliesAreValid(comment as any, {}, validPkc)).resolves.toBe(true);
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
   });
 
   test("flattenCommentsPages", async () => {
