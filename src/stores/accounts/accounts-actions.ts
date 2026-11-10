@@ -1970,7 +1970,39 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
   delete createVoteOptions.onChallengeVerification;
   delete createVoteOptions.onError;
   delete createVoteOptions.onPublishingStateChange;
-  createVoteOptions = await applyPublicationWordfilters("vote", createVoteOptions, account);
+  delete createVoteOptions._onVotePublishSession;
+  const { commentCid } = createVoteOptions;
+  // started before the community's wordfilters load, so abandoning the vote meanwhile ends it
+  const votePublishSession = startVotePublishSession(
+    account.id,
+    commentCid,
+    accountsStore.getState().accountsVotes[account.id]?.[commentCid],
+  );
+  const votePublishSessionKey = getVotePublishSessionKey(account.id, commentCid);
+  const isVotePublishSessionActive = () =>
+    activeVotePublishSessions.get(votePublishSessionKey) === votePublishSession;
+  // the hooks abandon this vote's session in the account that published it, whichever is active
+  publishVoteOptions._onVotePublishSession?.(() =>
+    abandonVotePublishSession(account.id, commentCid, votePublishSession),
+  );
+  // counted as a vote being created, so the rest of the burst can't end the session meanwhile
+  votePublishSession.creating++;
+  try {
+    createVoteOptions = await applyPublicationWordfilters("vote", createVoteOptions, account);
+  } catch (error) {
+    votePublishSession.creating--;
+    if (
+      votePublishSession.publications.size === 0 &&
+      votePublishSession.creating === 0 &&
+      isVotePublishSessionActive()
+    ) {
+      endVotePublishSession(account.id, commentCid);
+    }
+    throw error;
+  }
+  votePublishSession.creating--;
+  // abandoned while the wordfilters loaded: nothing was published or written, so stop here
+  if (!isVotePublishSessionActive()) return;
   const accountsState = accountsStore.getState();
   const accountCommentInfo =
     accountsState.commentCidsToAccountsComments[createVoteOptions.commentCid];
@@ -1992,14 +2024,6 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
     signer: undefined,
     author: undefined,
   };
-  const votePublishSession = startVotePublishSession(
-    account.id,
-    createVoteOptions.commentCid,
-    previousAccountVote,
-  );
-  const votePublishSessionKey = getVotePublishSessionKey(account.id, createVoteOptions.commentCid);
-  const isVotePublishSessionActive = () =>
-    activeVotePublishSessions.get(votePublishSessionKey) === votePublishSession;
   const createSessionVote = async () => {
     votePublishSession.creating++;
     try {
@@ -2105,10 +2129,18 @@ export const abandonVote = async (commentCid: string, accountName?: string) => {
     commentCid && typeof commentCid === "string",
     `accountsActions.abandonVote commentCid '${commentCid}' not a string`,
   );
+  await abandonVotePublishSession(account.id, commentCid);
+};
 
-  const session = activeVotePublishSessions.get(getVotePublishSessionKey(account.id, commentCid));
-  if (!session) return;
-  endVotePublishSession(account.id, commentCid);
+// with votePublishSession, abandons only that session, not a newer one for the same comment
+const abandonVotePublishSession = async (
+  accountId: string,
+  commentCid: string,
+  votePublishSession?: VotePublishSession,
+) => {
+  const session = activeVotePublishSessions.get(getVotePublishSessionKey(accountId, commentCid));
+  if (!session || (votePublishSession && session !== votePublishSession)) return;
+  endVotePublishSession(accountId, commentCid);
 
   for (const publication of session.publications) {
     try {
@@ -2116,14 +2148,14 @@ export const abandonVote = async (commentCid: string, accountName?: string) => {
       if (typeof stop === "function") await stop();
     } catch (e) {
       log.error("vote.stop() error during abandon", {
-        accountId: account.id,
+        accountId,
         commentCid,
         error: e,
       });
     }
   }
-  await restoreAccountVote(account.id, commentCid, session.previousAccountVote);
-  log("accountsActions.abandonVote", { accountId: account.id, commentCid });
+  await restoreAccountVote(accountId, commentCid, session.previousAccountVote);
+  log("accountsActions.abandonVote", { accountId, commentCid });
 };
 
 export const publishCommentEdit = async (

@@ -469,6 +469,8 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
   // the cleared hook state nor leak into the next publication
   const publishVoteRequestIdRef = useRef(0);
   const activePublishVoteRequestIdRef = useRef<number | undefined>(undefined);
+  // given by the store as publishVote() starts, it abandons the vote in the account that publishes it
+  const abandonActiveVoteRef = useRef<() => Promise<void>>(undefined);
 
   let initialState = "initializing";
   // before the accountId and options is defined, nothing can happen
@@ -512,6 +514,7 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
     const requestId = publishVoteRequestIdRef.current + 1;
     publishVoteRequestIdRef.current = requestId;
     activePublishVoteRequestIdRef.current = requestId;
+    abandonActiveVoteRef.current = undefined;
     const isActiveRequest = () => activePublishVoteRequestIdRef.current === requestId;
     const activePublishVoteOptions = {
       ...publishVoteOptions,
@@ -524,6 +527,9 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
       onPublishingStateChange: (publishingState: string) => {
         if (isActiveRequest()) setPublishingState(publishingState);
       },
+      _onVotePublishSession: (abandonVote: () => Promise<void>) => {
+        if (isActiveRequest()) abandonActiveVoteRef.current = abandonVote;
+      },
     };
     try {
       await accountsActions.publishVote(activePublishVoteOptions, accountName);
@@ -533,13 +539,14 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
   };
 
   const abandonPublish = async () => {
+    const abandonVote = abandonActiveVoteRef.current;
     activePublishVoteRequestIdRef.current = undefined;
+    abandonActiveVoteRef.current = undefined;
     setChallenge(undefined);
     setChallengeVerification(undefined);
     setPublishChallengeAnswers(undefined);
     setPublishingState(undefined);
-    if (!publishVoteOptions.commentCid) return;
-    await accountsActions.abandonVote(publishVoteOptions.commentCid, accountName);
+    await abandonVote?.();
   };
 
   return useMemo(

@@ -2460,6 +2460,69 @@ describe("actions", () => {
       expect(rendered.result.current.state).toBe("waiting-challenge-answers");
     });
 
+    test(`abandonPublish while the community's wordfilters load stops the vote`, async () => {
+      const votePublish = vi.spyOn(Vote.prototype, "publish");
+      const commentCid = "Qm... abandon while loading.test";
+      const publishVoteOptions = {
+        communityAddress: "12D3KooW... abandon while loading.test",
+        commentCid,
+        vote: 1,
+        onChallenge: vi.fn(),
+        onChallengeVerification: vi.fn(),
+      };
+      try {
+        rendered.rerender(publishVoteOptions);
+        await waitFor(() => rendered.result.current.state === "ready");
+
+        let publishPromise!: Promise<void>;
+        act(() => {
+          publishPromise = rendered.result.current.publishVote();
+        });
+        await act(async () => {
+          await rendered.result.current.abandonPublish();
+        });
+        await act(async () => {
+          await publishPromise;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        const { accountsVotes, activeAccountId } = useAccountsStore.getState();
+        expect(accountsVotes[activeAccountId!]?.[commentCid]).toBe(undefined);
+        expect(votePublish).not.toHaveBeenCalled();
+        expect(rendered.result.current.state).toBe("ready");
+      } finally {
+        votePublish.mockRestore();
+      }
+    });
+
+    test(`abandonPublish stops the vote of the account that published it after the active account changes`, async () => {
+      const { activeAccountId: publishingAccountId, accountsActions } = useAccountsStore.getState();
+      const commentCid = "Qm... abandon after switch.test";
+      rendered.rerender({
+        communityAddress: "12D3KooW... acions.test",
+        commentCid,
+        vote: 1,
+        onChallenge: vi.fn(),
+        onChallengeVerification: vi.fn(),
+      });
+      await waitFor(() => rendered.result.current.state === "ready");
+      await act(async () => {
+        await rendered.result.current.publishVote();
+      });
+      await waitFor(() => rendered.result.current.challenge !== undefined);
+
+      await act(async () => {
+        await accountsActions.createAccount("Other Account");
+        await accountsActions.setActiveAccount("Other Account");
+      });
+      await act(async () => {
+        await rendered.result.current.abandonPublish();
+      });
+
+      const { accountsVotes } = useAccountsStore.getState();
+      expect(accountsVotes[publishingAccountId!][commentCid].vote).toBe(0);
+    });
+
     test(`abandonPublish without a commentCid does not throw`, async () => {
       rendered.rerender({ communityAddress: "12D3KooW... acions.test", vote: 1 });
       await waitFor(() => rendered.result.current.state === "ready");
