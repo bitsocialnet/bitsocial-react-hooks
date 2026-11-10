@@ -5,6 +5,7 @@ import {
   getBufferedFeedsWithoutLoadedFeeds,
   getUpdatedFeeds,
   getFeedsCommunitiesFirstPageCids,
+  getFeedsCommunitiesPostsPagesFirstUpdatedAts,
   getFeedsCommunities,
   getAccountsBlockedAddresses,
   accountsBlockedAddressesChanged,
@@ -1531,6 +1532,35 @@ describe("feeds utils", () => {
       expect(cids).toContain("page-cid-1");
       expect(cids).toContain("next-cid-1");
       expect(cids).toContain("mod-cid-1");
+    });
+  });
+
+  describe("getFeedsCommunitiesPostsPagesFirstUpdatedAts", () => {
+    const getPostsPagesUpdatedAts = (posts: any[]) =>
+      getFeedsCommunitiesPostsPagesFirstUpdatedAts(
+        new Map([["s1", { address: "s1", posts: { pages: { hot: { comments: posts } } } } as any]]),
+      );
+    const posts = [
+      { cid: "post-2", updatedAt: 10 },
+      { cid: "post-1", updatedAt: 10 },
+    ];
+
+    test("changes when a post is added after the first post of a preloaded page", () => {
+      expect(getPostsPagesUpdatedAts([...posts, { cid: "post-0" }])).not.toBe(
+        getPostsPagesUpdatedAts(posts),
+      );
+    });
+
+    test("changes when a post after the first post of a preloaded page is updated", () => {
+      expect(getPostsPagesUpdatedAts([posts[0], { cid: "post-1", updatedAt: 20 }])).not.toBe(
+        getPostsPagesUpdatedAts(posts),
+      );
+    });
+
+    test("stays the same when the preloaded pages stay the same", () => {
+      expect(getPostsPagesUpdatedAts(posts.map((post) => ({ ...post })))).toBe(
+        getPostsPagesUpdatedAts(posts),
+      );
     });
   });
 

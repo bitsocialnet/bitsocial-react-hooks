@@ -651,6 +651,68 @@ describe("feeds store", () => {
     await new Promise((r) => setTimeout(r, 150));
   });
 
+  test("updates feeds when a single preloaded page changes past its first post", async () => {
+    const communityAddress = "community address preloaded page only";
+    const sortType = "hot";
+    const feedName = JSON.stringify([mockAccount?.id, sortType, [communityAddress]]);
+    const post = (cid: string, timestamp: number, updatedAt: number, upvoteCount = 0) => ({
+      cid,
+      communityAddress,
+      timestamp,
+      updatedAt,
+      upvoteCount,
+    });
+    // all the posts fit in the preloaded page, so the community has no page cids
+    const setCommunity = (updatedAt: number, posts: any[]) =>
+      act(() => {
+        communitiesStore.setState((state: any) => ({
+          communities: {
+            ...state.communities,
+            [communityAddress]: {
+              address: communityAddress,
+              updatedAt,
+              posts: { pages: { [sortType]: { comments: posts } } },
+            },
+          },
+        }));
+      });
+    const getPost = (feed: any[] | undefined, cid: string) =>
+      feed?.find((feedPost: any) => feedPost.cid === cid);
+
+    setCommunity(10, [post("post 2", 300, 10), post("post 1", 200, 10)]);
+    act(() => {
+      rendered.result.current.addFeedToStore(
+        feedName,
+        toCommunities([communityAddress]),
+        [communityAddress],
+        sortType,
+        mockAccount,
+      );
+    });
+    await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length === 2);
+    // community updates that leave the posts as they were, so the feeds store has seen the page
+    for (const updatedAt of [11, 12, 13]) {
+      setCommunity(updatedAt, [post("post 2", 300, 10), post("post 1", 200, 10)]);
+      await sleep(150);
+    }
+
+    // a post added after the first post of the page
+    setCommunity(20, [post("post 2", 300, 10), post("post 1", 200, 10), post("post 0", 100, 20)]);
+    await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length === 3);
+    expect(getPost(rendered.result.current.loadedFeeds[feedName], "post 0")).toBeDefined();
+
+    // a vote on a post after the first post of the page
+    setCommunity(30, [
+      post("post 2", 300, 10),
+      post("post 1", 200, 30, 5),
+      post("post 0", 100, 20),
+    ]);
+    await waitFor(
+      () => getPost(rendered.result.current.updatedFeeds[feedName], "post 1")?.upvoteCount === 5,
+    );
+    expect(getPost(rendered.result.current.updatedFeeds[feedName], "post 1").upvoteCount).toBe(5);
+  });
+
   test("resetFeed resets page to 1 and clears loaded/updated", async () => {
     const communityAddresses = ["community address reset-feed"];
     const sortType = "new";

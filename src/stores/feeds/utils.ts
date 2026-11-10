@@ -899,16 +899,16 @@ export const getFeedsCommunitiesFirstPageCids = (
   return [...feedsCommunitiesFirstPageCids].sort();
 };
 
-// get all communities posts pages first post updatedAts, use to check if a communitiesStore change should trigger updateFeeds
+// get all communities posts pages post cids and updatedAts, use to check if a communitiesStore change should trigger updateFeeds
+// (a post added, removed or updated anywhere in a preloaded page changes it without new page cids)
 export const getFeedsCommunitiesPostsPagesFirstUpdatedAts = (
   feedsCommunities: Map<string, Community>,
 ): string => {
   let feedsCommunitiesPostsPagesFirstUpdatedAts = "";
   for (const community of feedsCommunities.values()) {
     for (const page of Object.values<CommunityPage>(community?.posts?.pages || {})) {
-      if (page?.comments?.[0]?.updatedAt) {
-        feedsCommunitiesPostsPagesFirstUpdatedAts +=
-          page.comments[0].cid + page.comments[0].updatedAt;
+      for (const post of page?.comments || []) {
+        feedsCommunitiesPostsPagesFirstUpdatedAts += `${post?.cid}${post?.updatedAt ?? ""};`;
       }
     }
   }
