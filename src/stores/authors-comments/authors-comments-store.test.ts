@@ -1358,6 +1358,10 @@ describe("authors comments store", () => {
           (comment as any).author = { address: authorAddress };
           (comment as any).timestamp = 2000;
         }
+        if (opts?.cid === "prev 1") {
+          (comment as any).author = { address: authorAddress };
+          (comment as any).timestamp = 500;
+        }
         return comment;
       };
 
@@ -1377,9 +1381,16 @@ describe("authors comments store", () => {
       await waitFor(
         () => useAuthorsCommentsStore.getState().lastCommentCids[authorAddress] === leafLastCid,
       );
+      // the leaf has no previousCommentCid, so the chain from the start comment keeps going
+      await waitFor(
+        () => useAuthorsCommentsStore.getState().loadedComments[authorCommentsName]?.length === 3,
+      );
       expect(
-        useAuthorsCommentsStore.getState().nextCommentCidsToFetch[authorAddress],
-      ).toBeDefined();
+        useAuthorsCommentsStore
+          .getState()
+          .loadedComments[authorCommentsName].map((comment: Comment) => comment.cid)
+          .sort(),
+      ).toEqual(["comment cid", leafLastCid, "prev 1"].sort());
 
       PKC.prototype.createComment = createComment;
     },
@@ -1439,6 +1450,151 @@ describe("authors comments store", () => {
       }
     },
   );
+
+  test("a chain comment by another author ends the chain", { timeout }, async () => {
+    const createComment = PKC.prototype.createComment;
+    const startCid = "other-author-chain-start-cid";
+    const otherAuthorCid = "other-author-chain-previous-cid";
+    PKC.prototype.createComment = async function (opts: any) {
+      const comment = new MockComment(opts);
+      if (opts?.cid === startCid) {
+        (comment as any).author = { address: authorAddress, previousCommentCid: otherAuthorCid };
+        (comment as any).timestamp = 2000;
+      }
+      if (opts?.cid === otherAuthorCid) {
+        (comment as any).author = {
+          address: "other-author.eth",
+          previousCommentCid: "other-author-older-cid",
+        };
+        (comment as any).timestamp = 1000;
+      }
+      return comment;
+    };
+
+    try {
+      const authorCommentsName = authorAddress + "-other-author-chain";
+      act(() => {
+        useAuthorsCommentsStore
+          .getState()
+          .addAuthorCommentsToStore(
+            authorCommentsName,
+            authorAddress,
+            startCid,
+            undefined,
+            account,
+          );
+      });
+
+      await waitFor(() => Boolean(commentsStore.getState().comments[otherAuthorCid]?.timestamp));
+      // nothing is left to fetch, so useAuthorComments reports hasMore false
+      await waitFor(
+        () =>
+          useAuthorsCommentsStore.getState().nextCommentCidsToFetch[authorAddress] === undefined,
+      );
+      expect(useAuthorsCommentsStore.getState().nextCommentCidsToFetch[authorAddress]).toBe(
+        undefined,
+      );
+      expect(useAuthorsCommentsStore.getState().hasMoreBufferedComments[authorCommentsName]).toBe(
+        false,
+      );
+      expect(
+        useAuthorsCommentsStore
+          .getState()
+          .loadedComments[authorCommentsName].map((comment: Comment) => comment.cid),
+      ).toEqual([startCid]);
+    } finally {
+      PKC.prototype.createComment = createComment;
+    }
+  });
+
+  describe("two author chains that reach the same comment", () => {
+    const ownerAddress = "shared-chain-owner.eth";
+    const sharedCid = "shared-chain-owner-comment-cid";
+    const ownerOlderCid = "shared-chain-owner-older-cid";
+    const otherStartCid = "shared-chain-other-author-start-cid";
+    const ownerCommentsName = ownerAddress + "-shared-chain";
+    const otherCommentsName = authorAddress + "-shared-chain";
+
+    let createComment: any, releaseSharedComment: Function;
+    beforeEach(() => {
+      createComment = PKC.prototype.createComment;
+      const sharedCommentReleased = new Promise((resolve) => (releaseSharedComment = resolve));
+      PKC.prototype.createComment = async function (opts: any) {
+        const comment = new MockComment(opts);
+        if (opts?.cid === sharedCid) {
+          // the shared comment stays in flight until the test releases it
+          await sharedCommentReleased;
+          (comment as any).author = { address: ownerAddress, previousCommentCid: ownerOlderCid };
+          (comment as any).timestamp = 2000;
+        }
+        if (opts?.cid === ownerOlderCid) {
+          (comment as any).author = { address: ownerAddress };
+          (comment as any).timestamp = 1000;
+        }
+        if (opts?.cid === otherStartCid) {
+          // another author's comment links to the owner's comment as its previous comment
+          (comment as any).author = { address: authorAddress, previousCommentCid: sharedCid };
+          (comment as any).timestamp = 3000;
+        }
+        return comment;
+      };
+    });
+    afterEach(() => {
+      releaseSharedComment();
+      PKC.prototype.createComment = createComment;
+    });
+
+    const addAuthorComments = (authorCommentsName: string, address: string, commentCid: string) =>
+      act(() => {
+        useAuthorsCommentsStore
+          .getState()
+          .addAuthorCommentsToStore(authorCommentsName, address, commentCid, undefined, account);
+      });
+    const getNextCid = (address: string) =>
+      useAuthorsCommentsStore.getState().nextCommentCidsToFetch[address];
+    const getLoadedCids = (authorCommentsName: string) =>
+      useAuthorsCommentsStore
+        .getState()
+        .loadedComments[authorCommentsName].map((comment: Comment) => comment.cid);
+
+    test(
+      "the other author's chain ends when the owner's chain is fetching the comment",
+      { timeout },
+      async () => {
+        addAuthorComments(ownerCommentsName, ownerAddress, sharedCid);
+        addAuthorComments(otherCommentsName, authorAddress, otherStartCid);
+        await waitFor(() => getNextCid(authorAddress) === sharedCid);
+        releaseSharedComment();
+
+        await waitFor(() => getNextCid(authorAddress) === undefined);
+        expect(getNextCid(authorAddress)).toBe(undefined);
+        expect(getLoadedCids(otherCommentsName)).toEqual([otherStartCid]);
+
+        await waitFor(() => getLoadedCids(ownerCommentsName).length === 2);
+        expect(getLoadedCids(ownerCommentsName)).toEqual([sharedCid, ownerOlderCid]);
+        expect(getNextCid(ownerAddress)).toBe(undefined);
+      },
+    );
+
+    test(
+      "the owner's chain continues when the other author's chain is fetching the comment",
+      { timeout },
+      async () => {
+        addAuthorComments(otherCommentsName, authorAddress, otherStartCid);
+        await waitFor(() => getNextCid(authorAddress) === sharedCid);
+        addAuthorComments(ownerCommentsName, ownerAddress, sharedCid);
+        releaseSharedComment();
+
+        await waitFor(() => getLoadedCids(ownerCommentsName).length === 2);
+        expect(getLoadedCids(ownerCommentsName)).toEqual([sharedCid, ownerOlderCid]);
+        expect(getNextCid(ownerAddress)).toBe(undefined);
+
+        await waitFor(() => getNextCid(authorAddress) === undefined);
+        expect(getNextCid(authorAddress)).toBe(undefined);
+        expect(getLoadedCids(otherCommentsName)).toEqual([otherStartCid]);
+      },
+    );
+  });
 });
 
 const hasDuplicateComments = (comments: any) => {

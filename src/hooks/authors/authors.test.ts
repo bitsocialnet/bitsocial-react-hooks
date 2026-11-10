@@ -553,8 +553,9 @@ describe("authors", () => {
       // wait a bit more to make sure no comments load
       await new Promise((r) => setTimeout(r, 500));
       expect(rendered.result.current.authorComments.length).toBe(wrongAuthorAfter);
-      // TODO: find a way to make hasMore false if previousComment has a wrong author.address
-      // expect(rendered.result.current.hasMore).toBe(false)
+      // a previous comment with a wrong author.address ends the author comments
+      await waitFor(() => rendered.result.current.hasMore === false);
+      expect(rendered.result.current.hasMore).toBe(false);
       // TODO: find a way to add the error to result.error
       // expect(rendered.result.current.error.message).toBe('comment.author.previousCommentCid comment has different author address from authorAddress')
 

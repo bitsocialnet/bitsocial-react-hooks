@@ -2328,7 +2328,7 @@ Not implemented, but the easiest method would be to force a page reload, which w
 
 1. Start with an author.address and a comment.cid, fetch the comment.cid and validate the comment.author.address
 
-- in parallel: 2. Fetch the previous comment using comment.author.previousCommentCid and validate the comment.author.address 3. Continue this process until comment.author.previousCommentCid is undefined (no more comments)
+- in parallel: 2. Fetch the previous comment using comment.author.previousCommentCid and validate the comment.author.address 3. Continue this process until comment.author.previousCommentCid is undefined (no more comments), or until the previous comment has a different comment.author.address (it can't continue the author's comments)
 - in parallel: 2. If one of the author comments receives an update with comment.author.community.lastCommentCid, fetch the lastCommentCid and validate the lastComment.author.address 3. If the lastComment is more recent than the original comment, replace the original comment with the lastComment and start fetching lastComment.author.previousCommentCid 4. Continue this process until comment.author.previousCommentCid is undefined (no more comments)
 
 #### Flow of adding authorComments to authorsCommentsStore

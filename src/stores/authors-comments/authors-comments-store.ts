@@ -337,8 +337,9 @@ const fetchCommentOnShouldFetchOrNextCidChange =
     }
 
     // when comment has fetched, update loadedComments, bufferedComments and shouldFetchNextComment
-    if (!authorCommentCidsFetching[nextCommentCidToFetch]) {
-      authorCommentCidsFetching[nextCommentCidToFetch] = true;
+    const authorCommentKey = getAuthorCommentKey(options.authorAddress, nextCommentCidToFetch);
+    if (!authorCommentCidsFetching[authorCommentKey]) {
+      authorCommentCidsFetching[authorCommentKey] = true;
       commentsStore.subscribe(updateCommentsOnCommentsChange(options, nextCommentCidToFetch));
     }
 
@@ -353,26 +354,49 @@ const fetchCommentOnShouldFetchOrNextCidChange =
     );
   };
 
+// the chains of 2 authors can reach the same cid, and each chain must handle it (e.g. end on a
+// comment by another author), so fetching listeners and previous comments are keyed per author
+const getAuthorCommentKey = (authorAddress: string, commentCid: string) =>
+  `${authorAddress} ${commentCid}`;
+
 // if commentStore changed, update loadedComments, bufferedCommentCids, shouldFetchNextComment and nextCommentCidsToFetch
 let previousComments = new QuickLru({ maxSize: 10000 });
-let authorCommentCidsFetching: { [commentCid: string]: boolean } = {};
+let authorCommentCidsFetching: { [authorCommentKey: string]: boolean } = {};
 let communityLastCommentCidsFetching: { [commentCid: string]: boolean } = {};
 const updateCommentsOnCommentsChange =
   (options: AuthorCommentsOptions, commentCid: string) => (state: CommentsState) => {
+    const authorCommentKey = getAuthorCommentKey(options.authorAddress, commentCid);
     // not a next cid, do nothing
-    if (!authorCommentCidsFetching[commentCid]) {
+    if (!authorCommentCidsFetching[authorCommentKey]) {
       return;
     }
     const comment = state.comments[commentCid];
     // comment hasn't changed, do nothing
-    if (!comment?.timestamp || comment === previousComments.get(commentCid)) {
+    if (!comment?.timestamp || comment === previousComments.get(authorCommentKey)) {
       return;
     }
     // comment author address is incorrect, do nothing
     if (comment.author?.address !== options.authorAddress) {
+      // a next cid by another author can't continue the author's comments, so nothing is left to
+      // fetch, otherwise the chain would wait on it forever
+      if (
+        commentCid === authorsCommentsStore.getState().nextCommentCidsToFetch[options.authorAddress]
+      ) {
+        log.error("authorsCommentsStore next comment cid has a different author address", {
+          commentCid,
+          authorAddress: options.authorAddress,
+          commentAuthorAddress: comment.author?.address,
+        });
+        authorsCommentsStore.setState((state: AuthorsCommentsState) => ({
+          nextCommentCidsToFetch: {
+            ...state.nextCommentCidsToFetch,
+            [options.authorAddress]: undefined,
+          },
+        }));
+      }
       return;
     }
-    previousComments.set(commentCid, comment);
+    previousComments.set(authorCommentKey, comment);
 
     const {
       addBufferedCommentCid,
