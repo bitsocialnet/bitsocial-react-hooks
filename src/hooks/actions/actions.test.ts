@@ -790,6 +790,92 @@ describe("actions", () => {
       expect(rendered.result.current[0].communityExports).toEqual([]);
     });
 
+    // holds each exportCommunity() call of the store until its returned release() is called
+    const gateExportCommunity = () => {
+      const originalExportCommunity = useAccountsStore.getState().accountsActions.exportCommunity;
+      const releases: Function[] = [];
+      useAccountsStore.setState((state: any) => ({
+        ...state,
+        accountsActions: {
+          ...state.accountsActions,
+          exportCommunity: async (...args: any[]) => {
+            await new Promise((resolve) => releases.push(resolve));
+            return (originalExportCommunity as any)(...args);
+          },
+        },
+      }));
+      const restore = () =>
+        useAccountsStore.setState((state: any) => ({
+          ...state,
+          accountsActions: { ...state.accountsActions, exportCommunity: originalExportCommunity },
+        }));
+      return { releases, restore };
+    };
+
+    test("a late export of earlier options does not show as the current export", async () => {
+      const { releases, restore } = gateExportCommunity();
+      try {
+        rendered.rerender([{ communityAddress: "first-export-target.eth" }]);
+        await waitFor(() => rendered.result.current[0].state === "ready");
+        let firstExport!: Promise<void>;
+        act(() => {
+          firstExport = rendered.result.current[0].exportCommunity();
+        });
+        rendered.rerender([{ communityAddress: "second-export-target.eth" }]);
+        let secondExport!: Promise<void>;
+        act(() => {
+          secondExport = rendered.result.current[0].exportCommunity();
+        });
+        await waitFor(() => releases.length === 2);
+
+        releases[0]();
+        await act(async () => {
+          await firstExport;
+        });
+        expect(rendered.result.current[0].state).toBe("exporting");
+        expect(rendered.result.current[0].communityExports).toEqual([]);
+
+        releases[1]();
+        await act(async () => {
+          await secondExport;
+        });
+        expect(rendered.result.current[0].state).toBe("succeeded");
+        expect(rendered.result.current[0].communityExports).toEqual([
+          expect.objectContaining({ communityAddress: "second-export-target.eth" }),
+        ]);
+      } finally {
+        restore();
+      }
+    });
+
+    test("a new export does not show the previous export while it runs", async () => {
+      rendered.rerender([{ communityAddress: "previous-export-target.eth" }]);
+      await waitFor(() => rendered.result.current[0].state === "ready");
+      await act(async () => {
+        await rendered.result.current[0].exportCommunity();
+      });
+      await waitFor(() => rendered.result.current[0].state === "succeeded");
+
+      const { releases, restore } = gateExportCommunity();
+      try {
+        rendered.rerender([{ communityAddress: "next-export-target.eth" }]);
+        let nextExport!: Promise<void>;
+        act(() => {
+          nextExport = rendered.result.current[0].exportCommunity();
+        });
+        await waitFor(() => releases.length === 1);
+        expect(rendered.result.current[0].state).toBe("exporting");
+        expect(rendered.result.current[0].communityExports).toEqual([]);
+
+        releases[0]();
+        await act(async () => {
+          await nextExport;
+        });
+      } finally {
+        restore();
+      }
+    });
+
     test("can export multiple communities", async () => {
       const communityAddresses = ["export-many-1.eth", "export-many-2.eth"];
       rendered.rerender([{ communityAddresses }]);

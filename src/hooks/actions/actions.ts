@@ -984,6 +984,7 @@ export function useExportCommunity(options?: UseExportCommunityOptions): UseExpo
   ]);
   const previousExportContextKeyRef = useRef(exportContextKey);
   const exportContextVersionRef = useRef(0);
+  const exportRequestIdRef = useRef(0);
   if (previousExportContextKeyRef.current !== exportContextKey) {
     previousExportContextKeyRef.current = exportContextKey;
     exportContextVersionRef.current += 1;
@@ -1003,22 +1004,29 @@ export function useExportCommunity(options?: UseExportCommunityOptions): UseExpo
     exportingContext.version === exportContextVersionRef.current;
 
   const exportCommunity = async () => {
+    // only the latest export writes the result, whatever context an earlier one was started in
+    const requestId = ++exportRequestIdRef.current;
     try {
       setExportingContext({
         key: exportContextKey,
         version: exportContextVersionRef.current,
       });
       setExportingState("exporting");
+      setCommunityExports([]);
+      setErrors([]);
       const communityExports = await accountsActions.exportCommunity(
         targetCommunityAddresses,
         exportCommunityOptions,
         accountName,
       );
+      if (exportRequestIdRef.current !== requestId) return;
       setCommunityExports(communityExports);
       setExportingState("succeeded");
     } catch (e: any) {
-      setExportingState("failed");
-      setErrors((errors) => [...errors, e]);
+      if (exportRequestIdRef.current === requestId) {
+        setExportingState("failed");
+        setErrors((errors) => [...errors, e]);
+      }
       onError?.(e);
     }
   };
