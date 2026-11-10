@@ -25,7 +25,7 @@ The browser suite uses Vitest's Playwright provider in `config/vitest-e2e.config
 
 `yarn test:e2e` runs mock then real Chromium suites. The browser is visible locally unless `HEADLESS=1` or `CI` is set. `CHROME_BIN` and `FIREFOX_BIN` can specify installed browser executables; `FIREFOX=1` chooses Firefox. Run engines sequentially and retain the single-worker cap.
 
-Real protocol tests require the local test infrastructure. Inspect `test/test-server/config.js` for ports, then run `yarn test:server` in a task-owned session and wait with `yarn test:server:wait-on`. The server starts local Kubo and protocol RPC services; do not start a duplicate or terminate an unrelated service. Record the server and child process ownership and clean up only those task-owned processes on every exit path.
+Real protocol tests require the local test infrastructure. Inspect `test/test-server/config.js` for ports, then run `yarn test:server` in a task-owned session and wait with `yarn test:server:wait-on`. The server starts local Kubo and protocol RPC services; do not start a duplicate or terminate an unrelated service. Record the server and child process ownership and clean up only those task-owned processes on every exit path. Stopping the `node test/test-server` process with SIGINT or SIGTERM also stops the Kubo daemons it started.
 
 Use these explicit commands for local agent runs. The legacy `scripts/build-and-test-e2e.sh` uses broad process-name cleanup and is unsuitable for a shared contributor machine. A successful mock run does not establish real protocol behavior.
 

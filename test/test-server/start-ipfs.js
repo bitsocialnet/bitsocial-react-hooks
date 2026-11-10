@@ -1,6 +1,6 @@
 // script to start IPFS and pkc-js for testing
 
-import { exec, execSync } from "child_process";
+import { execSync, spawn } from "child_process";
 import { directory as getTmpFolderPath } from "tempy";
 import assert from "assert";
 import { path as getIpfsPath } from "kubo";
@@ -58,8 +58,12 @@ const startIpfs = ({ apiPort, gatewayPort, swarmPort, args = "" } = {}) => {
     shell: true,
   });
 
-  // start ipfs daemon
-  const ipfsProcess = exec(`IPFS_PATH="${ipfsDataPath}" "${ipfsPath}" daemon ${args}`);
+  // start ipfs daemon without a shell, so ipfsProcess is the daemon itself and can be killed
+  const ipfsProcess = spawn(ipfsPath, ["daemon", ...args.split(" ").filter(Boolean)], {
+    env: { ...process.env, IPFS_PATH: ipfsDataPath },
+  });
+  ipfsProcess.stdout.setEncoding("utf8");
+  ipfsProcess.stderr.setEncoding("utf8");
   console.log(
     `IPFS_PATH="${ipfsDataPath}" "${ipfsPath}" daemon ${args} process started with pid ${ipfsProcess.pid}`,
   );
@@ -71,8 +75,9 @@ const startIpfs = ({ apiPort, gatewayPort, swarmPort, args = "" } = {}) => {
     console.error(`ipfs process with pid ${ipfsProcess.pid} exited`);
     process.exit(1);
   });
+  // index.js turns SIGINT/SIGTERM into process.exit() so this also runs when the server is stopped
   process.on("exit", () => {
-    exec(`kill ${ipfsProcess.pid + 1}`);
+    ipfsProcess.kill();
   });
 
   const ipfsDaemonIsReady = () =>
