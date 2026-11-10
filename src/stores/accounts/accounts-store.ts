@@ -40,7 +40,8 @@ type AccountsState = {
   accountsComments: AccountsComments;
   accountsCommentsIndexes: AccountsCommentsIndexes;
   commentCidsToAccountsComments: CommentCidsToAccountsComments;
-  accountsCommentsUpdating: { [commentCid: string]: boolean };
+  // keyed by `${accountId}:${commentCid}`
+  accountsCommentsUpdating: { [accountIdAndCommentCid: string]: boolean };
   accountsCommentsReplies: AccountsCommentsReplies;
   accountsVotes: AccountsVotes;
   accountsEdits: AccountsEdits;
