@@ -161,6 +161,8 @@ type PublishSession = {
   originalIndex: number;
   currentIndex: number;
   comment?: any;
+  // called with currentIndex after a deletion of an earlier account comment shifted it
+  onIndexChange?: (index: number) => void;
 };
 
 // Active publish-session tracking for pending comments (Task 3)
@@ -390,6 +392,15 @@ const shiftPublishSessionIndicesAfterDelete = (accountId: string, deletedIndex: 
   for (const session of activePublishSessions.values()) {
     if (session.accountId === accountId && session.currentIndex > deletedIndex) {
       session.currentIndex -= 1;
+    }
+  }
+};
+
+// the sessions shifted by a deletion are the ones now at or after the deleted index
+const notifyShiftedPublishSessions = (accountId: string, deletedIndex: number) => {
+  for (const session of activePublishSessions.values()) {
+    if (session.accountId === accountId && session.currentIndex >= deletedIndex) {
+      session.onIndexChange?.(session.currentIndex);
     }
   }
 };
@@ -1507,7 +1518,16 @@ export const publishComment = async (
   if (pendingCommentIndex !== accountCommentIndex) {
     notifyPendingComment(pendingCommentIndex, createdAccountComment);
   }
-  publishCommentOptions._onPendingCommentIndex?.(pendingCommentIndex, createdAccountComment);
+  // the hooks abandon the pending comment with abandonPendingComment, and learn its new index when a
+  // deletion of an earlier account comment shifts it
+  const abandonPendingComment = () => abandonPublishSession(publishSessionId);
+  const onPendingCommentIndex = publishCommentOptions._onPendingCommentIndex;
+  onPendingCommentIndex?.(pendingCommentIndex, createdAccountComment, abandonPendingComment);
+  const pendingPublishSession = getPublishSession(publishSessionId);
+  if (onPendingCommentIndex && pendingPublishSession) {
+    pendingPublishSession.onIndexChange = (index) =>
+      onPendingCommentIndex(index, { ...createdAccountComment, index }, abandonPendingComment);
+  }
 
   let comment: any;
   (async () => {
@@ -1880,32 +1900,47 @@ export const deleteComment = async (
     );
     accountCommentIndex = mapping.accountCommentIndex;
   }
+  await deleteAccountComment(account.id, accountCommentIndex);
+};
+
+const deleteAccountComment = async (accountId: string, accountCommentIndex: number) => {
+  const { accountsComments } = accountsStore.getState();
+  const accountComments = accountsComments[accountId] || [];
   assert(
     accountCommentIndex >= 0 && accountCommentIndex < accountComments.length,
     `accountsActions.deleteComment index '${accountCommentIndex}' out of range`,
   );
 
-  abandonAndStopPublishSession(account.id, accountCommentIndex);
-  shiftPublishSessionIndicesAfterDelete(account.id, accountCommentIndex);
+  abandonAndStopPublishSession(accountId, accountCommentIndex);
+  shiftPublishSessionIndicesAfterDelete(accountId, accountCommentIndex);
 
   const spliced = [...accountComments];
   spliced.splice(accountCommentIndex, 1);
-  const reindexed = spliced.map((c, i) => ({ ...c, index: i, accountId: account.id }));
-  const newAccountsComments = { ...accountsComments, [account.id]: reindexed };
+  const reindexed = spliced.map((c, i) => ({ ...c, index: i, accountId }));
+  const newAccountsComments = { ...accountsComments, [accountId]: reindexed };
   const newCommentCidsToAccountsComments = getCommentCidsToAccountsComments(newAccountsComments);
 
   accountsStore.setState(({ accountsCommentsIndexes }) => ({
     accountsComments: newAccountsComments,
     accountsCommentsIndexes: {
       ...accountsCommentsIndexes,
-      [account.id]: getAccountCommentsIndex(reindexed),
+      [accountId]: getAccountCommentsIndex(reindexed),
     },
     commentCidsToAccountsComments: newCommentCidsToAccountsComments,
   }));
+  notifyShiftedPublishSessions(accountId, accountCommentIndex);
 
-  await accountsDatabase.deleteAccountComment(account.id, accountCommentIndex);
+  await accountsDatabase.deleteAccountComment(accountId, accountCommentIndex);
 
-  log("accountsActions.deleteComment", { accountId: account.id, accountCommentIndex });
+  log("accountsActions.deleteComment", { accountId, accountCommentIndex });
+};
+
+// deletes a comment that is still publishing from where its session has it now, in the account that
+// published it, so a deletion that shifted it or a change of the active account can't redirect it
+const abandonPublishSession = async (sessionId: string) => {
+  const session = getPublishSession(sessionId);
+  if (!session || isPublishSessionAbandoned(sessionId)) return;
+  await deleteAccountComment(session.accountId, session.currentIndex);
 };
 
 export const publishVote = async (publishVoteOptions: PublishVoteOptions, accountName?: string) => {

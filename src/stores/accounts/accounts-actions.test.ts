@@ -3270,6 +3270,7 @@ describe("accounts-actions", () => {
       expect(onPendingCommentIndex).toHaveBeenCalledWith(
         0,
         expect.objectContaining({ content: "shifted pending comment", index: 0 }),
+        expect.any(Function),
       );
       expect(publishedComment).toEqual(
         expect.objectContaining({ content: "shifted pending comment", index: 0 }),
