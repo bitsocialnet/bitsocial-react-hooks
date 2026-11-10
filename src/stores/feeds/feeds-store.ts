@@ -514,6 +514,15 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
         accounts,
       );
 
+      // a feed reset while this pass awaited comment validation would get its old posts back, and
+      // loaded feeds never shrink, so drop this pass and calculate again from the reset feed
+      if (getState().loadedFeeds !== previousState.loadedFeeds) {
+        updateFeedsPending = false;
+        updateFeedsAgain = false;
+        updateFeeds();
+        return;
+      }
+
       // set new feeds
       setState((state: any) => ({
         bufferedFeeds,

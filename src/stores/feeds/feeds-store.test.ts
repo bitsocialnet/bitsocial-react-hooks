@@ -743,6 +743,56 @@ describe("feeds store", () => {
     getCommunitySpy.mockRestore();
   });
 
+  test("resetFeed during a feeds update keeps the feed reset", async () => {
+    const communityAddresses = ["community address reset during update"];
+    const sortType = "new";
+    const feedName = JSON.stringify([mockAccount?.id, sortType, communityAddresses]);
+
+    act(() => {
+      rendered.result.current.addFeedToStore(
+        feedName,
+        toCommunities(communityAddresses),
+        communityAddresses,
+        sortType,
+        mockAccount,
+      );
+    });
+    await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length >= postsPerPage);
+    act(() => rendered.result.current.incrementFeedPageNumber(feedName));
+    await waitFor(() => rendered.result.current.updatedFeeds[feedName]?.length >= postsPerPage * 2);
+
+    // hold the comment validation of the next feeds update
+    let releaseValidation = () => {};
+    const validation = new Promise<void>((resolve) => (releaseValidation = resolve));
+    const validateCommentSpy = vi
+      .spyOn(mockAccount.pkc, "validateComment")
+      .mockImplementation(() => validation);
+    try {
+      // a newer version of a loaded post makes the next feeds update validate it
+      const loadedPost = rendered.result.current.loadedFeeds[feedName][0];
+      act(() => {
+        communitiesPagesStore.setState((state: any) => ({
+          comments: { ...state.comments, [loadedPost.cid]: { ...loadedPost, updatedAt: 1000 } },
+        }));
+        rendered.result.current.updateFeeds();
+      });
+      await waitFor(() => validateCommentSpy.mock.calls.length > 0);
+
+      await act(async () => {
+        await rendered.result.current.resetFeed(feedName);
+      });
+      releaseValidation();
+
+      await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length === postsPerPage);
+      await sleep(300);
+      expect(rendered.result.current.feedsOptions[feedName].pageNumber).toBe(1);
+      expect(rendered.result.current.loadedFeeds[feedName].length).toBe(postsPerPage);
+    } finally {
+      releaseValidation();
+      validateCommentSpy.mockRestore();
+    }
+  });
+
   test("resetFeed refreshes publicKey-keyed communities with their original refs", async () => {
     const community = { name: "community-ref.eth", publicKey: "community-public-key-reset" };
     const feedName = JSON.stringify([mockAccount?.id, "new", [community.publicKey]]);

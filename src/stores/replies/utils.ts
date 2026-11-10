@@ -130,6 +130,11 @@ const pageNumberIncreased = (
   return false;
 };
 
+// a reset feed loads its first page again, even when its page number was already 1
+export const resetPreviousPageNumber = (feedName: string) => {
+  delete previousPageNumbers[feedName];
+};
+
 const alwaysStreamPage = (feedOptions: RepliesFeedOptions) => {
   // feedOptions.streamPage set to true means always stream page
   if (feedOptions.streamPage) {
