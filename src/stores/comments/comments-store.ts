@@ -15,6 +15,8 @@ import { normalizeCommentCommunityAddress } from "../../lib/pkc-compat";
 let pkcGetCommentPending: { [key: string]: boolean } = {};
 const liveComments: { [commentCid: string]: Comment } = {};
 const liveCommentPromises: { [commentCid: string]: Promise<Comment> | undefined } = {};
+// settles when every comment.stop() in progress for the CID has returned
+const liveCommentStops: { [commentCid: string]: Promise<void> | undefined } = {};
 const commentAutoUpdateSubscribers: {
   [commentCid: string]: { [subscriberId: string]: true };
 } = {};
@@ -145,6 +147,22 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     return true;
   };
 
+  // ensureLiveComment waits for these before it hands the comment out again
+  const trackLiveCommentStop = (commentCid: string, stopCall: unknown) => {
+    const stopped = Promise.resolve(stopCall).then(
+      () => {},
+      () => {},
+    );
+    const previousStops = liveCommentStops[commentCid];
+    const stops = previousStops ? Promise.all([previousStops, stopped]).then(() => {}) : stopped;
+    liveCommentStops[commentCid] = stops;
+    void stops.then(() => {
+      if (liveCommentStops[commentCid] === stops) {
+        delete liveCommentStops[commentCid];
+      }
+    });
+  };
+
   const stopLiveComment = async (commentCid: string, comment?: Comment) => {
     clearCommentUpdateFollowup(commentCid);
     // a stopped comment gets no further update from this cycle
@@ -154,7 +172,9 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
       return;
     }
     try {
-      await liveComment.stop();
+      const stopCall = liveComment.stop();
+      trackLiveCommentStop(commentCid, stopCall);
+      await stopCall;
     } catch (error) {
       log.trace("comment.stop error", { commentCid, comment: liveComment, error });
     }
@@ -344,6 +364,14 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     }
   };
 
+  // pkc-js stop() marks the comment stopped before it tears down the update loop, and update()
+  // in between joins that loop, after which the comment never updates again
+  const waitForLiveCommentStops = async (commentCid: string) => {
+    while (liveCommentStops[commentCid]) {
+      await liveCommentStops[commentCid];
+    }
+  };
+
   // addCommentToStore passes cacheChecked, because it has read the cache already
   const ensureLiveComment = async (
     commentCid: string,
@@ -351,6 +379,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     commentData?: Comment,
     options?: { cacheChecked?: boolean },
   ) => {
+    await waitForLiveCommentStops(commentCid);
     if (liveComments[commentCid]) {
       return liveComments[commentCid];
     }
@@ -617,6 +646,8 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
       ) {
         await stopLiveComment(commentCid, liveComment);
       }
+      // another stop may have begun meanwhile, e.g. when the update requested on open ended
+      await waitForLiveCommentStops(commentCid);
 
       return waitForCommentUpdateCycle(commentCid, liveComment, () =>
         requestCommentUpdate(commentCid, liveComment, {
@@ -706,6 +737,9 @@ export const resetCommentsStore = async () => {
   }
   for (const commentCid in liveCommentPromises) {
     delete liveCommentPromises[commentCid];
+  }
+  for (const commentCid in liveCommentStops) {
+    delete liveCommentStops[commentCid];
   }
   for (const commentCid in liveComments) {
     delete liveComments[commentCid];

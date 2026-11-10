@@ -143,6 +143,72 @@ const createUnreachableCommunityComment = (commentData: any) => {
   return liveComment;
 };
 
+// Mirrors pkc-js: stop() marks the comment stopped, then tears down the shared update loop.
+// update() in between joins the loop being torn down, and afterwards the comment, still marked
+// updating, ignores update() and never updates again. Stops are held until finishStop() or
+// finishStops(), and endCycle() ends a running update cycle with a CommentUpdate.
+const createStoppingComment = (commentCid: string) => {
+  const liveComment: any = new EventEmitter();
+  liveComment.cid = commentCid;
+  liveComment.timestamp = 100;
+  liveComment.updatedAt = 200;
+  liveComment.clients = {};
+  liveComment.state = "stopped";
+  liveComment.updatingState = "stopped";
+  liveComment.off = liveComment.off.bind(liveComment);
+  liveComment.removeAllListeners = liveComment.removeAllListeners.bind(liveComment);
+  liveComment.once = liveComment.once.bind(liveComment);
+  const teardowns: (() => void)[] = [];
+  let holdStops = true;
+  let stopsInProgress = 0;
+  let updateLoopRunning = false;
+  liveComment.update = vi.fn().mockImplementation(async () => {
+    if (liveComment.state === "updating") {
+      return;
+    }
+    liveComment.state = "updating";
+    updateLoopRunning = stopsInProgress === 0;
+    if (updateLoopRunning) {
+      liveComment.updatingState = "fetching-update-ipfs";
+      liveComment.emit("updatingstatechange", "fetching-update-ipfs");
+    }
+  });
+  liveComment.stop = vi.fn().mockImplementation(async () => {
+    liveComment.state = "stopped";
+    stopsInProgress++;
+    if (holdStops) {
+      await new Promise<void>((resolve) => teardowns.push(resolve));
+    }
+    stopsInProgress--;
+    updateLoopRunning = false;
+    liveComment.updatingState = "stopped";
+    liveComment.emit("updatingstatechange", "stopped");
+  });
+  return {
+    liveComment,
+    finishStop: () => teardowns.shift()?.(),
+    finishStops: () => {
+      holdStops = false;
+      teardowns.splice(0).forEach((finishTeardown) => finishTeardown());
+    },
+    endCycle: () => {
+      if (!updateLoopRunning) {
+        return;
+      }
+      liveComment.updatedAt = 300;
+      liveComment.updatingState = "succeeded";
+      liveComment.emit("update", liveComment);
+      liveComment.emit("updatingstatechange", "succeeded");
+    },
+  };
+};
+
+const refreshSettles = (refreshPromise: Promise<any>) =>
+  Promise.race([
+    refreshPromise,
+    new Promise((_, reject) => setTimeout(() => reject(Error("refresh never settled")), 1000)),
+  ]);
+
 describe("comments store", () => {
   beforeAll(async () => {
     setPkcJs(PkcJsMock);
@@ -1511,21 +1577,131 @@ describe("comments store", () => {
     const firstStopPromise = commentsStore.getState().stopCommentAutoUpdate(commentCid, "sub-1");
     await new Promise((r) => setTimeout(r, 0));
 
-    await act(async () => {
-      await commentsStore.getState().startCommentAutoUpdate(commentCid, "sub-2", mockAccount);
-    });
+    // the new subscriber's start waits for the stop in progress
+    const secondStartPromise = commentsStore
+      .getState()
+      .startCommentAutoUpdate(commentCid, "sub-2", mockAccount);
+    await new Promise((r) => setTimeout(r, 0));
 
     resolveFirstStop();
     await act(async () => {
-      await firstStopPromise;
+      await Promise.all([firstStopPromise, secondStartPromise]);
     });
+    expect(listeners).toContain(liveComment);
 
     await act(async () => {
       await commentsStore.getState().stopCommentAutoUpdate(commentCid, "sub-2");
     });
 
     expect(liveComment.stop).toHaveBeenCalledTimes(2);
+    expect(listeners).not.toContain(liveComment);
     mockAccount.pkc.createComment = createCommentOrig;
+  });
+
+  test("startCommentAutoUpdate restarts a comment whose stop is in progress once the stop ends", async () => {
+    const commentCid = "restart-during-stop-cid";
+    // Mirrors pkc-js: stop() marks the comment stopped, then tears down the shared update loop.
+    // update() in between joins the loop being torn down, and afterwards the comment, still
+    // marked updating, ignores update() and never updates again.
+    let finishStop!: () => void;
+    const stopTeardown = new Promise<void>((resolve) => {
+      finishStop = resolve;
+    });
+    const liveComment: any = new EventEmitter();
+    liveComment.cid = commentCid;
+    liveComment.timestamp = 1;
+    liveComment.clients = {};
+    liveComment.state = "stopped";
+    liveComment.off = liveComment.off.bind(liveComment);
+    liveComment.removeAllListeners = liveComment.removeAllListeners.bind(liveComment);
+    liveComment.once = liveComment.once.bind(liveComment);
+    let stopInProgress = false;
+    let updateLoopRunning = false;
+    liveComment.update = vi.fn().mockImplementation(async () => {
+      if (liveComment.state === "updating") {
+        return;
+      }
+      liveComment.state = "updating";
+      updateLoopRunning = !stopInProgress;
+    });
+    liveComment.stop = vi.fn().mockImplementation(async () => {
+      liveComment.state = "stopped";
+      stopInProgress = true;
+      await stopTeardown;
+      stopInProgress = false;
+      updateLoopRunning = false;
+    });
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      await act(async () => {
+        await commentsStore.getState().startCommentAutoUpdate(commentCid, "sub-1", mockAccount);
+      });
+      expect(updateLoopRunning).toBe(true);
+
+      // e.g. useComment re-running its auto-update effect: cleanup, then start, in one tick
+      const stopPromise = commentsStore.getState().stopCommentAutoUpdate(commentCid, "sub-1");
+      const startPromise = commentsStore
+        .getState()
+        .startCommentAutoUpdate(commentCid, "sub-2", mockAccount);
+      await new Promise((r) => setTimeout(r, 0));
+
+      finishStop();
+      await act(async () => {
+        await Promise.all([stopPromise, startPromise]);
+      });
+
+      expect(updateLoopRunning).toBe(true);
+      expect(liveComment.update).toHaveBeenCalledTimes(2);
+    } finally {
+      finishStop();
+      await commentsStore.getState().stopCommentAutoUpdate(commentCid, "sub-2");
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
+  test("refreshComment waits for a stop that begins during its own stop before updating", async () => {
+    const commentCid = "refresh-stop-during-own-stop-cid";
+    const { liveComment, finishStop, finishStops, endCycle } = createStoppingComment(commentCid);
+    let failOpeningUpdate!: (error: Error) => void;
+    liveComment.update.mockImplementationOnce(() => {
+      liveComment.state = "updating";
+      liveComment.updatingState = "fetching-update-ipfs";
+      return new Promise<void>((_, reject) => {
+        failOpeningUpdate = reject;
+      });
+    });
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      await act(async () => {
+        await commentsStore.getState().addCommentToStore(commentCid, mockAccount);
+      });
+      const refreshPromise = commentsStore.getState().refreshComment(commentCid, mockAccount);
+      await tlWaitFor(() => expect(liveComment.stop).toHaveBeenCalledTimes(1));
+
+      // the update requested on open fails while the refresh stops the comment, and its
+      // one-shot update ends with a second stop
+      await act(async () => {
+        failOpeningUpdate(Error("update failed"));
+      });
+      await tlWaitFor(() => expect(liveComment.stop).toHaveBeenCalledTimes(2));
+
+      finishStop();
+      await new Promise((r) => setTimeout(r, 10));
+      finishStops();
+      await tlWaitFor(() => expect(liveComment.update).toHaveBeenCalledTimes(2));
+      act(() => endCycle());
+
+      expect(await refreshSettles(refreshPromise)).toEqual(
+        expect.objectContaining({ cid: commentCid, updatedAt: 300 }),
+      );
+    } finally {
+      finishStops();
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
   });
 
   test("resetCommentsStore clears in-flight live comment promises", async () => {
