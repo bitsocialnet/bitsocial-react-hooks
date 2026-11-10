@@ -24,6 +24,8 @@ const stopCommentAfterNextUpdate: { [commentCid: string]: boolean } = {};
 const sparseCommentFollowupRequested: { [commentCid: string]: boolean } = {};
 // set when the current update attempt emitted an error, until the next attempt starts
 const commentUpdateAttemptFailed: { [commentCid: string]: boolean } = {};
+// refreshComment calls waiting for their update cycle to end
+const pendingRefreshes: { [commentCid: string]: number } = {};
 const initializedComments = new WeakSet<object>();
 const trackedListeners = new WeakSet<object>();
 
@@ -137,10 +139,11 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     });
   };
 
-  // When the last auto-update subscriber leaves during the opening update, stopping would abort
-  // it and leave a frozen useComment on a cached copy, so stop when that update ends instead.
-  const deferStopUntilOpeningUpdateEnds = (commentCid: string) => {
-    if (!getState().openingUpdatesPending[commentCid]) {
+  // When the last auto-update subscriber leaves during the opening update or a refresh, stopping
+  // would abort it and leave a frozen useComment on a cached copy or a refresh that never
+  // settles, so stop when that update ends instead.
+  const deferStopUntilRequestedUpdateEnds = (commentCid: string) => {
+    if (!getState().openingUpdatesPending[commentCid] && !pendingRefreshes[commentCid]) {
       return false;
     }
     stopCommentAfterNextUpdate[commentCid] = true;
@@ -600,7 +603,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
       }
 
       if (!hasCommentAutoUpdateSubscribers(commentCid)) {
-        if (deferStopUntilOpeningUpdateEnds(commentCid)) {
+        if (deferStopUntilRequestedUpdateEnds(commentCid)) {
           return;
         }
         await stopLiveComment(commentCid, liveComment);
@@ -621,7 +624,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
 
       if (
         hasCommentAutoUpdateSubscribers(commentCid) ||
-        deferStopUntilOpeningUpdateEnds(commentCid)
+        deferStopUntilRequestedUpdateEnds(commentCid)
       ) {
         return;
       }
@@ -633,27 +636,39 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     },
 
     async refreshComment(commentCid: string, account: Account, commentData?: Comment) {
-      const storedComment = getState().comments[commentCid];
-      const liveComment = await ensureLiveComment(
-        commentCid,
-        account,
-        mergeCommentData(commentCid, storedComment, commentData),
-      );
+      // counted from the start, so a subscriber that leaves while the refresh stops the comment
+      // defers its stop instead of stopping the comment again
+      pendingRefreshes[commentCid] = (pendingRefreshes[commentCid] || 0) + 1;
+      try {
+        const storedComment = getState().comments[commentCid];
+        const liveComment = await ensureLiveComment(
+          commentCid,
+          account,
+          mergeCommentData(commentCid, storedComment, commentData),
+        );
 
-      if (
-        !hasCommentAutoUpdateSubscribers(commentCid) &&
-        liveComment?.updatingState !== "stopped"
-      ) {
-        await stopLiveComment(commentCid, liveComment);
+        if (
+          !hasCommentAutoUpdateSubscribers(commentCid) &&
+          liveComment?.updatingState !== "stopped"
+        ) {
+          await stopLiveComment(commentCid, liveComment);
+        }
+        // another stop may have begun meanwhile, e.g. when the update requested on open ended
+        await waitForLiveCommentStops(commentCid);
+
+        return await waitForCommentUpdateCycle(commentCid, liveComment, () =>
+          requestCommentUpdate(commentCid, liveComment, {
+            stopAfterNextUpdate: !hasCommentAutoUpdateSubscribers(commentCid),
+          }),
+        );
+      } finally {
+        const remainingRefreshes = (pendingRefreshes[commentCid] || 0) - 1;
+        if (remainingRefreshes > 0) {
+          pendingRefreshes[commentCid] = remainingRefreshes;
+        } else {
+          delete pendingRefreshes[commentCid];
+        }
       }
-      // another stop may have begun meanwhile, e.g. when the update requested on open ended
-      await waitForLiveCommentStops(commentCid);
-
-      return waitForCommentUpdateCycle(commentCid, liveComment, () =>
-        requestCommentUpdate(commentCid, liveComment, {
-          stopAfterNextUpdate: !hasCommentAutoUpdateSubscribers(commentCid),
-        }),
-      );
     },
   };
 });
@@ -734,6 +749,9 @@ export const resetCommentsStore = async () => {
   }
   for (const commentCid in commentUpdateAttemptFailed) {
     delete commentUpdateAttemptFailed[commentCid];
+  }
+  for (const commentCid in pendingRefreshes) {
+    delete pendingRefreshes[commentCid];
   }
   for (const commentCid in liveCommentPromises) {
     delete liveCommentPromises[commentCid];
