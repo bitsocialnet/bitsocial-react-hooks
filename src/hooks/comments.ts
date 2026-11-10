@@ -661,22 +661,50 @@ export function useValidateComment(options?: UseValidateCommentOptions): UseVali
   );
   let { comment, validateReplies, accountName } = options ?? {};
   validateReplies = validateReplies ?? true;
-  const [validated, setValidated] = useState<boolean | undefined>();
+  const [validation, setValidation] = useState<{
+    cid?: string;
+    validateReplies: boolean;
+    validated: boolean;
+  }>();
   const [errors] = useState([]);
   const account = useAccount({ accountName });
 
   useEffect(() => {
     if (!comment || !account?.pkc) {
-      setValidated(undefined);
+      setValidation(undefined);
       return;
     }
     // don't automatically block community because what community it comes from
     // a malicious community could try to block other communities, etc
     const blockCommunity = false;
-    commentIsValid(comment, { validateReplies, blockCommunity }, account.pkc).then((validated) =>
-      setValidated(validated),
-    );
+    const cid = comment.cid;
+    let cancelled = false;
+    commentIsValid(comment, { validateReplies, blockCommunity }, account.pkc).then((validated) => {
+      if (cancelled) {
+        return;
+      }
+      setValidation((previous) =>
+        previous &&
+        previous.cid === cid &&
+        previous.validateReplies === validateReplies &&
+        previous.validated === validated
+          ? previous
+          : { cid, validateReplies, validated },
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [comment, validateReplies, account?.pkc]);
+
+  // a verdict only applies to the comment it was made for, another comment starts unvalidated
+  const validated =
+    comment &&
+    validation &&
+    validation.cid === comment.cid &&
+    validation.validateReplies === validateReplies
+      ? validation.validated
+      : undefined;
 
   let state = "initializing";
   if (validated === true) {
