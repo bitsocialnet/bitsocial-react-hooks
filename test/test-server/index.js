@@ -1,6 +1,6 @@
 // script to start IPFS and pkc-js for testing
 
-import { offlineIpfs, pubsubIpfs, pkcRpc } from "./config.js";
+import { offlineIpfs, pubsubIpfs, pkcRpc, testServerReadyText } from "./config.js";
 import startIpfs from "./start-ipfs.js";
 import startPkcRpc from "./start-pkc-rpc.js";
 import signers from "../fixtures/signers.js";
@@ -89,7 +89,7 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
     http
       .createServer((req, res) => {
         res.setHeader("Access-Control-Allow-Origin", "*");
-        res.end("test server ready");
+        res.end(testServerReadyText);
       })
       .listen(59281);
   });

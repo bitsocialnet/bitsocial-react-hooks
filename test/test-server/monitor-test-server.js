@@ -1,7 +1,7 @@
 // the test server can crash without logs, this script adds logs when this happens
 // you should also import assertTestServerDidntCrash and run it beforeEach and afterEach
 
-import { offlineIpfs, pubsubIpfs } from "./config";
+import { offlineIpfs, pubsubIpfs, testServerReadyText } from "./config";
 
 // make sure only one instance is running in node
 let started = false;
@@ -36,8 +36,14 @@ const logTestServerCrashed = async () => {
 
 const assertTestServerDidntCrash = async () => {
   const [testServerText, testServerError] = await fetchText("http://localhost:59281");
-  if (testServerText !== "test server ready") {
+  if (testServerText === undefined) {
     throw Error("test server crashed http://localhost:59281: " + testServerError?.message || "");
+  }
+  // e.g. this run's server exited on a port conflict and another checkout's server answers
+  if (testServerText !== testServerReadyText) {
+    throw Error(
+      `test server http://localhost:59281 is not this run's server: expected '${testServerReadyText}', got '${testServerText}'`,
+    );
   }
   const [offlineIpfsText, offlineIpfsError] = await fetchText(
     `http://localhost:${offlineIpfs.gatewayPort}/ipfs/QmZULkCELmmk5XNfCgTnCyFgAVxBRBXyDHGGMVoLFLiXEN`,
