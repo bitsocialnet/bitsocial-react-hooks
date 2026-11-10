@@ -150,6 +150,55 @@ describe("utils", () => {
     });
   });
 
+  describe("retryInfinity", () => {
+    let minTimeout: number, maxTimeout: number;
+    beforeEach(() => {
+      minTimeout = utils.retryInfinityMinTimeout;
+      maxTimeout = utils.retryInfinityMaxTimeout;
+      utils.retryInfinityMinTimeout = 1;
+      utils.retryInfinityMaxTimeout = 5;
+    });
+    afterEach(() => {
+      utils.retryInfinityMinTimeout = minTimeout;
+      utils.retryInfinityMaxTimeout = maxTimeout;
+    });
+
+    test("retries until the function succeeds", async () => {
+      let attempts = 0;
+      const onError = vi.fn();
+      const res = await utils.retryInfinity(
+        async () => {
+          if (++attempts < 3) {
+            throw Error(`failed attempt ${attempts}`);
+          }
+          return "result";
+        },
+        { onError },
+      );
+      expect(res).toBe("result");
+      expect(attempts).toBe(3);
+      expect(onError).toHaveBeenCalledTimes(2);
+    });
+
+    test("rejects with the last error once shouldRetry returns false", async () => {
+      let attempts = 0;
+      let retry = true;
+      const retrying = utils.retryInfinity(
+        async () => {
+          attempts++;
+          if (attempts === 3) {
+            retry = false;
+          }
+          throw Error(`failed attempt ${attempts}`);
+        },
+        { onError: () => {}, shouldRetry: () => retry },
+      );
+      const stillRetrying = new Promise((resolve) => setTimeout(() => resolve("retrying"), 500));
+      await expect(Promise.race([retrying, stillRetrying])).rejects.toThrow("failed attempt 3");
+      expect(attempts).toBe(3);
+    });
+  });
+
   test("flattenCommentsPages", async () => {
     const page = {
       comments: [

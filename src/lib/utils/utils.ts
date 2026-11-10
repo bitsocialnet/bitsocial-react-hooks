@@ -426,19 +426,29 @@ const utils = {
   repliesAreValid,
 };
 
+// options.shouldRetry lets the caller stop retrying, e.g. once the client functionToRetry uses was
+// replaced, it's checked after each failed attempt and after each sleep, and rejects with the last error
 const retryInfinity = async (functionToRetry: any, options?: any) => {
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const shouldRetry = () => !options?.shouldRetry || options.shouldRetry();
   let attempt = 0;
   while (true) {
     try {
       const res = await functionToRetry();
       return res;
     } catch (e) {
-      options?.onError(e || Error(`retryInfinity failed attempt ${attempt}`));
+      const error = e || Error(`retryInfinity failed attempt ${attempt}`);
+      options?.onError(error);
+      if (!shouldRetry()) {
+        throw error;
+      }
       const factor = 2;
       let timeout = Math.round(utils.retryInfinityMinTimeout * Math.pow(factor, attempt++));
       timeout = Math.min(timeout, utils.retryInfinityMaxTimeout);
       await sleep(timeout);
+      if (!shouldRetry()) {
+        throw error;
+      }
     }
   }
 };

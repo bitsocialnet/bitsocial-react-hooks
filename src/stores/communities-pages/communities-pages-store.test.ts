@@ -1041,4 +1041,160 @@ describe("communities pages store", () => {
     expect(rendered.result.current.comments[sharedCommentCid].updatedAt).toBe(100);
     MockPages.prototype.getPage = getPageOriginal;
   });
+
+  // a client whose page fetches fail, e.g. because its options point to a dead gateway
+  const createDeadGatewayPkc = () => ({
+    createCommunity: async ({ address }: any) => {
+      const community = new MockCommunity({ address });
+      community.posts.getPage = async () => {
+        throw Error("dead gateway");
+      };
+      return community;
+    },
+  });
+
+  // retry failed page fetches every retryTimeout ms, with the accounts store holding getAccounts()
+  const mockRetriesAndAccounts = async (retryTimeout: number, getAccounts: () => any) => {
+    const utils = (await import("../../lib/utils")).default;
+    const { retryInfinityMinTimeout, retryInfinityMaxTimeout } = utils;
+    utils.retryInfinityMinTimeout = retryTimeout;
+    utils.retryInfinityMaxTimeout = retryTimeout;
+    const accountsGetState = accountsStore.getState;
+    (accountsStore as any).getState = () => ({ ...accountsGetState(), accounts: getAccounts() });
+    const logSpy = vi.spyOn(log, "error").mockImplementation(() => {});
+    const restore = () => {
+      logSpy.mockRestore();
+      (accountsStore as any).getState = accountsGetState;
+      utils.retryInfinityMinTimeout = retryInfinityMinTimeout;
+      utils.retryInfinityMaxTimeout = retryInfinityMaxTimeout;
+    };
+    return { logSpy, restore };
+  };
+
+  test("a page fetch retrying with a replaced pkc client stops, and the new client fetches the page without waiting for it", async () => {
+    const account: any = { id: "replaced pkc account id", pkc: createDeadGatewayPkc() };
+    let storedAccount = account;
+    // the old fetch sleeps 1.5 s between attempts, the new client doesn't wait for it
+    const { logSpy, restore } = await mockRetriesAndAccounts(1500, () => ({
+      [account.id]: storedAccount,
+    }));
+
+    try {
+      const community = await mockAccount.pkc.createCommunity({
+        address: "replaced pkc community address",
+      });
+      const sortType = "new";
+      const firstPageCid = community.posts.pageCids[sortType];
+      const fetchingWithDeadGateway = rendered.result.current.addNextCommunityPageToStore(
+        community,
+        sortType,
+        account,
+      );
+      await tlWaitFor(() => expect(logSpy).toHaveBeenCalled());
+
+      // setAccount gave the account a new pkc client, e.g. after its options were fixed
+      storedAccount = { ...account, pkc: mockAccount.pkc };
+      await act(async () => {
+        await rendered.result.current.addNextCommunityPageToStore(
+          community,
+          sortType,
+          storedAccount,
+        );
+      });
+      expect(
+        useCommunitiesPagesStore.getState().communitiesPages[firstPageCid]?.comments?.length,
+      ).toBe(100);
+
+      // the old fetch stops retrying once it wakes up
+      await expect(fetchingWithDeadGateway).rejects.toThrow("dead gateway");
+    } finally {
+      restore();
+    }
+  });
+
+  test("a page fetch failing with one account's client doesn't keep other accounts from the page, and stops once that account is deleted", async () => {
+    const failingAccount: any = { id: "failing client account id", pkc: createDeadGatewayPkc() };
+    const otherAccount: any = { id: "other account id", pkc: mockAccount.pkc };
+    let storedAccounts: any = {
+      [failingAccount.id]: failingAccount,
+      [otherAccount.id]: otherAccount,
+    };
+    const { logSpy, restore } = await mockRetriesAndAccounts(10, () => storedAccounts);
+
+    try {
+      const community = await mockAccount.pkc.createCommunity({
+        address: "failing client community address",
+      });
+      const sortType = "new";
+      const firstPageCid = community.posts.pageCids[sortType];
+      const failingFetch = rendered.result.current.addNextCommunityPageToStore(
+        community,
+        sortType,
+        failingAccount,
+      );
+      await tlWaitFor(() => expect(logSpy).toHaveBeenCalled());
+
+      // the failing account doesn't start a second fetch of the page
+      const secondFetch = rendered.result.current.addNextCommunityPageToStore(
+        community,
+        sortType,
+        failingAccount,
+      );
+      await expect(
+        Promise.race([secondFetch, sleep(1000).then(() => "fetched again")]),
+      ).resolves.toBe(undefined);
+
+      // another account, e.g. the one the user switched to, fetches the page with its own client
+      await act(async () => {
+        await rendered.result.current.addNextCommunityPageToStore(
+          community,
+          sortType,
+          otherAccount,
+        );
+      });
+      expect(
+        useCommunitiesPagesStore.getState().communitiesPages[firstPageCid]?.comments?.length,
+      ).toBe(100);
+
+      // deleting the failing account stops its retries
+      storedAccounts = { [otherAccount.id]: otherAccount };
+      const stillRetrying = sleep(1000).then(() => "still retrying");
+      await expect(Promise.race([failingFetch, stillRetrying])).rejects.toThrow("dead gateway");
+    } finally {
+      restore();
+    }
+  });
+
+  test("a page fetch with another account's client that hasn't failed yet isn't started again", async () => {
+    let getPageCalls = 0;
+    const createCountingPkc = () => ({
+      createCommunity: async ({ address }: any) => {
+        const community = new MockCommunity({ address });
+        const getPage = community.posts.getPage.bind(community.posts);
+        community.posts.getPage = async (options: { cid: string }) => {
+          getPageCalls++;
+          return getPage(options);
+        };
+        return community;
+      },
+    });
+    const account1: any = { id: "deduplicated account 1 id", pkc: createCountingPkc() };
+    const account2: any = { id: "deduplicated account 2 id", pkc: createCountingPkc() };
+    const community = await mockAccount.pkc.createCommunity({
+      address: "deduplicated community address",
+    });
+    const sortType = "new";
+    const firstPageCid = community.posts.pageCids[sortType];
+
+    await act(async () => {
+      await Promise.all([
+        rendered.result.current.addNextCommunityPageToStore(community, sortType, account1),
+        rendered.result.current.addNextCommunityPageToStore(community, sortType, account2),
+      ]);
+    });
+    expect(
+      useCommunitiesPagesStore.getState().communitiesPages[firstPageCid]?.comments?.length,
+    ).toBe(100);
+    expect(getPageCalls).toBe(1);
+  });
 });

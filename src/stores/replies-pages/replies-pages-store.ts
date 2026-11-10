@@ -89,17 +89,19 @@ const repliesPagesStore = createStore<RepliesPagesState>(
       }
 
       // page is already added or pending
+      const pendingKey = account.id + pageCidToAdd;
       if (
         repliesPagesStore.repliesPages[pageCidToAdd] ||
-        fetchPagePending[account.id + pageCidToAdd]
+        pageFetchIsPending(pendingKey, account.pkc)
       ) {
         return;
       }
 
-      fetchPagePending[account.id + pageCidToAdd] = true;
+      const pendingFetch: PendingPageFetch = { pkc: account.pkc, failed: false };
+      fetchPagePending[pendingKey] = [...(fetchPagePending[pendingKey] || []), pendingFetch];
       let page: RepliesPage;
       try {
-        page = await fetchPage(pageCidToAdd, comment, account);
+        page = await fetchPage(pageCidToAdd, comment, account, pendingFetch);
         log.trace("repliesPagesStore.addNextRepliesPageToStore comment.replies.getPage", {
           pageCid: pageCidToAdd,
           page,
@@ -110,7 +112,9 @@ const repliesPagesStore = createStore<RepliesPagesState>(
       } catch (e) {
         throw e;
       } finally {
-        fetchPagePending[account.id + pageCidToAdd] = false;
+        fetchPagePending[pendingKey] = fetchPagePending[pendingKey]?.filter(
+          (fetch) => fetch !== pendingFetch,
+        );
       }
 
       // find new comments in the page (missing-or-fresher: insert when absent or incoming is fresher)
@@ -225,38 +229,72 @@ const onCommentRepliesClientsStateChange =
     });
   };
 
-const fetchPageComments: { [commentCid: string]: any } = {}; // cache pkc.createComment because sometimes it's slow
-let fetchPagePending: { [key: string]: boolean } = {};
-const fetchPage = async (pageCid: string, comment: Comment, account: Account) => {
+// cache pkc.createComment per account because sometimes it's slow, recreated when the account's pkc
+// client changes, so page fetches don't keep using a replaced client
+const fetchPageComments: {
+  [accountId: string]: { pkc: any; comments: { [commentCid: string]: any } };
+} = {};
+// the page fetches in progress per account and page cid, with the pkc client each uses. A new fetch
+// waits for one with the same client, or with another client until that one fails, so a replaced
+// client doesn't wait for the old client's retries
+type PendingPageFetch = { pkc: any; failed: boolean };
+let fetchPagePending: { [key: string]: PendingPageFetch[] | undefined } = {};
+const pageFetchIsPending = (key: string, pkc: any) =>
+  Boolean(fetchPagePending[key]?.some((fetch) => fetch.pkc === pkc || !fetch.failed));
+// a page fetch stops retrying once its account was deleted, or setAccount gave the account another
+// pkc client, because nothing uses pages fetched with that client anymore. An account the accounts
+// store didn't hold when the fetch started keeps retrying
+const getShouldRetryPageFetch = (account: Account) => {
+  const accountWasStored = Boolean(accountsStore.getState().accounts?.[account.id]);
+  return () => {
+    const storedAccount = accountsStore.getState().accounts?.[account.id];
+    return storedAccount ? storedAccount.pkc === account.pkc : !accountWasStored;
+  };
+};
+const fetchPage = async (
+  pageCid: string,
+  comment: Comment,
+  account: Account,
+  pendingFetch?: PendingPageFetch,
+) => {
+  const shouldRetry = getShouldRetryPageFetch(account);
   // replies page is cached
   const cachedRepliesPage = await repliesPagesDatabase.getItem(pageCid);
   if (cachedRepliesPage) {
     return cachedRepliesPage;
   }
-  if (!fetchPageComments[comment.cid]) {
-    fetchPageComments[comment.cid] = await account.pkc.createComment({
+  if (!fetchPageComments[account.id] || fetchPageComments[account.id].pkc !== account.pkc) {
+    fetchPageComments[account.id] = { pkc: account.pkc, comments: {} };
+  }
+  const accountComments = fetchPageComments[account.id].comments;
+  if (!accountComments[comment.cid]) {
+    accountComments[comment.cid] = await account.pkc.createComment({
       cid: comment.cid,
       postCid: comment.postCid,
       communityAddress: comment.communityAddress,
       depth: comment.depth,
     });
-    listeners.push(fetchPageComments[comment.cid]);
+    listeners.push(accountComments[comment.cid]);
 
     // set clients states on communities store so the frontend can display it
     utils.pageClientsOnStateChange(
-      fetchPageComments[comment.cid].replies?.clients,
+      accountComments[comment.cid].replies?.clients,
       onCommentRepliesClientsStateChange(comment.cid),
     );
   }
 
-  const onError = (error: any) =>
+  const onError = (error: any) => {
+    if (pendingFetch) {
+      pendingFetch.failed = true;
+    }
     log.error(
       `repliesPagesStore comment '${comment.cid}' failed comment.replies.getPage page cid '${pageCid}':`,
       error,
     );
+  };
   const fetchedRepliesPage = await utils.retryInfinity(
-    () => fetchPageComments[comment.cid].replies.getPage({ cid: pageCid }),
-    { onError },
+    () => accountComments[comment.cid].replies.getPage({ cid: pageCid }),
+    { onError, shouldRetry },
   );
   await repliesPagesDatabase.setItem(pageCid, utils.clone(fetchedRepliesPage));
   return fetchedRepliesPage;
