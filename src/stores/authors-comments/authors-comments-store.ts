@@ -502,8 +502,14 @@ const setLastCommentCidOnCommentsChange =
     setLastCommentCid(options.authorAddress, commentCid);
     // add the last comment to loadedComments
     updateLoadedComments();
-    // start a new linked list of comments to fetch using the lastComment.author.previousCommentCid
-    if (comment.author?.previousCommentCid) {
+    // start a new linked list of comments to fetch using the lastComment.author.previousCommentCid,
+    // unless the list already continues from there, e.g. the lastComment is the one it started from
+    const previousCommentCid = comment.author?.previousCommentCid;
+    if (
+      previousCommentCid &&
+      previousCommentCid !==
+        authorsCommentsStore.getState().nextCommentCidsToFetch[options.authorAddress]
+    ) {
       setNextCommentCidsToFetch(options.authorAddress, comment);
     }
   };

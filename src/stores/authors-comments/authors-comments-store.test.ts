@@ -1384,6 +1384,61 @@ describe("authors comments store", () => {
       PKC.prototype.createComment = createComment;
     },
   );
+
+  test(
+    "the comment the chain starts from can also be its community lastCommentCid",
+    { timeout },
+    async () => {
+      const createComment = PKC.prototype.createComment;
+      const startCid = "start-is-last-cid";
+      const previousCid = "start-is-last-previous-cid";
+      PKC.prototype.createComment = async function (opts: any) {
+        const comment = new MockComment(opts);
+        if (opts?.cid === startCid) {
+          (comment as any).author = {
+            address: authorAddress,
+            previousCommentCid: previousCid,
+            community: { lastCommentCid: startCid },
+          };
+          (comment as any).timestamp = 2000;
+        }
+        if (opts?.cid === previousCid) {
+          (comment as any).author = { address: authorAddress };
+          (comment as any).timestamp = 1000;
+        }
+        return comment;
+      };
+
+      try {
+        const authorCommentsName = authorAddress + "-start-is-last";
+        act(() => {
+          useAuthorsCommentsStore
+            .getState()
+            .addAuthorCommentsToStore(
+              authorCommentsName,
+              authorAddress,
+              startCid,
+              undefined,
+              account,
+            );
+        });
+
+        await waitFor(
+          () => useAuthorsCommentsStore.getState().loadedComments[authorCommentsName]?.length === 2,
+        );
+        expect(useAuthorsCommentsStore.getState().lastCommentCids[authorAddress]).toBe(startCid);
+        expect(
+          useAuthorsCommentsStore
+            .getState()
+            .loadedComments[authorCommentsName].map((comment: Comment) => comment.cid),
+        ).toEqual([startCid, previousCid]);
+        // the chain listeners must not throw out of the comments store update
+        expect(commentsStore.getState().errors[startCid]).toBe(undefined);
+      } finally {
+        PKC.prototype.createComment = createComment;
+      }
+    },
+  );
 });
 
 const hasDuplicateComments = (comments: any) => {
