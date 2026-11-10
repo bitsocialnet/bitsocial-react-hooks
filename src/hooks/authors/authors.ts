@@ -307,9 +307,15 @@ export function useAuthorAddress(options?: UseAuthorAddressOptions): UseAuthorAd
   const account = useAccount({ accountName });
   const protocolClient = getProtocolClient(account);
   const isCryptoName = !!comment?.author?.address?.includes?.(".");
-  const [resolvedAddress, setResolvedAddress] = useState<string | undefined>(
-    isCryptoName ? resolvedAuthorAddressCache.get(comment?.author?.address) : undefined,
-  );
+  // keep the name with its resolved address, a resolution only verifies the name it was made for
+  const [resolved, setResolved] = useState<{ name: string; address: string }>();
+  let resolvedAddress: string | undefined;
+  if (isCryptoName) {
+    resolvedAddress =
+      resolved?.name === comment?.author?.address
+        ? resolved?.address
+        : resolvedAuthorAddressCache.get(comment?.author?.address);
+  }
   const signerAddress = usePkcAddress(isCryptoName ? comment?.signature?.publicKey : undefined);
 
   // useful for triggering css animation when the address changes from unverified to verified
@@ -336,14 +342,25 @@ export function useAuthorAddress(options?: UseAuthorAddressOptions): UseAuthorAd
       resolvedAuthorAddressCache.set(addr, res);
       return res;
     };
+    let cancelled = false;
     resolveAuthorAddress()
       .then((_resolvedAddress: string) => {
+        if (cancelled) {
+          return;
+        }
+        setResolved((previous) =>
+          previous && previous.name === addr && previous.address === _resolvedAddress
+            ? previous
+            : { name: addr, address: _resolvedAddress },
+        );
         if (_resolvedAddress !== resolvedAddress) {
-          setResolvedAddress(_resolvedAddress);
           setAuthorAddressChanged(true);
         }
       })
       .catch((error: any) => log.error("useAuthorAddress error", { error, comment }));
+    return () => {
+      cancelled = true;
+    };
   }, [protocolClient, comment?.author?.address, isCryptoName]);
 
   // use signer address by default

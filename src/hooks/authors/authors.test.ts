@@ -325,6 +325,64 @@ describe("authors", () => {
         PKC.prototype.resolveAuthorName = origResolve;
       }
     });
+
+    test("useAuthorAddress does not verify a new name with the previous name's resolution", async () => {
+      resetAuthorAddressCacheForTesting();
+      const signerAddr = comment.author.address;
+      const origResolve = PKC.prototype.resolveAuthorName;
+      // the first name resolves to the comment signer, the second name (same signer) does not resolve
+      PKC.prototype.resolveAuthorName = ({ name }: { name: string }) =>
+        name === "first-name.eth"
+          ? Promise.resolve(resolvedAuthorNameResult(signerAddr))
+          : Promise.reject(new Error("resolve failed"));
+      try {
+        const withName = (name: string) => ({
+          ...comment,
+          author: { ...comment.author, address: name },
+        });
+        rendered.rerender({ comment: withName("first-name.eth") });
+        await waitFor(() => rendered.result.current.authorAddress === "first-name.eth");
+
+        rendered.rerender({ comment: withName("second-name.eth") });
+        await act(async () => {
+          await new Promise((r) => setTimeout(r, 50));
+        });
+        expect(rendered.result.current.authorAddress).toBe(signerAddr);
+      } finally {
+        PKC.prototype.resolveAuthorName = origResolve;
+      }
+    });
+
+    test("useAuthorAddress ignores a resolution that lands after the comment changed", async () => {
+      resetAuthorAddressCacheForTesting();
+      const signerAddr = comment.author.address;
+      let releaseSlowName = () => {};
+      const origResolve = PKC.prototype.resolveAuthorName;
+      PKC.prototype.resolveAuthorName = ({ name }: { name: string }) =>
+        name === "slow-name.eth"
+          ? new Promise<PkcResolveAuthorNameResult>((resolve) => {
+              releaseSlowName = () => resolve(resolvedAuthorNameResult("12D3KooWsomeoneElse"));
+            })
+          : Promise.resolve(resolvedAuthorNameResult(signerAddr));
+      try {
+        const withName = (name: string) => ({
+          ...comment,
+          author: { ...comment.author, address: name },
+        });
+        rendered.rerender({ comment: withName("slow-name.eth") });
+        await act(async () => {});
+        rendered.rerender({ comment: withName("fast-name.eth") });
+        await waitFor(() => rendered.result.current.authorAddress === "fast-name.eth");
+
+        await act(async () => {
+          releaseSlowName();
+          await new Promise((r) => setTimeout(r, 50));
+        });
+        expect(rendered.result.current.authorAddress).toBe("fast-name.eth");
+      } finally {
+        PKC.prototype.resolveAuthorName = origResolve;
+      }
+    });
   });
 
   describe("useAuthorComments", () => {
