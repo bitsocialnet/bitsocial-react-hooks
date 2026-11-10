@@ -1629,10 +1629,18 @@ export const publishComment = async (
     );
     return error;
   };
-  const reportActivePublishCommentError = (rawError: unknown, activeComment: any) => {
+  const reportActivePublishCommentError = (
+    rawError: unknown,
+    activeComment: any,
+    publicationStopped: boolean,
+  ) => {
     if (!getActiveSessionForComment(activeComment)) return;
     const error = recordPublishCommentError(rawError, activeComment);
-    queueCleanupFailedPublishSession(activeComment);
+    // pkc-js also emits errors it recovers from, e.g. a challenge with an invalid signature, and
+    // keeps processing the exchange, so only an error that stopped the publication ends the session
+    if (publicationStopped) {
+      queueCleanupFailedPublishSession(activeComment);
+    }
     publishCommentOptions.onError?.(error, activeComment);
   };
   // the options onBeforeRepublish returns go through the same pipeline as the first publish; resolves
@@ -1685,7 +1693,7 @@ export const publishComment = async (
       }),
     );
     publishCommentOptions.onPublishingStateChange?.("failed");
-    reportActivePublishCommentError(error, failedComment);
+    reportActivePublishCommentError(error, failedComment, true);
   };
   async function publishAndRetryFailedChallengeVerification() {
     if (isPublishSessionAbandoned(publishSessionId)) {
@@ -1747,10 +1755,17 @@ export const publishComment = async (
           // the challengeverification message of a comment publication should in theory send back the CID
           // of the published comment which is needed to resolve it for replies, upvotes, etc
           const session = getPublishSession(publishSessionId);
-          const currentIndex = session?.currentIndex ?? accountCommentIndex;
           if (!session || isPublishSessionAbandoned(publishSessionId)) return;
-          queueMicrotask(() => cleanupPublishSessionOnTerminal(publishSessionId));
-          if (challengeVerification?.commentUpdate?.cid) {
+          const hasCid = !!challengeVerification?.commentUpdate?.cid;
+          // once the publication's last state events ran, they and any later ones are ignored; with a
+          // cid the session stays registered until the cid is saved, so a deleteComment meanwhile still
+          // shifts or abandons its row
+          queueMicrotask(() =>
+            hasCid
+              ? updatePublishSessionComment(publishSessionId, undefined)
+              : cleanupPublishSessionOnTerminal(publishSessionId),
+          );
+          if (hasCid) {
             const persistedCommentWithCid = addShortAddressesToAccountComment(
               sanitizeStoredAccountComment(normalizePublicationOptionsForStore(comment as any)),
             );
@@ -1765,11 +1780,22 @@ export const publishComment = async (
             delete (liveCommentWithCid as any).publishingState;
             delete (liveCommentWithCid as any).error;
             delete (liveCommentWithCid as any).errors;
-            await accountsDatabase.addAccountComment(
-              account.id,
-              persistedCommentWithCid,
-              currentIndex,
-            );
+            let savedSession: PublishSession | undefined;
+            try {
+              await accountsDatabase.addAccountComment(
+                account.id,
+                persistedCommentWithCid,
+                session.currentIndex,
+              );
+              savedSession = isPublishSessionAbandoned(publishSessionId)
+                ? undefined
+                : getPublishSession(publishSessionId);
+            } finally {
+              cleanupPublishSessionOnTerminal(publishSessionId);
+            }
+            // the comment was deleted during the save
+            if (!savedSession) return;
+            const currentIndex = savedSession.currentIndex;
             accountsStore.setState(
               ({ accountsComments, accountsCommentsIndexes, commentCidsToAccountsComments }) => {
                 const updatedAccountComments = [...accountsComments[account.id]];
@@ -1822,7 +1848,7 @@ export const publishComment = async (
     );
 
     activeComment.on("error", (error: Error) => {
-      reportActivePublishCommentError(error, activeComment);
+      reportActivePublishCommentError(error, activeComment, activeComment.state === "stopped");
     });
     activeComment.on("statechange", (state: string) => {
       const session = getActiveSessionForComment(activeComment);
@@ -1891,7 +1917,7 @@ export const publishComment = async (
       // if it fails before, like failing to resolve ENS, we can emit the error
       await activeComment.publish();
     } catch (error) {
-      reportActivePublishCommentError(error, activeComment);
+      reportActivePublishCommentError(error, activeComment, true);
     }
   }
 

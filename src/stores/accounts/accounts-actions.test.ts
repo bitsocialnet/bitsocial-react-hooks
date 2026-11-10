@@ -4195,6 +4195,116 @@ describe("accounts-actions", () => {
       expect(onError).not.toHaveBeenCalled();
     });
 
+    test("publishComment saves the cid of a verification that follows an error pkc-js recovered from", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const onError = vi.fn();
+      await act(async () => {
+        await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "verified after a recovered error",
+          onChallenge: (_challenge: any, comment: any) => {
+            // e.g. a challenge message with an invalid signature: pkc-js emits an error without
+            // stopping the publication and keeps waiting for a valid challenge
+            comment.publishingState = "failed";
+            comment.emit("error", new Error("challenge signature is invalid"));
+            comment.emit("publishingstatechange", "failed");
+            comment.publishChallengeAnswers(["4"]);
+          },
+          onChallengeVerification: () => {},
+          onError,
+        });
+      });
+
+      await vi.waitFor(() =>
+        expect(accountsStore.getState().accountsComments[account.id][0].cid).toBe(
+          "verified after a recovered error cid",
+        ),
+      );
+      expect(onError).toHaveBeenCalledTimes(1);
+      const accountComment = accountsStore.getState().accountsComments[account.id][0];
+      expect(accountComment.error).toBeUndefined();
+      expect(accountComment.errors).toBeUndefined();
+      expect(
+        accountsStore.getState().commentCidsToAccountsComments[
+          "verified after a recovered error cid"
+        ],
+      ).toEqual({ accountId: account.id, accountCommentIndex: 0 });
+    });
+
+    test("publishComment saves the cid on the shifted row when an earlier comment is deleted meanwhile", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      await act(async () => {
+        await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "earlier comment",
+          onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+      await vi.waitFor(() =>
+        expect(accountsStore.getState().accountsComments[account.id][0].cid).toBeDefined(),
+      );
+
+      // hold the cid save of the later comment, and let the deletion's database write run after it
+      const originalAddAccountComment = accountsDatabase.addAccountComment.bind(accountsDatabase);
+      const originalDeleteAccountComment =
+        accountsDatabase.deleteAccountComment.bind(accountsDatabase);
+      let markCidSaveStarted!: () => void;
+      const cidSaveStarted = new Promise<void>((resolve) => (markCidSaveStarted = resolve));
+      let releaseCidSave!: () => void;
+      const cidSaveReleased = new Promise<void>((resolve) => (releaseCidSave = resolve));
+      let markCidSaved!: () => void;
+      const cidSaved = new Promise<void>((resolve) => (markCidSaved = resolve));
+      const addAccountComment = vi
+        .spyOn(accountsDatabase, "addAccountComment")
+        .mockImplementation(async (...args) => {
+          if (args[1]?.content !== "later comment" || !args[1]?.cid) {
+            return originalAddAccountComment(...args);
+          }
+          markCidSaveStarted();
+          await cidSaveReleased;
+          await originalAddAccountComment(...args);
+          markCidSaved();
+        });
+      const deleteAccountComment = vi
+        .spyOn(accountsDatabase, "deleteAccountComment")
+        .mockImplementation(async (...args) => {
+          await cidSaved;
+          return originalDeleteAccountComment(...args);
+        });
+      try {
+        await act(async () => {
+          await accountsActions.publishComment({
+            communityAddress: "sub.eth",
+            content: "later comment",
+            onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+            onChallengeVerification: () => {},
+          });
+        });
+        await cidSaveStarted;
+        const deletePromise = accountsActions.deleteComment(0);
+        releaseCidSave();
+        await act(async () => {
+          await deletePromise;
+        });
+
+        await vi.waitFor(() =>
+          expect(accountsStore.getState().accountsComments[account.id][0].cid).toBe(
+            "later comment cid",
+          ),
+        );
+        expect(accountsStore.getState().accountsComments[account.id]).toHaveLength(1);
+        expect(accountsStore.getState().commentCidsToAccountsComments["later comment cid"]).toEqual(
+          { accountId: account.id, accountCommentIndex: 0 },
+        );
+        const persistedComments = await accountsDatabase.getAccountComments(account.id);
+        expect(persistedComments.map((comment: any) => comment.cid)).toEqual(["later comment cid"]);
+      } finally {
+        addAccountComment.mockRestore();
+        deleteAccountComment.mockRestore();
+      }
+    });
+
     test("publishComment startUpdatingAccountCommentOnCommentUpdateEvents error: catch logs (line 760)", async () => {
       vi.spyOn(
         accountsActionsInternal,
