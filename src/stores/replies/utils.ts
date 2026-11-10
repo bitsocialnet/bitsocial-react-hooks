@@ -201,6 +201,10 @@ export const getLoadedFeeds = async (
     }
 
     const pkc = accounts[accountId]?.pkc;
+    // the feed's account was deleted, it can't validate replies, so leave the feed as it was
+    if (!pkc) {
+      continue;
+    }
     const loadedFeedReplyCount = pageNumber * repliesPerPage;
     const currentLoadedFeed = loadedFeeds[feedName] || [];
     // don't count account replies
@@ -451,6 +455,10 @@ export const getUpdatedFeeds = async (
   ]);
   for (const feedName of feedNames) {
     const pkc = accounts[feedsOptions[feedName]?.accountId]?.pkc;
+    // the feed's account was deleted, it can't validate replies, so leave the feed as it was
+    if (!pkc) {
+      continue;
+    }
     const loadedFeed = loadedFeeds[feedName] || [];
     const previousUpdatedFeed = updatedFeeds[feedName] || [];
     const updatedFeed = [...loadedFeed];

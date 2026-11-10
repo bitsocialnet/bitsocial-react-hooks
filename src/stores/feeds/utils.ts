@@ -340,6 +340,10 @@ export const getLoadedFeeds = async (
   for (const feedName in feedsOptions) {
     const { pageNumber, postsPerPage, accountId } = feedsOptions[feedName];
     const pkc = accounts[accountId]?.pkc;
+    // the feed's account was deleted, it can't validate posts, so leave the feed as it was
+    if (!pkc) {
+      continue;
+    }
     const loadedFeedPostCount = pageNumber * postsPerPage;
     const currentLoadedFeed = reconcileLoadedModQueueFeed(
       feedsOptions[feedName],
@@ -581,6 +585,10 @@ export const getUpdatedFeeds = async (
   const newUpdatedFeeds: Feeds = { ...updatedFeeds };
   for (const feedName in filteredSortedFeeds) {
     const pkc = accounts[feedsOptions[feedName]?.accountId]?.pkc;
+    // the feed's account was deleted, it can't validate posts, so leave the feed as it was
+    if (!pkc) {
+      continue;
+    }
     const updatedFeed = [...(updatedFeeds[feedName] || [])];
     const onlyHasNewPosts = updatedFeed.length === 0;
     let updatedFeedChanged = false;

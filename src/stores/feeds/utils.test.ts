@@ -17,6 +17,7 @@ import {
   getFeedsCommunityKeysWithMore,
 } from "./utils";
 import accountsStore from "../accounts";
+import { commentIsValid } from "../../lib/utils";
 
 const mockAccountId = "mock-account-id";
 
@@ -1303,6 +1304,67 @@ describe("feeds utils", () => {
         accounts,
       );
       expect(result[feedName][0].updatedAt).toBe(200);
+    });
+  });
+
+  describe("feeds of a deleted account", () => {
+    const deletedAccountId = "deleted-account-id";
+    // a pkc that accepts every comment, to check that the community of a deleted account's feed
+    // isn't blocked as having invalid comments
+    const pkc = { validateComment: async () => {} };
+    const getFeedsOptions = (communityAddress: string) => ({
+      feed1: {
+        communities: toCommunities([communityAddress]),
+        sortType: "new",
+        accountId: deletedAccountId,
+        pageNumber: 1,
+        postsPerPage: 2,
+      },
+    });
+
+    beforeEach(() => {
+      // @ts-ignore
+      accountsStore.getState = () => ({ accountsComments: {}, accounts: {} });
+    });
+
+    test("getLoadedFeeds leaves the feed as it was and keeps its community valid", async () => {
+      // unique address, a blocked community stays blocked for the whole session
+      const communityAddress = "deleted-account-loaded-feed-sub";
+      const posts = [1, 2, 3].map((index) => ({
+        cid: `deleted-account-loaded-post-${index}`,
+        communityAddress,
+        timestamp: index,
+      }));
+      const loadedFeeds = { feed1: [] };
+      const result = await getLoadedFeeds(
+        getFeedsOptions(communityAddress),
+        { feed1: posts },
+        loadedFeeds,
+        { feed1: posts },
+        {},
+      );
+      expect(result).toBe(loadedFeeds);
+      expect(await commentIsValid(posts[0] as any, {}, pkc)).toBe(true);
+    });
+
+    test("getUpdatedFeeds leaves the feed as it was and keeps its community valid", async () => {
+      const communityAddress = "deleted-account-updated-feed-sub";
+      const loadedPost = {
+        cid: "deleted-account-updated-post",
+        communityAddress,
+        timestamp: 1,
+        updatedAt: 1,
+      };
+      const updatedFeeds = { feed1: [loadedPost] };
+      const result = await getUpdatedFeeds(
+        getFeedsOptions(communityAddress),
+        { feed1: [{ ...loadedPost, updatedAt: 2 }] },
+        updatedFeeds,
+        { feed1: [loadedPost] },
+        {},
+      );
+      expect(result.feed1).toBe(updatedFeeds.feed1);
+      expect(await commentIsValid(loadedPost as any, {}, pkc)).toBe(true);
     });
   });
 
