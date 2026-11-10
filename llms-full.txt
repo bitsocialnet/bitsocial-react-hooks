@@ -3530,7 +3530,7 @@ The browser suite uses Vitest's Playwright provider in `config/vitest-e2e.config
 
 Real protocol tests require the local test infrastructure. Inspect `test/test-server/config.js` for ports, then run `yarn test:server` in a task-owned session and wait with `yarn test:server:wait-on`. The server starts local Kubo and protocol RPC services; do not start a duplicate or terminate an unrelated service. Record the server and child process ownership and clean up only those task-owned processes on every exit path. Stopping the `node test/test-server` process with SIGINT or SIGTERM also stops the Kubo daemons it started.
 
-Use these explicit commands for local agent runs. The legacy `scripts/build-and-test-e2e.sh` uses broad process-name cleanup and is unsuitable for a shared contributor machine. A successful mock run does not establish real protocol behavior.
+Use these explicit commands for local agent runs. `scripts/build-and-test-e2e.sh` also installs dependencies and builds, then stops only the test server it started and exits with the status of the first failing step. It does not check for a test server already running on the same ports, so it still does not suit a shared contributor machine. A successful mock run does not establish real protocol behavior.
 
 ## AI workflow fixtures
 
