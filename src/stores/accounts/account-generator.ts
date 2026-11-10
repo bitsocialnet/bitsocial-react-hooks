@@ -3,7 +3,7 @@ import validator from "../../lib/validator";
 import chain from "../../lib/chain";
 import { v4 as uuid } from "uuid";
 import accountsDatabase from "./accounts-database";
-import { Accounts, AccountCommunity, ChainProviders } from "../../types";
+import { Account, AccountCommunity, ChainProviders } from "../../types";
 import {
   getPkcClientOptions,
   normalizeAccountProtocolConfig,
@@ -179,9 +179,15 @@ const getNextAvailableDefaultAccountName = async (authorAddress: string) => {
     await accountsDatabase.accountsMetadataDatabase.getItem("accountIds");
   const accountNames = [];
   if (accountIds?.length) {
-    const accounts: Accounts | null = await accountsDatabase.getAccounts(accountIds);
-    for (const accountId of accountIds) {
-      accountNames.push(accounts[accountId].name);
+    // read the stored records: hydrating the accounts would create a pkc client per account that
+    // nothing destroys
+    const storedAccounts = await Promise.all(
+      accountIds.map((accountId) => accountsDatabase.accountsDatabase.getItem<Account>(accountId)),
+    );
+    for (const storedAccount of storedAccounts) {
+      if (storedAccount) {
+        accountNames.push(storedAccount.name);
+      }
     }
   }
   if (!accountNames?.length) {

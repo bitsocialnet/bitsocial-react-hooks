@@ -1259,6 +1259,67 @@ describe("accounts-actions", () => {
       ).toBeUndefined();
     });
 
+    test("deleteAccount stops the publications still pending for the deleted account", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("ToDeleteWhilePublishing");
+      });
+      const deletedAccountId =
+        accountsStore.getState().accountNamesToAccountIds["ToDeleteWhilePublishing"];
+      const publications: any[] = [];
+      const onChallengeVerification = vi.fn();
+      await act(async () => {
+        await accountsActions.publishComment(
+          {
+            communityAddress: "sub.eth",
+            content: "pending when its account is deleted",
+            onChallenge: (_challenge: any, comment: any) => publications.push(comment),
+            onChallengeVerification,
+          },
+          "ToDeleteWhilePublishing",
+        );
+        await accountsActions.publishVote(
+          {
+            communityAddress: "sub.eth",
+            commentCid: "vote when its account is deleted",
+            vote: 1,
+            onChallenge: (_challenge: any, vote: any) => publications.push(vote),
+            onChallengeVerification,
+          },
+          "ToDeleteWhilePublishing",
+        );
+      });
+      await vi.waitFor(() => expect(publications).toHaveLength(2));
+      const stops = publications.map((publication) => vi.spyOn(publication, "stop"));
+      const addAccountComment = vi.spyOn(accountsDatabase, "addAccountComment");
+      const addAccountVote = vi.spyOn(accountsDatabase, "addAccountVote");
+      try {
+        await act(async () => {
+          await accountsActions.deleteAccount("ToDeleteWhilePublishing");
+        });
+        for (const stop of stops) {
+          expect(stop).toHaveBeenCalledOnce();
+        }
+        expect(accountsStore.getState().accountsCommentsReplies[deletedAccountId]).toBeUndefined();
+
+        // a verification arriving anyway writes nothing for the deleted account
+        await act(async () => {
+          await Promise.all(
+            publications.map((publication) => publication.publishChallengeAnswers(["4"])),
+          );
+        });
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        expect(onChallengeVerification).toHaveBeenCalledTimes(2);
+        expect(addAccountComment).not.toHaveBeenCalled();
+        expect(addAccountVote).not.toHaveBeenCalled();
+        expect(accountsStore.getState().accountsComments[deletedAccountId]).toBeUndefined();
+        expect(accountsStore.getState().accountsVotes[deletedAccountId]).toBeUndefined();
+      } finally {
+        for (const spy of [...stops, addAccountComment, addAccountVote]) {
+          spy.mockRestore();
+        }
+      }
+    });
+
     test("publishComment with accountName uses named account", async () => {
       await act(async () => {
         await accountsActions.createAccount();

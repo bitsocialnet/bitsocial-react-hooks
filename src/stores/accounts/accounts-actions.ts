@@ -327,6 +327,28 @@ const abandonAndStopPublishSession = (accountId: string, index: number) => {
   activePublishSessions.delete(session.sessionId);
 };
 
+// a deleted account's pending comments and votes would otherwise keep publishing and write their
+// results for an account that no longer exists
+const abandonAccountPublishSessions = (accountId: string) => {
+  for (const session of activePublishSessions.values()) {
+    if (session.accountId === accountId) {
+      abandonAndStopPublishSession(accountId, session.currentIndex);
+    }
+  }
+  const votePublishSessionKeyPrefix = getVotePublishSessionKey(accountId, "");
+  for (const [key, session] of activeVotePublishSessions) {
+    if (!key.startsWith(votePublishSessionKeyPrefix)) continue;
+    activeVotePublishSessions.delete(key);
+    for (const publication of session.publications) {
+      Promise.resolve()
+        .then(() => publication?.stop?.())
+        .catch((error) =>
+          log.error("vote.stop() error during account delete", { accountId, error }),
+        );
+    }
+  }
+};
+
 const startVotePublishSession = (
   accountId: string,
   commentCid: string,
@@ -696,6 +718,7 @@ export const deleteAccount = async (accountName?: string) => {
     account?.id,
     `accountsActions.deleteAccount account.id '${account?.id}' doesn't exist, activeAccountId '${activeAccountId}' accountName '${accountName}'`,
   );
+  abandonAccountPublishSessions(account.id);
   await accountsDatabase.removeAccount(account);
   const newAccounts = { ...accounts };
   delete newAccounts[account.id];
@@ -730,6 +753,12 @@ export const deleteAccount = async (accountName?: string) => {
     accountsEdits: newAccountsEdits,
     accountsEditsSummaries: newAccountsEditsSummaries,
     accountsEditsLoaded: newAccountsEditsLoaded,
+  });
+  // from the live state: reply notifications of other accounts may have arrived during the awaits
+  accountsStore.setState(({ accountsCommentsReplies }) => {
+    const newAccountsCommentsReplies = { ...accountsCommentsReplies };
+    delete newAccountsCommentsReplies[account.id];
+    return { accountsCommentsReplies: newAccountsCommentsReplies };
   });
 };
 
