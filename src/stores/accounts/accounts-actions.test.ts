@@ -4515,6 +4515,154 @@ describe("accounts-actions", () => {
     });
   });
 
+  describe("failed vote publications", () => {
+    beforeEach(async () => {
+      await testUtils.resetDatabasesAndStores();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    const getAccountVote = (commentCid: string) => {
+      const { accountsVotes, activeAccountId } = accountsStore.getState();
+      return accountsVotes[activeAccountId!]?.[commentCid];
+    };
+
+    // lets each created vote be changed before it is published
+    const mockCreateVote = (changeVote: (vote: any) => void) => {
+      const account = accountsStore.getState().accounts[accountsStore.getState().activeAccountId!];
+      const originalCreateVote = account.pkc.createVote.bind(account.pkc);
+      return vi.spyOn(account.pkc, "createVote").mockImplementation(async (...args: any[]) => {
+        const vote = await originalCreateVote(...args);
+        changeVote(vote);
+        return vote;
+      });
+    };
+
+    const rejectWithChallengeErrors = (vote: any) => {
+      vote.simulateChallengeVerificationEvent = function () {
+        this.state = "stopped";
+        this.emit("challengeverification", {
+          type: "CHALLENGEVERIFICATION",
+          challengeSuccess: false,
+          challengeErrors: { 0: "wrong answer" },
+        });
+      };
+    };
+
+    const publishVote = async (commentCid: string, vote: number, onError = vi.fn()) => {
+      const votes: any[] = [];
+      await act(async () => {
+        await accountsActions.publishVote({
+          communityAddress: "sub.eth",
+          commentCid,
+          vote,
+          onChallenge: (_challenge: any, publication: any) => {
+            votes.push(publication);
+            publication.publishChallengeAnswers(["4"]);
+          },
+          onChallengeVerification: () => {},
+          onError,
+        });
+      });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return votes;
+    };
+
+    test("restores the verified vote after a later vote is rejected", async () => {
+      const accountId = accountsStore.getState().activeAccountId!;
+      await publishVote("rejected cid", 1);
+      const verifiedVote = getAccountVote("rejected cid");
+      expect(verifiedVote.vote).toBe(1);
+
+      mockCreateVote(rejectWithChallengeErrors);
+      await publishVote("rejected cid", -1);
+
+      await vi.waitFor(() => expect(getAccountVote("rejected cid")).toEqual(verifiedVote));
+      const persistedVotes = await accountsDatabase.getAccountVotes(accountId);
+      expect(persistedVotes["rejected cid"].vote).toBe(1);
+    });
+
+    test("neutralizes a rejected vote the comment did not have before", async () => {
+      mockCreateVote(rejectWithChallengeErrors);
+      await publishVote("rejected first vote cid", 1);
+
+      await vi.waitFor(() => expect(getAccountVote("rejected first vote cid").vote).toBe(0));
+      expect(getAccountVote("rejected first vote cid")._optimisticVoteTransitions).toBeUndefined();
+    });
+
+    test("restores the verified vote of a burst whose later vote was rejected first", async () => {
+      const votes: any[] = [];
+      await act(async () => {
+        await accountsActions.publishVote({
+          communityAddress: "sub.eth",
+          commentCid: "burst rejected cid",
+          vote: 1,
+          onChallenge: (_challenge: any, publication: any) => votes.push(publication),
+          onChallengeVerification: () => {},
+        });
+      });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const [firstVote] = votes;
+
+      mockCreateVote(rejectWithChallengeErrors);
+      await publishVote("burst rejected cid", -1);
+      // the first vote is still waiting on its challenge, so the burst is not over yet
+      expect(getAccountVote("burst rejected cid").vote).toBe(-1);
+
+      await act(async () => {
+        await firstVote.publishChallengeAnswers(["4"]);
+      });
+      await vi.waitFor(() => expect(getAccountVote("burst rejected cid").vote).toBe(1));
+    });
+
+    test("restores the account vote when publish() rejects", async () => {
+      mockCreateVote((vote) => {
+        vi.spyOn(vote, "publish").mockRejectedValue(new Error("community not found"));
+      });
+      const onError = vi.fn();
+      await publishVote("publish rejected cid", 1, onError);
+
+      await vi.waitFor(() => expect(getAccountVote("publish rejected cid").vote).toBe(0));
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "community not found" }),
+        expect.anything(),
+      );
+    });
+
+    test("restores the account vote after an error that stopped the publication", async () => {
+      mockCreateVote((vote) => {
+        vi.spyOn(vote, "publish").mockImplementation(async () => {
+          vote.state = "stopped";
+          vote.emit("error", new Error("all pubsub providers failed"));
+        });
+      });
+      const onError = vi.fn();
+      await publishVote("stopped error cid", 1, onError);
+
+      await vi.waitFor(() => expect(getAccountVote("stopped error cid").vote).toBe(0));
+      expect(onError).toHaveBeenCalledTimes(1);
+    });
+
+    test("keeps the vote after an error that did not stop the publication", async () => {
+      mockCreateVote((vote) => {
+        const publishChallengeAnswers = vote.publishChallengeAnswers.bind(vote);
+        vote.publishChallengeAnswers = async (...args: any[]) => {
+          // e.g. a challenge message with an invalid signature, pkc-js keeps waiting for a valid one
+          vote.emit("error", new Error("invalid challenge signature"));
+          return publishChallengeAnswers(...args);
+        };
+      });
+      const onError = vi.fn();
+      await publishVote("non-terminal error cid", 1, onError);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(onError).toHaveBeenCalledTimes(1);
+      expect(getAccountVote("non-terminal error cid").vote).toBe(1);
+    });
+  });
+
   describe("domain names with uppercase letters", () => {
     beforeEach(async () => {
       await testUtils.resetDatabasesAndStores();

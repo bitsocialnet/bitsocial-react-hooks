@@ -168,12 +168,15 @@ const activePublishSessions = new Map<string, PublishSession>();
 const abandonedPublishSessionIds = new Set<string>();
 
 type VotePublishSession = {
-  // the account vote restored when the burst is abandoned: the one the first publication replaced, or
-  // the latest verified vote of the burst
+  // the account vote restored when the burst is abandoned or one of its publications failed: the one
+  // the first publication replaced, or the latest verified vote of the burst
   previousAccountVote: AccountVote | undefined;
   publications: Set<any>;
   // votes still waiting on account.pkc.createVote(), they join publications once it resolves
   creating: number;
+  // a publication of the burst was rejected or failed to publish, so the session restores
+  // previousAccountVote when it ends
+  failed?: boolean;
 };
 
 // A vote has no pending account comment to delete, so abandoning one restores the account vote that
@@ -2001,8 +2004,46 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
   let vote = await createSessionVote();
   // abandoned while the vote was being created: nothing was published or written, so stop here
   if (!isVotePublishSessionActive()) return;
+  let resolveAccountVoteWritten!: () => void;
+  const accountVoteWritten = new Promise<void>((resolve) => (resolveAccountVoteWritten = resolve));
+  // a publication is verified, rejected by the community, or failed to publish: it is no longer
+  // abandonable. The session ends only once no other publication of the burst is waiting on its
+  // challenge or still being created, and only if a newer session has not replaced it in the
+  // meantime; if one of them failed, the account vote goes back to the last one verified.
+  const endVotePublication = async (endedVote: any, verified: boolean) => {
+    // already ended, e.g. publish() rejecting after its error event
+    if (!votePublishSession.publications.delete(endedVote)) return;
+    if (verified) {
+      // the verified vote is the one the account has now, so abandoning the rest of the burst
+      // restores it instead of the vote from before the burst
+      votePublishSession.previousAccountVote = accountVote;
+    } else {
+      votePublishSession.failed = true;
+    }
+    if (
+      votePublishSession.publications.size !== 0 ||
+      votePublishSession.creating !== 0 ||
+      !isVotePublishSessionActive()
+    ) {
+      return;
+    }
+    activeVotePublishSessions.delete(votePublishSessionKey);
+    if (!votePublishSession.failed) return;
+    try {
+      // the optimistic write may still be running when the publication fails fast
+      await accountVoteWritten;
+      await restoreAccountVote(
+        account.id,
+        createVoteOptions.commentCid,
+        votePublishSession.previousAccountVote,
+      );
+    } catch (error) {
+      log.error("accountsActions.publishVote restore failed vote error", { error });
+    }
+  };
   let lastChallenge: Challenge | undefined;
   const publishAndRetryFailedChallengeVerification = async () => {
+    const activeVote = vote;
     votePublishSession.publications.add(vote);
     vote.once("challenge", async (challenge: Challenge) => {
       lastChallenge = challenge;
@@ -2024,25 +2065,17 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
         lastChallenge = undefined;
         publishAndRetryFailedChallengeVerification();
       } else {
-        // terminal: this vote is no longer abandonable
-        votePublishSession.publications.delete(vote);
-        if (challengeVerification.challengeSuccess) {
-          // the verified vote is the one the account has now, so abandoning the rest of the burst
-          // restores it instead of the vote from before the burst
-          votePublishSession.previousAccountVote = accountVote;
-        }
-        // the session ends only once no other publication of the burst is waiting on its challenge
-        // or still being created, and only if a newer session has not replaced it in the meantime
-        if (
-          votePublishSession.publications.size === 0 &&
-          votePublishSession.creating === 0 &&
-          isVotePublishSessionActive()
-        ) {
-          activeVotePublishSessions.delete(votePublishSessionKey);
-        }
+        await endVotePublication(activeVote, challengeVerification.challengeSuccess);
       }
     });
-    vote.on("error", (error: Error) => publishVoteOptions.onError?.(error, vote));
+    vote.on("error", async (error: Error) => {
+      // pkc-js also emits errors it recovers from, e.g. a challenge with an invalid signature, and
+      // stops the publication before emitting the ones that end it
+      if (activeVote.state === "stopped") {
+        await endVotePublication(activeVote, false);
+      }
+      publishVoteOptions.onError?.(error, vote);
+    });
     // TODO: add publishingState to account votes
     vote.on("publishingstatechange", (publishingState: string) =>
       publishVoteOptions.onPublishingStateChange?.(publishingState),
@@ -2053,22 +2086,27 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
       // if it fails before, like failing to resolve ENS, we can emit the error
       await vote.publish();
     } catch (error) {
+      await endVotePublication(activeVote, false);
       publishVoteOptions.onError?.(error, vote);
     }
   };
 
   publishAndRetryFailedChallengeVerification();
-  await accountsDatabase.addAccountVote(account.id, storedCreateVoteOptions);
-  log("accountsActions.publishVote", { createVoteOptions });
-  accountsStore.setState(({ accountsVotes }) => ({
-    accountsVotes: {
-      ...accountsVotes,
-      [account.id]: {
-        ...accountsVotes[account.id],
-        [storedCreateVoteOptions.commentCid]: accountVote,
+  try {
+    await accountsDatabase.addAccountVote(account.id, storedCreateVoteOptions);
+    log("accountsActions.publishVote", { createVoteOptions });
+    accountsStore.setState(({ accountsVotes }) => ({
+      accountsVotes: {
+        ...accountsVotes,
+        [account.id]: {
+          ...accountsVotes[account.id],
+          [storedCreateVoteOptions.commentCid]: accountVote,
+        },
       },
-    },
-  }));
+    }));
+  } finally {
+    resolveAccountVoteWritten();
+  }
 };
 
 /**
