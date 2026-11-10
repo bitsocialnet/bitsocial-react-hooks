@@ -491,6 +491,8 @@ export function useResolvedCommunityAddress(
   const [resolvedAddress, setResolvedAddress] = useState<string>();
   const [errors, setErrors] = useState<Error[]>([]);
   const [state, setState] = useState<string>();
+  // the address that resolvedAddress, state and errors belong to
+  const resultAddress = useRef<string | undefined>(undefined);
 
   let initialState = "initializing";
   // before those defined, nothing can happen
@@ -501,15 +503,27 @@ export function useResolvedCommunityAddress(
   useInterval(
     () => {
       if (!account || !communityAddress) {
+        resultAddress.current = undefined;
         setResolvedAddress(undefined);
         setState(undefined);
         setErrors((prevErrors) => (prevErrors.length ? [] : prevErrors));
         return;
       }
 
+      // a new address starts without the result of the previous address
+      const address = communityAddress;
+      let currentState = state;
+      if (resultAddress.current !== address) {
+        resultAddress.current = address;
+        currentState = undefined;
+        setResolvedAddress(undefined);
+        setErrors((prevErrors) => (prevErrors.length ? [] : prevErrors));
+        setState(undefined);
+      }
+
       // address isn't a crypto domain, can't be resolved
       if (!communityAddress?.includes(".")) {
-        if (state !== "failed") {
+        if (currentState !== "failed") {
           setErrors([Error("not a crypto domain")]);
           setState("failed");
           setResolvedAddress(undefined);
@@ -519,7 +533,7 @@ export function useResolvedCommunityAddress(
 
       // only support resolving '.eth' for now
       if (!communityAddress?.endsWith(".eth")) {
-        if (state !== "failed") {
+        if (currentState !== "failed") {
           setErrors([Error("crypto domain type unsupported")]);
           setState("failed");
           setResolvedAddress(undefined);
@@ -529,14 +543,23 @@ export function useResolvedCommunityAddress(
 
       (async () => {
         try {
-          setState("resolving");
-          const res = await resolveCommunityAddress(communityAddress, chainProviders);
-          setState("succeeded");
-          if (res !== resolvedAddress) {
-            setResolvedAddress(res);
+          // later polls keep reporting the current result instead of going back to resolving
+          if (!currentState) {
+            setState("resolving");
           }
+          const res = await resolveCommunityAddress(address, chainProviders);
+          // the address changed while resolving
+          if (resultAddress.current !== address) {
+            return;
+          }
+          setState("succeeded");
+          setErrors((prevErrors) => (prevErrors.length ? [] : prevErrors));
+          setResolvedAddress(res);
         } catch (error: any) {
-          setErrors([...errors, error]);
+          if (resultAddress.current !== address) {
+            return;
+          }
+          setErrors((prevErrors) => [...prevErrors, error]);
           setState("failed");
           setResolvedAddress(undefined);
           log.error("useResolvedCommunityAddress resolveCommunityAddress error", {

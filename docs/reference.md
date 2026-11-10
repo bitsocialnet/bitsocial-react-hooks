@@ -1123,7 +1123,7 @@ if (state === 'failed') {
   console.log('Failed resolving address', error.message)
 }
 
-// pending
+// pending, only until the name has a result: later polls with {cache: false} keep the last result
 if (state === 'resolving' && nameResolver) {
   console.log(`Resolving ${nameResolver.nameSystem} address from ${nameResolver.providerLabel}`)
   console.log('Matching chain provider URLs', chainProvider?.urls)
@@ -1429,7 +1429,7 @@ if (state === 'failed') {
   console.log('Failed resolving address', error.message)
 }
 
-// pending
+// pending, only until the address has a result: later polls with {cache: false} keep the last result
 if (state === 'resolving') {
   console.log('Resolving address from chain provider URL', chainProvider.urls)
 }

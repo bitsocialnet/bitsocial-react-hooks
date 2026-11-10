@@ -1187,6 +1187,95 @@ describe("authors", () => {
       }
     });
 
+    test("useResolvedAuthorAddress only reports the result of the current name", async () => {
+      resetAuthorAddressCacheForTesting();
+      const releases: { [name: string]: (address: string) => void } = {};
+      const origResolve = PKC.prototype.resolveAuthorName;
+      PKC.prototype.resolveAuthorName = ({ name }: { name: string }) =>
+        new Promise<PkcResolveAuthorNameResult>((resolve) => {
+          releases[name] = (address) => resolve(resolvedAuthorNameResult(address));
+        });
+      try {
+        const rendered = renderHook<any, any>((author) =>
+          useResolvedAuthorAddress({ author, cache: false }),
+        );
+        const waitFor = testUtils.createWaitFor(rendered);
+        rendered.rerender({ address: "first-name.eth" });
+        await waitFor(() => rendered.result.current.state === "resolving");
+        rendered.rerender({ address: "second-name.eth" });
+        await waitFor(() => Boolean(releases["second-name.eth"]));
+
+        // the first name resolves after the name changed
+        await act(async () => {
+          releases["first-name.eth"]("12D3KooWfirst");
+        });
+        expect(rendered.result.current.resolvedAddress).toBe(undefined);
+        expect(rendered.result.current.state).toBe("resolving");
+
+        await act(async () => {
+          releases["second-name.eth"]("12D3KooWsecond");
+        });
+        expect(rendered.result.current.resolvedAddress).toBe("12D3KooWsecond");
+        expect(rendered.result.current.state).toBe("succeeded");
+
+        // a new name doesn't report the previous name's address while it resolves
+        rendered.rerender({ address: "third-name.eth" });
+        await act(async () => {});
+        expect(rendered.result.current.resolvedAddress).toBe(undefined);
+        expect(rendered.result.current.state).toBe("resolving");
+      } finally {
+        PKC.prototype.resolveAuthorName = origResolve;
+      }
+    });
+
+    test("useResolvedAuthorAddress keeps its result while polling and clears a recovered error", async () => {
+      resetAuthorAddressCacheForTesting();
+      const resolved = "12D3KooWresolved";
+      let resolveCalls = 0;
+      const origResolve = PKC.prototype.resolveAuthorName;
+      PKC.prototype.resolveAuthorName = () => {
+        resolveCalls++;
+        if (resolveCalls === 1) {
+          return Promise.reject(new Error("resolution failed"));
+        }
+        if (resolveCalls === 2) {
+          return Promise.resolve(resolvedAuthorNameResult(resolved));
+        }
+        // the next poll never finishes
+        return new Promise<PkcResolveAuthorNameResult>(() => {});
+      };
+      vi.useFakeTimers();
+      try {
+        const rendered = renderHook<any, any>(() =>
+          useResolvedAuthorAddress({ author: { address: "polled-name.eth" }, cache: false }),
+        );
+        await act(async () => {});
+        expect(rendered.result.current.state).toBe("failed");
+        expect(rendered.result.current.error?.message).toBe("resolution failed");
+
+        // the next poll succeeds
+        await act(async () => {
+          vi.advanceTimersByTime(15000);
+        });
+        expect(resolveCalls).toBe(2);
+        expect(rendered.result.current.state).toBe("succeeded");
+        expect(rendered.result.current.resolvedAddress).toBe(resolved);
+        expect(rendered.result.current.error).toBe(undefined);
+        expect(rendered.result.current.errors).toEqual([]);
+
+        // a background poll doesn't go back to 'resolving'
+        await act(async () => {
+          vi.advanceTimersByTime(15000);
+        });
+        expect(resolveCalls).toBe(3);
+        expect(rendered.result.current.state).toBe("succeeded");
+        expect(rendered.result.current.resolvedAddress).toBe(resolved);
+      } finally {
+        vi.useRealTimers();
+        PKC.prototype.resolveAuthorName = origResolve;
+      }
+    });
+
     test("resetAuthorAddressCacheForTesting clears pending resolver promises", async () => {
       resetAuthorAddressCacheForTesting();
       const addr = "reset-pending.eth";

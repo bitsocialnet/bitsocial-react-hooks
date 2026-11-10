@@ -1022,6 +1022,91 @@ describe("communities", () => {
       resolveSpy.mockRestore();
       vi.useRealTimers();
     });
+
+    test("useResolvedCommunityAddress only reports the result of the current address", async () => {
+      const releases: { [address: string]: (resolved: string) => void } = {};
+      const resolveSpy = vi
+        .spyOn(chain, "resolveEnsTxtRecord")
+        .mockImplementation(
+          (address: string) => new Promise((resolve) => (releases[address] = resolve)),
+        );
+      try {
+        const rendered = renderHook<any, any>((communityAddress) =>
+          useResolvedCommunityAddress({ communityAddress, cache: false }),
+        );
+        rendered.rerender("first.eth");
+        await act(async () => {});
+        rendered.rerender("second.eth");
+        await act(async () => {});
+        expect(releases["second.eth"]).toBeDefined();
+
+        // the first address resolves after the address changed
+        await act(async () => {
+          releases["first.eth"]("first-resolved");
+        });
+        expect(rendered.result.current.resolvedAddress).toBe(undefined);
+        expect(rendered.result.current.state).toBe("resolving");
+
+        await act(async () => {
+          releases["second.eth"]("second-resolved");
+        });
+        expect(rendered.result.current.resolvedAddress).toBe("second-resolved");
+        expect(rendered.result.current.state).toBe("succeeded");
+
+        // a new address doesn't report the previous address's result while it resolves
+        rendered.rerender("third.eth");
+        await act(async () => {});
+        expect(rendered.result.current.resolvedAddress).toBe(undefined);
+        expect(rendered.result.current.state).toBe("resolving");
+      } finally {
+        resolveSpy.mockRestore();
+      }
+    });
+
+    test("useResolvedCommunityAddress keeps its result while polling and clears a recovered error", async () => {
+      vi.useFakeTimers();
+      let resolveCalls = 0;
+      const resolveSpy = vi.spyOn(chain, "resolveEnsTxtRecord").mockImplementation(() => {
+        resolveCalls++;
+        if (resolveCalls === 1) {
+          return Promise.reject(new Error("name not registered"));
+        }
+        if (resolveCalls === 2) {
+          return Promise.resolve("resolved");
+        }
+        // the next poll never finishes
+        return new Promise(() => {});
+      });
+      try {
+        const rendered = renderHook<any, any>(() =>
+          useResolvedCommunityAddress({ communityAddress: "polled.eth", cache: false }),
+        );
+        await act(async () => {});
+        expect(rendered.result.current.state).toBe("failed");
+        expect(rendered.result.current.error?.message).toBe("name not registered");
+
+        // the next poll succeeds
+        await act(async () => {
+          vi.advanceTimersByTime(15000);
+        });
+        expect(resolveCalls).toBe(2);
+        expect(rendered.result.current.state).toBe("succeeded");
+        expect(rendered.result.current.resolvedAddress).toBe("resolved");
+        expect(rendered.result.current.error).toBe(undefined);
+        expect(rendered.result.current.errors).toEqual([]);
+
+        // a background poll doesn't go back to 'resolving'
+        await act(async () => {
+          vi.advanceTimersByTime(15000);
+        });
+        expect(resolveCalls).toBe(3);
+        expect(rendered.result.current.state).toBe("succeeded");
+        expect(rendered.result.current.resolvedAddress).toBe("resolved");
+      } finally {
+        resolveSpy.mockRestore();
+        vi.useRealTimers();
+      }
+    });
   });
 
   test("resolveCommunityAddress throw for non-.eth", async () => {

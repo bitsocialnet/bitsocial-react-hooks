@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import useInterval from "../utils/use-interval";
 import { useAccount } from "../accounts";
 import Logger from "@pkcprotocol/pkc-logger";
@@ -462,6 +462,8 @@ export function useResolvedAuthorAddress(
   const [errors, setErrors] = useState<Error[]>([]);
   const [state, setState] = useState<string>();
   const [activeNameResolverKey, setActiveNameResolverKey] = useState<string>();
+  // the name that resolvedAddress, state and errors belong to
+  const resultName = useRef<string | undefined>(undefined);
 
   let initialState = "initializing";
   // before those defined, nothing can happen
@@ -556,6 +558,7 @@ export function useResolvedAuthorAddress(
     () => {
       // no options, do nothing or reset
       if (!account || !author?.address) {
+        resultName.current = undefined;
         if (resolvedAddress !== undefined) {
           setResolvedAddress(undefined);
         }
@@ -571,9 +574,20 @@ export function useResolvedAuthorAddress(
         return;
       }
 
+      // a new name starts without the result of the previous name
+      const name = author.address;
+      let currentState = state;
+      if (resultName.current !== name) {
+        resultName.current = name;
+        currentState = undefined;
+        setResolvedAddress(undefined);
+        setErrors((previousErrors) => (previousErrors.length ? [] : previousErrors));
+        setState(undefined);
+      }
+
       // address isn't a crypto domain, can't be resolved
       if (!isCryptoName) {
-        if (state !== "failed") {
+        if (currentState !== "failed") {
           setErrors([Error("not a crypto domain")]);
           setState("failed");
           setResolvedAddress(undefined);
@@ -583,7 +597,7 @@ export function useResolvedAuthorAddress(
       }
 
       if (!configuredNameResolvers.length) {
-        if (state !== "failed") {
+        if (currentState !== "failed") {
           setErrors([Error("crypto domain type unsupported")]);
           setState("failed");
           setResolvedAddress(undefined);
@@ -597,21 +611,30 @@ export function useResolvedAuthorAddress(
           setActiveNameResolverKey(
             (previousResolverKey) => previousResolverKey || configuredNameResolvers[0]?.key,
           );
-          setState("resolving");
+          // later polls keep reporting the current result instead of going back to resolving
+          if (!currentState) {
+            setState("resolving");
+          }
           let res;
           if (cache) {
             res = await resolveAuthorAddress();
           } else {
             res = await resolveAuthorAddressNoCache();
           }
+          // the name changed while resolving
+          if (resultName.current !== name) {
+            return;
+          }
           setState("succeeded");
+          setErrors((previousErrors) => (previousErrors.length ? [] : previousErrors));
 
           // TODO: check if resolved address is the same as author.signer.publicKey
 
-          if (res !== resolvedAddress) {
-            setResolvedAddress(res);
-          }
+          setResolvedAddress(res);
         } catch (error: any) {
+          if (resultName.current !== name) {
+            return;
+          }
           setErrors((previousErrors) => [...previousErrors, error]);
           setState("failed");
           setResolvedAddress(undefined);
