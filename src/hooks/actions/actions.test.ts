@@ -2381,6 +2381,180 @@ describe("actions", () => {
   });
 
   // retry usePublish because publishing state is flaky
+  describe("publish hooks state across publications", { retry: 3 }, () => {
+    afterEach(async () => {
+      await testUtils.resetDatabasesAndStores();
+    });
+
+    // the hooks read accountsActions during render, so flush the rerender before publishing again
+    const setStoreAction = (actionName: string, action: any) =>
+      act(async () => {
+        useAccountsStore.setState((state: any) => ({
+          ...state,
+          accountsActions: { ...state.accountsActions, [actionName]: action },
+        }));
+      });
+    const communityAddress = "12D3KooW... acions.test";
+    const publishHooks = [
+      {
+        name: "usePublishComment",
+        useHook: usePublishComment,
+        publish: "publishComment",
+        options: { communityAddress, content: "republished content" },
+      },
+      {
+        name: "usePublishVote",
+        useHook: usePublishVote,
+        publish: "publishVote",
+        options: { communityAddress, commentCid: "Qm... republished vote", vote: 1 },
+      },
+      {
+        name: "usePublishCommentEdit",
+        useHook: usePublishCommentEdit,
+        publish: "publishCommentEdit",
+        options: { communityAddress, commentCid: "Qm... acions.test", spoiler: true },
+      },
+      {
+        name: "usePublishCommentModeration",
+        useHook: usePublishCommentModeration,
+        publish: "publishCommentModeration",
+        options: {
+          communityAddress,
+          commentCid: "Qm... acions.test",
+          commentModeration: { locked: true },
+        },
+      },
+      {
+        name: "usePublishCommunityEdit",
+        useHook: usePublishCommunityEdit,
+        publish: "publishCommunityEdit",
+        options: { communityAddress, title: "new title" },
+      },
+    ];
+
+    test.each(publishHooks)(
+      "$name reports a rejected publish as failed without the previous publication's result",
+      async ({ useHook, publish, options }) => {
+        const rendered = renderHook<any, any>(() =>
+          (useHook as any)({
+            ...options,
+            onChallenge: (_challenge: any, publication: any) =>
+              publication.publishChallengeAnswers(["4"]),
+          }),
+        );
+        const waitFor = testUtils.createWaitFor(rendered);
+        await waitFor(() => rendered.result.current.state === "ready");
+        await act(async () => {
+          await rendered.result.current[publish]();
+        });
+        await waitFor(() => rendered.result.current.state === "succeeded");
+        expect(rendered.result.current.challengeVerification?.challengeSuccess).toBe(true);
+
+        const originalAction = (useAccountsStore.getState().accountsActions as any)[publish];
+        await setStoreAction(publish, async () => {
+          throw Error("store rejected the publication");
+        });
+        try {
+          await act(async () => {
+            await rendered.result.current[publish]();
+          });
+        } finally {
+          await setStoreAction(publish, originalAction);
+        }
+        expect(rendered.result.current.state).toBe("failed");
+        expect(rendered.result.current.error?.message).toBe("store rejected the publication");
+        expect(rendered.result.current.challenge).toBe(undefined);
+        expect(rendered.result.current.challengeVerification).toBe(undefined);
+
+        // a successful retry does not keep the failed attempt's error
+        await act(async () => {
+          await rendered.result.current[publish]();
+        });
+        await waitFor(() => rendered.result.current.state === "succeeded");
+        expect(rendered.result.current.state).toBe("succeeded");
+        expect(rendered.result.current.error).toBe(undefined);
+        expect(rendered.result.current.errors).toEqual([]);
+      },
+    );
+
+    test.each(publishHooks)(
+      "$name drops the previous attempt's failed challengeVerification when a new challenge arrives",
+      async ({ useHook, publish, options }) => {
+        const publication = { publishChallengeAnswers: async () => {} };
+        const firstChallenge = { type: "CHALLENGE", challenges: [{ type: "text" }] };
+        const retryChallenge = { type: "CHALLENGE", challenges: [{ type: "text" }] };
+        const originalAction = (useAccountsStore.getState().accountsActions as any)[publish];
+        // the store publishes again automatically after a failed challenge verification
+        await setStoreAction(publish, async (...args: any[]) => {
+          const publishOptions = args.find((arg) => typeof arg?.onChallenge === "function");
+          publishOptions.onChallenge(firstChallenge, publication);
+          publishOptions.onChallengeVerification(
+            { type: "CHALLENGEVERIFICATION", challengeSuccess: false },
+            publication,
+          );
+          publishOptions.onChallenge(retryChallenge, publication);
+        });
+        try {
+          const rendered = renderHook<any, any>(() => (useHook as any)(options));
+          const waitFor = testUtils.createWaitFor(rendered);
+          await waitFor(() => rendered.result.current.state === "ready");
+          await act(async () => {
+            await rendered.result.current[publish]();
+          });
+          expect(rendered.result.current.challenge).toBe(retryChallenge);
+          expect(rendered.result.current.challengeVerification).toBe(undefined);
+        } finally {
+          await setStoreAction(publish, originalAction);
+        }
+      },
+    );
+
+    test("usePublishVote keeps the errors of a vote it no longer tracks out of its result", async () => {
+      const publishVoteOptions: any[] = [];
+      const originalAction = useAccountsStore.getState().accountsActions.publishVote;
+      await setStoreAction("publishVote", async (options: any) => {
+        publishVoteOptions.push(options);
+      });
+      try {
+        const onError = vi.fn();
+        const rendered = renderHook<any, any>(() =>
+          usePublishVote({ ...publishHooks[1].options, onError } as any),
+        );
+        const waitFor = testUtils.createWaitFor(rendered);
+        await waitFor(() => rendered.result.current.state === "ready");
+        await act(async () => {
+          await rendered.result.current.publishVote();
+        });
+        await act(async () => {
+          await rendered.result.current.publishVote();
+        });
+        // the first vote fails after publishVote() was called again
+        await act(async () => {
+          await publishVoteOptions[0].onError(Error("first vote failed"));
+        });
+        expect(rendered.result.current.errors).toEqual([]);
+
+        // the second vote fails after it was abandoned
+        await act(async () => {
+          await rendered.result.current.abandonPublish();
+        });
+        await act(async () => {
+          await publishVoteOptions[1].onError(Error("abandoned vote failed"));
+        });
+        expect(rendered.result.current.errors).toEqual([]);
+        expect(rendered.result.current.state).toBe("ready");
+        // the app's onError still receives both
+        expect(onError.mock.calls.map(([error]) => error.message)).toEqual([
+          "first vote failed",
+          "abandoned vote failed",
+        ]);
+      } finally {
+        await setStoreAction("publishVote", originalAction);
+      }
+    });
+  });
+
+  // retry usePublish because publishing state is flaky
   describe("usePublishVote", { retry: 3 }, () => {
     let rendered: any, waitFor: Function;
 

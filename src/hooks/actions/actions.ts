@@ -299,6 +299,7 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
     const updatesHookState = () => mountedRef.current && isActive();
     if (mountedRef.current) {
       resetPublishState();
+      setErrors([]);
     }
     // once abandoned, the publication's late events reach neither the hook state nor the callbacks
     let abandoned = false;
@@ -350,6 +351,8 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
         if (updatesHookState()) {
           setPublishChallengeAnswers(() => comment?.publishChallengeAnswers.bind(comment));
           setChallenge(challenge);
+          // an automatic republish's challenge replaces the previous attempt's failed verification
+          setChallengeVerification(undefined);
         }
         (originalOnChallenge ?? noop)(challenge, comment, abandon);
       },
@@ -399,6 +402,9 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
         if (!mountedRef.current && isActive()) {
           (originalOnError ?? noop)(e);
         } else {
+          if (isActive()) {
+            setPublishingState("failed");
+          }
           handlePublishErrorWhenAbandoned(
             activePublishRequestIdRef,
             requestId,
@@ -491,6 +497,8 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
   const onChallenge = async (challenge: Challenge, vote: Vote) => {
     setPublishChallengeAnswers(() => vote?.publishChallengeAnswers.bind(vote));
     setChallenge(challenge);
+    // an automatic republish's challenge replaces the previous attempt's failed verification
+    setChallengeVerification(undefined);
     (originalOnChallenge ?? (() => {}))(challenge, vote);
   };
   publishVoteOptions.onChallenge = onChallenge;
@@ -516,6 +524,13 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
     activePublishVoteRequestIdRef.current = requestId;
     abandonActiveVoteRef.current = undefined;
     const isActiveRequest = () => activePublishVoteRequestIdRef.current === requestId;
+    clearPublicationResult(
+      setChallenge,
+      setChallengeVerification,
+      setPublishChallengeAnswers,
+      setPublishingState,
+    );
+    setErrors([]);
     const activePublishVoteOptions = {
       ...publishVoteOptions,
       onChallenge: (challenge: Challenge, vote: Vote) => {
@@ -527,6 +542,11 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
       onPublishingStateChange: (publishingState: string) => {
         if (isActiveRequest()) setPublishingState(publishingState);
       },
+      // an earlier or abandoned vote's error still reaches the app's onError, but not the result
+      onError: (error: Error) => {
+        if (isActiveRequest()) onError(error);
+        else originalOnError?.(error);
+      },
       _onVotePublishSession: (abandonVote: () => Promise<void>) => {
         if (isActiveRequest()) abandonActiveVoteRef.current = abandonVote;
       },
@@ -534,7 +554,12 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
     try {
       await accountsActions.publishVote(activePublishVoteOptions, accountName);
     } catch (e: any) {
-      handlePublishVoteError(e, setErrors, originalOnError);
+      if (isActiveRequest()) {
+        setPublishingState("failed");
+        handlePublishVoteError(e, setErrors, originalOnError);
+      } else {
+        originalOnError?.(e);
+      }
     }
   };
 
@@ -595,6 +620,9 @@ export function usePublishCommentEdit(
     initialState = "ready";
   }
 
+  // the latest publishCommentEdit() call owns the result
+  const publishRequestIdRef = useRef(0);
+
   // define onError if not defined
   const originalOnError = publishCommentEditOptions.onError;
   const onError = async (error: Error) => {
@@ -609,6 +637,8 @@ export function usePublishCommentEdit(
     // cannot set a function directly with setState
     setPublishChallengeAnswers(() => commentEdit?.publishChallengeAnswers.bind(commentEdit));
     setChallenge(challenge);
+    // an automatic republish's challenge replaces the previous attempt's failed verification
+    setChallengeVerification(undefined);
     originalOnChallenge?.(challenge, commentEdit);
   };
   publishCommentEditOptions.onChallenge = onChallenge;
@@ -630,10 +660,21 @@ export function usePublishCommentEdit(
   };
 
   const publishCommentEdit = async () => {
+    const requestId = ++publishRequestIdRef.current;
+    clearPublicationResult(
+      setChallenge,
+      setChallengeVerification,
+      setPublishChallengeAnswers,
+      setPublishingState,
+    );
+    setErrors([]);
     try {
       await accountsActions.publishCommentEdit(publishCommentEditOptions, accountName);
     } catch (e: any) {
-      setErrors((errors) => [...errors, e]);
+      if (publishRequestIdRef.current === requestId) {
+        setPublishingState("failed");
+        setErrors((errors) => [...errors, e]);
+      }
       originalOnError?.(e);
     }
   };
@@ -683,6 +724,9 @@ export function usePublishCommentModeration(
     initialState = "ready";
   }
 
+  // the latest publishCommentModeration() call owns the result
+  const publishRequestIdRef = useRef(0);
+
   // define onError if not defined
   const originalOnError = publishCommentModerationOptions.onError;
   const onError = async (error: Error) => {
@@ -699,6 +743,8 @@ export function usePublishCommentModeration(
       commentModeration?.publishChallengeAnswers.bind(commentModeration),
     );
     setChallenge(challenge);
+    // an automatic republish's challenge replaces the previous attempt's failed verification
+    setChallengeVerification(undefined);
     originalOnChallenge?.(challenge, commentModeration);
   };
   publishCommentModerationOptions.onChallenge = onChallenge;
@@ -720,10 +766,21 @@ export function usePublishCommentModeration(
   };
 
   const publishCommentModeration = async () => {
+    const requestId = ++publishRequestIdRef.current;
+    clearPublicationResult(
+      setChallenge,
+      setChallengeVerification,
+      setPublishChallengeAnswers,
+      setPublishingState,
+    );
+    setErrors([]);
     try {
       await accountsActions.publishCommentModeration(publishCommentModerationOptions, accountName);
     } catch (e: any) {
-      setErrors((errors) => [...errors, e]);
+      if (publishRequestIdRef.current === requestId) {
+        setPublishingState("failed");
+        setErrors((errors) => [...errors, e]);
+      }
       originalOnError?.(e);
     }
   };
@@ -773,6 +830,9 @@ export function usePublishCommunityEdit(
     initialState = "ready";
   }
 
+  // the latest publishCommunityEdit() call owns the result
+  const publishRequestIdRef = useRef(0);
+
   // define onError if not defined
   const originalOnError = publishCommunityEditOptions.onError;
   const onError = async (error: Error) => {
@@ -787,6 +847,8 @@ export function usePublishCommunityEdit(
     // cannot set a function directly with setState
     setPublishChallengeAnswers(() => communityEdit?.publishChallengeAnswers.bind(communityEdit));
     setChallenge(challenge);
+    // an automatic republish's challenge replaces the previous attempt's failed verification
+    setChallengeVerification(undefined);
     originalOnChallenge?.(challenge, communityEdit);
   };
   publishCommunityEditOptions.onChallenge = onChallenge;
@@ -808,6 +870,14 @@ export function usePublishCommunityEdit(
   };
 
   const publishCommunityEdit = async () => {
+    const requestId = ++publishRequestIdRef.current;
+    clearPublicationResult(
+      setChallenge,
+      setChallengeVerification,
+      setPublishChallengeAnswers,
+      setPublishingState,
+    );
+    setErrors([]);
     try {
       await accountsActions.publishCommunityEdit(
         communityAddress,
@@ -815,7 +885,10 @@ export function usePublishCommunityEdit(
         accountName,
       );
     } catch (e: any) {
-      setErrors((errors) => [...errors, e]);
+      if (publishRequestIdRef.current === requestId) {
+        setPublishingState("failed");
+        setErrors((errors) => [...errors, e]);
+      }
       originalOnError?.(e);
     }
   };
