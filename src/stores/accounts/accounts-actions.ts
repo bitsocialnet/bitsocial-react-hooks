@@ -288,6 +288,21 @@ const createPublishSession = (accountId: string, index: number) => {
   return sessionId;
 };
 
+// A pending comment takes the next row of its account's live comment list, so the first saves of
+// an account's pending comments run one at a time: two overlapping publishComment calls that read
+// the length before either saved its row would get the same index and overwrite each other.
+const accountCommentAppendQueues = new Map<string, Promise<unknown>>();
+const queueAccountCommentAppend = <T>(accountId: string, append: () => Promise<T>) => {
+  const previousAppend = accountCommentAppendQueues.get(accountId) || Promise.resolve();
+  const queuedAppend = previousAppend.catch(() => {}).then(append);
+  accountCommentAppendQueues.set(accountId, queuedAppend);
+  return queuedAppend.finally(() => {
+    if (accountCommentAppendQueues.get(accountId) === queuedAppend) {
+      accountCommentAppendQueues.delete(accountId);
+    }
+  });
+};
+
 const updatePublishSessionComment = (sessionId: string, comment?: any) => {
   const session = activePublishSessions.get(sessionId);
   if (!session) {
@@ -1426,9 +1441,9 @@ export const publishComment = async (
     };
   }
 
-  // save comment to db
-  let accountCommentIndex = accountsComments[account.id].length;
-  const publishSessionId = createPublishSession(account.id, accountCommentIndex);
+  // save comment to db: the row index and the publish session are set by the queued first save
+  let accountCommentIndex!: number;
+  let publishSessionId!: string;
   let savedOnce = false;
   const saveCreatedAccountComment = async (
     accountComment: AccountComment,
@@ -1480,7 +1495,7 @@ export const publishComment = async (
     });
     return persistedIndex;
   };
-  let createdAccountComment = createAccountComment(createCommentOptions, accountCommentIndex);
+  let createdAccountComment!: AccountComment;
   const reportOnPendingCommentError = (error: unknown, pendingCommentIndex: number) => {
     log.error("accountsActions.publishComment onPendingComment callback error", {
       accountId: account.id,
@@ -1498,8 +1513,14 @@ export const publishComment = async (
       reportOnPendingCommentError(error, pendingCommentIndex);
     }
   };
-  notifyPendingComment(accountCommentIndex, createdAccountComment);
-  const pendingCommentIndex = await saveCreatedAccountComment(createdAccountComment);
+  const pendingCommentIndex = await queueAccountCommentAppend(account.id, () => {
+    // read the live list, not the state from before the awaits above
+    accountCommentIndex = accountsStore.getState().accountsComments[account.id].length;
+    publishSessionId = createPublishSession(account.id, accountCommentIndex);
+    createdAccountComment = createAccountComment(createCommentOptions, accountCommentIndex);
+    notifyPendingComment(accountCommentIndex, createdAccountComment);
+    return saveCreatedAccountComment(createdAccountComment);
+  });
   if (pendingCommentIndex === undefined) {
     return createdAccountComment;
   }

@@ -3279,6 +3279,44 @@ describe("accounts-actions", () => {
       );
     });
 
+    test("overlapping publishComment calls save their pending comments on separate rows", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const onPendingComment = vi.fn();
+      const publishOptions = (content: string) => ({
+        communityAddress: "sub.eth",
+        content,
+        onPendingComment,
+        onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+        onChallengeVerification: () => {},
+      });
+
+      const [firstComment, secondComment] = await Promise.all([
+        accountsActions.publishComment(publishOptions("first overlapping")),
+        accountsActions.publishComment(publishOptions("second overlapping")),
+      ]);
+
+      expect([firstComment.index, secondComment.index].sort()).toEqual([0, 1]);
+      expect(onPendingComment.mock.calls.map(([index]) => index).sort()).toEqual([0, 1]);
+      const pendingComments = accountsStore.getState().accountsComments[account.id];
+      expect(pendingComments).toHaveLength(2);
+      expect(pendingComments[firstComment.index].content).toBe("first overlapping");
+      expect(pendingComments[secondComment.index].content).toBe("second overlapping");
+
+      await vi.waitFor(() =>
+        expect(
+          accountsStore.getState().accountsComments[account.id].filter((comment) => comment.cid),
+        ).toHaveLength(2),
+      );
+      const publishedComments = accountsStore.getState().accountsComments[account.id];
+      expect(publishedComments[firstComment.index].cid).toBe("first overlapping cid");
+      expect(publishedComments[secondComment.index].cid).toBe("second overlapping cid");
+      const persistedComments = await accountsDatabase.getAccountComments(account.id);
+      expect(persistedComments.map((comment: any) => comment.content).sort()).toEqual([
+        "first overlapping",
+        "second overlapping",
+      ]);
+    });
+
     test("publishComment persists when onPendingComment throws", async () => {
       const account = Object.values(accountsStore.getState().accounts)[0];
       const callbackError = new Error("pending callback failed");
