@@ -331,10 +331,15 @@ export const commentIsValid = async (
     );
     return false;
   }
+  // without a pkc client, e.g. for a feed whose account was deleted, the comment can't be validated,
+  // which says nothing about its community, so don't block it
+  if (typeof pkc?.validateComment !== "function") {
+    return false;
+  }
   try {
     await pkc.validateComment(comment, { validateReplies });
   } catch (e) {
-    if (blockCommunity) {
+    if (blockCommunity && comment.communityAddress) {
       communitiesWithInvalidComments[comment.communityAddress] = true;
     }
     console.log("invalid comment", { comment, error: e });

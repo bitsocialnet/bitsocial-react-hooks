@@ -119,6 +119,37 @@ describe("utils", () => {
     });
   });
 
+  describe("commentIsValid", () => {
+    const validPkc = { validateComment: async () => {} };
+
+    test("doesn't block the community when there is no pkc client to validate with", async () => {
+      const comment = { cid: "no-pkc-comment", communityAddress: "no-pkc-community.bso" };
+      await expect(utils.commentIsValid(comment as any, {}, undefined)).resolves.toBe(false);
+      await expect(utils.commentIsValid(comment as any, {}, validPkc)).resolves.toBe(true);
+    });
+
+    test("an invalid comment without a community address doesn't block other comments", async () => {
+      const pkc = {
+        validateComment: async (comment: any) => {
+          if (comment.cid === "invalid-comment-without-community") {
+            throw Error("invalid comment");
+          }
+        },
+      };
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await expect(
+          utils.commentIsValid({ cid: "invalid-comment-without-community" } as any, {}, pkc),
+        ).resolves.toBe(false);
+        await expect(
+          utils.commentIsValid({ cid: "valid-comment-without-community" } as any, {}, pkc),
+        ).resolves.toBe(true);
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
+  });
+
   test("flattenCommentsPages", async () => {
     const page = {
       comments: [
