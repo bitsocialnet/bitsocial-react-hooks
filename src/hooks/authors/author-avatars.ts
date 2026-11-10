@@ -41,12 +41,17 @@ export function useNftMetadataUrl(nft?: Nft, accountName?: string) {
       return;
     }
 
+    let cancelled = false;
     (async () => {
       try {
         const url = await getNftMetadataUrl(...getNftMetadataUrlArgs);
-        setNftMetadataUrl(url);
+        if (!cancelled) {
+          setNftMetadataUrl(url);
+        }
       } catch (error: any) {
-        setError(error);
+        if (!cancelled) {
+          setError(error);
+        }
         log.error("useNftMetadataUrl getNftMetadataUrl error", {
           nft,
           ipfsGatewayUrl,
@@ -55,6 +60,9 @@ export function useNftMetadataUrl(nft?: Nft, accountName?: string) {
         });
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, getNftMetadataUrlArgs);
 
   // log('useNftMetadataUrl', {nft, ipfsGatewayUrl, nftMetadataUrl, chainProviders})
@@ -86,15 +94,23 @@ export function useNftImageUrl(nftMetadataUrl?: string, accountName?: string) {
       return;
     }
 
+    let cancelled = false;
     (async () => {
       try {
         const url = await getNftImageUrl(nftMetadataUrl, ipfsGatewayUrl);
-        setImageUrl(url);
+        if (!cancelled) {
+          setImageUrl(url);
+        }
       } catch (error: any) {
-        setError(error);
+        if (!cancelled) {
+          setError(error);
+        }
         log.error("useNftImageUrl getNftImageUrl error", { nftMetadataUrl, ipfsGatewayUrl, error });
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [nftMetadataUrl, ipfsGatewayUrl]);
 
   // log('useNftImageUrl', {nftMetadataUrl, ipfsGatewayUrl, imageUrl})
@@ -117,6 +133,8 @@ export function useVerifiedAuthorAvatarSignature(author?: Author, accountName?: 
       return;
     }
 
+    // the verification of a previous author arriving late must not verify the current one
+    let cancelled = false;
     (async () => {
       try {
         const res = await verifyAuthorAvatarSignature(
@@ -124,9 +142,13 @@ export function useVerifiedAuthorAvatarSignature(author?: Author, accountName?: 
           author.address,
           chainProviders,
         );
-        setVerified(res);
+        if (!cancelled) {
+          setVerified(res);
+        }
       } catch (error: any) {
-        setError(error);
+        if (!cancelled) {
+          setError(error);
+        }
         log.error("useVerifiedAuthorAvatarSignature verifyAuthorAvatarSignature error", {
           author,
           chainProviders,
@@ -134,6 +156,9 @@ export function useVerifiedAuthorAvatarSignature(author?: Author, accountName?: 
         });
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [author?.avatar, author?.address, chainProviders]);
 
   // don't verify nft signature when using mock content during development
