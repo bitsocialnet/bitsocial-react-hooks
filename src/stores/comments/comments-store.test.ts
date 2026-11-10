@@ -113,6 +113,36 @@ const createUnchangedComment = (commentCid: string, options: { updatedAt?: numbe
   return liveComment;
 };
 
+// Mirrors a pkc-js comment whose community is unreachable: a comment created without its
+// CommentIpfs loads it first and emits it alone, and no CommentUpdate arrives.
+const createUnreachableCommunityComment = (commentData: any) => {
+  const liveComment: any = new EventEmitter();
+  Object.assign(liveComment, commentData);
+  liveComment.clients = {};
+  liveComment.off = liveComment.off.bind(liveComment);
+  liveComment.removeAllListeners = liveComment.removeAllListeners.bind(liveComment);
+  liveComment.once = liveComment.once.bind(liveComment);
+  liveComment.stop = vi.fn().mockImplementation(() => {
+    liveComment.updatingState = "stopped";
+    return Promise.resolve();
+  });
+  liveComment.update = vi.fn().mockImplementation(() => {
+    liveComment.updatingState = "fetching-ipfs";
+    liveComment.emit("updatingstatechange", "fetching-ipfs");
+    if (!liveComment.timestamp) {
+      setTimeout(() => {
+        liveComment.timestamp = 100;
+        liveComment.content = "comment ipfs content";
+        liveComment.updatingState = "fetching-update-ipfs";
+        liveComment.emit("update", liveComment);
+        liveComment.emit("updatingstatechange", "fetching-update-ipfs");
+      }, 0);
+    }
+    return Promise.resolve();
+  });
+  return liveComment;
+};
+
 describe("comments store", () => {
   beforeAll(async () => {
     setPkcJs(PkcJsMock);
@@ -221,6 +251,108 @@ describe("comments store", () => {
     );
 
     mockAccount.pkc.createComment = createCommentOriginal;
+  });
+
+  test("an auto-updating comment cached on an earlier visit keeps its CommentUpdate while the update loads", async () => {
+    const commentCid = "cached-auto-update-cid";
+    const subscriberId = "cached-auto-update-subscriber";
+    const cachedComment = {
+      cid: commentCid,
+      timestamp: 100,
+      content: "cached content",
+      updatedAt: 200,
+      replyCount: 4,
+      upvoteCount: 7,
+    };
+    const db = localForageLru.createInstance({ name: "bitsocialReactHooks-comments" });
+    await db.setItem(commentCid, cachedComment);
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn(async (commentData: any) =>
+      createUnreachableCommunityComment(commentData),
+    );
+
+    try {
+      // useComment requests the opening update and starts auto-updating in the same commit
+      await act(async () => {
+        await Promise.all([
+          commentsStore.getState().addCommentToStore(commentCid, mockAccount),
+          commentsStore.getState().startCommentAutoUpdate(commentCid, subscriberId, mockAccount),
+        ]);
+      });
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      expect(commentsStore.getState().comments[commentCid]).toEqual(
+        expect.objectContaining({ updatedAt: 200, replyCount: 4, upvoteCount: 7 }),
+      );
+      expect(await db.getItem(commentCid)).toEqual(
+        expect.objectContaining({ updatedAt: 200, replyCount: 4, upvoteCount: 7 }),
+      );
+    } finally {
+      await commentsStore.getState().stopCommentAutoUpdate(commentCid, subscriberId);
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
+  test("startCommentAutoUpdate creates the live comment without the cache when the cache read fails", async () => {
+    const commentCid = "auto-update-cache-read-fails-cid";
+    const subscriberId = "auto-update-cache-read-fails-subscriber";
+    const db = localForageLru.createInstance({ name: "bitsocialReactHooks-comments" });
+    const getItemSpy = vi.spyOn(db, "getItem").mockRejectedValueOnce(Error("cache unavailable"));
+    const logSpy = vi.spyOn(log, "error").mockImplementation(() => {});
+
+    try {
+      await act(async () => {
+        await commentsStore
+          .getState()
+          .startCommentAutoUpdate(commentCid, subscriberId, mockAccount);
+      });
+
+      expect(commentsStore.getState().comments[commentCid]?.cid).toBe(commentCid);
+      expect(listeners[listeners.length - 1]?.cid).toBe(commentCid);
+    } finally {
+      await commentsStore.getState().stopCommentAutoUpdate(commentCid, subscriberId);
+      getItemSpy.mockRestore();
+      logSpy.mockRestore();
+    }
+  });
+
+  test("an auto-updating comment whose cache entry pkc-js cannot parse loads without the cache", async () => {
+    const commentCid = "auto-update-unparseable-cache-cid";
+    const subscriberId = "auto-update-unparseable-cache-subscriber";
+    const db = localForageLru.createInstance({ name: "bitsocialReactHooks-comments" });
+    // e.g. an entry cached before a pkc-js schema change
+    await db.setItem(commentCid, { cid: commentCid, timestamp: 1, removedField: "cached" });
+    const createCommentOrig = mockAccount.pkc.createComment.bind(mockAccount.pkc);
+    mockAccount.pkc.createComment = vi.fn(async (commentData: any) => {
+      if ("removedField" in commentData) {
+        throw Error("schema parse failed");
+      }
+      return createCommentOrig(commentData);
+    });
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      // useComment requests the opening update and starts auto-updating in the same commit
+      await act(async () => {
+        await Promise.all([
+          commentsStore.getState().addCommentToStore(commentCid, mockAccount),
+          commentsStore.getState().startCommentAutoUpdate(commentCid, subscriberId, mockAccount),
+        ]);
+      });
+
+      expect(commentsStore.getState().comments[commentCid]?.cid).toBe(commentCid);
+      expect(listeners[listeners.length - 1]?.cid).toBe(commentCid);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "failed pkc.createComment(cachedComment)",
+        expect.objectContaining({ error: expect.any(Error) }),
+      );
+    } finally {
+      await commentsStore.getState().stopCommentAutoUpdate(commentCid, subscriberId);
+      consoleSpy.mockRestore();
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
   });
 
   test("addCommentToStore clears the pending gate when cached live comment creation fails", async () => {

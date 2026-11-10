@@ -1819,6 +1819,27 @@ describe("comments", () => {
       expect(rendered.result.current.upvoteCount).toBe(3);
     });
 
+    test("useComment shows the cached copy until the update requested on open replaces it", async () => {
+      const commentCid = "comment cid cached auto update";
+      await cacheComment(commentCid);
+      const renderedUpvoteCounts: (number | undefined)[] = [];
+      const rendered = renderHook<any, any>(() => {
+        const comment = useComment({ commentCid });
+        renderedUpvoteCounts.push(comment.upvoteCount);
+        return comment;
+      });
+      const waitFor = testUtils.createWaitFor(rendered);
+
+      await waitFor(() => rendered.result.current.upvoteCount === 1);
+      releaseOpeningUpdates();
+      await waitFor(() => rendered.result.current.upvoteCount === 3);
+      expect(rendered.result.current.upvoteCount).toBe(3);
+
+      // the CommentIpfs a CID-only comment loads first must not replace the cached CommentUpdate
+      const shownFromCache = renderedUpvoteCounts.indexOf(1);
+      expect(renderedUpvoteCounts.slice(shownFromCache)).not.toContain(undefined);
+    });
+
     test("useComment with autoUpdate false keeps the update requested on open when an auto-updating hook on the comment unmounts", async () => {
       // e.g. a link prefetch subscribes on hover, then unmounts as the frozen page opens
       const commentCid = "comment cid cached prefetched";

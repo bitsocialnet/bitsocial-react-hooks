@@ -344,7 +344,13 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     }
   };
 
-  const ensureLiveComment = async (commentCid: string, account: Account, commentData?: Comment) => {
+  // addCommentToStore passes cacheChecked, because it has read the cache already
+  const ensureLiveComment = async (
+    commentCid: string,
+    account: Account,
+    commentData?: Comment,
+    options?: { cacheChecked?: boolean },
+  ) => {
     if (liveComments[commentCid]) {
       return liveComments[commentCid];
     }
@@ -353,11 +359,13 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     }
 
     const liveCommentPromise = (async () => {
-      const initialComment = normalizeCommentCommunityAddress(
-        mergeCommentData(commentCid, commentData),
-      );
+      // Whichever action creates the live comment, seed it from the cache: a comment created
+      // without its CommentIpfs emits that alone first, which would replace a cached CommentUpdate.
+      const cachedCommentData = options?.cacheChecked
+        ? undefined
+        : await readCachedComment(commentCid);
       const liveComment = normalizeCommentCommunityAddress(
-        await account.pkc.createComment(initialComment),
+        await createCommentSeededFromCache(commentCid, account, cachedCommentData, commentData),
       ) as Comment;
       initializeComment(commentCid, liveComment, account);
       return liveComment;
@@ -486,7 +494,9 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
         comment = await getCommentFromDatabase(commentCid, account, commentData);
 
         if (!comment) {
-          comment = await ensureLiveComment(commentCid, account, commentData);
+          comment = await ensureLiveComment(commentCid, account, commentData, {
+            cacheChecked: true,
+          });
           comment = normalizeCommentCommunityAddress(comment);
           log("commentsStore.addCommentToStore", { commentCid, comment, account });
           setState((state: CommentsState) => ({
@@ -507,6 +517,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
             commentCid,
             account,
             mergeCommentData(commentCid, comment, commentData),
+            { cacheChecked: true },
           );
         }
 
@@ -639,6 +650,41 @@ const getCommentFromDatabase = async (
       error: e,
     });
   }
+};
+
+const readCachedComment = async (commentCid: string) => {
+  try {
+    return (await commentsDatabase.getItem(commentCid)) as Comment | undefined;
+  } catch (error) {
+    log.error("commentsStore cached comment read error", { commentCid, error });
+  }
+};
+
+// Like getCommentFromDatabase, skips a cache entry pkc-js can no longer parse, e.g. after a schema
+// change, and creates the comment from the caller's data alone.
+const createCommentSeededFromCache = async (
+  commentCid: string,
+  account: Account,
+  cachedCommentData?: Comment,
+  commentData?: Comment,
+) => {
+  if (cachedCommentData) {
+    try {
+      return await account.pkc.createComment(
+        normalizeCommentCommunityAddress(
+          mergeCommentData(commentCid, cachedCommentData, commentData),
+        ),
+      );
+    } catch (error) {
+      console.error("failed pkc.createComment(cachedComment)", {
+        cachedComment: cachedCommentData,
+        error,
+      });
+    }
+  }
+  return account.pkc.createComment(
+    normalizeCommentCommunityAddress(mergeCommentData(commentCid, commentData)),
+  );
 };
 
 // reset store in between tests
