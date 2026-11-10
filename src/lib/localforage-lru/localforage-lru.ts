@@ -1,5 +1,9 @@
 import localForage from "localforage";
 
+// the database made active by the last rotation holds the highest generation under this key, so a
+// reload finds the active database even after removeItem changed how many items each one holds
+const activeGenerationKey = "__localForageLruActiveGeneration";
+
 function createLocalForageInstance(localForageLruOptions: any): any {
   if (typeof localForageLruOptions?.size !== "number") {
     throw Error(
@@ -11,6 +15,7 @@ function createLocalForageInstance(localForageLruOptions: any): any {
   let database1: any,
     database2: any,
     databaseSize: number,
+    activeGeneration: number,
     initialized = false;
 
   const initializationPromize = new Promise(async (resolve) => {
@@ -22,23 +27,35 @@ function createLocalForageInstance(localForageLruOptions: any): any {
       ...localForageOptions,
       name: localForageLruOptions.name + "2",
     });
-    const [localForage1Size, localForage2Size] = await Promise.all([
-      localForage1.length(),
-      localForage2.length(),
-    ]);
-    // largest db is always active db, unless is max size, because max sized db is always inactive
-    if (
-      (localForage1Size >= localForage2Size && localForage1Size !== localForageLruOptions.size) ||
-      localForage2Size === localForageLruOptions.size
-    ) {
+    const [localForage1Size, localForage2Size, localForage1Generation, localForage2Generation] =
+      await Promise.all([
+        localForage1.length(),
+        localForage2.length(),
+        localForage1.getItem(activeGenerationKey),
+        localForage2.getItem(activeGenerationKey),
+      ]);
+    const generation1 = typeof localForage1Generation === "number" ? localForage1Generation : -1;
+    const generation2 = typeof localForage2Generation === "number" ? localForage2Generation : -1;
+    let localForage1IsActive: boolean;
+    if (generation1 !== -1 || generation2 !== -1) {
+      localForage1IsActive = generation1 > generation2;
+    } else {
+      // databases that never rotated with the generation key:
+      // largest db is always active db, unless is max size, because max sized db is always inactive
+      localForage1IsActive =
+        (localForage1Size >= localForage2Size && localForage1Size !== localForageLruOptions.size) ||
+        localForage2Size === localForageLruOptions.size;
+    }
+    if (localForage1IsActive) {
       database2 = localForage2;
       database1 = localForage1;
-      databaseSize = localForage1Size;
+      databaseSize = localForage1Size - (generation1 !== -1 ? 1 : 0);
     } else {
       database2 = localForage1;
       database1 = localForage2;
-      databaseSize = localForage2Size;
+      databaseSize = localForage2Size - (generation2 !== -1 ? 1 : 0);
     }
+    activeGeneration = Math.max(generation1, generation2, 0);
     initialized = true;
     resolve(undefined);
   });
@@ -89,13 +106,13 @@ function createLocalForageInstance(localForageLruOptions: any): any {
     keys: async function () {
       await initialization();
       const [keys1, keys2] = await Promise.all([database1.keys(), database2.keys()]);
-      return [...new Set([...keys1, ...keys2])];
+      return [...new Set([...keys1, ...keys2])].filter((key) => key !== activeGenerationKey);
     },
     // useful to init a react state on load
     entries: async function () {
       await initialization();
       const [keys1, keys2] = await Promise.all([database1.keys(), database2.keys()]);
-      const keys = [...new Set([...keys1, ...keys2])];
+      const keys = [...new Set([...keys1, ...keys2])].filter((key) => key !== activeGenerationKey);
       const entries: any[] = [];
       const getItem = async (key: string) => {
         const [value, value2] = await Promise.all([database1.getItem(key), database2.getItem(key)]);
@@ -143,6 +160,14 @@ function createLocalForageInstance(localForageLruOptions: any): any {
       database2 = database1Temp;
       database1 = database2Temp;
       await database1.clear();
+      try {
+        await database1.setItem(activeGenerationKey, ++activeGeneration);
+      } catch (error: any) {
+        console.error("localforageLru updateDatabases setItem active generation error", {
+          error,
+          errorMessage: error?.message,
+        });
+      }
     }
   }
 
