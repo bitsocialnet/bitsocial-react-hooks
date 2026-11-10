@@ -418,7 +418,9 @@ const utils = {
   retryInfinity: (f: any, o?: any): any => {},
   // export timeout values to mock them in tests
   retryInfinityMinTimeout: 1000,
-  retryInfinityMaxTimeout: 1000 * 60 * 60 * 24,
+  // the page stores keep a fetch pending while it sleeps between retries, so a longer cap would
+  // keep that page from loading for about as long as an outage lasted
+  retryInfinityMaxTimeout: 1000 * 60,
   clientsOnStateChange,
   pageClientsOnStateChange,
   communityPostsCacheExpired,
