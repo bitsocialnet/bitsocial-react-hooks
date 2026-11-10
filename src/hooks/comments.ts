@@ -150,6 +150,10 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
   const addCommentToStore = useCommentsStore((state: any) => state.addCommentToStore);
   const startCommentAutoUpdate = useCommentsStore((state: any) => state.startCommentAutoUpdate);
   const stopCommentAutoUpdate = useCommentsStore((state: any) => state.stopCommentAutoUpdate);
+  const addOpeningUpdateWaiter = useCommentsStore((state: any) => state.addOpeningUpdateWaiter);
+  const removeOpeningUpdateWaiter = useCommentsStore(
+    (state: any) => state.removeOpeningUpdateWaiter,
+  );
   const refreshCommentInStore = useCommentsStore((state: any) => state.refreshComment);
   const communitiesPagesComment = useCommunitiesPagesStore(
     (state: any) => state.comments[commentCid || ""],
@@ -240,6 +244,16 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
       );
     };
   }, [commentCid, account?.id, onlyIfCached, autoUpdate, createCommentData]);
+
+  // the update requested on open keeps retrying while a frozen comment waits for it
+  useEffect(() => {
+    if (!commentCid || onlyIfCached || autoUpdate) {
+      return;
+    }
+    const waiterId = autoUpdateSubscriptionId.current;
+    addOpeningUpdateWaiter(commentCid, waiterId);
+    return () => removeOpeningUpdateWaiter(commentCid, waiterId);
+  }, [commentCid, onlyIfCached, autoUpdate]);
 
   let selectedComment = commentFromStore;
 
@@ -479,6 +493,10 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
   const addCommentToStore = useCommentsStore((state: any) => state.addCommentToStore);
   const startCommentAutoUpdate = useCommentsStore((state: any) => state.startCommentAutoUpdate);
   const stopCommentAutoUpdate = useCommentsStore((state: any) => state.stopCommentAutoUpdate);
+  const addOpeningUpdateWaiter = useCommentsStore((state: any) => state.addOpeningUpdateWaiter);
+  const removeOpeningUpdateWaiter = useCommentsStore(
+    (state: any) => state.removeOpeningUpdateWaiter,
+  );
   const refreshCommentInStore = useCommentsStore((state: any) => state.refreshComment);
   const autoUpdateSubscriptionId = useRef(`useComments-${++commentsAutoUpdateSubscriptionCount}`);
   const commentCidsKey = JSON.stringify(commentCids);
@@ -527,6 +545,23 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
       }
     };
   }, [commentCidsKey, account?.id, onlyIfCached, autoUpdate]);
+
+  // the updates requested on open keep retrying while frozen comments wait for them
+  useEffect(() => {
+    if (!commentCids || onlyIfCached || autoUpdate) {
+      return;
+    }
+    const waiterId = autoUpdateSubscriptionId.current;
+    const uniqueCommentCids = [...new Set(commentCids)];
+    for (const commentCid of uniqueCommentCids) {
+      addOpeningUpdateWaiter(commentCid, waiterId);
+    }
+    return () => {
+      for (const commentCid of uniqueCommentCids) {
+        removeOpeningUpdateWaiter(commentCid, waiterId);
+      }
+    };
+  }, [commentCidsKey, onlyIfCached, autoUpdate]);
 
   if (account && commentCids?.length) {
     log("useComments", {

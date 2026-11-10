@@ -1513,6 +1513,122 @@ describe("comments store", () => {
     }
   });
 
+  // Mirrors a pkc-js update loop that keeps failing, e.g. while the community is unreachable:
+  // each failUpdateCycle() ends a cycle with a retriable error, then "waiting-retry".
+  const createFailingUpdateComment = (commentCid: string) => {
+    const liveComment = createUnchangedComment(commentCid);
+    liveComment.update = vi.fn().mockImplementation(() => {
+      liveComment.updatingState = "fetching-update-ipfs";
+      liveComment.emit("updatingstatechange", "fetching-update-ipfs");
+      return Promise.resolve();
+    });
+    const failUpdateCycle = () =>
+      act(() => {
+        liveComment.emit("error", new Error("gateway timeout"));
+        liveComment.updatingState = "waiting-retry";
+        liveComment.emit("updatingstatechange", "waiting-retry");
+      });
+    return { liveComment, failUpdateCycle };
+  };
+
+  test("a failing one-shot update that no hook used keeps retrying until its CommentUpdate loads", async () => {
+    // e.g. useAuthorComments, whose store calls addCommentToStore without a hook
+    const commentCid = "failing-one-shot-update-no-hook-cid";
+    const { liveComment, failUpdateCycle } = createFailingUpdateComment(commentCid);
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      // a frozen hook that left before this fetch began, e.g. after its own fetch failed
+      commentsStore.getState().addOpeningUpdateWaiter(commentCid, "earlier-frozen-hook");
+      commentsStore.getState().removeOpeningUpdateWaiter(commentCid, "earlier-frozen-hook");
+
+      await act(async () => {
+        await commentsStore.getState().addCommentToStore(commentCid, mockAccount);
+      });
+      failUpdateCycle();
+      failUpdateCycle();
+      failUpdateCycle();
+      expect(liveComment.stop).not.toHaveBeenCalled();
+      expect(commentsStore.getState().openingUpdatesPending[commentCid]).toBe(true);
+
+      act(() => {
+        liveComment.updatedAt = 300;
+        liveComment.emit("update", liveComment);
+        liveComment.updatingState = "succeeded";
+        liveComment.emit("updatingstatechange", "succeeded");
+      });
+      await tlWaitFor(() =>
+        expect(commentsStore.getState().comments[commentCid]?.updatedAt).toBe(300),
+      );
+      await tlWaitFor(() => expect(liveComment.stop).toHaveBeenCalledTimes(1));
+      expect(commentsStore.getState().openingUpdatesPending[commentCid]).toBeUndefined();
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
+  test("a failing update requested on open stops at its next retry once its last auto-update subscriber leaves", async () => {
+    const commentCid = "failing-opening-update-subscriber-leaves-cid";
+    const subscriberId = "failing-opening-update-subscriber";
+    const { liveComment, failUpdateCycle } = createFailingUpdateComment(commentCid);
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      await act(async () => {
+        await Promise.all([
+          commentsStore.getState().addCommentToStore(commentCid, mockAccount),
+          commentsStore.getState().startCommentAutoUpdate(commentCid, subscriberId, mockAccount),
+        ]);
+      });
+      failUpdateCycle();
+      expect(liveComment.stop).not.toHaveBeenCalled();
+
+      // the stop waits for the update requested on open to end
+      await act(async () => {
+        await commentsStore.getState().stopCommentAutoUpdate(commentCid, subscriberId);
+      });
+      expect(liveComment.stop).not.toHaveBeenCalled();
+
+      // nothing waits for it anymore, so it stops instead of retrying for the rest of the session
+      failUpdateCycle();
+      await tlWaitFor(() => expect(liveComment.stop).toHaveBeenCalledTimes(1));
+      expect(commentsStore.getState().openingUpdatesPending[commentCid]).toBeUndefined();
+      expect(listeners).not.toContain(liveComment);
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
+  test("a failing one-shot update stops at its next retry once no hook waits for it", async () => {
+    const commentCid = "failing-one-shot-update-waiter-leaves-cid";
+    const waiterId = "failing-one-shot-update-frozen-hook";
+    const { liveComment, failUpdateCycle } = createFailingUpdateComment(commentCid);
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      commentsStore.getState().addOpeningUpdateWaiter(commentCid, waiterId);
+      await act(async () => {
+        await commentsStore.getState().addCommentToStore(commentCid, mockAccount);
+      });
+      failUpdateCycle();
+      failUpdateCycle();
+      expect(liveComment.stop).not.toHaveBeenCalled();
+      expect(commentsStore.getState().openingUpdatesPending[commentCid]).toBe(true);
+
+      commentsStore.getState().removeOpeningUpdateWaiter(commentCid, waiterId);
+      failUpdateCycle();
+      await tlWaitFor(() => expect(liveComment.stop).toHaveBeenCalledTimes(1));
+      expect(commentsStore.getState().openingUpdatesPending[commentCid]).toBeUndefined();
+      expect(listeners).not.toContain(liveComment);
+    } finally {
+      commentsStore.getState().removeOpeningUpdateWaiter(commentCid, waiterId);
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
   test("startCommentAutoUpdate keeps a comment updating after an unchanged cycle", async () => {
     const commentCid = "auto-update-unchanged-cid";
     const liveComment = createUnchangedComment(commentCid, { updatedAt: 200 });

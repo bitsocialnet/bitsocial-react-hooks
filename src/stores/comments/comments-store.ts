@@ -20,12 +20,18 @@ const liveCommentStops: { [commentCid: string]: Promise<void> | undefined } = {}
 const commentAutoUpdateSubscribers: {
   [commentCid: string]: { [subscriberId: string]: true };
 } = {};
+// hooks that do not auto-update and wait for the update requested on open before freezing
+const openingUpdateWaiters: {
+  [commentCid: string]: { [waiterId: string]: true };
+} = {};
 const stopCommentAfterNextUpdate: { [commentCid: string]: boolean } = {};
 const sparseCommentFollowupRequested: { [commentCid: string]: boolean } = {};
 // set when the current update attempt emitted an error, until the next attempt starts
 const commentUpdateAttemptFailed: { [commentCid: string]: boolean } = {};
 // refreshComment calls waiting for their update cycle to end
 const pendingRefreshes: { [commentCid: string]: number } = {};
+// CIDs whose last hook or refresh left while their one-shot update may still be retrying
+const oneShotUpdateConsumersLeft: { [commentCid: string]: true } = {};
 const initializedComments = new WeakSet<object>();
 const trackedListeners = new WeakSet<object>();
 
@@ -41,6 +47,8 @@ export type CommentsState = {
   addCommentToStore: Function;
   startCommentAutoUpdate: Function;
   stopCommentAutoUpdate: Function;
+  addOpeningUpdateWaiter: Function;
+  removeOpeningUpdateWaiter: Function;
   refreshComment: Function;
 };
 
@@ -59,6 +67,21 @@ const getCommentAutoUpdateSubscribersCount = (commentCid: string) =>
 
 const hasCommentAutoUpdateSubscribers = (commentCid: string) =>
   getCommentAutoUpdateSubscribersCount(commentCid) > 0;
+
+const hasOpeningUpdateWaiters = (commentCid: string) =>
+  Object.keys(openingUpdateWaiters[commentCid] || {}).length > 0;
+
+// hooks and refreshes that keep a failing one-shot update retrying
+const hasOneShotUpdateConsumers = (commentCid: string) =>
+  hasCommentAutoUpdateSubscribers(commentCid) ||
+  hasOpeningUpdateWaiters(commentCid) ||
+  Boolean(pendingRefreshes[commentCid]);
+
+const markOneShotUpdateConsumerLeft = (commentCid: string) => {
+  if (!hasOneShotUpdateConsumers(commentCid)) {
+    oneShotUpdateConsumersLeft[commentCid] = true;
+  }
+};
 
 const mergeCommentData = (
   commentCid: string,
@@ -188,6 +211,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
       return;
     }
     delete stopCommentAfterNextUpdate[commentCid];
+    delete oneShotUpdateConsumersLeft[commentCid];
     if (hasCommentAutoUpdateSubscribers(commentCid)) {
       return;
     }
@@ -250,6 +274,16 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     !commentUpdateAttemptFailed[commentCid] &&
     typeof comment?.updatedAt === "number";
 
+  // A one-shot update keeps retrying after a retriable error, also for store-level callers such as
+  // useAuthorComments that never register. Once the hooks and refreshes that used it have all
+  // left, e.g. a frozen useComment of a comment whose community is unreachable unmounted, its
+  // next retry ends it instead of retrying for the rest of the session.
+  const isUnusedOneShotRetry = (updatingState: string, commentCid: string) =>
+    updatingState === "waiting-retry" &&
+    Boolean(stopCommentAfterNextUpdate[commentCid]) &&
+    Boolean(oneShotUpdateConsumersLeft[commentCid]) &&
+    !hasOneShotUpdateConsumers(commentCid);
+
   const initializeComment = (commentCid: string, comment: Comment, account: Account) => {
     if (initializedComments.has(comment as object)) {
       liveComments[commentCid] = comment;
@@ -303,7 +337,8 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
       if (
         updatingState === "succeeded" ||
         updatingState === "failed" ||
-        isUnchangedUpdateCycleEnd(updatingState, commentCid, comment)
+        isUnchangedUpdateCycleEnd(updatingState, commentCid, comment) ||
+        isUnusedOneShotRetry(updatingState, commentCid)
       ) {
         maybeStopCommentAfterOneShotUpdate(commentCid, comment);
         endOpeningUpdate(commentCid);
@@ -520,6 +555,8 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
         return;
       }
       pkcGetCommentPending[pendingKey] = true;
+      // only hooks that leave during this fetch end its failing update early
+      delete oneShotUpdateConsumersLeft[commentCid];
 
       try {
         // try to find comment in database
@@ -621,6 +658,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
           delete commentAutoUpdateSubscribers[commentCid];
         }
       }
+      markOneShotUpdateConsumerLeft(commentCid);
 
       if (
         hasCommentAutoUpdateSubscribers(commentCid) ||
@@ -630,9 +668,29 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
       }
 
       delete stopCommentAfterNextUpdate[commentCid];
+      delete oneShotUpdateConsumersLeft[commentCid];
       const liveComment = liveComments[commentCid];
       await stopLiveComment(commentCid, liveComment);
       maybeReleaseStoppedLiveComment(commentCid, liveComment);
+    },
+
+    // keeps a failing update requested on open retrying while a hook waits for it
+    addOpeningUpdateWaiter(commentCid: string, waiterId: string) {
+      openingUpdateWaiters[commentCid] = {
+        ...openingUpdateWaiters[commentCid],
+        [waiterId]: true,
+      };
+    },
+
+    removeOpeningUpdateWaiter(commentCid: string, waiterId: string) {
+      if (!openingUpdateWaiters[commentCid]) {
+        return;
+      }
+      delete openingUpdateWaiters[commentCid][waiterId];
+      if (!hasOpeningUpdateWaiters(commentCid)) {
+        delete openingUpdateWaiters[commentCid];
+      }
+      markOneShotUpdateConsumerLeft(commentCid);
     },
 
     async refreshComment(commentCid: string, account: Account, commentData?: Comment) {
@@ -668,6 +726,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
         } else {
           delete pendingRefreshes[commentCid];
         }
+        markOneShotUpdateConsumerLeft(commentCid);
       }
     },
   };
@@ -741,6 +800,9 @@ export const resetCommentsStore = async () => {
   for (const commentCid in commentAutoUpdateSubscribers) {
     delete commentAutoUpdateSubscribers[commentCid];
   }
+  for (const commentCid in openingUpdateWaiters) {
+    delete openingUpdateWaiters[commentCid];
+  }
   for (const commentCid in stopCommentAfterNextUpdate) {
     delete stopCommentAfterNextUpdate[commentCid];
   }
@@ -752,6 +814,9 @@ export const resetCommentsStore = async () => {
   }
   for (const commentCid in pendingRefreshes) {
     delete pendingRefreshes[commentCid];
+  }
+  for (const commentCid in oneShotUpdateConsumersLeft) {
+    delete oneShotUpdateConsumersLeft[commentCid];
   }
   for (const commentCid in liveCommentPromises) {
     delete liveCommentPromises[commentCid];

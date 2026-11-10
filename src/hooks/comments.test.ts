@@ -1892,6 +1892,70 @@ describe("comments", () => {
     });
   });
 
+  describe("comment whose updates keep failing", () => {
+    let commentUpdate: typeof Comment.prototype.update;
+    let updatingComments: any[];
+
+    beforeEach(() => {
+      // e.g. its community is unreachable: every update cycle ends in a retriable error
+      commentUpdate = Comment.prototype.update;
+      updatingComments = [];
+      Comment.prototype.update = async function (this: any) {
+        updatingComments.push(this);
+        this.state = "updating";
+        this.updatingState = "fetching-ipfs";
+        this.emit("updatingstatechange", "fetching-ipfs");
+      };
+    });
+    afterEach(() => {
+      Comment.prototype.update = commentUpdate;
+    });
+
+    const failUpdateCycle = (comment: any) =>
+      act(() => {
+        comment.emit("error", Error("gateway timeout"));
+        comment.updatingState = "waiting-retry";
+        comment.emit("updatingstatechange", "waiting-retry");
+      });
+
+    test("useComment with autoUpdate false keeps the update requested on open retrying only while mounted", async () => {
+      const commentCid = "comment cid failing updates frozen";
+      const rendered = renderHook<any, any>(() => useComment({ commentCid, autoUpdate: false }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => updatingComments.length > 0);
+      const liveComment = updatingComments[0];
+      const stop = vi.spyOn(liveComment, "stop");
+
+      failUpdateCycle(liveComment);
+      failUpdateCycle(liveComment);
+      expect(stop).not.toHaveBeenCalled();
+      expect(commentsStore.getState().openingUpdatesPending[commentCid]).toBe(true);
+
+      rendered.unmount();
+      failUpdateCycle(liveComment);
+      expect(stop).toHaveBeenCalledTimes(1);
+      expect(commentsStore.getState().openingUpdatesPending[commentCid]).toBeUndefined();
+    });
+
+    test("useComments with autoUpdate false keeps the updates requested on open retrying only while mounted", async () => {
+      const commentCids = [
+        "comment cid failing updates frozen 1",
+        "comment cid failing updates frozen 2",
+      ];
+      const rendered = renderHook<any, any>(() => useComments({ commentCids, autoUpdate: false }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => updatingComments.length === commentCids.length);
+      const stops = updatingComments.map((comment) => vi.spyOn(comment, "stop"));
+
+      updatingComments.forEach(failUpdateCycle);
+      stops.forEach((stop) => expect(stop).not.toHaveBeenCalled());
+
+      rendered.unmount();
+      updatingComments.forEach(failUpdateCycle);
+      stops.forEach((stop) => expect(stop).toHaveBeenCalledTimes(1));
+    });
+  });
+
   describe("getCommentFreshness and preferFresher", () => {
     test("getCommentFreshness returns 0 for undefined", () => {
       expect(getCommentFreshness(undefined)).toBe(0);
