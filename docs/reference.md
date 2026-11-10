@@ -209,6 +209,8 @@ useExportCommunity(options?: UseExportCommunityOptions): {
 }
 ```
 
+Each `publishComment()`, `publishVote()`, `publishCommentEdit()`, `publishCommentModeration()` or `publishCommunityEdit()` call starts a new result: the previous publication's `challenge`, `challengeVerification`, `publishChallengeAnswers`, `state`, `error` and `errors` are cleared, and `state` becomes `"failed"` if the call rejects before anything is published, for example because the community's challenge settings don't load. When a failed challenge answer makes the publication publish again automatically, its new `challenge` clears the failed `challengeVerification`. If `usePublishComment` or `usePublishVote` publishes again before its previous publication finished, only the newest publication updates the result and `abandonPublish()` abandons the newest one; `usePublishComment` also passes `onChallenge` a third argument that abandons the publication the challenge belongs to, so code that spreads `onChallenge`'s arguments into an array and appends its own value now finds that value at index 3 instead of 2. `usePublishCommentEdit`, `usePublishCommentModeration` and `usePublishCommunityEdit` don't separate overlapping publications: events of an earlier one that is still running can update the new result. `abandonPublish()` resets `state` and the challenge fields and stops the publication if it is still in progress, deleting the pending comment or restoring the previous vote in the account that published it. It leaves a comment alone once its publication succeeded or failed, and a vote once it was verified (use `deleteComment` to remove the comment). While a comment publishes, `index` follows it when deleting an earlier comment of the account shifts it. `exportCommunity()` likewise clears the previous `communityExports` and errors, and only the latest call's result is shown.
+
 Before `publishComment`, `publishCommentEdit`, `publishVote`, `publishCommentModeration`, or `publishCommunityEdit` signs a publication, hooks load the community challenge configuration and apply compatible wordfilters. The current `@bitsocial/wordfilter-challenge` contract uses a JSON array of `{src, dst}` objects in `wordfilter/v1/rules` and an optional JSON array of dot-notation paths in `wordfilter/v1/fieldNames`, both published through `publicOptions`. Every path starts with the publication type and is resolved against the publication being signed, so a path for another type is simply skipped. Without configured paths the defaults apply: `comment.content`, `comment.title`, `comment.author.displayName`, `commentEdit.content`, `commentEdit.reason`, `commentEdit.author.displayName`, and `vote.author.displayName`. Moderator and owner text is opt-in through configured paths (`commentModeration.commentModeration.reason`, `communityEdit.communityEdit.title`, `communityEdit.communityEdit.description`); structural and signing fields are never rewritten by community configuration. Matching is literal and case-insensitive, not regular-expression or Unicode-evasion matching. The transformed values are the values signed, published, and stored as the pending account publication. If composed rule sets do not stabilize within eight passes, publication stops before signing.
 
 #### States Hooks
@@ -571,7 +573,8 @@ if (valid === false) {
 #### Create a post or comment using callbacks
 
 ```jsx
-const onChallenge = async (challenge, comment) => {
+// abandonPublish abandons the publication of this challenge, even if publishComment() was called again since
+const onChallenge = async (challenge, comment, abandonPublish) => {
   let challengeAnswers
   try {
     // ask the user to complete the challenges in a modal window
