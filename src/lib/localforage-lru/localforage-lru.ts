@@ -199,4 +199,17 @@ const createInstance = (localForageLruOptions: any) => {
   return instances[localForageLruOptions.name];
 };
 
-export default { createInstance };
+// clear an instance's databases, also when this session hasn't created the instance, e.g. the
+// databases of an account that wasn't loaded
+const clearInstance = async (name: string) => {
+  if (instances[name]) {
+    await instances[name].clear();
+    return;
+  }
+  await Promise.all([
+    localForage.createInstance({ name }).clear(),
+    localForage.createInstance({ name: name + "2" }).clear(),
+  ]);
+};
+
+export default { createInstance, clearInstance };

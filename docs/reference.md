@@ -244,7 +244,7 @@ deleteComment(commentCidOrAccountCommentIndex: string | number, accountName?: st
 
 ```
 setPkcJs(PKC) // swap the underlying protocol client implementation, e.g. for mocks or Electron
-deleteDatabases() // delete all databases, including all caches and accounts data
+deleteDatabases() // delete all databases, including all caches and accounts data, then reload the app because the stores keep their state in memory
 deleteCaches() // delete the cached comments, cached communities and cached pages only, no accounts data
 createCrosspost(comment: Comment): Crosspost // build the immutable payload accepted by pkc-js
 validateComment(comment: Comment, options?: {validateReplies?: boolean, community?: Community}): Promise<{valid: true} | {valid: false, reason: string}> // validate a comment from an untrusted source outside React
