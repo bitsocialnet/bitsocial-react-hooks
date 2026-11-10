@@ -124,7 +124,10 @@ describe("replies", () => {
     });
 
     test("loadMore init guard throws when not initialized", async () => {
-      rendered.rerender({ commentCid: "comment cid 1", accountName: "nonexistent-account-xyz" });
+      rendered.rerender({
+        comment: { cid: "comment cid 1" },
+        accountName: "nonexistent-account-xyz",
+      });
       await act(async () => {
         await rendered.result.current.loadMore();
       });
@@ -133,13 +136,50 @@ describe("replies", () => {
     });
 
     test("reset init guard throws when not initialized", async () => {
-      rendered.rerender({ commentCid: "comment cid 1", accountName: "nonexistent-account-xyz" });
+      rendered.rerender({
+        comment: { cid: "comment cid 1" },
+        accountName: "nonexistent-account-xyz",
+      });
       await act(async () => {
         await rendered.result.current.reset();
       });
       await waitFor(() => rendered.result.current.errors.length > 0);
       expect(rendered.result.current.errors.length).toBeGreaterThan(0);
       expect(rendered.result.current.error?.message).toMatch(/not initalized/i);
+    });
+
+    test("errors of a previous replies feed are not reported for the current one", async () => {
+      rendered.rerender({
+        comment: { cid: "comment cid 1" },
+        accountName: "nonexistent-account-xyz",
+      });
+      // concurrent failures are all kept
+      await act(async () => {
+        await Promise.all([rendered.result.current.loadMore(), rendered.result.current.reset()]);
+      });
+      expect(rendered.result.current.errors.length).toBe(2);
+
+      rendered.rerender({ commentCid: "comment cid 1" });
+      await waitFor(() => rendered.result.current.replies.length >= repliesPerPage);
+      expect(rendered.result.current.error).toBe(undefined);
+      expect(rendered.result.current.errors).toEqual([]);
+    });
+
+    test("a loadMore before the replies feed has loaded doesn't leave an error", async () => {
+      rendered.rerender({ commentCid: "comment cid 1" });
+      await waitFor(() => Boolean(rendered.result.current.replies.length));
+      const comment = { ...rendered.result.current.replies[0], cid: "premature load more cid" };
+
+      const premature = renderHook<any, any>((options) => useReplies(options));
+      const waitForPremature = testUtils.createWaitFor(premature);
+      premature.rerender({ comment, validateOptimistically: false });
+      await act(async () => {
+        await premature.result.current.loadMore();
+      });
+      await waitForPremature(() => Object.keys(repliesStore.getState().feedsOptions).length > 1);
+      await act(async () => {});
+      expect(premature.result.current.error).toBe(undefined);
+      expect(premature.result.current.errors).toEqual([]);
     });
 
     test("reset catch path sets errors (line 132-134)", async () => {
