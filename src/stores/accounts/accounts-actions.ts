@@ -2077,9 +2077,6 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
     }
   };
 
-  let vote = await createSessionVote();
-  // abandoned while the vote was being created: nothing was published or written, so stop here
-  if (!isVotePublishSessionActive()) return;
   let resolveAccountVoteWritten!: () => void;
   const accountVoteWritten = new Promise<void>((resolve) => (resolveAccountVoteWritten = resolve));
   // a publication is verified, rejected by the community, or failed to publish: it is no longer
@@ -2120,6 +2117,16 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
       log.error("accountsActions.publishVote restore failed vote error", { error });
     }
   };
+
+  let vote = await createSessionVote().catch(async (error) => {
+    // nothing was published or written for this vote, but an earlier vote of the burst may have
+    // failed while it was being created and left the session for this one to end
+    resolveAccountVoteWritten();
+    await endVotePublishSessionIfSettled();
+    throw error;
+  });
+  // abandoned while the vote was being created: nothing was published or written, so stop here
+  if (!isVotePublishSessionActive()) return;
   let lastChallenge: Challenge | undefined;
   const publishAndRetryFailedChallengeVerification = async () => {
     const activeVote = vote;

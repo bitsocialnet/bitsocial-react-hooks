@@ -4992,6 +4992,55 @@ describe("accounts-actions", () => {
         expect.anything(),
       );
     });
+
+    test("restores a rejected vote when a later vote of the burst cannot be created", async () => {
+      const account = accountsStore.getState().accounts[accountsStore.getState().activeAccountId!];
+      const originalCreateVote = account.pkc.createVote.bind(account.pkc);
+      let releaseSecondVote!: () => void;
+      const secondVoteGate = new Promise<void>((resolve) => (releaseSecondVote = resolve));
+      let createdVotes = 0;
+      vi.spyOn(account.pkc, "createVote").mockImplementation(async (...args: any[]) => {
+        if (++createdVotes > 1) {
+          await secondVoteGate;
+          throw new Error("second vote not created");
+        }
+        const vote = await originalCreateVote(...args);
+        rejectWithChallengeErrors(vote);
+        return vote;
+      });
+      const votes: any[] = [];
+      await act(async () => {
+        await accountsActions.publishVote({
+          communityAddress: "sub.eth",
+          commentCid: "burst not created cid",
+          vote: 1,
+          onChallenge: (_challenge: any, publication: any) => votes.push(publication),
+          onChallengeVerification: () => {},
+        });
+      });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const [firstVote] = votes;
+      expect(getAccountVote("burst not created cid").vote).toBe(1);
+
+      const secondPublish = accountsActions.publishVote({
+        communityAddress: "sub.eth",
+        commentCid: "burst not created cid",
+        vote: -1,
+        onChallenge: () => {},
+        onChallengeVerification: () => {},
+      });
+      await vi.waitFor(() => expect(createdVotes).toBe(2));
+      // the first vote is rejected while the second one is still being created
+      await act(async () => {
+        await firstVote.publishChallengeAnswers(["4"]);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(getAccountVote("burst not created cid").vote).toBe(1);
+
+      releaseSecondVote();
+      await expect(secondPublish).rejects.toThrow("second vote not created");
+      await vi.waitFor(() => expect(getAccountVote("burst not created cid").vote).toBe(0));
+    });
   });
 
   describe("domain names with uppercase letters", () => {
