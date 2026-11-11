@@ -31,6 +31,9 @@ const sparseCommentFollowupRequested: { [commentCid: string]: boolean } = {};
 const commentUpdateAttemptFailed: { [commentCid: string]: boolean } = {};
 // refreshComment calls waiting for their update cycle to end
 const pendingRefreshes: { [commentCid: string]: number } = {};
+// CIDs whose pending refreshes outlived the last auto-update subscriber, e.g. the hook that called
+// refresh() unmounted
+const refreshesOutlivedSubscribers: { [commentCid: string]: true } = {};
 // CIDs whose last hook or refresh left while their one-shot update may still be retrying
 const oneShotUpdateConsumersLeft: { [commentCid: string]: true } = {};
 const initializedComments = new WeakSet<object>();
@@ -76,7 +79,7 @@ const hasOpeningUpdateWaiters = (commentCid: string) =>
 const hasOneShotUpdateConsumers = (commentCid: string) =>
   hasCommentAutoUpdateSubscribers(commentCid) ||
   hasOpeningUpdateWaiters(commentCid) ||
-  Boolean(pendingRefreshes[commentCid]);
+  (Boolean(pendingRefreshes[commentCid]) && !refreshesOutlivedSubscribers[commentCid]);
 
 const markOneShotUpdateConsumerLeft = (commentCid: string) => {
   if (!hasOneShotUpdateConsumers(commentCid)) {
@@ -503,6 +506,12 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
         isUnchangedUpdateCycleEnd(updatingState, commentCid, comment);
 
       const onUpdatingStateChange = (updatingState: string) => {
+        // Nothing else waits for this cycle, which may never end, e.g. without a CommentUpdate, so
+        // settle at its next retry, where the store stops the comment if nothing else uses it.
+        if (updatingState === "waiting-retry" && refreshesOutlivedSubscribers[commentCid]) {
+          settle();
+          return;
+        }
         if (isSettledUpdatingState(updatingState)) {
           if (shouldWaitForSparseCommentFollowup(commentCid, comment)) {
             return;
@@ -622,6 +631,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
         ...(commentAutoUpdateSubscribers[commentCid] || {}),
         [subscriberId]: true,
       };
+      delete refreshesOutlivedSubscribers[commentCid];
 
       if (hadAutoUpdateSubscribers && liveComments[commentCid]) {
         return;
@@ -658,6 +668,9 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
         if (Object.keys(commentAutoUpdateSubscribers[commentCid]).length === 0) {
           delete commentAutoUpdateSubscribers[commentCid];
         }
+      }
+      if (pendingRefreshes[commentCid] && !hasCommentAutoUpdateSubscribers(commentCid)) {
+        refreshesOutlivedSubscribers[commentCid] = true;
       }
       markOneShotUpdateConsumerLeft(commentCid);
 
@@ -698,6 +711,8 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
       // counted from the start, so a subscriber that leaves while the refresh stops the comment
       // defers its stop instead of stopping the comment again
       pendingRefreshes[commentCid] = (pendingRefreshes[commentCid] || 0) + 1;
+      // a new refresh wants its whole cycle, so earlier refreshes wait for the cycle end again too
+      delete refreshesOutlivedSubscribers[commentCid];
       try {
         const storedComment = getState().comments[commentCid];
         const liveComment = await ensureLiveComment(
@@ -726,6 +741,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
           pendingRefreshes[commentCid] = remainingRefreshes;
         } else {
           delete pendingRefreshes[commentCid];
+          delete refreshesOutlivedSubscribers[commentCid];
         }
         markOneShotUpdateConsumerLeft(commentCid);
       }
@@ -815,6 +831,9 @@ export const resetCommentsStore = async () => {
   }
   for (const commentCid in pendingRefreshes) {
     delete pendingRefreshes[commentCid];
+  }
+  for (const commentCid in refreshesOutlivedSubscribers) {
+    delete refreshesOutlivedSubscribers[commentCid];
   }
   for (const commentCid in oneShotUpdateConsumersLeft) {
     delete oneShotUpdateConsumersLeft[commentCid];

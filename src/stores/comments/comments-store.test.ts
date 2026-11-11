@@ -1431,6 +1431,61 @@ describe("comments store", () => {
     }
   });
 
+  test("refreshComment settles and stops the comment at its next retry once its last auto-update subscriber leaves", async () => {
+    const commentCid = "refresh-outlives-subscriber-cid";
+    const subscriberId = "refresh-outlives-subscriber";
+    // no CommentUpdate loads, e.g. a reply its community never included
+    const liveComment = createUnchangedComment(commentCid);
+    liveComment.update = vi.fn().mockImplementation(() => {
+      // pkc-js returns from update() without starting a cycle while the comment is updating
+      if (liveComment.state === "updating") {
+        return Promise.resolve();
+      }
+      liveComment.state = "updating";
+      liveComment.updatingState = "fetching-update-ipfs";
+      liveComment.emit("updatingstatechange", "fetching-update-ipfs");
+      return Promise.resolve();
+    });
+    liveComment.stop = vi.fn().mockImplementation(() => {
+      liveComment.state = "stopped";
+      liveComment.updatingState = "stopped";
+      return Promise.resolve();
+    });
+    const endUpdateCycleWithNothingNewer = () =>
+      act(() => {
+        liveComment.updatingState = "waiting-retry";
+        liveComment.emit("updatingstatechange", "waiting-retry");
+      });
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      await act(async () => {
+        await commentsStore
+          .getState()
+          .startCommentAutoUpdate(commentCid, subscriberId, mockAccount);
+      });
+      const refreshPromise = commentsStore.getState().refreshComment(commentCid, mockAccount);
+      await tlWaitFor(() => expect(liveComment.update).toHaveBeenCalledTimes(2));
+
+      // the hook that called refresh() unmounts
+      await act(async () => {
+        await commentsStore.getState().stopCommentAutoUpdate(commentCid, subscriberId);
+      });
+      expect(liveComment.stop).not.toHaveBeenCalled();
+
+      // the refresh's cycle cannot end without a CommentUpdate, so it ends at the next retry
+      endUpdateCycleWithNothingNewer();
+      expect(await refreshSettles(refreshPromise)).toEqual(
+        expect.objectContaining({ cid: commentCid, timestamp: 100 }),
+      );
+      await tlWaitFor(() => expect(liveComment.stop).toHaveBeenCalledTimes(1));
+      expect(listeners).not.toContain(liveComment);
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
+  });
+
   test("refreshComment keeps waiting through waiting-retry until the first CommentUpdate loads", async () => {
     const commentCid = "refresh-first-update-cid";
     const liveComment = createUnchangedComment(commentCid);
