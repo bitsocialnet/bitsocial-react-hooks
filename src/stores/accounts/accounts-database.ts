@@ -596,7 +596,23 @@ const ensureAccountCommentsDatabaseLayout = async (accountId: string) => {
   await accountCommentsLayoutMigrations[accountId];
 };
 
-const deleteAccountComment = async (accountId: string, accountCommentIndex: number) => {
+// deleteAccountComment reads the rows, awaits, then writes them back moved down by one, and an
+// append writes at the length it read, so an account's comment writes run one at a time in call
+// order: a row written meanwhile would be overwritten or end up beyond the stored length. The
+// accounts store applies the deletion and moves its row indexes when deleteComment is called, so
+// call order matches the indexes the writes use.
+const accountCommentsMutations: Record<string, Promise<unknown> | undefined> = {};
+const queueAccountCommentsMutation = <T>(
+  accountId: string,
+  mutation: () => Promise<T>,
+): Promise<T> => {
+  const previousMutation = accountCommentsMutations[accountId] || Promise.resolve();
+  const queuedMutation = previousMutation.catch(() => {}).then(mutation);
+  accountCommentsMutations[accountId] = queuedMutation;
+  return queuedMutation;
+};
+
+const deleteAccountCommentUnqueued = async (accountId: string, accountCommentIndex: number) => {
   const accountCommentsDatabase = getAccountCommentsDatabase(accountId);
   await ensureAccountCommentsDatabaseLayout(accountId);
   const length = (await accountCommentsDatabase.getItem("length")) || 0;
@@ -616,7 +632,12 @@ const deleteAccountComment = async (accountId: string, accountCommentIndex: numb
   await Promise.all(promises);
 };
 
-const addAccountComment = async (
+const deleteAccountComment = (accountId: string, accountCommentIndex: number) =>
+  queueAccountCommentsMutation(accountId, () =>
+    deleteAccountCommentUnqueued(accountId, accountCommentIndex),
+  );
+
+const addAccountCommentUnqueued = async (
   accountId: string,
   comment: CreateCommentOptions | Comment,
   accountCommentIndex?: number,
@@ -642,6 +663,15 @@ const addAccountComment = async (
     ]);
   }
 };
+
+const addAccountComment = (
+  accountId: string,
+  comment: CreateCommentOptions | Comment,
+  accountCommentIndex?: number,
+) =>
+  queueAccountCommentsMutation(accountId, () =>
+    addAccountCommentUnqueued(accountId, comment, accountCommentIndex),
+  );
 
 const getAccountComments = async (accountId: string) => {
   const accountCommentsDatabase = getAccountCommentsDatabase(accountId);

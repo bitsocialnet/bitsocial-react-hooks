@@ -1550,6 +1550,28 @@ describe("accounts-database", () => {
       expect(comments).toHaveLength(1);
       expect(comments[0].cid).toBe("c2");
     });
+
+    test("comment writes called while deleteAccountComment runs apply after it", async () => {
+      const acc = makeAccount({ id: "del-overlap-acc", name: "DelOverlap" });
+      await accountsDatabase.addAccount(acc);
+      const comment = (content: string, timestamp: number) =>
+        ({ content, communityAddress: "s", timestamp, author: { address: "a" } }) as any;
+      await accountsDatabase.addAccountComment(acc.id, comment("deleted", 1));
+      await accountsDatabase.addAccountComment(acc.id, comment("kept", 2));
+
+      // the store has already moved "kept" to row 0 and appends the new comment at row 1
+      await Promise.all([
+        accountsDatabase.deleteAccountComment(acc.id, 0),
+        accountsDatabase.addAccountComment(acc.id, comment("kept and updated", 2), 0),
+        accountsDatabase.addAccountComment(acc.id, comment("appended", 3)),
+      ]);
+
+      const comments = await accountsDatabase.getAccountComments(acc.id);
+      expect(comments.map((comment: any) => comment.content)).toEqual([
+        "kept and updated",
+        "appended",
+      ]);
+    });
   });
 
   describe("account comments replies", () => {
