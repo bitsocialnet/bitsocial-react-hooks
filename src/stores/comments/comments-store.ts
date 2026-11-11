@@ -20,7 +20,8 @@ const liveCommentStops: { [commentCid: string]: Promise<void> | undefined } = {}
 const commentAutoUpdateSubscribers: {
   [commentCid: string]: { [subscriberId: string]: true };
 } = {};
-// hooks that do not auto-update and wait for the update requested on open before freezing
+// hooks and stores waiting for the update requested on open: a frozen useComment until it
+// settles, and the authors-comments store, which never leaves
 const openingUpdateWaiters: {
   [commentCid: string]: { [waiterId: string]: true };
 } = {};
@@ -274,10 +275,10 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     !commentUpdateAttemptFailed[commentCid] &&
     typeof comment?.updatedAt === "number";
 
-  // A one-shot update keeps retrying after a retriable error, also for store-level callers such as
-  // useAuthorComments that never register. Once the hooks and refreshes that used it have all
-  // left, e.g. a frozen useComment of a comment whose community is unreachable unmounted, its
-  // next retry ends it instead of retrying for the rest of the session.
+  // A one-shot update keeps retrying after a retriable error while anything waits for it, and for
+  // callers that never register. Once the hooks and refreshes that used it have all left, e.g. a
+  // frozen useComment of a comment whose community is unreachable unmounted, its next retry ends
+  // it instead of retrying for the rest of the session.
   const isUnusedOneShotRetry = (updatingState: string, commentCid: string) =>
     updatingState === "waiting-retry" &&
     Boolean(stopCommentAfterNextUpdate[commentCid]) &&

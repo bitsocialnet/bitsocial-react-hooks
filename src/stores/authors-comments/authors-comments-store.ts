@@ -322,6 +322,14 @@ const authorsCommentsStore = createStore<AuthorsCommentsState>(
   }),
 );
 
+// This store watches the comments it fetches for the rest of the session, so it waits for the
+// update addCommentToStore requests on open, and a frozen useComment that leaves cannot end it.
+const addCommentToCommentsStore = (commentCid: string, account: Account) => {
+  const { addOpeningUpdateWaiter, addCommentToStore } = commentsStore.getState();
+  addOpeningUpdateWaiter(commentCid, "authorsCommentsStore");
+  return addCommentToStore(commentCid, account);
+};
+
 // if nextCommentCidsToFetch or shouldFetchNextComment changed, fetch the next comment
 const fetchCommentOnShouldFetchOrNextCidChange =
   (options: AuthorCommentsOptions) => (state: AuthorsCommentsState) => {
@@ -344,8 +352,7 @@ const fetchCommentOnShouldFetchOrNextCidChange =
 
     // start fetching comment
     const account = accountsStore.getState().accounts[options.accountId];
-    const addCommentToStore = commentsStore.getState().addCommentToStore;
-    addCommentToStore(nextCommentCidToFetch, account).catch((error: unknown) =>
+    addCommentToCommentsStore(nextCommentCidToFetch, account).catch((error: unknown) =>
       log.error(
         "authorsCommentsStore fetchCommentOnShouldFetchOrNextCidChange addCommentToStore error",
         { error, nextCommentCidToFetch, account },
@@ -409,7 +416,7 @@ const updateCommentsOnCommentsChange =
 
       // start fetching lastCommentCid
       const account = accountsStore.getState().accounts[options.accountId];
-      state.addCommentToStore(communityLastCommentCid, account).catch((error: unknown) =>
+      addCommentToCommentsStore(communityLastCommentCid, account).catch((error: unknown) =>
         log.error("authorsCommentsStore updateCommentsOnCommentsChange addCommentToStore error", {
           error,
           communityLastCommentCid,
