@@ -2096,6 +2096,9 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
     } else {
       votePublishSession.failed = true;
     }
+    await endVotePublishSessionIfSettled();
+  };
+  const endVotePublishSessionIfSettled = async () => {
     if (
       votePublishSession.publications.size !== 0 ||
       votePublishSession.creating !== 0 ||
@@ -2136,7 +2139,15 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
         // publish again automatically on fail
         votePublishSession.publications.delete(vote);
         createVoteOptions = { ...createVoteOptions, timestamp: Math.floor(Date.now() / 1000) };
-        vote = await createSessionVote();
+        try {
+          vote = await createSessionVote();
+        } catch (error) {
+          // no retry was published, so the failed vote ends the burst like a rejected one
+          votePublishSession.failed = true;
+          await endVotePublishSessionIfSettled();
+          publishVoteOptions.onError?.(error, activeVote);
+          return;
+        }
         if (!isVotePublishSessionActive()) return;
         lastChallenge = undefined;
         publishAndRetryFailedChallengeVerification();

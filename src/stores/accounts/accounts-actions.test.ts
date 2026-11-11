@@ -4965,6 +4965,33 @@ describe("accounts-actions", () => {
       expect(onError).toHaveBeenCalledTimes(1);
       expect(getAccountVote("non-terminal error cid").vote).toBe(1);
     });
+
+    test("restores the account vote when the retry of a failed vote cannot be created", async () => {
+      const account = accountsStore.getState().accounts[accountsStore.getState().activeAccountId!];
+      const originalCreateVote = account.pkc.createVote.bind(account.pkc);
+      let createdVotes = 0;
+      vi.spyOn(account.pkc, "createVote").mockImplementation(async (...args: any[]) => {
+        if (++createdVotes > 1) throw new Error("retry vote not created");
+        const vote = await originalCreateVote(...args);
+        // a failed verification without challenge errors is retried
+        vote.simulateChallengeVerificationEvent = function () {
+          this.emit("challengeverification", {
+            type: "CHALLENGEVERIFICATION",
+            challengeSuccess: false,
+          });
+        };
+        return vote;
+      });
+      const onError = vi.fn();
+      await publishVote("retry not created cid", 1, onError);
+
+      await vi.waitFor(() => expect(getAccountVote("retry not created cid").vote).toBe(0));
+      expect(createdVotes).toBe(2);
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "retry vote not created" }),
+        expect.anything(),
+      );
+    });
   });
 
   describe("domain names with uppercase letters", () => {
