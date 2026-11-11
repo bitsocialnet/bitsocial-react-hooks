@@ -411,6 +411,40 @@ describe("author-avatars", () => {
       expect(rendered.result.current.imageUrl).toBe(undefined);
       expect(rendered.result.current.state).toBe("fetching-owner");
     });
+
+    it("useAuthorAvatar never renders the previous author's avatar for a new author", async () => {
+      setAuthorAvatarsWhitelistedTokenAddresses([nft.address]);
+      vi.mocked(getNftOwner).mockImplementation(((address: string, id: string) =>
+        id === "1" ? Promise.resolve("0xsigner") : new Promise(() => {})) as any);
+      vi.spyOn(ethers.utils, "verifyMessage").mockReturnValue("0xsigner" as any);
+      vi.mocked(getNftMetadataUrl).mockResolvedValue("https://first.metadata.url");
+      vi.mocked(getNftImageUrl).mockResolvedValue("https://first.image.url");
+
+      const renders: { author: string; imageUrl?: string; metadataUrl?: string; state: string }[] =
+        [];
+      const rendered = renderHook<any, any>(
+        (author) => {
+          const result = useAuthorAvatar({ author });
+          const { imageUrl, metadataUrl, state } = result;
+          renders.push({ author: author.address, imageUrl, metadataUrl, state });
+          return result;
+        },
+        { initialProps: authorWithNftId("12D3KooWfirst", "1") },
+      );
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => rendered.result.current.state === "succeeded");
+
+      // the second author's ownership is never verified
+      rendered.rerender(authorWithNftId("12D3KooWsecond", "2"));
+      await flush();
+      const secondAuthorRenders = renders.filter(({ author }) => author === "12D3KooWsecond");
+      expect(secondAuthorRenders.length).toBeGreaterThan(0);
+      for (const render of secondAuthorRenders) {
+        expect(render.imageUrl).toBe(undefined);
+        expect(render.metadataUrl).toBe(undefined);
+        expect(render.state).toBe("fetching-owner");
+      }
+    });
   });
 
   describe("getNftMessageToSign", () => {

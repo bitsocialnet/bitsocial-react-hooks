@@ -10,6 +10,15 @@ import createStore from "zustand";
 
 const noMediaIpfsGatewayUrl = "http://no-media-ipfs-gateway-url";
 
+// a result is stored with the inputs it was computed for, and only applies to those inputs. Until the
+// effect has run for new inputs, the stored result belongs to the previous ones.
+type Result<T> = { inputs: any[]; value?: T; error?: Error };
+const getCurrentResult = <T>(result: Result<T> | undefined, inputs: any[]) =>
+  result?.inputs.length === inputs.length &&
+  result.inputs.every((input, index) => input === inputs[index])
+    ? result
+    : undefined;
+
 /**
  * @param nft - The NFT object to resolve the URL of.
  * @param acountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, use
@@ -20,8 +29,7 @@ export function useNftMetadataUrl(nft?: Nft, accountName?: string) {
   const account = useAccount({ accountName });
   const ipfsGatewayUrl = account?.mediaIpfsGatewayUrl || noMediaIpfsGatewayUrl;
   const chainProviders = getChainProviders(account);
-  const [nftMetadataUrl, setNftMetadataUrl] = useState();
-  const [error, setError] = useState<Error | undefined>();
+  const [result, setResult] = useState<Result<string>>();
 
   const getNftMetadataUrlArgs = [
     nft?.address,
@@ -34,8 +42,7 @@ export function useNftMetadataUrl(nft?: Nft, accountName?: string) {
 
   useEffect(() => {
     // reset
-    setError(undefined);
-    setNftMetadataUrl(undefined);
+    setResult(undefined);
 
     if (!account || !nft) {
       return;
@@ -46,11 +53,11 @@ export function useNftMetadataUrl(nft?: Nft, accountName?: string) {
       try {
         const url = await getNftMetadataUrl(...getNftMetadataUrlArgs);
         if (!cancelled) {
-          setNftMetadataUrl(url);
+          setResult({ inputs: getNftMetadataUrlArgs, value: url });
         }
       } catch (error: any) {
         if (!cancelled) {
-          setError(error);
+          setResult({ inputs: getNftMetadataUrlArgs, error });
         }
         log.error("useNftMetadataUrl getNftMetadataUrl error", {
           nft,
@@ -65,6 +72,7 @@ export function useNftMetadataUrl(nft?: Nft, accountName?: string) {
     };
   }, getNftMetadataUrlArgs);
 
+  const { value: nftMetadataUrl, error } = getCurrentResult(result, getNftMetadataUrlArgs) || {};
   // log('useNftMetadataUrl', {nft, ipfsGatewayUrl, nftMetadataUrl, chainProviders})
   return { metadataUrl: nftMetadataUrl, error };
 }
@@ -82,13 +90,12 @@ export function useNftImageUrl(nftMetadataUrl?: string, accountName?: string) {
   );
   const account = useAccount({ accountName });
   const ipfsGatewayUrl = account?.mediaIpfsGatewayUrl || noMediaIpfsGatewayUrl;
-  const [imageUrl, setImageUrl] = useState();
-  const [error, setError] = useState<Error | undefined>();
+  const [result, setResult] = useState<Result<string>>();
+  const inputs = [nftMetadataUrl, ipfsGatewayUrl];
 
   useEffect(() => {
     // reset
-    setError(undefined);
-    setImageUrl(undefined);
+    setResult(undefined);
 
     if (!account || !nftMetadataUrl) {
       return;
@@ -99,11 +106,11 @@ export function useNftImageUrl(nftMetadataUrl?: string, accountName?: string) {
       try {
         const url = await getNftImageUrl(nftMetadataUrl, ipfsGatewayUrl);
         if (!cancelled) {
-          setImageUrl(url);
+          setResult({ inputs, value: url });
         }
       } catch (error: any) {
         if (!cancelled) {
-          setError(error);
+          setResult({ inputs, error });
         }
         log.error("useNftImageUrl getNftImageUrl error", { nftMetadataUrl, ipfsGatewayUrl, error });
       }
@@ -111,8 +118,9 @@ export function useNftImageUrl(nftMetadataUrl?: string, accountName?: string) {
     return () => {
       cancelled = true;
     };
-  }, [nftMetadataUrl, ipfsGatewayUrl]);
+  }, inputs);
 
+  const { value: imageUrl, error } = getCurrentResult(result, inputs) || {};
   // log('useNftImageUrl', {nftMetadataUrl, ipfsGatewayUrl, imageUrl})
   return { imageUrl, error };
 }
@@ -121,13 +129,12 @@ export function useNftImageUrl(nftMetadataUrl?: string, accountName?: string) {
 export function useVerifiedAuthorAvatarSignature(author?: Author, accountName?: string) {
   const account = useAccount({ accountName });
   const chainProviders = getChainProviders(account);
-  const [verified, setVerified] = useState<boolean>();
-  const [error, setError] = useState<Error | undefined>();
+  const [result, setResult] = useState<Result<boolean>>();
+  const inputs = [author?.avatar, author?.address, chainProviders];
 
   useEffect(() => {
     // reset
-    setError(undefined);
-    setVerified(undefined);
+    setResult(undefined);
 
     if (!account || !author?.avatar) {
       return;
@@ -143,11 +150,11 @@ export function useVerifiedAuthorAvatarSignature(author?: Author, accountName?: 
           chainProviders,
         );
         if (!cancelled) {
-          setVerified(res);
+          setResult({ inputs, value: res });
         }
       } catch (error: any) {
         if (!cancelled) {
-          setError(error);
+          setResult({ inputs, error });
         }
         log.error("useVerifiedAuthorAvatarSignature verifyAuthorAvatarSignature error", {
           author,
@@ -159,13 +166,14 @@ export function useVerifiedAuthorAvatarSignature(author?: Author, accountName?: 
     return () => {
       cancelled = true;
     };
-  }, [author?.avatar, author?.address, chainProviders]);
+  }, inputs);
 
   // don't verify nft signature when using mock content during development
   if (process.env.REACT_APP_BITSOCIAL_REACT_HOOKS_MOCK_CONTENT) {
     return { verified: true, error: undefined };
   }
 
+  const { value: verified, error } = getCurrentResult(result, inputs) || {};
   // log('useVerifiedAuthorAvatarSignature', {author, verified, chainProviders})
   return { verified, error };
 }
