@@ -1954,6 +1954,63 @@ describe("comments", () => {
       updatingComments.forEach(failUpdateCycle);
       stops.forEach((stop) => expect(stop).toHaveBeenCalledTimes(1));
     });
+
+    const succeedUpdateCycle = (comment: any) =>
+      act(() => {
+        comment.timestamp = 1;
+        comment.updatedAt = Math.floor(Date.now() / 1000);
+        comment.upvoteCount = 3;
+        comment.updatingState = "succeeded";
+        comment.emit("update", comment);
+        comment.emit("updatingstatechange", "succeeded");
+      });
+
+    test.each([
+      [
+        "useComment",
+        (commentCid: string) => {
+          const comment = useComment({ commentCid, autoUpdate: false });
+          return { upvoteCount: comment.upvoteCount, refresh: comment.refresh };
+        },
+      ],
+      [
+        "useComments",
+        (commentCid: string) => {
+          const { comments, refresh } = useComments({
+            commentCids: [commentCid],
+            autoUpdate: false,
+          });
+          return { upvoteCount: comments[0]?.upvoteCount, refresh };
+        },
+      ],
+    ])(
+      "%s with autoUpdate false stops a failed refresh at its next retry once frozen",
+      async (hookName, useFrozenComment) => {
+        const commentCid = `comment cid failing refresh ${hookName}`;
+        const rendered = renderHook<any, any>(() => useFrozenComment(commentCid));
+        const waitFor = testUtils.createWaitFor(rendered);
+        await waitFor(() => updatingComments.length === 1);
+        succeedUpdateCycle(updatingComments[0]);
+        await waitFor(() => rendered.result.current.upvoteCount === 3);
+        await act(async () => {});
+
+        let refreshing: Promise<void> | undefined;
+        act(() => {
+          refreshing = rendered.result.current.refresh();
+          refreshing?.catch(() => {});
+        });
+        await waitFor(() => updatingComments.length === 2);
+        const refreshedComment = updatingComments[1];
+        const stop = vi.spyOn(refreshedComment, "stop");
+
+        failUpdateCycle(refreshedComment);
+        await expect(refreshing).rejects.toThrow("gateway timeout");
+        failUpdateCycle(refreshedComment);
+        // the frozen hook no longer waits for an update, so nothing uses the retries
+        expect(stop).toHaveBeenCalledTimes(1);
+        rendered.unmount();
+      },
+    );
   });
 
   describe("getCommentFreshness and preferFresher", () => {

@@ -245,16 +245,6 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
     };
   }, [commentCid, account?.id, onlyIfCached, autoUpdate, createCommentData]);
 
-  // the update requested on open keeps retrying while a frozen comment waits for it
-  useEffect(() => {
-    if (!commentCid || onlyIfCached || autoUpdate) {
-      return;
-    }
-    const waiterId = autoUpdateSubscriptionId.current;
-    addOpeningUpdateWaiter(commentCid, waiterId);
-    return () => removeOpeningUpdateWaiter(commentCid, waiterId);
-  }, [commentCid, onlyIfCached, autoUpdate]);
-
   let selectedComment = commentFromStore;
 
   if (commentCid && communitiesPagesComment) {
@@ -293,6 +283,16 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
   // load requested has ended, so a returning visitor sees the current comment.
   const openingUpdateEnded = onlyIfCached || (Boolean(commentFromStore) && !openingUpdatePending);
   const freezeSettledForCurrentCid = freezeSettledCid === commentCid;
+
+  // the update requested on open keeps retrying until the frozen comment settles
+  useEffect(() => {
+    if (!commentCid || onlyIfCached || autoUpdate || freezeSettledForCurrentCid) {
+      return;
+    }
+    const waiterId = autoUpdateSubscriptionId.current;
+    addOpeningUpdateWaiter(commentCid, waiterId);
+    return () => removeOpeningUpdateWaiter(commentCid, waiterId);
+  }, [commentCid, onlyIfCached, autoUpdate, freezeSettledForCurrentCid]);
 
   useEffect(() => {
     if (autoUpdate) {
@@ -546,23 +546,6 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
     };
   }, [commentCidsKey, account?.id, onlyIfCached, autoUpdate]);
 
-  // the updates requested on open keep retrying while frozen comments wait for them
-  useEffect(() => {
-    if (!commentCids || onlyIfCached || autoUpdate) {
-      return;
-    }
-    const waiterId = autoUpdateSubscriptionId.current;
-    const uniqueCommentCids = [...new Set(commentCids)];
-    for (const commentCid of uniqueCommentCids) {
-      addOpeningUpdateWaiter(commentCid, waiterId);
-    }
-    return () => {
-      for (const commentCid of uniqueCommentCids) {
-        removeOpeningUpdateWaiter(commentCid, waiterId);
-      }
-    };
-  }, [commentCidsKey, onlyIfCached, autoUpdate]);
-
   if (account && commentCids?.length) {
     log("useComments", {
       commentCids,
@@ -588,6 +571,23 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
     (Boolean(onlyIfCached) ||
       commentsStoreComments.every((comment, index) => comment && !openingUpdatesPending[index]));
   const freezeSettledForCurrentKey = freezeSettledKey === commentsKey;
+
+  // the updates requested on open keep retrying until the frozen comments settle
+  useEffect(() => {
+    if (!commentCids || onlyIfCached || autoUpdate || freezeSettledForCurrentKey) {
+      return;
+    }
+    const waiterId = autoUpdateSubscriptionId.current;
+    const uniqueCommentCids = [...new Set(commentCids)];
+    for (const commentCid of uniqueCommentCids) {
+      addOpeningUpdateWaiter(commentCid, waiterId);
+    }
+    return () => {
+      for (const commentCid of uniqueCommentCids) {
+        removeOpeningUpdateWaiter(commentCid, waiterId);
+      }
+    };
+  }, [commentCidsKey, onlyIfCached, autoUpdate, freezeSettledForCurrentKey]);
 
   useEffect(() => {
     if (autoUpdate) {
