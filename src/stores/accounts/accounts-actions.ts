@@ -327,6 +327,12 @@ const abandonAndStopPublishSession = (accountId: string, index: number) => {
   activePublishSessions.delete(session.sessionId);
 };
 
+// deleteAccount only abandons the publish sessions that exist when it starts, so a publication that
+// reaches its first save later checks that its account is still there
+const deletingAccountIds = new Set<string>();
+const isAccountDeleted = (accountId: string) =>
+  deletingAccountIds.has(accountId) || !accountsStore.getState().accounts?.[accountId];
+
 // a deleted account's pending comments and votes would otherwise keep publishing and write their
 // results for an account that no longer exists
 const abandonAccountPublishSessions = (accountId: string) => {
@@ -718,48 +724,58 @@ export const deleteAccount = async (accountName?: string) => {
     account?.id,
     `accountsActions.deleteAccount account.id '${account?.id}' doesn't exist, activeAccountId '${activeAccountId}' accountName '${accountName}'`,
   );
-  abandonAccountPublishSessions(account.id);
-  await accountsDatabase.removeAccount(account);
-  const newAccounts = { ...accounts };
-  delete newAccounts[account.id];
-  const [newAccountIds, newActiveAccountId, newAccountNamesToAccountIds] = await Promise.all<any>([
-    accountsDatabase.accountsMetadataDatabase.getItem("accountIds"),
-    accountsDatabase.accountsMetadataDatabase.getItem("activeAccountId"),
-    accountsDatabase.accountsMetadataDatabase.getItem("accountNamesToAccountIds"),
-  ]);
-  const newAccountsComments = { ...accountsComments };
-  delete newAccountsComments[account.id];
-  const newAccountsCommentsIndexes = { ...accountsCommentsIndexes };
-  delete newAccountsCommentsIndexes[account.id];
-  const newCommentCidsToAccountsComments = getCommentCidsToAccountsComments(newAccountsComments);
-  const newAccountsVotes = { ...accountsVotes };
-  delete newAccountsVotes[account.id];
-  const newAccountsEdits = { ...accountsEdits };
-  delete newAccountsEdits[account.id];
-  const newAccountsEditsSummaries = { ...accountsEditsSummaries };
-  delete newAccountsEditsSummaries[account.id];
-  const newAccountsEditsLoaded = { ...accountsEditsLoaded };
-  delete newAccountsEditsLoaded[account.id];
+  // until the store drops the account, a publication that has not started yet must not start
+  deletingAccountIds.add(account.id);
+  try {
+    abandonAccountPublishSessions(account.id);
+    // a pending comment already saving its first row finishes before the account is cleared
+    await accountCommentAppendQueues.get(account.id)?.catch(() => {});
+    await accountsDatabase.removeAccount(account);
+    const newAccounts = { ...accounts };
+    delete newAccounts[account.id];
+    const [newAccountIds, newActiveAccountId, newAccountNamesToAccountIds] = await Promise.all<any>(
+      [
+        accountsDatabase.accountsMetadataDatabase.getItem("accountIds"),
+        accountsDatabase.accountsMetadataDatabase.getItem("activeAccountId"),
+        accountsDatabase.accountsMetadataDatabase.getItem("accountNamesToAccountIds"),
+      ],
+    );
+    const newAccountsComments = { ...accountsComments };
+    delete newAccountsComments[account.id];
+    const newAccountsCommentsIndexes = { ...accountsCommentsIndexes };
+    delete newAccountsCommentsIndexes[account.id];
+    const newCommentCidsToAccountsComments = getCommentCidsToAccountsComments(newAccountsComments);
+    const newAccountsVotes = { ...accountsVotes };
+    delete newAccountsVotes[account.id];
+    const newAccountsEdits = { ...accountsEdits };
+    delete newAccountsEdits[account.id];
+    const newAccountsEditsSummaries = { ...accountsEditsSummaries };
+    delete newAccountsEditsSummaries[account.id];
+    const newAccountsEditsLoaded = { ...accountsEditsLoaded };
+    delete newAccountsEditsLoaded[account.id];
 
-  accountsStore.setState({
-    accounts: newAccounts,
-    accountIds: newAccountIds,
-    activeAccountId: newActiveAccountId,
-    accountNamesToAccountIds: newAccountNamesToAccountIds,
-    accountsComments: newAccountsComments,
-    accountsCommentsIndexes: newAccountsCommentsIndexes,
-    commentCidsToAccountsComments: newCommentCidsToAccountsComments,
-    accountsVotes: newAccountsVotes,
-    accountsEdits: newAccountsEdits,
-    accountsEditsSummaries: newAccountsEditsSummaries,
-    accountsEditsLoaded: newAccountsEditsLoaded,
-  });
-  // from the live state: reply notifications of other accounts may have arrived during the awaits
-  accountsStore.setState(({ accountsCommentsReplies }) => {
-    const newAccountsCommentsReplies = { ...accountsCommentsReplies };
-    delete newAccountsCommentsReplies[account.id];
-    return { accountsCommentsReplies: newAccountsCommentsReplies };
-  });
+    accountsStore.setState({
+      accounts: newAccounts,
+      accountIds: newAccountIds,
+      activeAccountId: newActiveAccountId,
+      accountNamesToAccountIds: newAccountNamesToAccountIds,
+      accountsComments: newAccountsComments,
+      accountsCommentsIndexes: newAccountsCommentsIndexes,
+      commentCidsToAccountsComments: newCommentCidsToAccountsComments,
+      accountsVotes: newAccountsVotes,
+      accountsEdits: newAccountsEdits,
+      accountsEditsSummaries: newAccountsEditsSummaries,
+      accountsEditsLoaded: newAccountsEditsLoaded,
+    });
+    // from the live state: reply notifications of other accounts may have arrived during the awaits
+    accountsStore.setState(({ accountsCommentsReplies }) => {
+      const newAccountsCommentsReplies = { ...accountsCommentsReplies };
+      delete newAccountsCommentsReplies[account.id];
+      return { accountsCommentsReplies: newAccountsCommentsReplies };
+    });
+  } finally {
+    deletingAccountIds.delete(account.id);
+  }
 };
 
 export const setActiveAccount = async (accountName: string) => {
@@ -1546,6 +1562,9 @@ export const publishComment = async (
     }
   };
   const pendingCommentIndex = await queueAccountCommentAppend(account.id, () => {
+    if (isAccountDeleted(account.id)) {
+      throw Error(`accountsActions.publishComment account '${account.id}' was deleted`);
+    }
     // read the live list, not the state from before the awaits above
     accountCommentIndex = accountsStore.getState().accountsComments[account.id].length;
     publishSessionId = createPublishSession(account.id, accountCommentIndex);
@@ -2015,6 +2034,8 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
   delete createVoteOptions.onError;
   delete createVoteOptions.onPublishingStateChange;
   createVoteOptions = await applyPublicationWordfilters("vote", createVoteOptions, account);
+  // the account was deleted while the wordfilters loaded: nothing was published or written
+  if (isAccountDeleted(account.id)) return;
   const accountsState = accountsStore.getState();
   const accountCommentInfo =
     accountsState.commentCidsToAccountsComments[createVoteOptions.commentCid];

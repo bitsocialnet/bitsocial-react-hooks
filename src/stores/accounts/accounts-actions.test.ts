@@ -1320,6 +1320,139 @@ describe("accounts-actions", () => {
       }
     });
 
+    test("deleteAccount stops the publications that start while the account is being deleted", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("ToDeleteBeforePublishing");
+      });
+      const deletedAccountId =
+        accountsStore.getState().accountNamesToAccountIds["ToDeleteBeforePublishing"];
+      const deletedAccount = accountsStore.getState().accounts[deletedAccountId];
+      // both publications wait on their wordfilter community load, before anything is saved
+      let releaseCommunityLoads!: () => void;
+      const communityLoadsBlocked = new Promise<void>(
+        (resolve) => (releaseCommunityLoads = resolve),
+      );
+      const originalCreateCommunity = deletedAccount.pkc.createCommunity.bind(deletedAccount.pkc);
+      const createCommunity = vi
+        .spyOn(deletedAccount.pkc, "createCommunity")
+        .mockImplementation(async (...args: any[]) => {
+          await communityLoadsBlocked;
+          return originalCreateCommunity(...args);
+        });
+      // and continue while deleteAccount is still removing the account
+      let releaseRemoval!: () => void;
+      const removalBlocked = new Promise<void>((resolve) => (releaseRemoval = resolve));
+      const originalRemoveAccount = accountsDatabase.removeAccount.bind(accountsDatabase);
+      const removeAccount = vi
+        .spyOn(accountsDatabase, "removeAccount")
+        .mockImplementation(async (...args) => {
+          await removalBlocked;
+          return originalRemoveAccount(...args);
+        });
+      const addAccountComment = vi.spyOn(accountsDatabase, "addAccountComment");
+      const addAccountVote = vi.spyOn(accountsDatabase, "addAccountVote");
+      const onPendingComment = vi.fn();
+      const onChallenge = vi.fn();
+      try {
+        const publishCommentPromise = accountsActions.publishComment(
+          {
+            communityAddress: "sub.eth",
+            content: "started when its account is deleted",
+            onPendingComment,
+            onChallenge,
+            onChallengeVerification: () => {},
+          },
+          "ToDeleteBeforePublishing",
+        );
+        const publishVotePromise = accountsActions.publishVote(
+          {
+            communityAddress: "sub.eth",
+            commentCid: "vote started when its account is deleted",
+            vote: 1,
+            onChallenge,
+            onChallengeVerification: () => {},
+          },
+          "ToDeleteBeforePublishing",
+        );
+        await vi.waitFor(() => expect(createCommunity).toHaveBeenCalledTimes(2));
+        const deleteAccountPromise = accountsActions.deleteAccount("ToDeleteBeforePublishing");
+        await vi.waitFor(() => expect(removeAccount).toHaveBeenCalledOnce());
+
+        releaseCommunityLoads();
+        await expect(publishCommentPromise).rejects.toThrow(
+          `account '${deletedAccountId}' was deleted`,
+        );
+        await publishVotePromise;
+        releaseRemoval();
+        await act(async () => {
+          await deleteAccountPromise;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        expect(onPendingComment).not.toHaveBeenCalled();
+        expect(onChallenge).not.toHaveBeenCalled();
+        expect(addAccountComment).not.toHaveBeenCalled();
+        expect(addAccountVote).not.toHaveBeenCalled();
+        expect(accountsStore.getState().accountsComments[deletedAccountId]).toBeUndefined();
+        expect(accountsStore.getState().accountsVotes[deletedAccountId]).toBeUndefined();
+      } finally {
+        releaseCommunityLoads();
+        releaseRemoval();
+        for (const spy of [createCommunity, removeAccount, addAccountComment, addAccountVote]) {
+          spy.mockRestore();
+        }
+      }
+    });
+
+    test("deleteAccount clears the account comments after a pending comment's first save", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("ToDeleteWhileSaving");
+      });
+      const deletedAccountId =
+        accountsStore.getState().accountNamesToAccountIds["ToDeleteWhileSaving"];
+      let markSaveStarted!: () => void;
+      const saveStarted = new Promise<void>((resolve) => (markSaveStarted = resolve));
+      let releaseSave!: () => void;
+      const saveBlocked = new Promise<void>((resolve) => (releaseSave = resolve));
+      const originalAddAccountComment = accountsDatabase.addAccountComment.bind(accountsDatabase);
+      const addAccountComment = vi
+        .spyOn(accountsDatabase, "addAccountComment")
+        .mockImplementation(async (...args) => {
+          markSaveStarted();
+          await saveBlocked;
+          return originalAddAccountComment(...args);
+        });
+      const onChallenge = vi.fn();
+      try {
+        const publishPromise = accountsActions.publishComment(
+          {
+            communityAddress: "sub.eth",
+            content: "saving when its account is deleted",
+            onChallenge,
+            onChallengeVerification: () => {},
+          },
+          "ToDeleteWhileSaving",
+        );
+        await saveStarted;
+        const deleteAccountPromise = accountsActions.deleteAccount("ToDeleteWhileSaving");
+        // long enough for the account database to be cleared if deleteAccount did not wait
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        releaseSave();
+        await act(async () => {
+          await deleteAccountPromise;
+        });
+        await publishPromise;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        expect(onChallenge).not.toHaveBeenCalled();
+        expect(await accountsDatabase.getAccountComments(deletedAccountId)).toEqual([]);
+        expect(accountsStore.getState().accountsComments[deletedAccountId]).toBeUndefined();
+      } finally {
+        releaseSave();
+        addAccountComment.mockRestore();
+      }
+    });
+
     test("publishComment with accountName uses named account", async () => {
       await act(async () => {
         await accountsActions.createAccount();
