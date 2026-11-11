@@ -26,6 +26,8 @@ export function usePkcRpcSettings(options?: UsePkcRpcSettingsOptions): UsePkcRpc
   const [saveResult, setSaveResult] = useState<string>();
   const saveResultTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [errors, setErrors] = useState<Error[]>([]);
+  // the rpc client whose settings and state the hook shows
+  const shownRpcClient = useRef(rpcClient);
 
   const showSaveResult = (result?: string) => {
     clearTimeout(saveResultTimeout.current);
@@ -38,6 +40,7 @@ export function usePkcRpcSettings(options?: UsePkcRpcSettingsOptions): UsePkcRpc
 
   useEffect(() => {
     // the settings, state and save result of a previous rpc client don't apply to this one
+    shownRpcClient.current = rpcClient;
     showSaveResult(undefined);
     setPkcRpcSettingsState(rpcClient?.settings ?? undefined);
     setRpcState(rpcClient?.state || "initializing");
@@ -80,12 +83,17 @@ export function usePkcRpcSettings(options?: UsePkcRpcSettingsOptions): UsePkcRpc
       `can't use usePkcRpcSettings.setPkcRpcSettings no account.pkc.clients.pkcRpcClients`,
     );
 
+    // a save that finishes after the hook switched to another rpc client doesn't apply to it
     try {
       await currentRpcClient.setSettings(pkcRpcSettings);
-      showSaveResult("succeeded");
+      if (currentRpcClient === shownRpcClient.current) {
+        showSaveResult("succeeded");
+      }
     } catch (e: any) {
-      setErrors((prevErrors) => [...prevErrors, e]);
-      showSaveResult("failed");
+      if (currentRpcClient === shownRpcClient.current) {
+        setErrors((prevErrors) => [...prevErrors, e]);
+        showSaveResult("failed");
+      }
     }
   };
 

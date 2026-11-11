@@ -370,4 +370,59 @@ describe("pkc-rpc", () => {
       vi.mocked(accountsHooks.useAccount).mockRestore();
     }
   });
+
+  test("usePkcRpcSettings ignores saves that finish after the rpc client changed", async () => {
+    let resolveFirstSave: () => void = () => {};
+    let rejectSecondSave: (error: Error) => void = () => {};
+    const firstRpcClient = {
+      settings: { challenges: {} },
+      state: "connected",
+      on: () => {},
+      removeListener: () => {},
+      setSettings: vi
+        .fn()
+        .mockImplementationOnce(() => new Promise<void>((resolve) => (resolveFirstSave = resolve)))
+        .mockImplementationOnce(
+          () => new Promise<void>((_, reject) => (rejectSecondSave = reject)),
+        ),
+    };
+    const secondRpcClient = {
+      settings: { challenges: {} },
+      state: "connecting",
+      on: () => {},
+      removeListener: () => {},
+    };
+    let account: any = {
+      id: "first-account",
+      pkc: { clients: { pkcRpcClients: { "http://first": firstRpcClient } } },
+    };
+    vi.spyOn(accountsHooks, "useAccount").mockImplementation(() => account);
+    try {
+      const rendered = renderHook<any, any>(() => usePkcRpcSettings());
+      await act(async () => {});
+      expect(rendered.result.current.state).toBe("connected");
+      const saves = [
+        rendered.result.current.setPkcRpcSettings({ challenges: {} }),
+        rendered.result.current.setPkcRpcSettings({ challenges: {} }),
+      ];
+
+      account = {
+        id: "second-account",
+        pkc: { clients: { pkcRpcClients: { "http://second": secondRpcClient } } },
+      };
+      rendered.rerender(undefined);
+      await act(async () => {});
+      expect(rendered.result.current.state).toBe("connecting");
+
+      await act(async () => {
+        resolveFirstSave();
+        rejectSecondSave(new Error("first account save failed"));
+        await Promise.all(saves);
+      });
+      expect(rendered.result.current.state).toBe("connecting");
+      expect(rendered.result.current.error).toBe(undefined);
+    } finally {
+      vi.mocked(accountsHooks.useAccount).mockRestore();
+    }
+  });
 });
