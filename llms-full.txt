@@ -925,6 +925,7 @@ await abandonPublish();
 // the vote publication is stopped and the account vote goes back to what it was
 // before publishVote(), so the optimistic vote does not survive a cancelled challenge
 // the account vote also goes back when the community rejects the vote or publishing it fails
+// if the comment had no account vote before, it goes back to vote 0, not undefined
 
 // display the user's vote
 const { vote } = useAccountVote({ commentCid });
