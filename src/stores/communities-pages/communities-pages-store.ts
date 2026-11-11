@@ -423,9 +423,9 @@ type PendingPageFetch = { pkc: any; failed: boolean };
 let fetchPagePending: { [key: string]: PendingPageFetch[] | undefined } = {};
 const pageFetchIsPending = (key: string, pkc: any) =>
   Boolean(fetchPagePending[key]?.some((fetch) => fetch.pkc === pkc || !fetch.failed));
-// a page fetch stops retrying once its account was deleted, or setAccount gave the account another
-// pkc client, because nothing uses pages fetched with that client anymore. An account the accounts
-// store didn't hold when the fetch started keeps retrying
+// a page fetch stops retrying with its pkc client once its account was deleted, or setAccount gave
+// the account another client. An account the accounts store didn't hold when the fetch started
+// keeps retrying
 const getShouldRetryPageFetch = (account: Account) => {
   const accountWasStored = Boolean(accountsStore.getState().accounts?.[account.id]);
   return () => {
@@ -433,13 +433,33 @@ const getShouldRetryPageFetch = (account: Account) => {
     return storedAccount ? storedAccount.pkc === account.pkc : !accountWasStored;
   };
 };
+// setAccount gives the account a new pkc client on every edit, so a fetch that stopped retrying
+// with the replaced client continues with the account's new one, unless another fetch of the page
+// already uses it
+const getAccountWithNewPkc = (
+  account: Account,
+  pendingKey: string,
+  pendingFetch?: PendingPageFetch,
+): Account | undefined => {
+  const storedAccount = accountsStore.getState().accounts?.[account.id];
+  if (
+    !storedAccount ||
+    storedAccount.pkc === account.pkc ||
+    fetchPagePending[pendingKey]?.some(
+      (fetch) => fetch !== pendingFetch && fetch.pkc === storedAccount.pkc,
+    )
+  ) {
+    return;
+  }
+  return storedAccount;
+};
 const fetchPage = async (
   pageCid: string,
   communityAddress: string,
   account: Account,
   pageType: string,
   pendingFetch?: PendingPageFetch,
-) => {
+): Promise<CommunityPage> => {
   const shouldRetry = getShouldRetryPageFetch(account);
   // community page is cached
   const pageStoreKey = getCommunityPageStoreKey(pageCid, pageType, account.id);
@@ -473,10 +493,24 @@ const fetchPage = async (
       error,
     );
   };
-  const fetchedCommunityPage = await utils.retryInfinity(
-    () => accountCommunities[communityAddress][pageType].getPage({ cid: pageCid }),
-    { onError, shouldRetry },
-  );
+  let fetchedCommunityPage: CommunityPage;
+  try {
+    fetchedCommunityPage = await utils.retryInfinity(
+      () => accountCommunities[communityAddress][pageType].getPage({ cid: pageCid }),
+      { onError, shouldRetry },
+    );
+  } catch (error) {
+    const accountWithNewPkc = getAccountWithNewPkc(account, pageStoreKey, pendingFetch);
+    if (!accountWithNewPkc) {
+      throw error;
+    }
+    // the fetch continues as a new fetch with the new client, starting from the page cache
+    if (pendingFetch) {
+      pendingFetch.pkc = accountWithNewPkc.pkc;
+      pendingFetch.failed = false;
+    }
+    return fetchPage(pageCid, communityAddress, accountWithNewPkc, pageType, pendingFetch);
+  }
   await communitiesPagesDatabase.setItem(pageStoreKey, utils.clone(fetchedCommunityPage));
   return fetchedCommunityPage;
 };
