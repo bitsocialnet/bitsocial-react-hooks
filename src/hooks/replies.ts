@@ -73,10 +73,14 @@ export function useReplies(options?: UseRepliesOptions): UseRepliesResult {
   };
   const repliesFeedName = feedOptionsToFeedName(feedOptions);
 
-  // errors belong to the replies feed they happened in, another feed starts without them. The
-  // comment's postCid only fills in once it loads, that doesn't make it another feed
+  // errors belong to the replies feed they happened in, another feed starts without them. Drop them
+  // when the feed changes (or when one lands after it changed) so they don't return with the old
+  // feed. The comment's postCid only fills in once it loads, that doesn't make it another feed
   const errorsFeedName = feedOptionsToFeedName({ ...feedOptions, postCid: undefined });
   const [feedErrors, setFeedErrors] = useState<{ feedName: string; errors: Error[] }>();
+  if (feedErrors && feedErrors.feedName !== errorsFeedName) {
+    setFeedErrors(undefined);
+  }
   const errors = feedErrors?.feedName === errorsFeedName ? feedErrors.errors : emptyArray;
   const addError = (error: Error) =>
     setFeedErrors((previous) => ({

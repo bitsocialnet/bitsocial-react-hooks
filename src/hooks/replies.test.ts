@@ -163,6 +163,14 @@ describe("replies", () => {
       await waitFor(() => rendered.result.current.replies.length >= repliesPerPage);
       expect(rendered.result.current.error).toBe(undefined);
       expect(rendered.result.current.errors).toEqual([]);
+
+      // going back to the previous replies feed doesn't bring its old errors back
+      rendered.rerender({
+        comment: { cid: "comment cid 1" },
+        accountName: "nonexistent-account-xyz",
+      });
+      expect(rendered.result.current.error).toBe(undefined);
+      expect(rendered.result.current.errors).toEqual([]);
     });
 
     test("a loadMore before the replies feed has loaded doesn't leave an error", async () => {

@@ -278,6 +278,27 @@ describe("feeds", () => {
       rendered.rerender({ communityAddresses: ["community address 1"] });
       expect(rendered.result.current.error).toBe(undefined);
       expect(rendered.result.current.errors).toEqual([]);
+
+      // going back to the previous feed doesn't bring its old errors back
+      rendered.rerender({
+        communityAddresses: ["community address 1"],
+        accountName: "nonexistent-account-xyz",
+      });
+      expect(rendered.result.current.error).toBe(undefined);
+      expect(rendered.result.current.errors).toEqual([]);
+
+      // nor an error that landed after the feed changed
+      const lateLoadMore = rendered.result.current.loadMore();
+      rendered.rerender({ communityAddresses: ["community address 1"] });
+      await act(async () => {
+        await lateLoadMore;
+      });
+      rendered.rerender({
+        communityAddresses: ["community address 1"],
+        accountName: "nonexistent-account-xyz",
+      });
+      expect(rendered.result.current.error).toBe(undefined);
+      expect(rendered.result.current.errors).toEqual([]);
     });
 
     test("not yet loaded feed hasMore true", async () => {

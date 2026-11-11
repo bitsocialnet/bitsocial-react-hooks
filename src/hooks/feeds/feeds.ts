@@ -89,8 +89,12 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
     accountComments,
     modQueue,
   );
-  // errors belong to the feed they happened in, another feed starts without them
+  // errors belong to the feed they happened in, another feed starts without them. Drop them when
+  // the feed changes (or when one lands after it changed) so they don't return with the old feed
   const [feedErrors, setFeedErrors] = useState<{ feedName: string; errors: Error[] }>();
+  if (feedErrors && feedErrors.feedName !== feedName) {
+    setFeedErrors(undefined);
+  }
   const errors = feedErrors?.feedName === feedName ? feedErrors.errors : emptyErrors;
   const addError = (error: Error) =>
     setFeedErrors((previous) => ({
