@@ -28,6 +28,7 @@ import { getChainProviders, getPkcCommunityAddresses } from "../lib/pkc-compat";
 import { getCommunityRefKey, getUniqueSortedCommunityRefs } from "../lib/community-ref";
 
 let communityAutoUpdateSubscriptionCount = 0;
+const emptyErrors: Error[] = [];
 
 const parseMaybeJson = (value: unknown) => (typeof value === "string" ? JSON.parse(value) : value);
 
@@ -491,8 +492,10 @@ export function useResolvedCommunityAddress(
   const [resolvedAddress, setResolvedAddress] = useState<string>();
   const [errors, setErrors] = useState<Error[]>([]);
   const [state, setState] = useState<string>();
-  // the address that resolvedAddress, state and errors belong to
+  // the address that resolvedAddress, state and errors belong to: the ref for completions that land
+  // later, the state for rendering because it updates in the same render as the result
   const resultAddress = useRef<string | undefined>(undefined);
+  const [renderedResultAddress, setRenderedResultAddress] = useState<string>();
 
   let initialState = "initializing";
   // before those defined, nothing can happen
@@ -504,6 +507,7 @@ export function useResolvedCommunityAddress(
     () => {
       if (!account || !communityAddress) {
         resultAddress.current = undefined;
+        setRenderedResultAddress(undefined);
         setResolvedAddress(undefined);
         setState(undefined);
         setErrors((prevErrors) => (prevErrors.length ? [] : prevErrors));
@@ -515,6 +519,7 @@ export function useResolvedCommunityAddress(
       let currentState = state;
       if (resultAddress.current !== address) {
         resultAddress.current = address;
+        setRenderedResultAddress(address);
         currentState = undefined;
         setResolvedAddress(undefined);
         setErrors((prevErrors) => (prevErrors.length ? [] : prevErrors));
@@ -579,12 +584,14 @@ export function useResolvedCommunityAddress(
   const chainProvider = chainProviders?.["eth"];
 
   // log('useResolvedCommunityAddress', {communityAddress, state, errors, resolvedAddress, chainProviders})
+  // until the interval has run for a new address, the stored result is the previous address's
+  const isCurrentResult = renderedResultAddress === communityAddress;
   return {
-    resolvedAddress,
+    resolvedAddress: isCurrentResult ? resolvedAddress : undefined,
     chainProvider,
-    state: state || initialState,
-    error: errors[errors.length - 1],
-    errors,
+    state: (isCurrentResult && state) || initialState,
+    error: isCurrentResult ? errors[errors.length - 1] : undefined,
+    errors: isCurrentResult ? errors : emptyErrors,
   };
 }
 

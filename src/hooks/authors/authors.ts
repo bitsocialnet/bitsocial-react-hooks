@@ -411,6 +411,7 @@ export function useAuthorAddress(options?: UseAuthorAddressOptions): UseAuthorAd
 // TODO: figure out how to upgrade to quick-lru 6+ to use maxAge
 const resolvedAuthorAddressCache = new QuickLRU<string, string>({ maxSize: 1000 });
 const resolveAuthorAddressPromises: { [address: string]: Promise<string> } = {};
+const emptyErrors: Error[] = [];
 
 /** For tests: reset caches to make resolution paths deterministic. */
 export function resetAuthorAddressCacheForTesting() {
@@ -462,8 +463,10 @@ export function useResolvedAuthorAddress(
   const [errors, setErrors] = useState<Error[]>([]);
   const [state, setState] = useState<string>();
   const [activeNameResolverKey, setActiveNameResolverKey] = useState<string>();
-  // the name that resolvedAddress, state and errors belong to
+  // the name that resolvedAddress, state and errors belong to: the ref for completions that land
+  // later, the state for rendering because it updates in the same render as the result
   const resultName = useRef<string | undefined>(undefined);
+  const [renderedResultName, setRenderedResultName] = useState<string>();
 
   let initialState = "initializing";
   // before those defined, nothing can happen
@@ -559,6 +562,7 @@ export function useResolvedAuthorAddress(
       // no options, do nothing or reset
       if (!account || !author?.address) {
         resultName.current = undefined;
+        setRenderedResultName(undefined);
         if (resolvedAddress !== undefined) {
           setResolvedAddress(undefined);
         }
@@ -579,6 +583,7 @@ export function useResolvedAuthorAddress(
       let currentState = state;
       if (resultName.current !== name) {
         resultName.current = name;
+        setRenderedResultName(name);
         currentState = undefined;
         setResolvedAddress(undefined);
         setErrors((previousErrors) => (previousErrors.length ? [] : previousErrors));
@@ -667,15 +672,17 @@ export function useResolvedAuthorAddress(
     nameResolver,
   });
 
+  // until the interval has run for a new name, the stored result is the previous name's
+  const isCurrentResult = renderedResultName === author?.address;
   return useMemo(
     () => ({
-      resolvedAddress,
+      resolvedAddress: isCurrentResult ? resolvedAddress : undefined,
       chainProvider,
       nameResolver,
-      state: state || initialState,
-      error: errors[errors.length - 1],
-      errors,
+      state: (isCurrentResult && state) || initialState,
+      error: isCurrentResult ? errors[errors.length - 1] : undefined,
+      errors: isCurrentResult ? errors : emptyErrors,
     }),
-    [resolvedAddress, chainProvider, nameResolver, state, errors],
+    [isCurrentResult, resolvedAddress, chainProvider, nameResolver, state, errors],
   );
 }

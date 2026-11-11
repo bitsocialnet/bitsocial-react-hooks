@@ -1228,6 +1228,53 @@ describe("authors", () => {
       }
     });
 
+    test("useResolvedAuthorAddress never renders the previous name's result for a new name", async () => {
+      resetAuthorAddressCacheForTesting();
+      const origResolve = PKC.prototype.resolveAuthorName;
+      PKC.prototype.resolveAuthorName = ({ name }: { name: string }) => {
+        if (name === "first-name.eth") {
+          return Promise.resolve(resolvedAuthorNameResult("12D3KooWfirst"));
+        }
+        if (name === "second-name.eth") {
+          return Promise.reject(new Error("resolution failed"));
+        }
+        return new Promise<PkcResolveAuthorNameResult>(() => {});
+      };
+      try {
+        const renders: { name?: string; resolvedAddress?: string; state: string; error?: Error }[] =
+          [];
+        const rendered = renderHook<any, any>((author) => {
+          const result = useResolvedAuthorAddress({ author, cache: false });
+          const { resolvedAddress, state, error } = result;
+          renders.push({ name: author?.address, resolvedAddress, state, error });
+          return result;
+        });
+        const waitFor = testUtils.createWaitFor(rendered);
+        rendered.rerender({ address: "first-name.eth" });
+        await waitFor(() => rendered.result.current.state === "succeeded");
+
+        rendered.rerender({ address: "second-name.eth" });
+        await waitFor(() => rendered.result.current.state === "failed");
+        const secondNameRenders = renders.filter(({ name }) => name === "second-name.eth");
+        expect(secondNameRenders.length).toBeGreaterThan(1);
+        for (const render of secondNameRenders) {
+          expect(render.resolvedAddress).toBe(undefined);
+          expect(render.state).not.toBe("succeeded");
+        }
+
+        rendered.rerender({ address: "third-name.eth" });
+        await act(async () => {});
+        expect(rendered.result.current.state).toBe("resolving");
+        const thirdNameRenders = renders.filter(({ name }) => name === "third-name.eth");
+        for (const render of thirdNameRenders) {
+          expect(render.error).toBe(undefined);
+          expect(render.state).not.toBe("failed");
+        }
+      } finally {
+        PKC.prototype.resolveAuthorName = origResolve;
+      }
+    });
+
     test("useResolvedAuthorAddress keeps its result while polling and clears a recovered error", async () => {
       resetAuthorAddressCacheForTesting();
       const resolved = "12D3KooWresolved";
