@@ -848,8 +848,11 @@ describe("authors comments store", () => {
         randomCommentIndexWithLastCommentCid,
       );
       commentsStore.setState((state: any) => {
-        // use startCid as fallback in case the random comment hasn't been fetched yet
-        const baseComment = state.comments[commentCidWithLastCommentCid] ||
+        // use startCid as fallback in case the random comment hasn't been fetched yet. A comment
+        // still being fetched is in the store without a timestamp, and its first update would
+        // replace the lastCommentCid set here, so it can't be used either
+        const randomComment = state.comments[commentCidWithLastCommentCid];
+        const baseComment = (randomComment?.timestamp && randomComment) ||
           state.comments[startCid] || {
             cid: startCid,
             author: { address: authorAddress },
