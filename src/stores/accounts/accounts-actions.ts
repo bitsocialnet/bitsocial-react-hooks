@@ -700,17 +700,7 @@ export const createAccount = async (accountName?: string) => {
 };
 
 export const deleteAccount = async (accountName?: string) => {
-  const {
-    accounts,
-    accountNamesToAccountIds,
-    activeAccountId,
-    accountsComments,
-    accountsCommentsIndexes,
-    accountsVotes,
-    accountsEdits,
-    accountsEditsSummaries,
-    accountsEditsLoaded,
-  } = accountsStore.getState();
+  const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
   assert(
     accounts && accountNamesToAccountIds && activeAccountId,
     `can't use accountsStore.accountActions before initialized`,
@@ -731,8 +721,6 @@ export const deleteAccount = async (accountName?: string) => {
     // a pending comment already saving its first row finishes before the account is cleared
     await accountCommentAppendQueues.get(account.id)?.catch(() => {});
     await accountsDatabase.removeAccount(account);
-    const newAccounts = { ...accounts };
-    delete newAccounts[account.id];
     const [newAccountIds, newActiveAccountId, newAccountNamesToAccountIds] = await Promise.all<any>(
       [
         accountsDatabase.accountsMetadataDatabase.getItem("accountIds"),
@@ -740,38 +728,29 @@ export const deleteAccount = async (accountName?: string) => {
         accountsDatabase.accountsMetadataDatabase.getItem("accountNamesToAccountIds"),
       ],
     );
-    const newAccountsComments = { ...accountsComments };
-    delete newAccountsComments[account.id];
-    const newAccountsCommentsIndexes = { ...accountsCommentsIndexes };
-    delete newAccountsCommentsIndexes[account.id];
-    const newCommentCidsToAccountsComments = getCommentCidsToAccountsComments(newAccountsComments);
-    const newAccountsVotes = { ...accountsVotes };
-    delete newAccountsVotes[account.id];
-    const newAccountsEdits = { ...accountsEdits };
-    delete newAccountsEdits[account.id];
-    const newAccountsEditsSummaries = { ...accountsEditsSummaries };
-    delete newAccountsEditsSummaries[account.id];
-    const newAccountsEditsLoaded = { ...accountsEditsLoaded };
-    delete newAccountsEditsLoaded[account.id];
-
-    accountsStore.setState({
-      accounts: newAccounts,
-      accountIds: newAccountIds,
-      activeAccountId: newActiveAccountId,
-      accountNamesToAccountIds: newAccountNamesToAccountIds,
-      accountsComments: newAccountsComments,
-      accountsCommentsIndexes: newAccountsCommentsIndexes,
-      commentCidsToAccountsComments: newCommentCidsToAccountsComments,
-      accountsVotes: newAccountsVotes,
-      accountsEdits: newAccountsEdits,
-      accountsEditsSummaries: newAccountsEditsSummaries,
-      accountsEditsLoaded: newAccountsEditsLoaded,
-    });
-    // from the live state: reply notifications of other accounts may have arrived during the awaits
-    accountsStore.setState(({ accountsCommentsReplies }) => {
-      const newAccountsCommentsReplies = { ...accountsCommentsReplies };
-      delete newAccountsCommentsReplies[account.id];
-      return { accountsCommentsReplies: newAccountsCommentsReplies };
+    // from the live state: other accounts may have saved comments, votes, edits or replies during
+    // the awaits above
+    accountsStore.setState((state) => {
+      const withoutAccount = <T extends Record<string, any>>(map: T): T => {
+        const newMap = { ...map };
+        delete newMap[account.id];
+        return newMap;
+      };
+      const newAccountsComments = withoutAccount(state.accountsComments);
+      return {
+        accounts: withoutAccount(state.accounts),
+        accountIds: newAccountIds,
+        activeAccountId: newActiveAccountId,
+        accountNamesToAccountIds: newAccountNamesToAccountIds,
+        accountsComments: newAccountsComments,
+        accountsCommentsIndexes: withoutAccount(state.accountsCommentsIndexes),
+        commentCidsToAccountsComments: getCommentCidsToAccountsComments(newAccountsComments),
+        accountsVotes: withoutAccount(state.accountsVotes),
+        accountsEdits: withoutAccount(state.accountsEdits),
+        accountsEditsSummaries: withoutAccount(state.accountsEditsSummaries),
+        accountsEditsLoaded: withoutAccount(state.accountsEditsLoaded),
+        accountsCommentsReplies: withoutAccount(state.accountsCommentsReplies),
+      };
     });
   } finally {
     deletingAccountIds.delete(account.id);

@@ -1453,6 +1453,61 @@ describe("accounts-actions", () => {
       }
     });
 
+    test("deleteAccount keeps the comments and votes another account saves meanwhile", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("ToDeleteWhileOtherAccountPublishes");
+      });
+      const { accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
+      const deletedAccountId = accountNamesToAccountIds["ToDeleteWhileOtherAccountPublishes"];
+      let releaseRemoval!: () => void;
+      const removalBlocked = new Promise<void>((resolve) => (releaseRemoval = resolve));
+      const originalRemoveAccount = accountsDatabase.removeAccount.bind(accountsDatabase);
+      const removeAccount = vi
+        .spyOn(accountsDatabase, "removeAccount")
+        .mockImplementation(async (...args) => {
+          await removalBlocked;
+          return originalRemoveAccount(...args);
+        });
+      try {
+        const deleteAccountPromise = accountsActions.deleteAccount(
+          "ToDeleteWhileOtherAccountPublishes",
+        );
+        await vi.waitFor(() => expect(removeAccount).toHaveBeenCalledOnce());
+        await act(async () => {
+          await accountsActions.publishComment({
+            communityAddress: "sub.eth",
+            content: "saved while another account is deleted",
+            onChallenge: () => {},
+            onChallengeVerification: () => {},
+          });
+          await accountsActions.publishVote({
+            communityAddress: "sub.eth",
+            commentCid: "voted while another account is deleted",
+            vote: 1,
+            onChallenge: () => {},
+            onChallengeVerification: () => {},
+          });
+        });
+        releaseRemoval();
+        await act(async () => {
+          await deleteAccountPromise;
+        });
+
+        const state = accountsStore.getState();
+        expect(state.accounts[deletedAccountId]).toBeUndefined();
+        expect(state.accountsComments[deletedAccountId]).toBeUndefined();
+        expect(state.accountsComments[activeAccountId].map((comment) => comment.content)).toEqual([
+          "saved while another account is deleted",
+        ]);
+        expect(
+          state.accountsVotes[activeAccountId]["voted while another account is deleted"]?.vote,
+        ).toBe(1);
+      } finally {
+        releaseRemoval();
+        removeAccount.mockRestore();
+      }
+    });
+
     test("publishComment with accountName uses named account", async () => {
       await act(async () => {
         await accountsActions.createAccount();
