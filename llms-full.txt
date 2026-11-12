@@ -1314,6 +1314,7 @@ for (const accountComment of accountComments) {
 
 // all my own votes
 const { accountVotes } = useAccountVotes();
+// account votes and account edits (useAccountVotes, useAccountVote, useAccountEdits and their filters) include `shortCommunityAddress` next to `communityAddress`, also for history stored by earlier versions. It is derived when read, not stored or exported. They are stored without their author, so they have no `author.shortAddress`.
 
 // my own comments in memes.eth
 const communityAddress = "memes.eth";

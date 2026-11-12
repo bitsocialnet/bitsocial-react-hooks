@@ -10,6 +10,7 @@ import {
   Comment,
   AccountEdit,
   AccountEditsSummary,
+  AccountVote,
 } from "../../types";
 import assert from "../../lib/assert";
 import Logger from "@pkcprotocol/pkc-logger";
@@ -553,6 +554,44 @@ export const addShortAddressesToAccountComment = (comment: Comment) => {
   return comment;
 };
 
+// Account votes and edits are stored as their publish options, without the short community address
+// account comments get when they are created. Derive it when they are read instead of storing it,
+// so history stored by earlier versions has it too and no stored record is rewritten. Votes and
+// edits are stored without their author, so there is no author.shortAddress to add.
+// Cached per record so a record that didn't change keeps its identity between renders.
+const accountPublicationsWithShortCommunityAddress = new WeakMap<object, any>();
+export const addShortCommunityAddressToAccountPublication = <
+  Publication extends AccountVote | AccountEdit | undefined,
+>(
+  publication: Publication,
+): Publication => {
+  if (
+    !publication ||
+    typeof publication.communityAddress !== "string" ||
+    publication.shortCommunityAddress
+  ) {
+    return publication;
+  }
+  let publicationWithShortCommunityAddress =
+    accountPublicationsWithShortCommunityAddress.get(publication);
+  if (!publicationWithShortCommunityAddress) {
+    publicationWithShortCommunityAddress = publication;
+    try {
+      const shortCommunityAddress = PkcJs.PKC.getShortAddress({
+        address: publication.communityAddress,
+      });
+      if (shortCommunityAddress) {
+        publicationWithShortCommunityAddress = { ...publication, shortCommunityAddress };
+      }
+    } catch {}
+    accountPublicationsWithShortCommunityAddress.set(
+      publication,
+      publicationWithShortCommunityAddress,
+    );
+  }
+  return publicationWithShortCommunityAddress;
+};
+
 const utils = {
   getAccountCommunities,
   getCommentCidsToAccountsComments,
@@ -568,6 +607,7 @@ const utils = {
   getAccountCommentPostCid,
   getFreshestLoadedComment,
   addShortAddressesToAccountComment,
+  addShortCommunityAddressToAccountPublication,
   promiseAny,
 };
 

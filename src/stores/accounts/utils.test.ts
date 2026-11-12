@@ -792,6 +792,45 @@ describe("accountsStore utils", () => {
     });
   });
 
+  describe("addShortCommunityAddressToAccountPublication", () => {
+    beforeAll(() => setPkcJs(PkcJsMock));
+    afterAll(() => restorePkcJs());
+
+    test("adds shortCommunityAddress without changing the stored record", () => {
+      const vote = { commentCid: "cid", communityAddress: "community address", vote: 1 };
+      const enriched = utils.addShortCommunityAddressToAccountPublication(vote);
+      expect(enriched).toEqual({
+        ...vote,
+        shortCommunityAddress: PkcJsMock.getShortAddress({ address: "community address" }),
+      });
+      expect(vote).not.toHaveProperty("shortCommunityAddress");
+      // the same record gives the same result object
+      expect(utils.addShortCommunityAddressToAccountPublication(vote)).toBe(enriched);
+    });
+
+    test("returns records it cannot or need not enrich as they are", () => {
+      expect(utils.addShortCommunityAddressToAccountPublication(undefined)).toBeUndefined();
+      // e.g. the neutral vote restored after an abandoned first vote
+      const neutralVote = { commentCid: "cid", vote: 0 };
+      expect(utils.addShortCommunityAddressToAccountPublication(neutralVote)).toBe(neutralVote);
+      const alreadyShort = { communityAddress: "community address", shortCommunityAddress: "x" };
+      expect(utils.addShortCommunityAddressToAccountPublication(alreadyShort)).toBe(alreadyShort);
+    });
+
+    test("returns the record as is when the short address cannot be derived", () => {
+      const getShortAddress = PkcJsModule.PKC.getShortAddress;
+      PkcJsModule.PKC.getShortAddress = () => {
+        throw Error("invalid address");
+      };
+      try {
+        const edit = { commentCid: "cid", communityAddress: "community address" };
+        expect(utils.addShortCommunityAddressToAccountPublication(edit)).toBe(edit);
+      } finally {
+        PkcJsModule.PKC.getShortAddress = getShortAddress;
+      }
+    });
+  });
+
   describe("getFreshestLoadedComment", () => {
     test("returns the freshest matching comment across comment page stores", () => {
       const commentCid = "freshest-loaded-comment";
