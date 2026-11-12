@@ -43,6 +43,7 @@ import {
 import {
   COMMENT_MODERATION_AUTHOR_SUMMARY_KEY,
   getAccountEditPropertySummary,
+  addShortCommunityAddressToAccountPublication,
 } from "../../stores/accounts/utils";
 import {
   getCanonicalCommunityAddress,
@@ -713,7 +714,7 @@ export function useAccountVotes(options?: UseAccountVotesOptions): UseAccountVot
       return accountVotesArray;
     }
     for (const i in accountVotes) {
-      accountVotesArray.push(accountVotes[i]);
+      accountVotesArray.push(addShortCommunityAddressToAccountPublication(accountVotes[i]));
     }
     if (typeof vote === "number") {
       accountVotesArray = accountVotesArray.filter((accountVote) => accountVote.vote === vote);
@@ -807,7 +808,9 @@ export function useAccountVote(options?: UseAccountVoteOptions): UseAccountVoteR
   const accountIdKey = accountId || "";
   const commentCidKey = commentCid || "";
   const accountVotes = useAccountsStore((state) => state.accountsVotes[accountIdKey]);
-  const accountVote: any = accountVotes?.[commentCidKey];
+  const accountVote: any = addShortCommunityAddressToAccountPublication(
+    accountVotes?.[commentCidKey],
+  );
   const state = accountId && commentCid ? "succeeded" : "initializing";
 
   // TODO: add failed / pending state
@@ -858,7 +861,7 @@ export function useAccountEdits(options?: UseAccountEditsOptions): UseAccountEdi
   const accountEditsArray = useMemo(() => {
     const accountEditsArray = [];
     for (const i in accountEdits || {}) {
-      accountEditsArray.push(...accountEdits[i]);
+      accountEditsArray.push(...accountEdits[i].map(addShortCommunityAddressToAccountPublication));
     }
     // sort by oldest first
     return accountEditsArray.sort((a, b) => a.timestamp - b.timestamp);

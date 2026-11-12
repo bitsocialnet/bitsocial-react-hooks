@@ -714,6 +714,139 @@ describe("accountsStore utils", () => {
     });
   });
 
+  describe("getAccountCommentPostCid", () => {
+    const stores: [string, any][] = [
+      ["commentsStore", commentsStore],
+      ["repliesPagesStore", repliesPagesStore],
+      ["communitiesPagesStore", communitiesPagesStore],
+    ];
+    const withComments = (store: any, comments: any, callback: () => void) => {
+      const previousComments = store.getState().comments;
+      store.setState({ comments: { ...previousComments, ...comments } });
+      try {
+        callback();
+      } finally {
+        store.setState({ comments: previousComments });
+      }
+    };
+
+    test("keeps the caller's postCid, also when the caches disagree", () => {
+      withComments(
+        commentsStore,
+        { "parent cid": { cid: "parent cid", depth: 1, postCid: "cache post cid" } },
+        () => {
+          expect(
+            utils.getAccountCommentPostCid({
+              parentCid: "parent cid",
+              postCid: "caller post cid",
+            } as any),
+          ).toBe("caller post cid");
+        },
+      );
+    });
+
+    test("returns undefined for a post", () => {
+      expect(utils.getAccountCommentPostCid({} as any)).toBeUndefined();
+    });
+
+    for (const [storeName, store] of stores) {
+      test(`direct reply to a post in ${storeName} uses the parent cid`, () => {
+        withComments(store, { "post cid": { cid: "post cid", depth: 0 } }, () => {
+          expect(utils.getAccountCommentPostCid({ parentCid: "post cid" } as any)).toBe("post cid");
+        });
+      });
+
+      test(`nested reply uses the postCid of the parent in ${storeName}`, () => {
+        withComments(
+          store,
+          { "reply cid": { cid: "reply cid", depth: 2, postCid: "post cid" } },
+          () => {
+            expect(utils.getAccountCommentPostCid({ parentCid: "reply cid" } as any)).toBe(
+              "post cid",
+            );
+          },
+        );
+      });
+    }
+
+    test("falls through to a later cache when an earlier one has no usable parent data", () => {
+      withComments(commentsStore, { "reply cid": { cid: "reply cid" } }, () => {
+        withComments(
+          communitiesPagesStore,
+          { "reply cid": { cid: "reply cid", depth: 1, postCid: "post cid" } },
+          () => {
+            expect(utils.getAccountCommentPostCid({ parentCid: "reply cid" } as any)).toBe(
+              "post cid",
+            );
+          },
+        );
+      });
+    });
+
+    test("uses an additional parent candidate when the caches don't have the parent", () => {
+      expect(
+        utils.getAccountCommentPostCid({ parentCid: "post cid" } as any, undefined, {
+          cid: "post cid",
+          depth: 0,
+        }),
+      ).toBe("post cid");
+      expect(
+        utils.getAccountCommentPostCid({ parentCid: "reply cid" } as any, {
+          cid: "reply cid",
+          depth: 1,
+          postCid: "post cid",
+        }),
+      ).toBe("post cid");
+    });
+
+    test("returns undefined when the ancestry is unavailable", () => {
+      expect(utils.getAccountCommentPostCid({ parentCid: "nonexistent" } as any)).toBeUndefined();
+      // a nested parent that doesn't know its post yet
+      withComments(commentsStore, { "reply cid": { cid: "reply cid", depth: 1 } }, () => {
+        expect(utils.getAccountCommentPostCid({ parentCid: "reply cid" } as any)).toBeUndefined();
+      });
+    });
+  });
+
+  describe("addShortCommunityAddressToAccountPublication", () => {
+    beforeAll(() => setPkcJs(PkcJsMock));
+    afterAll(() => restorePkcJs());
+
+    test("adds shortCommunityAddress without changing the stored record", () => {
+      const vote = { commentCid: "cid", communityAddress: "community address", vote: 1 };
+      const enriched = utils.addShortCommunityAddressToAccountPublication(vote);
+      expect(enriched).toEqual({
+        ...vote,
+        shortCommunityAddress: PkcJsMock.getShortAddress({ address: "community address" }),
+      });
+      expect(vote).not.toHaveProperty("shortCommunityAddress");
+      // the same record gives the same result object
+      expect(utils.addShortCommunityAddressToAccountPublication(vote)).toBe(enriched);
+    });
+
+    test("returns records it cannot or need not enrich as they are", () => {
+      expect(utils.addShortCommunityAddressToAccountPublication(undefined)).toBeUndefined();
+      // e.g. the neutral vote restored after an abandoned first vote
+      const neutralVote = { commentCid: "cid", vote: 0 };
+      expect(utils.addShortCommunityAddressToAccountPublication(neutralVote)).toBe(neutralVote);
+      const alreadyShort = { communityAddress: "community address", shortCommunityAddress: "x" };
+      expect(utils.addShortCommunityAddressToAccountPublication(alreadyShort)).toBe(alreadyShort);
+    });
+
+    test("returns the record as is when the short address cannot be derived", () => {
+      const getShortAddress = PkcJsModule.PKC.getShortAddress;
+      PkcJsModule.PKC.getShortAddress = () => {
+        throw Error("invalid address");
+      };
+      try {
+        const edit = { commentCid: "cid", communityAddress: "community address" };
+        expect(utils.addShortCommunityAddressToAccountPublication(edit)).toBe(edit);
+      } finally {
+        PkcJsModule.PKC.getShortAddress = getShortAddress;
+      }
+    });
+  });
+
   describe("getFreshestLoadedComment", () => {
     test("returns the freshest matching comment across comment page stores", () => {
       const commentCid = "freshest-loaded-comment";

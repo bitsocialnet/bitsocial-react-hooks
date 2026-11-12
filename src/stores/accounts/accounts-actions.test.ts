@@ -895,6 +895,110 @@ describe("accounts-actions", () => {
       );
     });
 
+    describe("pending reply postCid", () => {
+      const publishReply = async (options: any) => {
+        const account = Object.values(accountsStore.getState().accounts)[0];
+        const createComment = vi.spyOn(account.pkc, "createComment");
+        const { index } = await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "reply",
+          onChallenge: () => {},
+          onChallengeVerification: () => {},
+          ...options,
+        });
+        const pendingComment = accountsStore.getState().accountsComments[account.id][index];
+        const storedComment = (await accountsDatabase.getAccountComments(account.id))[index];
+        await accountsActions.deleteComment(index);
+        return { pendingComment, storedComment, createComment };
+      };
+
+      test("a direct reply to a post gets the post cid", async () => {
+        commentsStore.setState(({ comments }: any) => ({
+          comments: { ...comments, "post cid": { cid: "post cid", depth: 0 } },
+        }));
+        const { pendingComment, storedComment, createComment } = await publishReply({
+          parentCid: "post cid",
+        });
+        expect(pendingComment.cid).toBeUndefined();
+        expect(pendingComment.postCid).toBe("post cid");
+        expect(pendingComment.depth).toBe(1);
+        expect(storedComment.postCid).toBe("post cid");
+        // the derived value is local metadata only, the publication is what the caller passed
+        expect(createComment.mock.calls[0][0].postCid).toBeUndefined();
+      });
+
+      test("a nested reply gets its parent's postCid", async () => {
+        commentsStore.setState(({ comments }: any) => ({
+          comments: {
+            ...comments,
+            "reply cid": { cid: "reply cid", depth: 1, postCid: "post cid" },
+          },
+        }));
+        const { pendingComment, storedComment } = await publishReply({ parentCid: "reply cid" });
+        expect(pendingComment.postCid).toBe("post cid");
+        expect(pendingComment.depth).toBe(2);
+        expect(storedComment.postCid).toBe("post cid");
+      });
+
+      test("a reply to the account's own comment that only the accounts store has gets its post cid", async () => {
+        const account = Object.values(accountsStore.getState().accounts)[0];
+        const setOwnComments = (ownComments: any[]) =>
+          accountsStore.setState(({ accountsComments }) => ({
+            accountsComments: { ...accountsComments, [account.id]: ownComments },
+            commentCidsToAccountsComments: Object.fromEntries(
+              ownComments.map((comment, accountCommentIndex) => [
+                comment.cid,
+                { accountId: account.id, accountCommentIndex },
+              ]),
+            ),
+          }));
+        const ownPost = { cid: "own post cid", depth: 0, index: 0, accountId: account.id };
+        const ownReply = {
+          cid: "own reply cid",
+          depth: 1,
+          postCid: "post cid",
+          index: 1,
+          accountId: account.id,
+        };
+        setOwnComments([ownPost, ownReply]);
+        const publishOwnReply = async (parentCid: string) => {
+          const { index } = await accountsActions.publishComment({
+            communityAddress: "sub.eth",
+            content: "reply",
+            parentCid,
+            onChallenge: () => {},
+            onChallengeVerification: () => {},
+          });
+          return accountsStore.getState().accountsComments[account.id][index].postCid;
+        };
+        expect(await publishOwnReply("own post cid")).toBe("own post cid");
+        expect(await publishOwnReply("own reply cid")).toBe("post cid");
+      });
+
+      test("a caller-supplied postCid is never overwritten", async () => {
+        commentsStore.setState(({ comments }: any) => ({
+          comments: {
+            ...comments,
+            "reply cid": { cid: "reply cid", depth: 1, postCid: "post cid" },
+          },
+        }));
+        const { pendingComment, createComment } = await publishReply({
+          parentCid: "reply cid",
+          postCid: "caller post cid",
+        });
+        expect(pendingComment.postCid).toBe("caller post cid");
+        expect(createComment.mock.calls[0][0].postCid).toBe("caller post cid");
+      });
+
+      test("stays undefined when the parent is not in any cache", async () => {
+        const { pendingComment, storedComment } = await publishReply({
+          parentCid: "unknown parent cid",
+        });
+        expect(pendingComment.postCid).toBeUndefined();
+        expect("postCid" in storedComment).toBe(false);
+      });
+    });
+
     test("publishComment does not inherit the account comment chain for another author address", async () => {
       const account = Object.values(accountsStore.getState().accounts)[0];
       const createComment = vi.spyOn(account.pkc, "createComment");
@@ -2177,6 +2281,110 @@ describe("accounts-actions", () => {
       expect(Object.keys(accounts).length).toBeGreaterThan(0);
     });
 
+    describe("account createdAt", () => {
+      const getAccountByName = (name: string) => {
+        const { accounts, accountNamesToAccountIds } = accountsStore.getState();
+        return accounts[accountNamesToAccountIds[name]];
+      };
+
+      test("a created account keeps its createdAt through setAccount and a reload", async () => {
+        const before = Math.floor(Date.now() / 1000);
+        await act(async () => {
+          await accountsActions.createAccount("Created");
+        });
+        const { createdAt, id } = getAccountByName("Created");
+        expect(createdAt).toBeGreaterThanOrEqual(before);
+        expect(createdAt).toBeLessThanOrEqual(Math.floor(Date.now() / 1000));
+
+        await act(async () => {
+          await accountsActions.setAccount({
+            ...getAccountByName("Created"),
+            author: { ...getAccountByName("Created").author, displayName: "renamed" },
+          });
+        });
+        expect(getAccountByName("Created").createdAt).toBe(createdAt);
+
+        await testUtils.resetStores();
+        await vi.waitFor(() => expect(accountsStore.getState().accounts[id]).toBeDefined());
+        expect(accountsStore.getState().accounts[id].createdAt).toBe(createdAt);
+      });
+
+      test("export and import keep the original createdAt", async () => {
+        await act(async () => {
+          await accountsActions.createAccount("Portable createdAt");
+        });
+        const exported = JSON.parse(await accountsActions.exportAccount("Portable createdAt"));
+        expect(exported.account.createdAt).toBe(getAccountByName("Portable createdAt").createdAt);
+
+        // imported later, on another device
+        exported.account.createdAt = 1_600_000_000;
+        exported.account.name = "Imported createdAt";
+        await act(async () => {
+          await accountsActions.importAccount(JSON.stringify(exported));
+        });
+        const imported = getAccountByName("Imported createdAt");
+        expect(imported.createdAt).toBe(1_600_000_000);
+        const stored: any = await accountsDatabase.accountsDatabase.getItem(imported.id);
+        expect(stored.createdAt).toBe(1_600_000_000);
+      });
+
+      test("a legacy account without createdAt stays unknown", async () => {
+        await act(async () => {
+          await accountsActions.createAccount("Legacy source");
+        });
+        const exported = JSON.parse(await accountsActions.exportAccount("Legacy source"));
+        delete exported.account.createdAt;
+        exported.account.name = "Legacy";
+        await act(async () => {
+          await accountsActions.importAccount(JSON.stringify(exported));
+        });
+        const legacy = getAccountByName("Legacy");
+        expect(legacy.createdAt).toBeUndefined();
+
+        // neither editing nor reloading the account invents a date
+        await act(async () => {
+          await accountsActions.setAccount({
+            ...legacy,
+            author: { ...legacy.author, displayName: "legacy" },
+          });
+        });
+        expect(getAccountByName("Legacy").createdAt).toBeUndefined();
+        await testUtils.resetStores();
+        await vi.waitFor(() => expect(accountsStore.getState().accounts[legacy.id]).toBeDefined());
+        const reloaded = accountsStore.getState().accounts[legacy.id];
+        expect(reloaded.createdAt).toBeUndefined();
+        expect(
+          JSON.parse(await accountsActions.exportAccount("Legacy")).account,
+        ).not.toHaveProperty("createdAt");
+      });
+
+      test("createdAt is not sent in publications", async () => {
+        const account = Object.values(accountsStore.getState().accounts)[0];
+        expect(typeof account.createdAt).toBe("number");
+        const createComment = vi.spyOn(account.pkc, "createComment");
+        const createVote = vi.spyOn(account.pkc, "createVote");
+        await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "content",
+          onChallenge: () => {},
+          onChallengeVerification: () => {},
+        });
+        await accountsActions.publishVote({
+          communityAddress: "sub.eth",
+          commentCid: "comment cid",
+          vote: 1,
+          onChallenge: () => {},
+          onChallengeVerification: () => {},
+        });
+        for (const [options] of [...createComment.mock.calls, ...createVote.mock.calls]) {
+          expect(options).not.toHaveProperty("createdAt");
+          expect(options.author).not.toHaveProperty("createdAt");
+        }
+        expect(createComment).toHaveBeenCalled();
+        expect(createVote).toHaveBeenCalled();
+      });
+    });
+
     test("importAccount when name exists adds ' 2'", async () => {
       await act(async () => {
         await accountsActions.createAccount("Second");
@@ -2366,6 +2574,168 @@ describe("accounts-actions", () => {
         await accountsActions.deleteCommunity(sub.address, "DelSubAccount");
       });
       // no throw = success
+    });
+
+    test("deleteCommunity removes the community from the deleting account only and persists it", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("DelOwner");
+        await accountsActions.createAccount("DelOther");
+      });
+      let sub: any;
+      await act(async () => {
+        sub = await accountsActions.createCommunity({ title: "To delete" }, "DelOwner");
+      });
+      const getAccountByName = (name: string) => {
+        const { accounts, accountNamesToAccountIds } = accountsStore.getState();
+        return accounts[accountNamesToAccountIds[name]];
+      };
+      const role = { role: "moderator" };
+      for (const name of ["DelOwner", "DelOther"]) {
+        await act(async () => {
+          await accountsActions.setAccount({
+            ...getAccountByName(name),
+            communities: { [sub.address]: { role }, "unrelated.bso": { role } },
+          });
+        });
+      }
+
+      await act(async () => {
+        await accountsActions.deleteCommunity(sub.address, "DelOwner");
+      });
+
+      expect(getAccountByName("DelOwner").communities).toEqual({ "unrelated.bso": { role } });
+      expect(getAccountByName("DelOther").communities).toEqual({
+        [sub.address]: { role },
+        "unrelated.bso": { role },
+      });
+
+      // the removal survives a reload from the database
+      const ownerId = getAccountByName("DelOwner").id;
+      const otherId = getAccountByName("DelOther").id;
+      await testUtils.resetStores();
+      await vi.waitFor(() => expect(accountsStore.getState().accounts[ownerId]).toBeDefined());
+      expect(accountsStore.getState().accounts[ownerId].communities).toEqual({
+        "unrelated.bso": { role },
+      });
+      expect(accountsStore.getState().accounts[otherId].communities[sub.address]).toEqual({
+        role,
+      });
+    });
+
+    test("deleteCommunity removes equivalent address aliases of the deleted community", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("DelAlias");
+      });
+      const getAccount = () => {
+        const { accounts, accountNamesToAccountIds } = accountsStore.getState();
+        return accounts[accountNamesToAccountIds["DelAlias"]];
+      };
+      const role = { role: "admin" };
+      await act(async () => {
+        await accountsActions.setAccount({
+          ...getAccount(),
+          communities: {
+            "music.eth": { role },
+            "music.bso": { role },
+            "music-public-key": { role },
+            "musical.bso": { role },
+          },
+        });
+      });
+      // the communities store knows the other identifiers of the community being deleted
+      communitiesStore.setState((state: any) => ({
+        communities: {
+          ...state.communities,
+          "music.bso": { address: "music.bso", name: "music.bso", publicKey: "music-public-key" },
+        },
+      }));
+
+      await act(async () => {
+        await accountsActions.deleteCommunity("music.bso", "DelAlias");
+      });
+
+      expect(getAccount().communities).toEqual({ "musical.bso": { role } });
+      const stored: any = await accountsDatabase.accountsDatabase.getItem(getAccount().id);
+      expect(stored.communities).toEqual({ "musical.bso": { role } });
+    });
+
+    test("deleteCommunity does not resurrect an account deleted while the community deletion is pending", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("DelRace");
+      });
+      const { accounts, accountNamesToAccountIds } = accountsStore.getState();
+      const account = accounts[accountNamesToAccountIds["DelRace"]];
+      await act(async () => {
+        await accountsActions.setAccount({
+          ...account,
+          communities: { "race.bso": { role: { role: "admin" } } },
+        });
+      });
+      let resolveDelete: Function = () => {};
+      const deleteSpy = vi
+        .spyOn(BaseCommunity.prototype, "delete")
+        .mockImplementationOnce(() => new Promise<void>((resolve) => (resolveDelete = resolve)));
+      // the account's record is removed, but the store has not dropped the account yet
+      let resolveRemoveAccount: Function = () => {};
+      const removeAccount = accountsDatabase.removeAccount;
+      const removeAccountSpy = vi
+        .spyOn(accountsDatabase, "removeAccount")
+        .mockImplementationOnce(async (accountToRemove: any) => {
+          await removeAccount(accountToRemove);
+          await new Promise<void>((resolve) => (resolveRemoveAccount = resolve));
+        });
+      try {
+        const deleteCommunityPromise = accountsActions.deleteCommunity("race.bso", "DelRace");
+        await vi.waitFor(() => expect(deleteSpy).toHaveBeenCalled());
+        const deleteAccountPromise = accountsActions.deleteAccount("DelRace");
+        await vi.waitFor(async () =>
+          expect(await accountsDatabase.accountsDatabase.getItem(account.id)).toBeNull(),
+        );
+        resolveDelete();
+        await deleteCommunityPromise;
+        resolveRemoveAccount();
+        await deleteAccountPromise;
+      } finally {
+        deleteSpy.mockRestore();
+        removeAccountSpy.mockRestore();
+      }
+      expect(await accountsDatabase.accountsDatabase.getItem(account.id)).toBeNull();
+      expect(await accountsDatabase.accountsMetadataDatabase.getItem("accountIds")).not.toContain(
+        account.id,
+      );
+
+      await testUtils.resetStores();
+      await vi.waitFor(() => expect(accountsStore.getState().activeAccountId).toBeDefined());
+      expect(accountsStore.getState().accounts[account.id]).toBeUndefined();
+      expect(accountsStore.getState().accountNamesToAccountIds["DelRace"]).toBeUndefined();
+    });
+
+    test("deleteCommunity keeps account data when the deletion fails", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("DelFails");
+      });
+      const getAccount = () => {
+        const { accounts, accountNamesToAccountIds } = accountsStore.getState();
+        return accounts[accountNamesToAccountIds["DelFails"]];
+      };
+      const role = { role: "admin" };
+      await act(async () => {
+        await accountsActions.setAccount({
+          ...getAccount(),
+          communities: { "fails.bso": { role } },
+        });
+      });
+      const deleteSpy = vi
+        .spyOn(BaseCommunity.prototype, "delete")
+        .mockRejectedValueOnce(new Error("delete failed"));
+      try {
+        await expect(accountsActions.deleteCommunity("fails.bso", "DelFails")).rejects.toThrow(
+          "delete failed",
+        );
+      } finally {
+        deleteSpy.mockRestore();
+      }
+      expect(getAccount().communities).toEqual({ "fails.bso": { role } });
     });
 
     test("deleteComment with accountName uses named account (by index)", async () => {

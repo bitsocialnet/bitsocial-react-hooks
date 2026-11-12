@@ -705,6 +705,10 @@ export interface UsePkcRpcSettingsResult extends Result {
  * https://github.com/pkcprotocol/pkc-js or
  * https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/docs/schema.md
  */
+// `account.createdAt` is the unix timestamp in seconds of when the account was generated, or
+// undefined for accounts created before the field existed. It stays undeclared for the same
+// weak-target reason as Comment below: a named optional field would stop Account from being
+// assignable to consumer shapes that have only optional fields.
 export type Account = { [key: string]: any };
 export type AccountsActions = { [key: string]: any };
 export type PublishCommentOptions = { [key: string]: any };

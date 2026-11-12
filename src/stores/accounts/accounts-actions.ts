@@ -46,6 +46,7 @@ import {
   getAccountEditPropertySummary,
   fetchCommentLinkDimensions,
   getAccountCommentDepth,
+  getAccountCommentPostCid,
   addShortAddressesToAccountComment,
   sanitizeAccountCommentForState,
   sanitizeStoredAccountComment,
@@ -57,6 +58,15 @@ import { v4 as uuid } from "uuid";
 import utils from "../../lib/utils";
 import { addOptimisticVoteMetadata } from "../../lib/utils/optimistic-vote-counts";
 import { applyCommunityWordfilters } from "../../lib/wordfilters";
+import { doesAddressMatchCommunityRef } from "../../lib/community-ref";
+
+const getAccountCommentByCid = (commentCid?: string) => {
+  const { commentCidsToAccountsComments, accountsComments } = accountsStore.getState();
+  const accountCommentInfo = commentCid ? commentCidsToAccountsComments[commentCid] : undefined;
+  return accountCommentInfo
+    ? accountsComments[accountCommentInfo.accountId]?.[accountCommentInfo.accountCommentIndex]
+    : undefined;
+};
 
 const PUBLICATION_COMMUNITY_LOAD_TIMEOUT_MS = 30_000;
 const COMMENT_AUTHOR_LOAD_TIMEOUT_MS = 10_000;
@@ -1447,6 +1457,12 @@ export const publishComment = async (
         ...normalizePublicationOptionsForStore(createCommentOptions),
         // try to get comment depth needed for custom depth flat account replies
         depth: getAccountCommentDepth(createCommentOptions),
+        // try to get the post cid so a pending reply can link to its thread
+        postCid: getAccountCommentPostCid(
+          createCommentOptions,
+          // the parent can be a comment of a local account that only the accounts store has so far
+          getAccountCommentByCid(createCommentOptions.parentCid),
+        ),
         index,
         accountId: account.id,
       }),
@@ -2794,6 +2810,46 @@ export const deleteCommunity = async (communityAddress: string, accountName?: st
     account = accounts[accountId];
   }
 
+  // read the other identifiers of the community (name, public key) before the store forgets them
+  const deletedCommunity = communitiesStore.getState().communities[communityAddress];
   await communitiesStore.getState().deleteCommunity(communityAddress, account);
+
+  // remove the deleted community from the deleting account's stored communities, under every
+  // address it is known by, or useAccountCommunities keeps listing it. Other local accounts keep
+  // their entry: they did not delete the community
+  const isDeletedCommunity = (accountCommunityAddress: string) =>
+    doesAddressMatchCommunityRef(
+      accountCommunityAddress,
+      { address: communityAddress },
+      deletedCommunity,
+    );
+  // a saveComment still writing has the database ahead of the store: let it merge first, or the
+  // store snapshot written below drops its saved comment
+  while (savedCommentMutationQueues.has(account.id)) {
+    await savedCommentMutationQueues.get(account.id)?.catch(() => {});
+  }
+  // the account was deleted while the community was: writing it would restore its record
+  if (isAccountDeleted(account.id)) {
+    return;
+  }
+  let updatedAccount: Account | undefined;
+  accountsStore.setState(({ accounts }) => {
+    const currentAccount = accounts[account.id];
+    const addressesToRemove = Object.keys(currentAccount?.communities || {}).filter(
+      isDeletedCommunity,
+    );
+    if (!addressesToRemove.length) {
+      return {};
+    }
+    const communities = { ...currentAccount.communities };
+    for (const address of addressesToRemove) {
+      delete communities[address];
+    }
+    updatedAccount = { ...currentAccount, communities };
+    return { accounts: { ...accounts, [account.id]: updatedAccount } };
+  });
+  if (updatedAccount) {
+    await accountsDatabase.addAccount(updatedAccount);
+  }
   log("accountsActions.deleteCommunity", { communityAddress });
 };

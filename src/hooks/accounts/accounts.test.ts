@@ -143,6 +143,27 @@ describe("accounts", () => {
 
     // test.todo('default generated account has all the data defined in schema, like signer, author, pkcOptions, etc')
 
+    test("useAccount and useAccounts expose createdAt, which survives a reload", async () => {
+      const before = Math.floor(Date.now() / 1000);
+      const render = () =>
+        renderHook<any, any>(() => {
+          const account = useAccount();
+          const { accounts } = useAccounts();
+          return { account, accounts };
+        });
+      let rendered = render();
+      await testUtils.createWaitFor(rendered)(() => rendered.result.current.account);
+      const { createdAt } = rendered.result.current.account;
+      expect(createdAt).toBeGreaterThanOrEqual(before);
+      expect(createdAt).toBeLessThanOrEqual(Math.floor(Date.now() / 1000));
+      expect(rendered.result.current.accounts[0].createdAt).toBe(createdAt);
+
+      await testUtils.resetStores();
+      rendered = render();
+      await testUtils.createWaitFor(rendered)(() => rendered.result.current.account);
+      expect(rendered.result.current.account.createdAt).toBe(createdAt);
+    });
+
     test("create new accounts", async () => {
       const rendered = renderHook<any, any>((accountName) => {
         const account = useAccount({ accountName });
@@ -488,6 +509,95 @@ describe("accounts", () => {
 
       afterEach(async () => {
         await testUtils.resetDatabasesAndStores();
+      });
+
+      test("account votes and edits have shortCommunityAddress", async () => {
+        const shortCommunityAddress = PkcJsMock.getShortAddress({ address: communityAddress });
+        await waitFor(
+          () =>
+            rendered.result.current.accountVotes.length === 2 &&
+            rendered.result.current.accountEdits.length === 2,
+        );
+        for (const publication of [
+          ...rendered.result.current.accountVotes,
+          ...rendered.result.current.accountEdits,
+        ]) {
+          expect(publication.communityAddress).toBe(communityAddress);
+          expect(publication.shortCommunityAddress).toBe(shortCommunityAddress);
+          // votes and edits don't store their author, so there is no author.shortAddress to add
+          expect(publication.author).toBeUndefined();
+        }
+
+        // useAccountVote and the filters get the same records
+        const filter = (publication: any) =>
+          publication.shortCommunityAddress === shortCommunityAddress;
+        const rendered2 = renderHook<any, any>(() => ({
+          vote: useAccountVote({ commentCid: "comment cid 1" }),
+          noVote: useAccountVote({ commentCid: "never voted cid" }),
+          filteredVotes: useAccountVotes({ filter }).accountVotes,
+          filteredEdits: useAccountEdits({ filter }).accountEdits,
+        }));
+        await testUtils.createWaitFor(rendered2)(
+          () => rendered2.result.current.filteredEdits.length === 2,
+        );
+        expect(rendered2.result.current.vote.shortCommunityAddress).toBe(shortCommunityAddress);
+        expect(rendered2.result.current.noVote.shortCommunityAddress).toBeUndefined();
+        expect(rendered2.result.current.filteredVotes.length).toBe(2);
+        expect(rendered2.result.current.filteredEdits.length).toBe(2);
+
+        // the records keep their identity between renders
+        const { filteredVotes, filteredEdits } = rendered2.result.current;
+        rendered2.rerender();
+        expect(rendered2.result.current.filteredVotes[0]).toBe(filteredVotes[0]);
+        expect(rendered2.result.current.filteredEdits[0]).toBe(filteredEdits[0]);
+      });
+
+      test("stored account votes and edits get shortCommunityAddress without being rewritten", async () => {
+        const shortCommunityAddress = PkcJsMock.getShortAddress({ address: communityAddress });
+        await waitFor(
+          () =>
+            rendered.result.current.accountVotes.length === 2 &&
+            rendered.result.current.accountEdits.length === 2,
+        );
+        const accountName = rendered.result.current.account.name;
+        const getStoredHistory = async () => {
+          const { accountVotes, accountEdits } = JSON.parse(
+            await accountsActions.exportAccount(accountName),
+          );
+          return { accountVotes, accountEdits };
+        };
+        // local history is stored without the field, like the history of earlier versions
+        const storedHistory = await getStoredHistory();
+        expect(storedHistory.accountVotes.length).toBe(2);
+        expect(storedHistory.accountEdits.length).toBe(2);
+        for (const publication of [...storedHistory.accountVotes, ...storedHistory.accountEdits]) {
+          expect(publication).not.toHaveProperty("shortCommunityAddress");
+        }
+
+        // reset stores to force using the db
+        await testUtils.resetStores();
+        const rendered2 = renderHook<any, any>(() => ({
+          accountVotes: useAccountVotes().accountVotes,
+          accountEdits: useAccountEdits().accountEdits,
+          editedComment: useEditedComment({
+            comment: { cid: "comment cid 1", communityAddress, spoiler: true },
+          }),
+        }));
+        await testUtils.createWaitFor(rendered2)(
+          () =>
+            rendered2.result.current.accountVotes.length === 2 &&
+            rendered2.result.current.accountEdits.length === 2,
+        );
+        for (const publication of [
+          ...rendered2.result.current.accountVotes,
+          ...rendered2.result.current.accountEdits,
+        ]) {
+          expect(publication.shortCommunityAddress).toBe(shortCommunityAddress);
+        }
+        // the derived field is not an edited property of the comment
+        expect(rendered2.result.current.editedComment.succeededEdits).toEqual({ spoiler: true });
+        expect(rendered2.result.current.editedComment.pendingEdits).toEqual({});
+        expect(await getStoredHistory()).toEqual(storedHistory);
       });
 
       test("published comment has comment.author.previousCommentCid", async () => {
@@ -3117,6 +3227,74 @@ describe("accounts", () => {
       // useCommunity is edited
       await waitFor(() => rendered.result.current.community.address === undefined);
       expect(rendered.result.current.community.address).toBe(undefined);
+    });
+
+    test("deleted community is removed from useAccountCommunities and stays removed after reload", async () => {
+      const createdCommunityAddress = "created community address";
+      const otherCommunityAddress = "moderating community address";
+      // every community the account fetches gives it a moderator role
+      const role = { role: "moderator" };
+      const authorAddress = rendered.result.current.account.author.address;
+      const rolesToGet = Community.prototype.rolesToGet;
+      Community.prototype.rolesToGet = () => ({ [authorAddress]: role });
+      try {
+        await act(async () => {
+          await rendered.result.current.createCommunity();
+        });
+        rendered.rerender(otherCommunityAddress);
+        // both roles are stored in account.communities
+        await waitFor(
+          () =>
+            rendered.result.current.account.communities[createdCommunityAddress]?.role &&
+            rendered.result.current.account.communities[otherCommunityAddress]?.role &&
+            rendered.result.current.accountCommunities[createdCommunityAddress]?.role?.role ===
+              "owner",
+        );
+        expect(rendered.result.current.account.communities[createdCommunityAddress].role).toEqual(
+          role,
+        );
+        expect(
+          rendered.result.current.accountCommunities[createdCommunityAddress]?.role?.role,
+        ).toBe("owner");
+
+        await act(async () => {
+          await rendered.result.current.deleteCommunity(createdCommunityAddress);
+        });
+        expect(rendered.result.current.account.communities[createdCommunityAddress]).toBe(
+          undefined,
+        );
+        await waitFor(
+          () => rendered.result.current.accountCommunities[createdCommunityAddress] === undefined,
+        );
+        expect(rendered.result.current.accountCommunities[createdCommunityAddress]).toBe(undefined);
+        expect(rendered.result.current.account.communities[createdCommunityAddress]).toBe(
+          undefined,
+        );
+        expect(rendered.result.current.accountCommunities[otherCommunityAddress].role).toEqual(
+          role,
+        );
+
+        // render again with new context and store
+        await testUtils.resetStores();
+        rendered = renderHook<any, any>(() => {
+          const account = useAccount();
+          const { accountCommunities } = useAccountCommunities();
+          return { account, accountCommunities };
+        });
+        waitFor = testUtils.createWaitFor(rendered);
+        await waitFor(
+          () => rendered.result.current.accountCommunities[otherCommunityAddress]?.role,
+        );
+        expect(rendered.result.current.accountCommunities[otherCommunityAddress].role).toEqual(
+          role,
+        );
+        expect(rendered.result.current.accountCommunities[createdCommunityAddress]).toBe(undefined);
+        expect(rendered.result.current.account.communities[createdCommunityAddress]).toBe(
+          undefined,
+        );
+      } finally {
+        Community.prototype.rolesToGet = rolesToGet;
+      }
     });
 
     test("create and edit owner community useCommunity persists after reload", async () => {

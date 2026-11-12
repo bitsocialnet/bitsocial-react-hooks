@@ -663,13 +663,19 @@ const communitiesStore = createStore<CommunitiesState>(
           });
           await communitiesDatabase.setItem(communityKey, updatedCommunity);
 
-          // if a community has a role with an account's address add it to the account.communities
-          accountsStore
-            .getState()
-            .accountsActionsInternal.addCommunityRoleToAccountsCommunities(updatedCommunity);
+          if (!getState().communities[communityKey]) {
+            // deleteCommunity removed the community during the write above: don't leave the record
+            // cached or give its roles back to the accounts the deletion just removed it from
+            await communitiesDatabase.removeItem(communityKey);
+          } else {
+            // if a community has a role with an account's address add it to the account.communities
+            accountsStore
+              .getState()
+              .accountsActionsInternal.addCommunityRoleToAccountsCommunities(updatedCommunity);
 
-          // add page comments to communitiesPagesStore so they can be used in useComment
-          communitiesPagesStore.getState().addCommunityPageCommentsToStore(updatedCommunity);
+            // add page comments to communitiesPagesStore so they can be used in useComment
+            communitiesPagesStore.getState().addCommunityPageCommentsToStore(updatedCommunity);
+          }
 
           endOpeningCommunityUpdate(communityKey, liveCommunity);
         });
