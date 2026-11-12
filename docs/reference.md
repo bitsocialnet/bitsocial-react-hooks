@@ -177,7 +177,7 @@ setAuthorAvatarsWhitelistedTokenAddresses(tokenAddresses: string[])
 #### Feeds Hooks
 
 ```
-useFeed({communities?: CommunityIdentifier[], sortType?: string, postsPerPage?: number, filter?: CommentsFilter, newerThan?: number, accountComments?: {newerThan: number, append?: boolean, limit?: number}, modQueue: ['pendingApproval']}): {feed: Comment[], loadMore: function, expandTimeWindow: function, hasMore: boolean, reset: function, updatedFeed: Comment[], bufferedFeed: Comment[], communityKeysWithNewerPosts: string[], communityKeysWithMore: string[], communityKeysWithUnavailableSort: string[]}
+useFeed({communities?: CommunityIdentifier[], sortType?: string, postsPerPage?: number, filter?: CommentsFilter, newerThan?: number, accountComments?: {newerThan: number, append?: boolean, limit?: number}, modQueue: ['pendingApproval'], includeBlockedCids?: boolean}): {feed: Comment[], loadMore: function, expandTimeWindow: function, hasMore: boolean, reset: function, updatedFeed: Comment[], bufferedFeed: Comment[], communityKeysWithNewerPosts: string[], communityKeysWithMore: string[], communityKeysWithUnavailableSort: string[]}
 useBufferedFeeds({feedsOptions: UseFeedOptions[]}) // preload or buffer feeds in the background, so they load faster when you call `useFeed`
 ```
 
@@ -1321,6 +1321,19 @@ block();
 // to unblock
 unblock();
 ```
+
+Feeds leave out the posts whose cid the account blocked. Use `includeBlockedCids` to keep them in a feed, for example to count the hidden posts or to offer an "unhide all" view:
+
+```jsx
+const account = useAccount();
+const { feed } = useFeed({
+  communities: [{ name: communityAddress }],
+  includeBlockedCids: true,
+});
+const hiddenPosts = feed.filter((post) => account.blockedCids[post.cid]);
+```
+
+`includeBlockedCids` only opts out of the blocked cids: posts from blocked communities and blocked authors (`useBlock({address})`) and posts rejected by `filter` are still left out. It is a `useFeed` option; `useReplies` and `useBufferedFeeds` do not have it (replies are not filtered by blocked cids).
 
 #### Save a comment
 

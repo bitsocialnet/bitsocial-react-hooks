@@ -151,7 +151,8 @@ export const getFilteredSortedFeeds = (
   for (const feedName in feedsOptions) {
     const communityRefs = getFeedCommunityRefs(feedsOptions[feedName]);
     const communityKeys = getFeedCommunityKeys(feedsOptions[feedName]);
-    let { sortType, accountId, filter, newerThan, modQueue } = feedsOptions[feedName];
+    let { sortType, accountId, filter, newerThan, modQueue, includeBlockedCids } =
+      feedsOptions[feedName];
     const newerThanTimestamp = newerThan ? Math.floor(Date.now() / 1000) - newerThan : undefined;
 
     let pageType = "posts";
@@ -290,8 +291,8 @@ export const getFilteredSortedFeeds = (
         continue;
       }
 
-      // comment cid is blocked
-      if (accounts[accountId]?.blockedCids[post.cid]) {
+      // comment cid is blocked, unless the feed opted out of hiding blocked cids
+      if (!includeBlockedCids && accounts[accountId]?.blockedCids[post.cid]) {
         continue;
       }
 

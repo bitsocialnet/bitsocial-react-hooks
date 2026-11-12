@@ -342,6 +342,50 @@ describe("feeds utils", () => {
       expect(feeds.feed1).toHaveLength(0);
     });
 
+    test("includeBlockedCids keeps blocked cids, not blocked addresses", () => {
+      const communities = {
+        sub1: {
+          address: "sub1",
+          updatedAt: 1,
+          posts: {
+            pages: {
+              new: {
+                comments: [
+                  { cid: "c1", communityAddress: "sub1", timestamp: 1 },
+                  { cid: "c2", communityAddress: "sub1", timestamp: 2 },
+                  {
+                    cid: "c3",
+                    communityAddress: "sub1",
+                    timestamp: 3,
+                    author: { address: "blocked-author-addr" },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      };
+      const feedOptions = {
+        communities: toCommunities(["sub1"]),
+        sortType: "new",
+        accountId: mockAccountId,
+      };
+      const feedsOptions = {
+        default: feedOptions,
+        disabled: { ...feedOptions, includeBlockedCids: false },
+        enabled: { ...feedOptions, includeBlockedCids: true },
+      };
+      const accounts = makeMockAccounts({
+        blockedCids: { c2: true, c3: true },
+        blockedAddresses: { "blocked-author-addr": true },
+      });
+      const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, accounts);
+      expect(feeds.default.map((post: any) => post.cid)).toEqual(["c1"]);
+      expect(feeds.disabled.map((post: any) => post.cid)).toEqual(["c1"]);
+      // c2 is only hidden by its cid, c3 is still hidden by its blocked author
+      expect(feeds.enabled.map((post: any) => post.cid)).toEqual(["c2", "c1"]);
+    });
+
     test("skips post when author address is blocked", () => {
       const blockedAuthorAddr = "blocked-author-addr";
       const communities = {

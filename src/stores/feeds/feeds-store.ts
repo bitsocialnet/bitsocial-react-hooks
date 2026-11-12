@@ -168,6 +168,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
     newerThan?: number,
     accountComments?: FeedOptionsAccountComments,
     modQueue?: string[],
+    includeBlockedCids?: boolean,
   ) {
     // init here because must be called after async accounts store finished initializing
     initializeFeedsStore();
@@ -235,6 +236,12 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
       !modQueue || Array.isArray(modQueue),
       `addFeedToStore.addFeedToStore modQueue '${modQueue}' invalid`,
     );
+    assert(
+      includeBlockedCids === undefined ||
+        includeBlockedCids === null ||
+        typeof includeBlockedCids === "boolean",
+      `addFeedToStore.addFeedToStore includeBlockedCids '${includeBlockedCids}' invalid`,
+    );
 
     const { feedsOptions, updateFeeds } = getState();
     touchFeed(feedName);
@@ -256,6 +263,8 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
       accountComments,
       // TODO: allow multiple modQueue at once, fow now only use first in array
       modQueue,
+      // only set when enabled, feeds without the option keep the same options as before it existed
+      ...(includeBlockedCids === true ? { includeBlockedCids } : undefined),
     };
     log("feedsActions.addFeedToStore", feedOptions);
     setState(({ feedsOptions }: any) => ({

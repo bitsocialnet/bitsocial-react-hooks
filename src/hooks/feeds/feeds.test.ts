@@ -2058,6 +2058,64 @@ describe("feeds", () => {
       expectFeedToHaveCid(rendered.result.current.bufferedFeed, blockedCid);
     });
 
+    test("includeBlockedCids keeps blocked cids in the feed", async () => {
+      const communityAddresses = ["community address 1"];
+      const hasCid = (cid: string) =>
+        rendered.result.current.feed.some((comment: any) => comment?.cid === cid);
+
+      rendered.rerender({ communityAddresses, sortType: "new" });
+      await waitFor(() => rendered.result.current.feed.length > 0);
+      const feedCids = rendered.result.current.feed.map((comment: any) => comment.cid);
+      const blockedCid = feedCids[0];
+      expect(typeof blockedCid).toBe("string");
+      const feedNames = Object.keys(feedsStore.getState().feedsOptions);
+      expect(feedNames).toHaveLength(1);
+      // same name as before the option existed
+      expect(JSON.parse(feedNames[0])).toHaveLength(9);
+
+      // false is the default, it's the same feed
+      rendered.rerender({ communityAddresses, sortType: "new", includeBlockedCids: false });
+      expect(Object.keys(feedsStore.getState().feedsOptions)).toEqual(feedNames);
+
+      await act(async () => {
+        await accountsActions.blockCid(blockedCid);
+      });
+      const isBlocked = () =>
+        Object.values(accountsStore.getState().accounts).some(
+          (account: any) => account.blockedCids[blockedCid],
+        );
+      await waitFor(isBlocked);
+      expect(isBlocked()).toBe(true);
+
+      // a feed added after the block hides the blocked cid by default
+      rendered.rerender({ communityAddresses, sortType: "new", postsPerPage: postsPerPage - 1 });
+      await waitFor(() => rendered.result.current.feed.length === postsPerPage - 1);
+      expect(hasCid(blockedCid)).toBe(false);
+
+      // the option is another feed, with the same posts as before the block
+      rendered.rerender({ communityAddresses, sortType: "new", includeBlockedCids: true });
+      await waitFor(() => rendered.result.current.feed.length > 0);
+      expect(Object.keys(feedsStore.getState().feedsOptions).length).toBe(3);
+      expect(rendered.result.current.feed.map((comment: any) => comment.cid)).toEqual(feedCids);
+      expect(hasCid(blockedCid)).toBe(true);
+
+      await act(async () => {
+        await accountsActions.unblockCid(blockedCid);
+      });
+      expect(hasCid(blockedCid)).toBe(true);
+    });
+
+    test("invalid includeBlockedCids throws", () => {
+      expect(() =>
+        renderHook(() =>
+          useFeed({
+            communities: toCommunities(["community address 1"]),
+            includeBlockedCids: "true" as any,
+          }),
+        ),
+      ).toThrow(/includeBlockedCids/);
+    });
+
     test(`empty community.posts hasMore is false`, async () => {
       const update = Community.prototype.update;
       const updatedAt = Math.floor(Date.now() / 1000);

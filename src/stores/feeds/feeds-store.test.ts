@@ -928,6 +928,76 @@ describe("feeds store", () => {
     await waitFor(() => rendered.result.current.bufferedFeeds[feedName]?.length === 0);
   });
 
+  test("includeBlockedCids feed keeps a blocked cid that other feeds hide", async () => {
+    const communityAddresses = ["community address 1"];
+    const feedName = JSON.stringify([mockAccount?.id, "new", communityAddresses]);
+    const includeBlockedCidsFeedName = feedName + "includeBlockedCids";
+    const addFeed = (name: string, includeBlockedCids?: boolean) =>
+      rendered.result.current.addFeedToStore(
+        name,
+        toCommunities(communityAddresses),
+        communityAddresses,
+        "new",
+        mockAccount,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        includeBlockedCids,
+      );
+
+    act(() => {
+      addFeed(feedName);
+      addFeed(includeBlockedCidsFeedName, true);
+    });
+    await waitFor(
+      () =>
+        rendered.result.current.loadedFeeds[feedName]?.length > 0 &&
+        rendered.result.current.bufferedFeeds[includeBlockedCidsFeedName]?.length > 0,
+    );
+    // the option is only stored when enabled
+    expect("includeBlockedCids" in rendered.result.current.feedsOptions[feedName]).toBe(false);
+    expect(
+      rendered.result.current.feedsOptions[includeBlockedCidsFeedName].includeBlockedCids,
+    ).toBe(true);
+
+    const blockedCid = rendered.result.current.bufferedFeeds[feedName][0]?.cid;
+    expect(typeof blockedCid).toBe("string");
+    const blockedAccount = { ...mockAccount, blockedCids: { [blockedCid]: true } };
+    (accountsStore as any).getState = () => ({
+      accounts: { [mockAccount.id]: blockedAccount },
+      accountsActionsInternal: { addCidToAccountComment: async () => {} },
+    });
+    accountsStore.setState(() => ({
+      accounts: { [mockAccount.id]: blockedAccount },
+    }));
+
+    const hasBlockedCid = (name: string) =>
+      rendered.result.current.bufferedFeeds[name]?.some((post: any) => post.cid === blockedCid);
+    await waitFor(() => hasBlockedCid(feedName) === false);
+    expect(hasBlockedCid(feedName)).toBe(false);
+    expect(hasBlockedCid(includeBlockedCidsFeedName)).toBe(true);
+
+    await expect(
+      rendered.result.current.addFeedToStore(
+        feedName + "invalid",
+        toCommunities(communityAddresses),
+        communityAddresses,
+        "new",
+        mockAccount,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        "true",
+      ),
+    ).rejects.toThrow(/includeBlockedCids/);
+  });
+
   test("updateFeedsOnAccountsBlockedAddressesChange returns when blocked address is not in feed", async () => {
     const communityAddresses = ["community address 1"];
     const feedName = JSON.stringify([mockAccount?.id, "new", communityAddresses]);

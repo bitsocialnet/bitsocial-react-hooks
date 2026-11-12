@@ -292,6 +292,7 @@ export interface UseFeedOptions extends Options {
   accountComments?: FeedOptionsAccountComments;
   filter?: CommentsFilter;
   modQueue?: string[];
+  includeBlockedCids?: boolean; // keep the posts whose cid the account blocked (account.blockedCids) in the feed
 }
 export interface UseFeedResult extends Result {
   feed: Comment[];
@@ -828,6 +829,7 @@ export type FeedOptions = {
   newerThan?: number;
   accountComments?: FeedOptionsAccountComments;
   modQueue?: string[];
+  includeBlockedCids?: boolean;
 };
 export type FeedOptionsAccountComments = {
   newerThan?: number;

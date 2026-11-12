@@ -530,6 +530,7 @@ const validateUseFeedArguments = ({
   filter,
   newerThan,
   accountComments,
+  includeBlockedCids,
 }: any) => {
   validateCommunitiesArguments(communities, communityRefs, communityAddresses, "useFeed");
   assert(
@@ -573,6 +574,12 @@ const validateUseFeedArguments = ({
     assert(
       isValidAccountCommentsLimit(accountComments.limit),
       `useFeed accountComments.limit argument '${accountComments.limit}' not a non-negative integer`,
+    );
+  }
+  if (includeBlockedCids !== undefined && includeBlockedCids !== null) {
+    assert(
+      typeof includeBlockedCids === "boolean",
+      `useFeed includeBlockedCids argument '${includeBlockedCids}' not a boolean`,
     );
   }
 };

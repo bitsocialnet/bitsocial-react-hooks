@@ -51,6 +51,7 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
     newerThan,
     accountComments,
     modQueue,
+    includeBlockedCids,
   } = opts;
   validator.validateUseFeedArguments({
     communities,
@@ -62,6 +63,7 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
     filter,
     newerThan,
     accountComments,
+    includeBlockedCids,
   });
   const account = useAccount({ accountName });
   const accountVotes = useAccountsStore((state: any) =>
@@ -89,6 +91,7 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
     newerThan,
     accountComments,
     modQueue,
+    includeBlockedCids,
   );
   // errors belong to the feed they happened in, another feed starts without them. Drop them when
   // the feed changes (or when one lands after it changed) so they don't return with the old feed
@@ -130,6 +133,7 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
       newerThan,
       accountComments,
       modQueue,
+      includeBlockedCids,
     ).catch((error: unknown) => log.error("useFeed addFeedToStore error", { feedName, error }));
   }, [feedName]);
 
@@ -448,6 +452,7 @@ function useFeedName(
   newerThan?: number,
   accountComments?: UseFeedOptions["accountComments"],
   modQueue?: string[],
+  includeBlockedCids?: boolean,
 ) {
   const filterKey = filter?.key;
   const accountCommentsNewerThan = accountComments?.newerThan;
@@ -469,6 +474,9 @@ function useFeedName(
     if (accountCommentsLimit !== undefined) {
       feedKey.push(accountCommentsLimit);
     }
+    if (includeBlockedCids === true) {
+      feedKey.push(includeBlockedCids);
+    }
     return serializeFeedKey(feedKey);
   }, [
     accountId,
@@ -481,6 +489,7 @@ function useFeedName(
     accountCommentsAppend,
     accountCommentsLimit,
     modQueue?.toString(),
+    includeBlockedCids,
   ]);
 }
 
