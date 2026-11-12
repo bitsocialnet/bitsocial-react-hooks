@@ -732,4 +732,145 @@ describe("replies pages store", () => {
     expect(rendered.result.current.comments["shared-cid"].timestamp).toBe(100);
     expect(rendered.result.current.comments["shared-cid"].updatedAt).toBe(100);
   });
+
+  // a client whose replies page fetches fail, e.g. because its options point to a dead gateway
+  const createDeadGatewayPkc = () => ({
+    createComment: async ({ cid }: any) => {
+      const comment = new MockComment({ cid });
+      comment.replies.getPage = async () => {
+        throw Error("dead gateway");
+      };
+      return comment;
+    },
+  });
+
+  // a working client that counts its replies page fetches
+  const createWorkingPkc = () => {
+    const pkc: any = {
+      getPageCalls: 0,
+      createComment: async ({ cid }: any) => {
+        const comment = new MockComment({ cid });
+        const getPage = comment.replies.getPage.bind(comment.replies);
+        comment.replies.getPage = async (options: { cid: string }) => {
+          pkc.getPageCalls++;
+          return getPage(options);
+        };
+        return comment;
+      },
+    };
+    return pkc;
+  };
+
+  // retry failed page fetches every retryTimeout ms, with the accounts store holding getAccounts()
+  const mockRetriesAndAccounts = async (retryTimeout: number, getAccounts: () => any) => {
+    const utils = (await import("../../lib/utils")).default;
+    const { retryInfinityMinTimeout, retryInfinityMaxTimeout } = utils;
+    utils.retryInfinityMinTimeout = retryTimeout;
+    utils.retryInfinityMaxTimeout = retryTimeout;
+    const accountsGetState = accountsStore.getState;
+    (accountsStore as any).getState = () => ({ ...accountsGetState(), accounts: getAccounts() });
+    const logSpy = vi.spyOn(log, "error").mockImplementation(() => {});
+    const restore = () => {
+      logSpy.mockRestore();
+      (accountsStore as any).getState = accountsGetState;
+      utils.retryInfinityMinTimeout = retryInfinityMinTimeout;
+      utils.retryInfinityMaxTimeout = retryInfinityMaxTimeout;
+    };
+    return { logSpy, restore };
+  };
+
+  test("a failing replies page fetch continues with the pkc client setAccount gave its account, and loads the page", async () => {
+    const account: any = { id: "edited account id", pkc: createDeadGatewayPkc() };
+    let storedAccount = account;
+    const { logSpy, restore } = await mockRetriesAndAccounts(10, () => ({
+      [account.id]: storedAccount,
+    }));
+
+    try {
+      const comment = await mockAccount.pkc.createComment({ cid: "edited account comment cid" });
+      const sortType = "new";
+      const firstPageCid = comment.replies.pageCids[sortType];
+      const fetching = rendered.result.current.addNextRepliesPageToStore(
+        comment,
+        sortType,
+        account,
+      );
+      await tlWaitFor(() => expect(logSpy).toHaveBeenCalled());
+
+      // setAccount gives the account a new pkc client on every edit, e.g. of its display name, and
+      // nothing requests the page again
+      storedAccount = { ...account, pkc: createWorkingPkc() };
+      await act(async () => {
+        await fetching;
+      });
+      expect(useRepliesPagesStore.getState().repliesPages[firstPageCid]?.comments?.length).toBe(
+        100,
+      );
+    } finally {
+      restore();
+    }
+  });
+
+  test("a replies page fetch retrying with a replaced pkc client doesn't keep the new client waiting, and then takes the page the new client fetched", async () => {
+    const account: any = { id: "replaced pkc account id", pkc: createDeadGatewayPkc() };
+    let storedAccount = account;
+    // the old fetch sleeps 1.5 s between attempts, the new client doesn't wait for it
+    const { logSpy, restore } = await mockRetriesAndAccounts(1500, () => ({
+      [account.id]: storedAccount,
+    }));
+
+    try {
+      const comment = await mockAccount.pkc.createComment({ cid: "replaced pkc comment cid" });
+      const sortType = "new";
+      const firstPageCid = comment.replies.pageCids[sortType];
+      const fetchingWithDeadGateway = rendered.result.current.addNextRepliesPageToStore(
+        comment,
+        sortType,
+        account,
+      );
+      await tlWaitFor(() => expect(logSpy).toHaveBeenCalled());
+
+      // setAccount gave the account a new pkc client, e.g. after its options were fixed
+      const newPkc = createWorkingPkc();
+      storedAccount = { ...account, pkc: newPkc };
+      await act(async () => {
+        await rendered.result.current.addNextRepliesPageToStore(comment, sortType, storedAccount);
+      });
+      expect(useRepliesPagesStore.getState().repliesPages[firstPageCid]?.comments?.length).toBe(
+        100,
+      );
+
+      // once it wakes up, the old fetch continues with the new client and finds the page cached
+      await act(async () => {
+        await fetchingWithDeadGateway;
+      });
+      expect(newPkc.getPageCalls).toBe(1);
+    } finally {
+      restore();
+    }
+  });
+
+  test("a replies page fetch stops retrying once its account is deleted", async () => {
+    const account: any = { id: "deleted account id", pkc: createDeadGatewayPkc() };
+    let storedAccounts: any = { [account.id]: account };
+    const { logSpy, restore } = await mockRetriesAndAccounts(10, () => storedAccounts);
+
+    try {
+      const comment = await mockAccount.pkc.createComment({ cid: "deleted account comment cid" });
+      const fetchingWithDeadGateway = rendered.result.current.addNextRepliesPageToStore(
+        comment,
+        "new",
+        account,
+      );
+      await tlWaitFor(() => expect(logSpy).toHaveBeenCalled());
+
+      storedAccounts = {};
+      const stillRetrying = sleep(1000).then(() => "still retrying");
+      await expect(Promise.race([fetchingWithDeadGateway, stillRetrying])).rejects.toThrow(
+        "dead gateway",
+      );
+    } finally {
+      restore();
+    }
+  });
 });

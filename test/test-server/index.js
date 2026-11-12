@@ -1,12 +1,19 @@
 // script to start IPFS and pkc-js for testing
 
-import { offlineIpfs, pubsubIpfs, pkcRpc } from "./config.js";
+import { offlineIpfs, pubsubIpfs, pkcRpc, testServerReadyText } from "./config.js";
 import startIpfs from "./start-ipfs.js";
 import startPkcRpc from "./start-pkc-rpc.js";
 import signers from "../fixtures/signers.js";
 import { directory as getTmpFolderPath } from "tempy";
 import http from "http";
+import os from "os";
 const pkcDataPath = getTmpFolderPath();
+
+// a signal would kill node without emitting 'exit', and the 'exit' listeners
+// registered by startIpfs are what stop the kubo daemons
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, () => process.exit(128 + os.constants.signals[signal]));
+}
 
 // set up a community for testing
 (async () => {
@@ -82,7 +89,7 @@ const pkcDataPath = getTmpFolderPath();
     http
       .createServer((req, res) => {
         res.setHeader("Access-Control-Allow-Origin", "*");
-        res.end("test server ready");
+        res.end(testServerReadyText);
       })
       .listen(59281);
   });

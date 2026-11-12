@@ -790,6 +790,92 @@ describe("actions", () => {
       expect(rendered.result.current[0].communityExports).toEqual([]);
     });
 
+    // holds each exportCommunity() call of the store until its returned release() is called
+    const gateExportCommunity = () => {
+      const originalExportCommunity = useAccountsStore.getState().accountsActions.exportCommunity;
+      const releases: Function[] = [];
+      useAccountsStore.setState((state: any) => ({
+        ...state,
+        accountsActions: {
+          ...state.accountsActions,
+          exportCommunity: async (...args: any[]) => {
+            await new Promise((resolve) => releases.push(resolve));
+            return (originalExportCommunity as any)(...args);
+          },
+        },
+      }));
+      const restore = () =>
+        useAccountsStore.setState((state: any) => ({
+          ...state,
+          accountsActions: { ...state.accountsActions, exportCommunity: originalExportCommunity },
+        }));
+      return { releases, restore };
+    };
+
+    test("a late export of earlier options does not show as the current export", async () => {
+      const { releases, restore } = gateExportCommunity();
+      try {
+        rendered.rerender([{ communityAddress: "first-export-target.eth" }]);
+        await waitFor(() => rendered.result.current[0].state === "ready");
+        let firstExport!: Promise<void>;
+        act(() => {
+          firstExport = rendered.result.current[0].exportCommunity();
+        });
+        rendered.rerender([{ communityAddress: "second-export-target.eth" }]);
+        let secondExport!: Promise<void>;
+        act(() => {
+          secondExport = rendered.result.current[0].exportCommunity();
+        });
+        await waitFor(() => releases.length === 2);
+
+        releases[0]();
+        await act(async () => {
+          await firstExport;
+        });
+        expect(rendered.result.current[0].state).toBe("exporting");
+        expect(rendered.result.current[0].communityExports).toEqual([]);
+
+        releases[1]();
+        await act(async () => {
+          await secondExport;
+        });
+        expect(rendered.result.current[0].state).toBe("succeeded");
+        expect(rendered.result.current[0].communityExports).toEqual([
+          expect.objectContaining({ communityAddress: "second-export-target.eth" }),
+        ]);
+      } finally {
+        restore();
+      }
+    });
+
+    test("a new export does not show the previous export while it runs", async () => {
+      rendered.rerender([{ communityAddress: "previous-export-target.eth" }]);
+      await waitFor(() => rendered.result.current[0].state === "ready");
+      await act(async () => {
+        await rendered.result.current[0].exportCommunity();
+      });
+      await waitFor(() => rendered.result.current[0].state === "succeeded");
+
+      const { releases, restore } = gateExportCommunity();
+      try {
+        rendered.rerender([{ communityAddress: "next-export-target.eth" }]);
+        let nextExport!: Promise<void>;
+        act(() => {
+          nextExport = rendered.result.current[0].exportCommunity();
+        });
+        await waitFor(() => releases.length === 1);
+        expect(rendered.result.current[0].state).toBe("exporting");
+        expect(rendered.result.current[0].communityExports).toEqual([]);
+
+        releases[0]();
+        await act(async () => {
+          await nextExport;
+        });
+      } finally {
+        restore();
+      }
+    });
+
     test("can export multiple communities", async () => {
       const communityAddresses = ["export-many-1.eth", "export-many-2.eth"];
       rendered.rerender([{ communityAddresses }]);
@@ -1066,6 +1152,7 @@ describe("actions", () => {
         },
       }));
       const onPendingComment = vi.fn();
+      const abandonPendingComment = vi.fn(async () => {});
 
       try {
         rendered.rerender({
@@ -1086,8 +1173,9 @@ describe("actions", () => {
         });
         forwardedOptions.onPendingComment(0, { content: "too late" });
         expect(onPendingComment).not.toHaveBeenCalled();
-        forwardedOptions._onPendingCommentIndex(0, { content: "too late" });
+        forwardedOptions._onPendingCommentIndex(0, { content: "too late" }, abandonPendingComment);
         await abandonPromise;
+        expect(abandonPendingComment).toHaveBeenCalledOnce();
 
         resolvePublish({ index: 0 });
         await act(async () => {
@@ -1148,7 +1236,8 @@ describe("actions", () => {
       const deleteBlocked = new Promise<void>((resolve) => {
         releaseDelete = resolve;
       });
-      const deleteComment = vi.fn(async () => {
+      const deleteComment = vi.fn(async () => {});
+      const abandonPendingComment = vi.fn(async () => {
         await deleteBlocked;
       });
       useAccountsStore.setState((state: any) => ({
@@ -1184,9 +1273,14 @@ describe("actions", () => {
         void abandonPromise?.then(() => {
           abandonSettled = true;
         });
-        forwardedOptions._onPendingCommentIndex(1, { content: "pending deletion" });
+        forwardedOptions._onPendingCommentIndex(
+          1,
+          { content: "pending deletion" },
+          abandonPendingComment,
+        );
         await Promise.resolve();
-        expect(deleteComment).toHaveBeenCalledWith(1, undefined);
+        expect(abandonPendingComment).toHaveBeenCalledOnce();
+        expect(deleteComment).not.toHaveBeenCalled();
         expect(abandonSettled).toBe(false);
 
         releaseDelete();
@@ -1255,6 +1349,7 @@ describe("actions", () => {
         resolvePublish = resolve;
       });
       const deleteComment = vi.fn(async () => {});
+      const abandonPendingComment = vi.fn(async () => {});
       useAccountsStore.setState((state: any) => ({
         ...state,
         accountsActions: {
@@ -1290,12 +1385,17 @@ describe("actions", () => {
 
         rendered.unmount();
         forwardedOptions.onPendingComment(0, { content: "too late" });
-        forwardedOptions._onPendingCommentIndex(0, { content: "too late" });
+        forwardedOptions._onPendingCommentIndex(0, { content: "too late" }, abandonPendingComment);
         forwardedOptions.onChallenge({ type: "CHALLENGE" }, { content: "too late" });
         expect(onPendingComment).toHaveBeenCalledWith(0, { content: "too late" });
-        expect(onChallenge).toHaveBeenCalledWith({ type: "CHALLENGE" }, { content: "too late" });
+        expect(onChallenge).toHaveBeenCalledWith(
+          { type: "CHALLENGE" },
+          { content: "too late" },
+          expect.any(Function),
+        );
         await abandonPromise;
-        expect(deleteComment).toHaveBeenCalledWith(0, undefined);
+        expect(abandonPendingComment).toHaveBeenCalledOnce();
+        expect(deleteComment).not.toHaveBeenCalled();
 
         resolvePublish({ index: 0 });
         await publishPromise;
@@ -1529,6 +1629,195 @@ describe("actions", () => {
           publishComment: originalPublishComment,
         },
       }));
+    });
+
+    // publishes a comment whose challenge is never answered, so it stays pending
+    const publishPendingComment = (content: string, accountName?: string) =>
+      act(async () => {
+        await useAccountsStore.getState().accountsActions.publishComment(
+          {
+            communityAddress: "12D3KooW... actions.test shifted",
+            content,
+            onChallenge: async () => {},
+            onChallengeVerification: async () => {},
+          },
+          accountName,
+        );
+      });
+    const getAccountCommentContents = (accountId: string) =>
+      useAccountsStore.getState().accountsComments[accountId].map((comment) => comment.content);
+
+    test("abandon removes its own comment after an earlier comment of the account was deleted", async () => {
+      const { activeAccountId, accountsActions } = useAccountsStore.getState();
+      await publishPendingComment("earlier comment");
+      rendered.rerender({
+        communityAddress: "12D3KooW... actions.test shifted",
+        content: "hook comment",
+        onChallenge: async () => {},
+      });
+      await waitFor(() => rendered.result.current.state === "ready");
+      await act(async () => {
+        await rendered.result.current.publishComment();
+      });
+      await waitFor(() => rendered.result.current.index === 1);
+      await publishPendingComment("later comment");
+
+      await act(async () => {
+        await accountsActions.deleteComment(0);
+      });
+      await act(async () => {
+        await rendered.result.current.abandonPublish();
+      });
+
+      expect(getAccountCommentContents(activeAccountId!)).toEqual(["later comment"]);
+    });
+
+    test("index follows the pending comment when an earlier comment of the account is deleted", async () => {
+      const { accountsActions } = useAccountsStore.getState();
+      await publishPendingComment("earlier comment");
+      rendered.rerender({
+        communityAddress: "12D3KooW... actions.test shifted",
+        content: "hook comment",
+        onChallenge: async () => {},
+      });
+      await waitFor(() => rendered.result.current.state === "ready");
+      await act(async () => {
+        await rendered.result.current.publishComment();
+      });
+      await waitFor(() => rendered.result.current.index === 1);
+
+      await act(async () => {
+        await accountsActions.deleteComment(0);
+      });
+
+      await waitFor(() => rendered.result.current.index === 0);
+      expect(rendered.result.current.index).toBe(0);
+    });
+
+    test("abandon removes its comment from the account that published it after the active account changes", async () => {
+      const { activeAccountId: publishingAccountId, accountsActions } = useAccountsStore.getState();
+      await act(async () => {
+        await accountsActions.createAccount("Other Account");
+      });
+      const otherAccountId = useAccountsStore.getState().accountNamesToAccountIds["Other Account"];
+      await publishPendingComment("other account comment", "Other Account");
+      rendered.rerender({
+        communityAddress: "12D3KooW... actions.test shifted",
+        content: "hook comment",
+        onChallenge: async () => {},
+      });
+      await waitFor(() => rendered.result.current.state === "ready");
+      await act(async () => {
+        await rendered.result.current.publishComment();
+      });
+      await waitFor(() => rendered.result.current.index === 0);
+
+      await act(async () => {
+        await accountsActions.setActiveAccount("Other Account");
+      });
+      await act(async () => {
+        await rendered.result.current.abandonPublish();
+      });
+
+      expect(getAccountCommentContents(publishingAccountId!)).toEqual([]);
+      expect(getAccountCommentContents(otherAccountId)).toEqual(["other account comment"]);
+    });
+
+    test("a second publish keeps the hook state on the second publication", async () => {
+      const challenges: any[][] = [];
+      const onChallenge = async (...args: any[]) => {
+        challenges.push(args);
+      };
+      rendered.rerender({
+        communityAddress: "12D3KooW... actions.test overlapping",
+        content: "first overlapping",
+        onChallenge,
+      });
+      await waitFor(() => rendered.result.current.state === "ready");
+      await act(async () => {
+        await rendered.result.current.publishComment();
+      });
+      await waitFor(() => challenges.length === 1);
+      rendered.rerender({
+        communityAddress: "12D3KooW... actions.test overlapping",
+        content: "second overlapping",
+        onChallenge,
+      });
+      await act(async () => {
+        await rendered.result.current.publishComment();
+      });
+      await waitFor(() => rendered.result.current.state === "waiting-challenge-answers");
+      expect(challenges.length).toBe(2);
+
+      // the first publication succeeds while the hook shows the second one
+      await act(async () => {
+        await challenges[0][1].publishChallengeAnswers(["4"]);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await act(async () => {});
+
+      expect(rendered.result.current.index).toBe(1);
+      expect(rendered.result.current.challengeVerification).toBe(undefined);
+      expect(rendered.result.current.state).toBe("waiting-challenge-answers");
+    });
+
+    test("onChallenge receives an abandon for its own publication", async () => {
+      const { activeAccountId } = useAccountsStore.getState();
+      const challenges: any[][] = [];
+      const onChallenge = async (...args: any[]) => {
+        challenges.push(args);
+      };
+      rendered.rerender({
+        communityAddress: "12D3KooW... actions.test overlapping",
+        content: "first overlapping",
+        onChallenge,
+      });
+      await waitFor(() => rendered.result.current.state === "ready");
+      await act(async () => {
+        await rendered.result.current.publishComment();
+      });
+      await waitFor(() => challenges.length === 1);
+      rendered.rerender({
+        communityAddress: "12D3KooW... actions.test overlapping",
+        content: "second overlapping",
+        onChallenge,
+      });
+      await act(async () => {
+        await rendered.result.current.publishComment();
+      });
+      await waitFor(() => challenges.length === 2);
+
+      // cancelling the first challenge abandons the first publication only
+      await act(async () => {
+        await challenges[0][2]();
+      });
+
+      expect(getAccountCommentContents(activeAccountId!)).toEqual(["second overlapping"]);
+      await waitFor(() => rendered.result.current.index === 0);
+      expect(rendered.result.current.index).toBe(0);
+      expect(rendered.result.current.challenge).toBe(challenges[1][0]);
+      expect(rendered.result.current.state).toBe("waiting-challenge-answers");
+    });
+
+    test("abandon after the publication succeeded keeps the published comment", async () => {
+      const { activeAccountId } = useAccountsStore.getState();
+      rendered.rerender({
+        communityAddress: "12D3KooW... actions.test",
+        content: "published before abandon",
+        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+      });
+      await waitFor(() => rendered.result.current.state === "ready");
+      await act(async () => {
+        await rendered.result.current.publishComment();
+      });
+      await waitFor(() => rendered.result.current.state === "succeeded");
+      await waitFor(() => useAccountsStore.getState().accountsComments[activeAccountId!][0]?.cid);
+
+      await act(async () => {
+        await rendered.result.current.abandonPublish();
+      });
+
+      expect(getAccountCommentContents(activeAccountId!)).toEqual(["published before abandon"]);
     });
 
     test(`abandon is idempotent-safe (second call no-ops or fails predictably, does not corrupt state)`, async () => {
@@ -2178,6 +2467,180 @@ describe("actions", () => {
   });
 
   // retry usePublish because publishing state is flaky
+  describe("publish hooks state across publications", { retry: 3 }, () => {
+    afterEach(async () => {
+      await testUtils.resetDatabasesAndStores();
+    });
+
+    // the hooks read accountsActions during render, so flush the rerender before publishing again
+    const setStoreAction = (actionName: string, action: any) =>
+      act(async () => {
+        useAccountsStore.setState((state: any) => ({
+          ...state,
+          accountsActions: { ...state.accountsActions, [actionName]: action },
+        }));
+      });
+    const communityAddress = "12D3KooW... acions.test";
+    const publishHooks = [
+      {
+        name: "usePublishComment",
+        useHook: usePublishComment,
+        publish: "publishComment",
+        options: { communityAddress, content: "republished content" },
+      },
+      {
+        name: "usePublishVote",
+        useHook: usePublishVote,
+        publish: "publishVote",
+        options: { communityAddress, commentCid: "Qm... republished vote", vote: 1 },
+      },
+      {
+        name: "usePublishCommentEdit",
+        useHook: usePublishCommentEdit,
+        publish: "publishCommentEdit",
+        options: { communityAddress, commentCid: "Qm... acions.test", spoiler: true },
+      },
+      {
+        name: "usePublishCommentModeration",
+        useHook: usePublishCommentModeration,
+        publish: "publishCommentModeration",
+        options: {
+          communityAddress,
+          commentCid: "Qm... acions.test",
+          commentModeration: { locked: true },
+        },
+      },
+      {
+        name: "usePublishCommunityEdit",
+        useHook: usePublishCommunityEdit,
+        publish: "publishCommunityEdit",
+        options: { communityAddress, title: "new title" },
+      },
+    ];
+
+    test.each(publishHooks)(
+      "$name reports a rejected publish as failed without the previous publication's result",
+      async ({ useHook, publish, options }) => {
+        const rendered = renderHook<any, any>(() =>
+          (useHook as any)({
+            ...options,
+            onChallenge: (_challenge: any, publication: any) =>
+              publication.publishChallengeAnswers(["4"]),
+          }),
+        );
+        const waitFor = testUtils.createWaitFor(rendered);
+        await waitFor(() => rendered.result.current.state === "ready");
+        await act(async () => {
+          await rendered.result.current[publish]();
+        });
+        await waitFor(() => rendered.result.current.state === "succeeded");
+        expect(rendered.result.current.challengeVerification?.challengeSuccess).toBe(true);
+
+        const originalAction = (useAccountsStore.getState().accountsActions as any)[publish];
+        await setStoreAction(publish, async () => {
+          throw Error("store rejected the publication");
+        });
+        try {
+          await act(async () => {
+            await rendered.result.current[publish]();
+          });
+        } finally {
+          await setStoreAction(publish, originalAction);
+        }
+        expect(rendered.result.current.state).toBe("failed");
+        expect(rendered.result.current.error?.message).toBe("store rejected the publication");
+        expect(rendered.result.current.challenge).toBe(undefined);
+        expect(rendered.result.current.challengeVerification).toBe(undefined);
+
+        // a successful retry does not keep the failed attempt's error
+        await act(async () => {
+          await rendered.result.current[publish]();
+        });
+        await waitFor(() => rendered.result.current.state === "succeeded");
+        expect(rendered.result.current.state).toBe("succeeded");
+        expect(rendered.result.current.error).toBe(undefined);
+        expect(rendered.result.current.errors).toEqual([]);
+      },
+    );
+
+    test.each(publishHooks)(
+      "$name drops the previous attempt's failed challengeVerification when a new challenge arrives",
+      async ({ useHook, publish, options }) => {
+        const publication = { publishChallengeAnswers: async () => {} };
+        const firstChallenge = { type: "CHALLENGE", challenges: [{ type: "text" }] };
+        const retryChallenge = { type: "CHALLENGE", challenges: [{ type: "text" }] };
+        const originalAction = (useAccountsStore.getState().accountsActions as any)[publish];
+        // the store publishes again automatically after a failed challenge verification
+        await setStoreAction(publish, async (...args: any[]) => {
+          const publishOptions = args.find((arg) => typeof arg?.onChallenge === "function");
+          publishOptions.onChallenge(firstChallenge, publication);
+          publishOptions.onChallengeVerification(
+            { type: "CHALLENGEVERIFICATION", challengeSuccess: false },
+            publication,
+          );
+          publishOptions.onChallenge(retryChallenge, publication);
+        });
+        try {
+          const rendered = renderHook<any, any>(() => (useHook as any)(options));
+          const waitFor = testUtils.createWaitFor(rendered);
+          await waitFor(() => rendered.result.current.state === "ready");
+          await act(async () => {
+            await rendered.result.current[publish]();
+          });
+          expect(rendered.result.current.challenge).toBe(retryChallenge);
+          expect(rendered.result.current.challengeVerification).toBe(undefined);
+        } finally {
+          await setStoreAction(publish, originalAction);
+        }
+      },
+    );
+
+    test("usePublishVote keeps the errors of a vote it no longer tracks out of its result", async () => {
+      const publishVoteOptions: any[] = [];
+      const originalAction = useAccountsStore.getState().accountsActions.publishVote;
+      await setStoreAction("publishVote", async (options: any) => {
+        publishVoteOptions.push(options);
+      });
+      try {
+        const onError = vi.fn();
+        const rendered = renderHook<any, any>(() =>
+          usePublishVote({ ...publishHooks[1].options, onError } as any),
+        );
+        const waitFor = testUtils.createWaitFor(rendered);
+        await waitFor(() => rendered.result.current.state === "ready");
+        await act(async () => {
+          await rendered.result.current.publishVote();
+        });
+        await act(async () => {
+          await rendered.result.current.publishVote();
+        });
+        // the first vote fails after publishVote() was called again
+        await act(async () => {
+          await publishVoteOptions[0].onError(Error("first vote failed"));
+        });
+        expect(rendered.result.current.errors).toEqual([]);
+
+        // the second vote fails after it was abandoned
+        await act(async () => {
+          await rendered.result.current.abandonPublish();
+        });
+        await act(async () => {
+          await publishVoteOptions[1].onError(Error("abandoned vote failed"));
+        });
+        expect(rendered.result.current.errors).toEqual([]);
+        expect(rendered.result.current.state).toBe("ready");
+        // the app's onError still receives both
+        expect(onError.mock.calls.map(([error]) => error.message)).toEqual([
+          "first vote failed",
+          "abandoned vote failed",
+        ]);
+      } finally {
+        await setStoreAction("publishVote", originalAction);
+      }
+    });
+  });
+
+  // retry usePublish because publishing state is flaky
   describe("usePublishVote", { retry: 3 }, () => {
     let rendered: any, waitFor: Function;
 
@@ -2255,6 +2718,69 @@ describe("actions", () => {
         votes[0].emit("publishingstatechange", "stopped");
       });
       expect(rendered.result.current.state).toBe("waiting-challenge-answers");
+    });
+
+    test(`abandonPublish while the community's wordfilters load stops the vote`, async () => {
+      const votePublish = vi.spyOn(Vote.prototype, "publish");
+      const commentCid = "Qm... abandon while loading.test";
+      const publishVoteOptions = {
+        communityAddress: "12D3KooW... abandon while loading.test",
+        commentCid,
+        vote: 1,
+        onChallenge: vi.fn(),
+        onChallengeVerification: vi.fn(),
+      };
+      try {
+        rendered.rerender(publishVoteOptions);
+        await waitFor(() => rendered.result.current.state === "ready");
+
+        let publishPromise!: Promise<void>;
+        act(() => {
+          publishPromise = rendered.result.current.publishVote();
+        });
+        await act(async () => {
+          await rendered.result.current.abandonPublish();
+        });
+        await act(async () => {
+          await publishPromise;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        const { accountsVotes, activeAccountId } = useAccountsStore.getState();
+        expect(accountsVotes[activeAccountId!]?.[commentCid]).toBe(undefined);
+        expect(votePublish).not.toHaveBeenCalled();
+        expect(rendered.result.current.state).toBe("ready");
+      } finally {
+        votePublish.mockRestore();
+      }
+    });
+
+    test(`abandonPublish stops the vote of the account that published it after the active account changes`, async () => {
+      const { activeAccountId: publishingAccountId, accountsActions } = useAccountsStore.getState();
+      const commentCid = "Qm... abandon after switch.test";
+      rendered.rerender({
+        communityAddress: "12D3KooW... acions.test",
+        commentCid,
+        vote: 1,
+        onChallenge: vi.fn(),
+        onChallengeVerification: vi.fn(),
+      });
+      await waitFor(() => rendered.result.current.state === "ready");
+      await act(async () => {
+        await rendered.result.current.publishVote();
+      });
+      await waitFor(() => rendered.result.current.challenge !== undefined);
+
+      await act(async () => {
+        await accountsActions.createAccount("Other Account");
+        await accountsActions.setActiveAccount("Other Account");
+      });
+      await act(async () => {
+        await rendered.result.current.abandonPublish();
+      });
+
+      const { accountsVotes } = useAccountsStore.getState();
+      expect(accountsVotes[publishingAccountId!][commentCid].vote).toBe(0);
     });
 
     test(`abandonPublish without a commentCid does not throw`, async () => {

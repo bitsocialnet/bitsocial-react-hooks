@@ -1,5 +1,6 @@
 import { vi } from "vitest";
 import { act } from "@testing-library/react";
+import EventEmitter from "events";
 import testUtils, { renderHook } from "../../lib/test-utils";
 import useAuthorsCommentsStore, {
   resetAuthorsCommentsDatabaseAndStore,
@@ -848,8 +849,11 @@ describe("authors comments store", () => {
         randomCommentIndexWithLastCommentCid,
       );
       commentsStore.setState((state: any) => {
-        // use startCid as fallback in case the random comment hasn't been fetched yet
-        const baseComment = state.comments[commentCidWithLastCommentCid] ||
+        // use startCid as fallback in case the random comment hasn't been fetched yet. A comment
+        // still being fetched is in the store without a timestamp, and its first update would
+        // replace the lastCommentCid set here, so it can't be used either
+        const randomComment = state.comments[commentCidWithLastCommentCid];
+        const baseComment = (randomComment?.timestamp && randomComment) ||
           state.comments[startCid] || {
             cid: startCid,
             author: { address: authorAddress },
@@ -1113,6 +1117,87 @@ describe("authors comments store", () => {
     },
   );
 
+  test.each(["after", "before"])(
+    "a frozen useComment that opens %s this store does not end the failing update of an author comment",
+    async (hookOrder) => {
+      const commentCid = `author comment with failing update ${hookOrder}`;
+      const hookWaiterId = "frozen-use-comment";
+      // Mirrors a pkc-js comment whose community is unreachable: every update cycle ends with a
+      // retriable error, then "waiting-retry".
+      const liveComment: any = new EventEmitter();
+      Object.assign(liveComment, {
+        cid: commentCid,
+        timestamp: 1000,
+        author: { address: authorAddress },
+        clients: {},
+      });
+      liveComment.stop = vi.fn().mockResolvedValue(undefined);
+      liveComment.update = vi.fn().mockResolvedValue(undefined);
+      const failUpdateCycle = () =>
+        act(() => {
+          liveComment.emit("error", new Error("gateway timeout"));
+          liveComment.updatingState = "waiting-retry";
+          liveComment.emit("updatingstatechange", "waiting-retry");
+        });
+      const createComment = PKC.prototype.createComment;
+      PKC.prototype.createComment = async function (opts: any) {
+        if (opts?.cid === commentCid) {
+          return liveComment;
+        }
+        return createComment.call(this, opts);
+      };
+      // a frozen useComment of the same comment waits for the update requested on open
+      const openFrozenHook = async () => {
+        commentsStore.getState().addOpeningUpdateWaiter(commentCid, hookWaiterId);
+        await act(async () => {
+          await commentsStore.getState().addCommentToStore(commentCid, account);
+        });
+      };
+
+      try {
+        if (hookOrder === "before") {
+          await openFrozenHook();
+        }
+        act(() => {
+          useAuthorsCommentsStore
+            .getState()
+            .addAuthorCommentsToStore(
+              authorAddress + "-failing-update",
+              authorAddress,
+              commentCid,
+              undefined,
+              account,
+            );
+        });
+        await waitFor(() => liveComment.update.mock.calls.length === 1);
+        failUpdateCycle();
+        if (hookOrder === "after") {
+          await openFrozenHook();
+        }
+
+        // the hook unmounts while the update keeps failing
+        commentsStore.getState().removeOpeningUpdateWaiter(commentCid, hookWaiterId);
+        failUpdateCycle();
+        failUpdateCycle();
+        expect(liveComment.stop).not.toHaveBeenCalled();
+        expect(commentsStore.getState().openingUpdatesPending[commentCid]).toBe(true);
+
+        act(() => {
+          liveComment.updatedAt = 300;
+          liveComment.emit("update", liveComment);
+          liveComment.updatingState = "succeeded";
+          liveComment.emit("updatingstatechange", "succeeded");
+        });
+        await waitFor(() => commentsStore.getState().comments[commentCid]?.updatedAt === 300);
+        expect(commentsStore.getState().comments[commentCid]?.updatedAt).toBe(300);
+      } finally {
+        commentsStore.getState().removeOpeningUpdateWaiter(commentCid, hookWaiterId);
+        PKC.prototype.createComment = createComment;
+      }
+    },
+    timeout,
+  );
+
   test("resetAuthorsCommentsDatabaseAndStore is callable", { timeout }, async () => {
     await resetAuthorsCommentsDatabaseAndStore();
     const state = useAuthorsCommentsStore.getState();
@@ -1358,6 +1443,10 @@ describe("authors comments store", () => {
           (comment as any).author = { address: authorAddress };
           (comment as any).timestamp = 2000;
         }
+        if (opts?.cid === "prev 1") {
+          (comment as any).author = { address: authorAddress };
+          (comment as any).timestamp = 500;
+        }
         return comment;
       };
 
@@ -1377,13 +1466,220 @@ describe("authors comments store", () => {
       await waitFor(
         () => useAuthorsCommentsStore.getState().lastCommentCids[authorAddress] === leafLastCid,
       );
+      // the leaf has no previousCommentCid, so the chain from the start comment keeps going
+      await waitFor(
+        () => useAuthorsCommentsStore.getState().loadedComments[authorCommentsName]?.length === 3,
+      );
       expect(
-        useAuthorsCommentsStore.getState().nextCommentCidsToFetch[authorAddress],
-      ).toBeDefined();
+        useAuthorsCommentsStore
+          .getState()
+          .loadedComments[authorCommentsName].map((comment: Comment) => comment.cid)
+          .sort(),
+      ).toEqual(["comment cid", leafLastCid, "prev 1"].sort());
 
       PKC.prototype.createComment = createComment;
     },
   );
+
+  test(
+    "the comment the chain starts from can also be its community lastCommentCid",
+    { timeout },
+    async () => {
+      const createComment = PKC.prototype.createComment;
+      const startCid = "start-is-last-cid";
+      const previousCid = "start-is-last-previous-cid";
+      PKC.prototype.createComment = async function (opts: any) {
+        const comment = new MockComment(opts);
+        if (opts?.cid === startCid) {
+          (comment as any).author = {
+            address: authorAddress,
+            previousCommentCid: previousCid,
+            community: { lastCommentCid: startCid },
+          };
+          (comment as any).timestamp = 2000;
+        }
+        if (opts?.cid === previousCid) {
+          (comment as any).author = { address: authorAddress };
+          (comment as any).timestamp = 1000;
+        }
+        return comment;
+      };
+
+      try {
+        const authorCommentsName = authorAddress + "-start-is-last";
+        act(() => {
+          useAuthorsCommentsStore
+            .getState()
+            .addAuthorCommentsToStore(
+              authorCommentsName,
+              authorAddress,
+              startCid,
+              undefined,
+              account,
+            );
+        });
+
+        await waitFor(
+          () => useAuthorsCommentsStore.getState().loadedComments[authorCommentsName]?.length === 2,
+        );
+        expect(useAuthorsCommentsStore.getState().lastCommentCids[authorAddress]).toBe(startCid);
+        expect(
+          useAuthorsCommentsStore
+            .getState()
+            .loadedComments[authorCommentsName].map((comment: Comment) => comment.cid),
+        ).toEqual([startCid, previousCid]);
+        // the chain listeners must not throw out of the comments store update
+        expect(commentsStore.getState().errors[startCid]).toBe(undefined);
+      } finally {
+        PKC.prototype.createComment = createComment;
+      }
+    },
+  );
+
+  test("a chain comment by another author ends the chain", { timeout }, async () => {
+    const createComment = PKC.prototype.createComment;
+    const startCid = "other-author-chain-start-cid";
+    const otherAuthorCid = "other-author-chain-previous-cid";
+    PKC.prototype.createComment = async function (opts: any) {
+      const comment = new MockComment(opts);
+      if (opts?.cid === startCid) {
+        (comment as any).author = { address: authorAddress, previousCommentCid: otherAuthorCid };
+        (comment as any).timestamp = 2000;
+      }
+      if (opts?.cid === otherAuthorCid) {
+        (comment as any).author = {
+          address: "other-author.eth",
+          previousCommentCid: "other-author-older-cid",
+        };
+        (comment as any).timestamp = 1000;
+      }
+      return comment;
+    };
+
+    try {
+      const authorCommentsName = authorAddress + "-other-author-chain";
+      act(() => {
+        useAuthorsCommentsStore
+          .getState()
+          .addAuthorCommentsToStore(
+            authorCommentsName,
+            authorAddress,
+            startCid,
+            undefined,
+            account,
+          );
+      });
+
+      await waitFor(() => Boolean(commentsStore.getState().comments[otherAuthorCid]?.timestamp));
+      // nothing is left to fetch, so useAuthorComments reports hasMore false
+      await waitFor(
+        () =>
+          useAuthorsCommentsStore.getState().nextCommentCidsToFetch[authorAddress] === undefined,
+      );
+      expect(useAuthorsCommentsStore.getState().nextCommentCidsToFetch[authorAddress]).toBe(
+        undefined,
+      );
+      expect(useAuthorsCommentsStore.getState().hasMoreBufferedComments[authorCommentsName]).toBe(
+        false,
+      );
+      expect(
+        useAuthorsCommentsStore
+          .getState()
+          .loadedComments[authorCommentsName].map((comment: Comment) => comment.cid),
+      ).toEqual([startCid]);
+    } finally {
+      PKC.prototype.createComment = createComment;
+    }
+  });
+
+  describe("two author chains that reach the same comment", () => {
+    const ownerAddress = "shared-chain-owner.eth";
+    const sharedCid = "shared-chain-owner-comment-cid";
+    const ownerOlderCid = "shared-chain-owner-older-cid";
+    const otherStartCid = "shared-chain-other-author-start-cid";
+    const ownerCommentsName = ownerAddress + "-shared-chain";
+    const otherCommentsName = authorAddress + "-shared-chain";
+
+    let createComment: any, releaseSharedComment: Function;
+    beforeEach(() => {
+      createComment = PKC.prototype.createComment;
+      const sharedCommentReleased = new Promise((resolve) => (releaseSharedComment = resolve));
+      PKC.prototype.createComment = async function (opts: any) {
+        const comment = new MockComment(opts);
+        if (opts?.cid === sharedCid) {
+          // the shared comment stays in flight until the test releases it
+          await sharedCommentReleased;
+          (comment as any).author = { address: ownerAddress, previousCommentCid: ownerOlderCid };
+          (comment as any).timestamp = 2000;
+        }
+        if (opts?.cid === ownerOlderCid) {
+          (comment as any).author = { address: ownerAddress };
+          (comment as any).timestamp = 1000;
+        }
+        if (opts?.cid === otherStartCid) {
+          // another author's comment links to the owner's comment as its previous comment
+          (comment as any).author = { address: authorAddress, previousCommentCid: sharedCid };
+          (comment as any).timestamp = 3000;
+        }
+        return comment;
+      };
+    });
+    afterEach(() => {
+      releaseSharedComment();
+      PKC.prototype.createComment = createComment;
+    });
+
+    const addAuthorComments = (authorCommentsName: string, address: string, commentCid: string) =>
+      act(() => {
+        useAuthorsCommentsStore
+          .getState()
+          .addAuthorCommentsToStore(authorCommentsName, address, commentCid, undefined, account);
+      });
+    const getNextCid = (address: string) =>
+      useAuthorsCommentsStore.getState().nextCommentCidsToFetch[address];
+    const getLoadedCids = (authorCommentsName: string) =>
+      useAuthorsCommentsStore
+        .getState()
+        .loadedComments[authorCommentsName].map((comment: Comment) => comment.cid);
+
+    test(
+      "the other author's chain ends when the owner's chain is fetching the comment",
+      { timeout },
+      async () => {
+        addAuthorComments(ownerCommentsName, ownerAddress, sharedCid);
+        addAuthorComments(otherCommentsName, authorAddress, otherStartCid);
+        await waitFor(() => getNextCid(authorAddress) === sharedCid);
+        releaseSharedComment();
+
+        await waitFor(() => getNextCid(authorAddress) === undefined);
+        expect(getNextCid(authorAddress)).toBe(undefined);
+        expect(getLoadedCids(otherCommentsName)).toEqual([otherStartCid]);
+
+        await waitFor(() => getLoadedCids(ownerCommentsName).length === 2);
+        expect(getLoadedCids(ownerCommentsName)).toEqual([sharedCid, ownerOlderCid]);
+        expect(getNextCid(ownerAddress)).toBe(undefined);
+      },
+    );
+
+    test(
+      "the owner's chain continues when the other author's chain is fetching the comment",
+      { timeout },
+      async () => {
+        addAuthorComments(otherCommentsName, authorAddress, otherStartCid);
+        await waitFor(() => getNextCid(authorAddress) === sharedCid);
+        addAuthorComments(ownerCommentsName, ownerAddress, sharedCid);
+        releaseSharedComment();
+
+        await waitFor(() => getLoadedCids(ownerCommentsName).length === 2);
+        expect(getLoadedCids(ownerCommentsName)).toEqual([sharedCid, ownerOlderCid]);
+        expect(getNextCid(ownerAddress)).toBe(undefined);
+
+        await waitFor(() => getNextCid(authorAddress) === undefined);
+        expect(getNextCid(authorAddress)).toBe(undefined);
+        expect(getLoadedCids(otherCommentsName)).toEqual([otherStartCid]);
+      },
+    );
+  });
 });
 
 const hasDuplicateComments = (comments: any) => {

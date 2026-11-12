@@ -197,4 +197,27 @@ describe("PkcJsMockContent", () => {
     expect(onStatechange.mock.calls.some((call) => call[0] === "stopped")).toBe(true);
     expect(onUpdatingstatechange.mock.calls.some((call) => call[0] === "stopped")).toBe(true);
   });
+
+  test("Comment.update() right after stop() keeps a single update loop", async () => {
+    const pkc = await PkcJsMockContent();
+    const comment = await pkc.createComment({
+      cid: "mock-content-restarted-comment-cid",
+      communityAddress: "community address",
+    });
+    const simulateUpdateEvent = vi
+      .spyOn(comment, "simulateUpdateEvent")
+      .mockImplementation(async () => {});
+    vi.useFakeTimers();
+    try {
+      // one loop iteration waits 3 loading times of 100ms
+      await comment.update();
+      comment.stop();
+      await comment.update();
+      await vi.advanceTimersByTimeAsync(350);
+      expect(simulateUpdateEvent).toHaveBeenCalledTimes(1);
+      comment.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

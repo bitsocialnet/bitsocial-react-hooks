@@ -33,6 +33,7 @@ import {
   getFilteredSortedFeeds,
   getSortTypeFromComment,
   addAccountsComments,
+  resetPreviousPageNumber,
 } from "./utils";
 
 // reddit loads approximately 25 posts per page
@@ -291,6 +292,7 @@ const repliesStore = createStore<RepliesState>((setState: Function, getState: Fu
         updatedFeeds: { ...updatedFeeds, [feedName]: [] },
       };
     });
+    resetPreviousPageNumber(feedName);
 
     updateFeeds();
   },
@@ -374,6 +376,27 @@ const repliesStore = createStore<RepliesState>((setState: Function, getState: Fu
         loadedFeeds,
         accounts,
       );
+
+      // a feed reset while this pass awaited comment validation would get its old replies back,
+      // and loaded feeds never shrink, so drop this pass and calculate again from the reset feed
+      const currentLoadedFeeds = getState().loadedFeeds;
+      if (currentLoadedFeeds !== previousState.loadedFeeds) {
+        // this pass already remembered the page numbers of the feeds it loaded replies for, and
+        // the old page number of a feed reset before the pass reached it, forget them so the next
+        // pass loads those replies again
+        for (const feedName in feedsOptions) {
+          if (
+            canonicalLoadedFeeds[feedName] !== previousState.loadedFeeds[feedName] ||
+            currentLoadedFeeds[feedName] !== previousState.loadedFeeds[feedName]
+          ) {
+            resetPreviousPageNumber(feedName);
+          }
+        }
+        updateFeedsPending = false;
+        updateFeedsAgain = false;
+        updateFeeds();
+        return;
+      }
 
       // set new feeds
       setState((state: any) => ({

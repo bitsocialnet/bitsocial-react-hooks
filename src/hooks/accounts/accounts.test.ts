@@ -1626,6 +1626,37 @@ describe("accounts", () => {
       expect(renderedFailed.result.current.state).toBe("failed");
     });
 
+    test("useAccountComment turns a stale pending comment failed without another render", async () => {
+      const state = accountsStore.getState() as any;
+      const accountId = state.activeAccountId || Object.keys(state.accounts)[0];
+      const pendingIndex = (state.accountsComments?.[accountId] || []).length;
+      vi.useFakeTimers();
+      try {
+        // pending for 30 more seconds
+        const timestamp = Math.round(Date.now() / 1000) - (20 * 60 - 30);
+        accountsStore.setState((s: any) => ({
+          ...s,
+          accountsComments: {
+            ...s.accountsComments,
+            [accountId]: [
+              ...(s.accountsComments?.[accountId] || []),
+              { timestamp, communityAddress: "test.eth", content: "stalls", index: pendingIndex },
+            ],
+          },
+        }));
+        const rendered = renderHook(() => useAccountComment({ commentIndex: pendingIndex }));
+        expect(rendered.result.current.state).toBe("pending");
+
+        await act(async () => {
+          vi.advanceTimersByTime(31 * 1000);
+        });
+
+        expect(rendered.result.current.state).toBe("failed");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     test("useAccountVote with no commentCid returns initializing", async () => {
       const rendered = renderHook(() => useAccountVote({ accountName: "Account dress" }));
       const waitFor = testUtils.createWaitFor(rendered);
@@ -4096,6 +4127,39 @@ describe("accounts", () => {
       const waitFor = testUtils.createWaitFor(rendered);
       await waitFor(() => rendered.result.current.state === "unedited");
       expect(rendered.result.current.state).toBe("unedited");
+    });
+
+    test("useEditedComment turns a stale pending edit failed without another render", async () => {
+      const commentCid = "stalled edit cid";
+      const comment = { cid: commentCid, communityAddress: "test.eth" };
+      const renderedAccount = renderHook(() => useAccount());
+      await testUtils.createWaitFor(renderedAccount)(() => renderedAccount.result.current?.id);
+      vi.useFakeTimers();
+      try {
+        // pending for 30 more seconds, and the comment never receives an update
+        const timestamp = Math.round(Date.now() / 1000) - (20 * 60 - 30);
+        accountsStore.setState((state: any) => {
+          const accountId = state.activeAccountId || Object.keys(state.accounts)[0];
+          return {
+            ...state,
+            accountsEdits: {
+              ...state.accountsEdits,
+              [accountId]: { [commentCid]: [{ timestamp, commentCid, spoiler: true }] },
+            },
+          };
+        });
+        const rendered = renderHook(() => useEditedComment({ comment }));
+        expect(rendered.result.current.state).toBe("pending");
+
+        await act(async () => {
+          vi.advanceTimersByTime(31 * 1000);
+        });
+
+        expect(rendered.result.current.state).toBe("failed");
+        expect(rendered.result.current.failedEdits.spoiler).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     test("useEditedComment with commentEdit that has commentModeration merges", async () => {

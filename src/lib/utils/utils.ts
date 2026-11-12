@@ -331,10 +331,15 @@ export const commentIsValid = async (
     );
     return false;
   }
+  // without a pkc client, e.g. for a feed whose account was deleted, the comment can't be validated,
+  // which says nothing about its community, so don't block it
+  if (typeof pkc?.validateComment !== "function") {
+    return false;
+  }
   try {
     await pkc.validateComment(comment, { validateReplies });
   } catch (e) {
-    if (blockCommunity) {
+    if (blockCommunity && comment.communityAddress) {
       communitiesWithInvalidComments[comment.communityAddress] = true;
     }
     console.log("invalid comment", { comment, error: e });
@@ -393,20 +398,14 @@ const repliesAreValid = async (
     }
   }
 
-  // signature verification
-  try {
-    const promises = normalizedReplies.map((reply) =>
-      commentIsValid(reply, { validateReplies: false, blockCommunity: true }, pkc),
-    );
-    await Promise.all(promises);
-  } catch (e: any) {
-    if (blockCommunity && commentCommunityAddress) {
-      communitiesWithInvalidComments[commentCommunityAddress] = true;
-    }
-    console.log("invalid comment", { comment, error: e });
-    return false;
-  }
-  return true;
+  // signature verification, commentIsValid returns false instead of throwing, and blocks the
+  // community of an invalid reply itself
+  const repliesValidity = await Promise.all(
+    normalizedReplies.map((reply) =>
+      commentIsValid(reply, { validateReplies: false, blockCommunity }, pkc),
+    ),
+  );
+  return !repliesValidity.includes(false);
 };
 
 const utils = {
@@ -418,7 +417,9 @@ const utils = {
   retryInfinity: (f: any, o?: any): any => {},
   // export timeout values to mock them in tests
   retryInfinityMinTimeout: 1000,
-  retryInfinityMaxTimeout: 1000 * 60 * 60 * 24,
+  // the page stores keep a fetch pending while it sleeps between retries, so a longer cap would
+  // keep that page from loading for about as long as an outage lasted
+  retryInfinityMaxTimeout: 1000 * 60,
   clientsOnStateChange,
   pageClientsOnStateChange,
   communityPostsCacheExpired,
@@ -427,19 +428,29 @@ const utils = {
   repliesAreValid,
 };
 
+// options.shouldRetry lets the caller stop retrying, e.g. once the client functionToRetry uses was
+// replaced, it's checked after each failed attempt and after each sleep, and rejects with the last error
 const retryInfinity = async (functionToRetry: any, options?: any) => {
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const shouldRetry = () => !options?.shouldRetry || options.shouldRetry();
   let attempt = 0;
   while (true) {
     try {
       const res = await functionToRetry();
       return res;
     } catch (e) {
-      options?.onError(e || Error(`retryInfinity failed attempt ${attempt}`));
+      const error = e || Error(`retryInfinity failed attempt ${attempt}`);
+      options?.onError(error);
+      if (!shouldRetry()) {
+        throw error;
+      }
       const factor = 2;
       let timeout = Math.round(utils.retryInfinityMinTimeout * Math.pow(factor, attempt++));
       timeout = Math.min(timeout, utils.retryInfinityMaxTimeout);
       await sleep(timeout);
+      if (!shouldRetry()) {
+        throw error;
+      }
     }
   }
 };

@@ -3519,6 +3519,7 @@ describe("accounts-actions", () => {
       expect(onPendingCommentIndex).toHaveBeenCalledWith(
         0,
         expect.objectContaining({ content: "shifted pending comment", index: 0 }),
+        expect.any(Function),
       );
       expect(publishedComment).toEqual(
         expect.objectContaining({ content: "shifted pending comment", index: 0 }),
@@ -4804,6 +4805,56 @@ describe("accounts-actions", () => {
 
       expect(onChallenge).not.toHaveBeenCalled();
       expect(accountsStore.getState().accountsVotes[accountId]?.["creating cid"]).toBeUndefined();
+    });
+
+    test("does not publish or write a vote abandoned while the community's wordfilters load", async () => {
+      const accountId = accountsStore.getState().activeAccountId!;
+      const account = accountsStore.getState().accounts[accountId];
+      const createVote = vi.spyOn(account.pkc, "createVote");
+      const onChallenge = vi.fn();
+      const publishPromise = accountsActions.publishVote({
+        communityAddress: "wordfilters loading.eth",
+        commentCid: "loading cid",
+        vote: 1,
+        onChallenge,
+        onChallengeVerification: () => {},
+      });
+
+      await act(async () => {
+        await accountsActions.abandonVote("loading cid");
+      });
+      await publishPromise;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(createVote).not.toHaveBeenCalled();
+      expect(onChallenge).not.toHaveBeenCalled();
+      expect(accountsStore.getState().accountsVotes[accountId]?.["loading cid"]).toBeUndefined();
+    });
+
+    test("ends the session of a vote whose community's wordfilters fail to load", async () => {
+      const accountId = accountsStore.getState().activeAccountId!;
+      const account = accountsStore.getState().accounts[accountId];
+      vi.spyOn(account.pkc, "createCommunity").mockRejectedValueOnce(
+        Error("community failed to load"),
+      );
+      await expect(
+        accountsActions.publishVote({
+          communityAddress: "wordfilters failing.eth",
+          commentCid: "failing cid",
+          vote: 1,
+          onChallenge: () => {},
+          onChallengeVerification: () => {},
+        }),
+      ).rejects.toThrow("community failed to load");
+
+      // a later vote on the comment starts its own session, so abandoning it reverts it
+      const [vote] = await publishUnansweredVote("failing cid", -1);
+      const stop = vi.spyOn(vote, "stop");
+      await act(async () => {
+        await accountsActions.abandonVote("failing cid");
+      });
+      expect(stop).toHaveBeenCalledOnce();
+      expect(accountsStore.getState().accountsVotes[accountId]["failing cid"].vote).toBe(0);
     });
 
     test("keeps the session for a vote still being created when the rest of the burst is verified", async () => {

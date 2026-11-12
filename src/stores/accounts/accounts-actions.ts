@@ -161,6 +161,8 @@ type PublishSession = {
   originalIndex: number;
   currentIndex: number;
   comment?: any;
+  // called with currentIndex after a deletion of an earlier account comment shifted it
+  onIndexChange?: (index: number) => void;
 };
 
 // Active publish-session tracking for pending comments (Task 3)
@@ -436,6 +438,15 @@ const shiftPublishSessionIndicesAfterDelete = (accountId: string, deletedIndex: 
   for (const session of activePublishSessions.values()) {
     if (session.accountId === accountId && session.currentIndex > deletedIndex) {
       session.currentIndex -= 1;
+    }
+  }
+};
+
+// the sessions shifted by a deletion are the ones now at or after the deleted index
+const notifyShiftedPublishSessions = (accountId: string, deletedIndex: number) => {
+  for (const session of activePublishSessions.values()) {
+    if (session.accountId === accountId && session.currentIndex >= deletedIndex) {
+      session.onIndexChange?.(session.currentIndex);
     }
   }
 };
@@ -1558,7 +1569,16 @@ export const publishComment = async (
   if (pendingCommentIndex !== accountCommentIndex) {
     notifyPendingComment(pendingCommentIndex, createdAccountComment);
   }
-  publishCommentOptions._onPendingCommentIndex?.(pendingCommentIndex, createdAccountComment);
+  // the hooks abandon the pending comment with abandonPendingComment, and learn its new index when a
+  // deletion of an earlier account comment shifts it
+  const abandonPendingComment = () => abandonPublishSession(publishSessionId);
+  const onPendingCommentIndex = publishCommentOptions._onPendingCommentIndex;
+  onPendingCommentIndex?.(pendingCommentIndex, createdAccountComment, abandonPendingComment);
+  const pendingPublishSession = getPublishSession(publishSessionId);
+  if (onPendingCommentIndex && pendingPublishSession) {
+    pendingPublishSession.onIndexChange = (index) =>
+      onPendingCommentIndex(index, { ...createdAccountComment, index }, abandonPendingComment);
+  }
 
   let comment: any;
   (async () => {
@@ -1957,32 +1977,47 @@ export const deleteComment = async (
     );
     accountCommentIndex = mapping.accountCommentIndex;
   }
+  await deleteAccountComment(account.id, accountCommentIndex);
+};
+
+const deleteAccountComment = async (accountId: string, accountCommentIndex: number) => {
+  const { accountsComments } = accountsStore.getState();
+  const accountComments = accountsComments[accountId] || [];
   assert(
     accountCommentIndex >= 0 && accountCommentIndex < accountComments.length,
     `accountsActions.deleteComment index '${accountCommentIndex}' out of range`,
   );
 
-  abandonAndStopPublishSession(account.id, accountCommentIndex);
-  shiftPublishSessionIndicesAfterDelete(account.id, accountCommentIndex);
+  abandonAndStopPublishSession(accountId, accountCommentIndex);
+  shiftPublishSessionIndicesAfterDelete(accountId, accountCommentIndex);
 
   const spliced = [...accountComments];
   spliced.splice(accountCommentIndex, 1);
-  const reindexed = spliced.map((c, i) => ({ ...c, index: i, accountId: account.id }));
-  const newAccountsComments = { ...accountsComments, [account.id]: reindexed };
+  const reindexed = spliced.map((c, i) => ({ ...c, index: i, accountId }));
+  const newAccountsComments = { ...accountsComments, [accountId]: reindexed };
   const newCommentCidsToAccountsComments = getCommentCidsToAccountsComments(newAccountsComments);
 
   accountsStore.setState(({ accountsCommentsIndexes }) => ({
     accountsComments: newAccountsComments,
     accountsCommentsIndexes: {
       ...accountsCommentsIndexes,
-      [account.id]: getAccountCommentsIndex(reindexed),
+      [accountId]: getAccountCommentsIndex(reindexed),
     },
     commentCidsToAccountsComments: newCommentCidsToAccountsComments,
   }));
+  notifyShiftedPublishSessions(accountId, accountCommentIndex);
 
-  await accountsDatabase.deleteAccountComment(account.id, accountCommentIndex);
+  await accountsDatabase.deleteAccountComment(accountId, accountCommentIndex);
 
-  log("accountsActions.deleteComment", { accountId: account.id, accountCommentIndex });
+  log("accountsActions.deleteComment", { accountId, accountCommentIndex });
+};
+
+// deletes a comment that is still publishing from where its session has it now, in the account that
+// published it, so a deletion that shifted it or a change of the active account can't redirect it
+const abandonPublishSession = async (sessionId: string) => {
+  const session = getPublishSession(sessionId);
+  if (!session || isPublishSessionAbandoned(sessionId)) return;
+  await deleteAccountComment(session.accountId, session.currentIndex);
 };
 
 export const publishVote = async (publishVoteOptions: PublishVoteOptions, accountName?: string) => {
@@ -2012,9 +2047,45 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
   delete createVoteOptions.onChallengeVerification;
   delete createVoteOptions.onError;
   delete createVoteOptions.onPublishingStateChange;
-  createVoteOptions = await applyPublicationWordfilters("vote", createVoteOptions, account);
-  // the account was deleted while the wordfilters loaded: nothing was published or written
-  if (isAccountDeleted(account.id)) return;
+  delete createVoteOptions._onVotePublishSession;
+  const { commentCid } = createVoteOptions;
+  // started before the community's wordfilters load, so abandoning the vote meanwhile ends it
+  const votePublishSession = startVotePublishSession(
+    account.id,
+    commentCid,
+    accountsStore.getState().accountsVotes[account.id]?.[commentCid],
+  );
+  const votePublishSessionKey = getVotePublishSessionKey(account.id, commentCid);
+  const isVotePublishSessionActive = () =>
+    activeVotePublishSessions.get(votePublishSessionKey) === votePublishSession;
+  // the hooks abandon this vote's session in the account that published it, whichever is active
+  publishVoteOptions._onVotePublishSession?.(() =>
+    abandonVotePublishSession(account.id, commentCid, votePublishSession),
+  );
+  // counted as a vote being created, so the rest of the burst can't end the session meanwhile
+  votePublishSession.creating++;
+  try {
+    createVoteOptions = await applyPublicationWordfilters("vote", createVoteOptions, account);
+  } catch (error) {
+    votePublishSession.creating--;
+    if (
+      votePublishSession.publications.size === 0 &&
+      votePublishSession.creating === 0 &&
+      isVotePublishSessionActive()
+    ) {
+      endVotePublishSession(account.id, commentCid);
+    }
+    throw error;
+  }
+  votePublishSession.creating--;
+  // abandoned while the wordfilters loaded: nothing was published or written, so stop here
+  if (!isVotePublishSessionActive()) return;
+  // the account was deleted while the wordfilters loaded: nothing was published or written. Its
+  // delete only abandoned the sessions that existed when it started, so end this one here
+  if (isAccountDeleted(account.id)) {
+    endVotePublishSession(account.id, commentCid);
+    return;
+  }
   const accountsState = accountsStore.getState();
   const accountCommentInfo =
     accountsState.commentCidsToAccountsComments[createVoteOptions.commentCid];
@@ -2036,14 +2107,6 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
     signer: undefined,
     author: undefined,
   };
-  const votePublishSession = startVotePublishSession(
-    account.id,
-    createVoteOptions.commentCid,
-    previousAccountVote,
-  );
-  const votePublishSessionKey = getVotePublishSessionKey(account.id, createVoteOptions.commentCid);
-  const isVotePublishSessionActive = () =>
-    activeVotePublishSessions.get(votePublishSessionKey) === votePublishSession;
   const createSessionVote = async () => {
     votePublishSession.creating++;
     try {
@@ -2202,10 +2265,18 @@ export const abandonVote = async (commentCid: string, accountName?: string) => {
     commentCid && typeof commentCid === "string",
     `accountsActions.abandonVote commentCid '${commentCid}' not a string`,
   );
+  await abandonVotePublishSession(account.id, commentCid);
+};
 
-  const session = activeVotePublishSessions.get(getVotePublishSessionKey(account.id, commentCid));
-  if (!session) return;
-  endVotePublishSession(account.id, commentCid);
+// with votePublishSession, abandons only that session, not a newer one for the same comment
+const abandonVotePublishSession = async (
+  accountId: string,
+  commentCid: string,
+  votePublishSession?: VotePublishSession,
+) => {
+  const session = activeVotePublishSessions.get(getVotePublishSessionKey(accountId, commentCid));
+  if (!session || (votePublishSession && session !== votePublishSession)) return;
+  endVotePublishSession(accountId, commentCid);
 
   for (const publication of session.publications) {
     try {
@@ -2213,14 +2284,14 @@ export const abandonVote = async (commentCid: string, accountName?: string) => {
       if (typeof stop === "function") await stop();
     } catch (e) {
       log.error("vote.stop() error during abandon", {
-        accountId: account.id,
+        accountId,
         commentCid,
         error: e,
       });
     }
   }
-  await restoreAccountVote(account.id, commentCid, session.previousAccountVote);
-  log("accountsActions.abandonVote", { accountId: account.id, commentCid });
+  await restoreAccountVote(accountId, commentCid, session.previousAccountVote);
+  log("accountsActions.abandonVote", { accountId, commentCid });
 };
 
 export const publishCommentEdit = async (

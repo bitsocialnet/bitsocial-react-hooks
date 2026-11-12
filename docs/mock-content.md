@@ -49,7 +49,7 @@ REACT_APP_BITSOCIAL_REACT_HOOKS_NO_CACHE=1
 ```js
 import { deleteCaches, deleteDatabases } from "@bitsocial/bitsocial-react-hooks";
 
-// delete all databases, including all caches and accounts data
+// delete all databases, including all caches and accounts data, then reload the app because the stores keep their state in memory
 await deleteDatabases();
 
 // delete the cached comments, cached communities and cached pages only, no accounts data

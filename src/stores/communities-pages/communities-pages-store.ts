@@ -214,14 +214,21 @@ const communitiesPagesStore = createStore<CommunitiesPagesState>(
 
       // page is already added or pending
       const pageStoreKeyToAdd = getCommunityPageStoreKey(pageCidToAdd, pageType, account.id);
-      if (communitiesPages[pageStoreKeyToAdd] || fetchPagePending[pageStoreKeyToAdd]) {
+      if (
+        communitiesPages[pageStoreKeyToAdd] ||
+        pageFetchIsPending(pageStoreKeyToAdd, account.pkc)
+      ) {
         return;
       }
 
-      fetchPagePending[pageStoreKeyToAdd] = true;
+      const pendingFetch: PendingPageFetch = { pkc: account.pkc, failed: false };
+      fetchPagePending[pageStoreKeyToAdd] = [
+        ...(fetchPagePending[pageStoreKeyToAdd] || []),
+        pendingFetch,
+      ];
       let page: CommunityPage;
       try {
-        page = await fetchPage(pageCidToAdd, community.address, account, pageType);
+        page = await fetchPage(pageCidToAdd, community.address, account, pageType, pendingFetch);
         log.trace("communitiesPagesStore.addNextCommunityPageToStore community.posts.getPage", {
           pageCid: pageCidToAdd,
           communityAddress: community.address,
@@ -230,7 +237,9 @@ const communitiesPagesStore = createStore<CommunitiesPagesState>(
       } catch (e) {
         throw e;
       } finally {
-        fetchPagePending[pageStoreKeyToAdd] = false;
+        fetchPagePending[pageStoreKeyToAdd] = fetchPagePending[pageStoreKeyToAdd]?.filter(
+          (fetch) => fetch !== pendingFetch,
+        );
       }
 
       // find new comments in the page
@@ -407,13 +416,51 @@ const onCommunityPostsClientsStateChange =
 const fetchPageCommunities: {
   [accountId: string]: { pkc: any; communities: { [communityAddress: string]: any } };
 } = {}; // cache created community clients per account because creating them can be slow
-let fetchPagePending: { [key: string]: boolean } = {};
+// the page fetches in progress per page store key, with the pkc client each uses. A new fetch waits
+// for one with the same client, or with another client until that one fails, so an account's
+// failing or replaced client doesn't keep the page from other clients
+type PendingPageFetch = { pkc: any; failed: boolean };
+let fetchPagePending: { [key: string]: PendingPageFetch[] | undefined } = {};
+const pageFetchIsPending = (key: string, pkc: any) =>
+  Boolean(fetchPagePending[key]?.some((fetch) => fetch.pkc === pkc || !fetch.failed));
+// a page fetch stops retrying with its pkc client once its account was deleted, or setAccount gave
+// the account another client. An account the accounts store didn't hold when the fetch started
+// keeps retrying
+const getShouldRetryPageFetch = (account: Account) => {
+  const accountWasStored = Boolean(accountsStore.getState().accounts?.[account.id]);
+  return () => {
+    const storedAccount = accountsStore.getState().accounts?.[account.id];
+    return storedAccount ? storedAccount.pkc === account.pkc : !accountWasStored;
+  };
+};
+// setAccount gives the account a new pkc client on every edit, so a fetch that stopped retrying
+// with the replaced client continues with the account's new one, unless another fetch of the page
+// already uses it
+const getAccountWithNewPkc = (
+  account: Account,
+  pendingKey: string,
+  pendingFetch?: PendingPageFetch,
+): Account | undefined => {
+  const storedAccount = accountsStore.getState().accounts?.[account.id];
+  if (
+    !storedAccount ||
+    storedAccount.pkc === account.pkc ||
+    fetchPagePending[pendingKey]?.some(
+      (fetch) => fetch !== pendingFetch && fetch.pkc === storedAccount.pkc,
+    )
+  ) {
+    return;
+  }
+  return storedAccount;
+};
 const fetchPage = async (
   pageCid: string,
   communityAddress: string,
   account: Account,
   pageType: string,
-) => {
+  pendingFetch?: PendingPageFetch,
+): Promise<CommunityPage> => {
+  const shouldRetry = getShouldRetryPageFetch(account);
   // community page is cached
   const pageStoreKey = getCommunityPageStoreKey(pageCid, pageType, account.id);
   const cachedCommunityPage = await communitiesPagesDatabase.getItem(pageStoreKey);
@@ -437,15 +484,33 @@ const fetchPage = async (
     );
   }
 
-  const onError = (error: any) =>
+  const onError = (error: any) => {
+    if (pendingFetch) {
+      pendingFetch.failed = true;
+    }
     log.error(
       `communitiesPagesStore community '${communityAddress}' failed community.posts.getPage page cid '${pageCid}':`,
       error,
     );
-  const fetchedCommunityPage = await utils.retryInfinity(
-    () => accountCommunities[communityAddress][pageType].getPage({ cid: pageCid }),
-    { onError },
-  );
+  };
+  let fetchedCommunityPage: CommunityPage;
+  try {
+    fetchedCommunityPage = await utils.retryInfinity(
+      () => accountCommunities[communityAddress][pageType].getPage({ cid: pageCid }),
+      { onError, shouldRetry },
+    );
+  } catch (error) {
+    const accountWithNewPkc = getAccountWithNewPkc(account, pageStoreKey, pendingFetch);
+    if (!accountWithNewPkc) {
+      throw error;
+    }
+    // the fetch continues as a new fetch with the new client, starting from the page cache
+    if (pendingFetch) {
+      pendingFetch.pkc = accountWithNewPkc.pkc;
+      pendingFetch.failed = false;
+    }
+    return fetchPage(pageCid, communityAddress, accountWithNewPkc, pageType, pendingFetch);
+  }
   await communitiesPagesDatabase.setItem(pageStoreKey, utils.clone(fetchedCommunityPage));
   return fetchedCommunityPage;
 };
