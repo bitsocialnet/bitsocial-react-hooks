@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Adapted from bitsocialnet/bitsocial-web, about/src/lib/webgl-context-recovery.ts (efec9611).
 // Modified 2026-10-11 for the Hooks docs: Astro theme, layout, and motion preferences.
+// Modified 2026-11-11: back off rapid rebuild retries.
 // Upstream license and attribution: website/LICENSES/bitsocial-web-AGPL-3.0.txt.
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -11,6 +12,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // static fallback until the next manual reload.
 const RAPID_LOSS_WINDOW_MS = 10_000;
 const MAX_RAPID_LOSSES = 3;
+// A rebuild that fails right away (e.g. the renderer constructor throws while the
+// GPU process is still restarting) would otherwise retry in the next commit and
+// spend the whole budget within a few frames. Waiting 2 s, then 4 s, gives the
+// GPU seconds to return. The wait is excluded from the rapid-loss gap, so a
+// context that keeps dying within RAPID_LOSS_WINDOW_MS of each rebuild still
+// reaches the fallback.
+const RAPID_RETRY_DELAY_MS = 2_000;
 
 type WebGLContextLike = Pick<WebGLRenderingContext, "isContextLost">;
 
@@ -33,6 +41,7 @@ export function useWebGLContextRecovery(onUnrecoverable?: () => void) {
   const stoppedRecoveringRef = useRef(false);
   const rapidLossCountRef = useRef(0);
   const lastLossAtRef = useRef(0);
+  const retryDelayRef = useRef(0);
   const contextRef = useRef<WebGLContextLike | null>(null);
   const onUnrecoverableRef = useRef(onUnrecoverable);
 
@@ -57,6 +66,11 @@ export function useWebGLContextRecovery(onUnrecoverable?: () => void) {
       return;
     }
 
+    // The first rebuild after a loss is immediate; rapid retries after it back off.
+    retryDelayRef.current = (rapidLossCountRef.current - 1) * RAPID_RETRY_DELAY_MS;
+    // Measure the next loss from the delayed rebuild, so the wait never counts as
+    // time the rebuilt context survived.
+    lastLossAtRef.current += retryDelayRef.current;
     recoveryPendingRef.current = true;
     setIsRecoveryPending(true);
   }, []);
@@ -101,21 +115,31 @@ export function useWebGLContextRecovery(onUnrecoverable?: () => void) {
       setContextGeneration((generation) => generation + 1);
     };
 
-    // Contexts created for a hidden tab are refused or dropped again on iOS, so
-    // wait until the page is actually on screen before rebuilding.
-    if (document.visibilityState === "visible") {
-      rebuild();
-      return;
-    }
-
     const handleVisibilityChange = () => {
       if (document.visibilityState !== "visible") return;
       rebuild();
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    const rebuildWhenVisible = () => {
+      // Contexts created for a hidden tab are refused or dropped again on iOS, so
+      // wait until the page is actually on screen before rebuilding.
+      if (document.visibilityState === "visible") {
+        rebuild();
+        return;
+      }
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    };
+
+    const retryDelay = retryDelayRef.current;
+    let retryTimeoutId: ReturnType<typeof setTimeout> | undefined;
+    if (retryDelay > 0) {
+      retryTimeoutId = setTimeout(rebuildWhenVisible, retryDelay);
+    } else {
+      rebuildWhenVisible();
+    }
 
     return () => {
+      clearTimeout(retryTimeoutId);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [isRecoveryPending]);

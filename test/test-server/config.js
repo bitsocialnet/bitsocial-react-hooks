@@ -44,3 +44,7 @@ export const pubsubIpfs = {
 export const pkcRpc = {
   port: getPort(["TEST_PKC_RPC_PORT", "VITE_TEST_PKC_RPC_PORT"], 48392),
 };
+
+// served on port 59281 once the test server is ready; it names the pkc rpc port so
+// tests can tell their own test server from one started with another config
+export const testServerReadyText = `test server ready, pkc rpc port ${pkcRpc.port}`;
