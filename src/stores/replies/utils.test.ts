@@ -319,6 +319,79 @@ describe("replies utils", () => {
       ).toEqual([]);
     });
 
+    test("places pinned replies as the community's reply sort options say", () => {
+      const comments = {
+        comment1: {
+          cid: "comment1",
+          communityAddress: "sub1.bso",
+          updatedAt: 1,
+          replies: {
+            pages: {
+              best: {
+                comments: [
+                  { cid: "older-reply", communityAddress: "sub1.bso", timestamp: 1 },
+                  { cid: "pinned-reply", communityAddress: "sub1.bso", timestamp: 2, pinned: true },
+                  { cid: "newer-reply", communityAddress: "sub1.bso", timestamp: 3 },
+                ],
+              },
+            },
+          },
+        },
+      };
+      const accounts = { [mockAccountId]: { pkc: {}, blockedAddresses: {}, blockedCids: {} } };
+      const feedsOptions = {
+        feed1: { commentCid: "comment1", sortType: "new", accountId: mockAccountId },
+      };
+      const makeCommunities = (pinnedFirst: string) => ({
+        // an unrelated community listed first must not lend its options to the comment
+        unrelated: {
+          address: "unrelated.bso",
+          pageSorts: { replies: { new: { name: "new", publicOptions: { pinnedFirst: "false" } } } },
+        },
+        // stored under its public key, found by the comment's community address
+        "sub1-public-key": {
+          address: "sub1.bso",
+          publicKey: "sub1-public-key",
+          pageSorts: { replies: { new: { name: "new", publicOptions: { pinnedFirst } } } },
+        },
+        other: { address: "other.bso", pageSorts: { replies: {} } },
+      });
+      const getFeed = (communities?: any) =>
+        getFilteredSortedFeeds(feedsOptions, comments, {}, accounts, communities).feed1.map(
+          (reply: any) => reply.cid,
+        );
+      // without the community record pinned replies go first, the pkc-js default
+      expect(getFeed()).toEqual(["pinned-reply", "newer-reply", "older-reply"]);
+      expect(getFeed({})).toEqual(["pinned-reply", "newer-reply", "older-reply"]);
+      // only another community is in the store
+      expect(getFeed({ unrelated: makeCommunities("false").unrelated })).toEqual([
+        "pinned-reply",
+        "newer-reply",
+        "older-reply",
+      ]);
+      // the community's .eth alias matches its .bso address
+      expect(
+        getFeed({
+          key: {
+            address: "sub1.eth",
+            pageSorts: {
+              replies: { new: { name: "new", publicOptions: { pinnedFirst: "false" } } },
+            },
+          },
+        }),
+      ).toEqual(["newer-reply", "pinned-reply", "older-reply"]);
+      expect(getFeed(makeCommunities("true"))).toEqual([
+        "pinned-reply",
+        "newer-reply",
+        "older-reply",
+      ]);
+      expect(getFeed(makeCommunities("false"))).toEqual([
+        "newer-reply",
+        "pinned-reply",
+        "older-reply",
+      ]);
+    });
+
     test("flattens a flat sort served from the preloaded hierarchical page", () => {
       const comments = {
         comment1: {

@@ -4,10 +4,16 @@ import {
   getAvailableReplySortTypes,
   getPostPageSortType,
   getPreloadedPostSortType,
+  getPreloadedPostSortTypes,
   getPreloadedReplySortType,
+  getPreloadedReplySortTypes,
   getReplyPageSortType,
   getSortTimeframeSeconds,
   isBuiltInPostSortType,
+  isPinnedFirstPostSortType,
+  isPinnedFirstReplySortType,
+  isPostSortTypeUnavailable,
+  isReplySortTypeUnavailable,
   resolvePostSortType,
   resolveReplySortType,
 } from "./page-sorts";
@@ -70,12 +76,96 @@ describe("page sort helpers", () => {
     expect(isBuiltInPostSortType({ pageSorts } as any, "top")).toBe(false);
   });
 
-  test("falls back to the first pageCid only when no preloaded page exists", () => {
-    expect(getPreloadedPostSortType({ posts: { pageCids: { custom: "custom-cid" } } } as any)).toBe(
-      "custom",
-    );
+  test("returns every preloaded sort in the record key order", () => {
+    const multiPreloadedCommunity = {
+      posts: {
+        pages: { active: { comments: [] }, new: { comments: [] } },
+        pageCids: { hot: "hot-cid" },
+      },
+    };
+    const multiPreloadedComment = {
+      replies: { pages: { old: { comments: [] }, best: { comments: [] } } },
+    };
+    expect(getPreloadedPostSortTypes(multiPreloadedCommunity as any)).toEqual(["active", "new"]);
+    expect(getPreloadedPostSortType(multiPreloadedCommunity as any)).toBe("active");
+    expect(resolvePostSortType(multiPreloadedCommunity as any)).toBe("active");
+    expect(getPreloadedReplySortTypes(multiPreloadedComment as any)).toEqual(["old", "best"]);
+    expect(getPreloadedReplySortType(multiPreloadedComment as any)).toBe("old");
+    expect(resolveReplySortType(multiPreloadedComment as any)).toBe("old");
+    expect(getPreloadedPostSortTypes(community as any)).toEqual(["sage"]);
+    expect(getPreloadedReplySortTypes(comment as any)).toEqual(["chronological"]);
+  });
+
+  test("reports no preloaded sort when pages is empty, and still resolves a loadable default", () => {
+    const noPreloadCommunity = { posts: { pages: {}, pageCids: { custom: "custom-cid" } } };
+    const noPreloadComment = { replies: { pageCids: { custom: "custom-cid" } } };
+    expect(getPreloadedPostSortTypes(noPreloadCommunity as any)).toEqual([]);
+    expect(getPreloadedPostSortType(noPreloadCommunity as any)).toBeUndefined();
+    expect(getPreloadedReplySortTypes(noPreloadComment as any)).toEqual([]);
+    expect(getPreloadedReplySortType(noPreloadComment as any)).toBeUndefined();
+    expect(getPreloadedPostSortTypes()).toEqual([]);
+    expect(getPreloadedReplySortTypes()).toEqual([]);
+    // feeds and replies without a requested sort still load the first sort with a page cid
+    expect(resolvePostSortType(noPreloadCommunity as any)).toBe("custom");
+    expect(getPostPageSortType(noPreloadCommunity as any)).toBe("custom");
+    expect(resolveReplySortType(noPreloadComment as any)).toBe("custom");
+    expect(getReplyPageSortType(noPreloadComment as any)).toBe("custom");
     expect(getAvailablePostSortTypes()).toEqual([]);
     expect(getAvailableReplySortTypes()).toEqual([]);
+  });
+
+  test("tells an unavailable requested sort from a record that is loading or empty", () => {
+    expect(isPostSortTypeUnavailable(community as any, "missing")).toBe(true);
+    expect(isPostSortTypeUnavailable(community as any, "newest")).toBe(false);
+    // nothing requested
+    expect(isPostSortTypeUnavailable(community as any)).toBe(false);
+    // not loaded yet, or no posts at all: no sort is published to compare with
+    expect(isPostSortTypeUnavailable(undefined, "missing")).toBe(false);
+    expect(isPostSortTypeUnavailable({ posts: { pages: {} } } as any, "missing")).toBe(false);
+    expect(isReplySortTypeUnavailable(comment as any, "missing")).toBe(true);
+    expect(isReplySortTypeUnavailable(comment as any, "nestedNewest")).toBe(false);
+    expect(isReplySortTypeUnavailable({ cid: "no replies yet" } as any, "missing")).toBe(false);
+    // an empty preloaded page is still a comment or community without replies or posts
+    const emptyPage = { pages: { best: { comments: [] } }, pageCids: {} };
+    expect(isReplySortTypeUnavailable({ replies: emptyPage } as any, "missing")).toBe(false);
+    expect(isPostSortTypeUnavailable({ posts: emptyPage } as any, "missing")).toBe(false);
+    // unless that page continues
+    const continuedPage = { pages: { best: { comments: [], nextCid: "next" } } };
+    expect(isReplySortTypeUnavailable({ replies: continuedPage } as any, "missing")).toBe(true);
+    // a standard sort computed from a complete preloaded page is available
+    const singlePageCommunity = { posts: { pages: { hot: { comments: [{ cid: "post" }] } } } };
+    expect(isPostSortTypeUnavailable(singlePageCommunity as any, "new")).toBe(false);
+    expect(isPostSortTypeUnavailable(singlePageCommunity as any, "sage")).toBe(true);
+  });
+
+  test("reads pinned placement from the published sort options", () => {
+    const pageSorts = {
+      posts: {
+        hot: { name: "hot", publicOptions: { pinnedFirst: "false" } },
+        new: { name: "new", publicOptions: { pinnedFirst: "true" } },
+        active: { name: "active", publicOptions: { pinnedFirst: " FALSE " } },
+        top: { name: "top" },
+      },
+      replies: { best: { name: "best", publicOptions: { pinnedFirst: "false" } } },
+    };
+    const posts = { pages: { hot: { comments: [{ cid: "post" }] } } };
+    // an unconfigured community publishes no pageSorts and puts pinned posts first
+    expect(isPinnedFirstPostSortType(undefined, "hot")).toBe(true);
+    expect(isPinnedFirstPostSortType({ posts } as any, "hot")).toBe(true);
+    expect(isPinnedFirstPostSortType({ posts, pageSorts } as any, "hot")).toBe(false);
+    expect(isPinnedFirstPostSortType({ posts, pageSorts } as any, "new")).toBe(true);
+    expect(isPinnedFirstPostSortType({ posts, pageSorts } as any, "active")).toBe(false);
+    expect(isPinnedFirstPostSortType({ posts, pageSorts } as any, "top")).toBe(true);
+    // the default sort, and a sort computed from its complete page that the community published
+    // nothing about, follow that page
+    expect(isPinnedFirstPostSortType({ posts, pageSorts } as any)).toBe(false);
+    expect(isPinnedFirstPostSortType({ posts, pageSorts } as any, "topAll")).toBe(false);
+
+    const comment = { replies: { pages: { best: { comments: [{ cid: "reply" }] } } } };
+    expect(isPinnedFirstReplySortType({ pageSorts } as any, comment as any, "best")).toBe(false);
+    expect(isPinnedFirstReplySortType({ pageSorts } as any, comment as any, "new")).toBe(false);
+    expect(isPinnedFirstReplySortType(undefined, comment as any, "best")).toBe(true);
+    expect(isPinnedFirstReplySortType({} as any, comment as any, "best")).toBe(true);
   });
 
   describe("complete preloaded pages", () => {

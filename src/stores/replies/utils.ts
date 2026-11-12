@@ -6,6 +6,8 @@ import {
   RepliesFeedsOptions,
   Comment,
   Comments,
+  Communities,
+  Community,
   Account,
   Accounts,
   RepliesPage,
@@ -17,8 +19,37 @@ import accountsStore from "../accounts";
 import { flattenCommentsPages, commentIsValid, removeInvalidComments } from "../../lib/utils";
 import { areEquivalentCommunityAddresses } from "../../lib/community-address";
 import Logger from "@pkcprotocol/pkc-logger";
-import { getReplyPageSortType, isFlatSortType, resolveReplySortType } from "../../lib/page-sorts";
+import {
+  getReplyPageSortType,
+  isFlatSortType,
+  isPinnedFirstReplySortType,
+  resolveReplySortType,
+} from "../../lib/page-sorts";
 const log = Logger("bitsocial-react-hooks:replies:stores");
+
+// the community record of a comment, which publishes how its reply sorts place pinned replies
+const getCommentCommunity = (
+  comment: Comment | undefined,
+  communities?: Communities,
+): Community | undefined => {
+  const communityAddress = comment?.communityAddress;
+  if (!communityAddress || !communities) {
+    return;
+  }
+  // the store keys a community by its public key, address or name, so match the candidate's own
+  // identifiers rather than the key
+  return (
+    communities[communityAddress] ||
+    Object.values(communities).find((community) =>
+      [community?.address, community?.publicKey, community?.name].some(
+        (identifier) =>
+          typeof identifier === "string" &&
+          (identifier === communityAddress ||
+            areEquivalentCommunityAddresses(identifier, communityAddress)),
+      ),
+    )
+  );
+};
 
 /**
  * Calculate the feeds from all the loaded replies pages, filter and sort them
@@ -28,6 +59,7 @@ export const getFilteredSortedFeeds = (
   comments: Comments,
   repliesPages: RepliesPages,
   accounts: Accounts,
+  communities?: Communities,
 ) => {
   // calculate each feed
   let feeds: Feeds = {};
@@ -86,7 +118,15 @@ export const getFilteredSortedFeeds = (
     }
 
     // sort the feed before filtering to get more accurate results
-    const sortedBufferedFeedReplies = repliesSorter.sort(sortType, bufferedFeedReplies);
+    // pinned replies go first unless the community's record says this sort ranks them like any
+    // other reply; without the community record the pkc-js default (pinned first) applies
+    const sortedBufferedFeedReplies = repliesSorter.sort(sortType, bufferedFeedReplies, {
+      pinnedFirst: isPinnedFirstReplySortType(
+        getCommentCommunity(comment, communities),
+        comment,
+        sortType,
+      ),
+    });
 
     // filter the feed
     const filteredSortedBufferedFeedReplies = [];

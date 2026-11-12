@@ -15,6 +15,7 @@ import {
   getAccountsBlockedCids,
   getFeedsHaveMore,
   getFeedsCommunityKeysWithMore,
+  getFeedsCommunityKeysWithUnavailableSort,
 } from "./utils";
 import accountsStore from "../accounts";
 import { commentIsValid } from "../../lib/utils";
@@ -407,6 +408,109 @@ describe("feeds utils", () => {
       const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, makeMockAccounts());
       expect(feeds.feed1).toHaveLength(1);
       expect(feeds.feed1[0].cid).toBe("c1");
+    });
+
+    describe("pinned placement published by the community", () => {
+      const now = Math.floor(Date.now() / 1000);
+      const makeCommunity = (address: string, pinnedFirst?: string) => ({
+        address,
+        updatedAt: 1,
+        ...(pinnedFirst === undefined
+          ? undefined
+          : {
+              pageSorts: {
+                posts: {
+                  hot: { name: "hot", publicOptions: { pinnedFirst } },
+                  new: { name: "new", publicOptions: { pinnedFirst } },
+                },
+              },
+            }),
+        posts: {
+          pages: {
+            hot: {
+              comments: [
+                { cid: `${address}-new`, communityAddress: address, timestamp: now - 10 },
+                {
+                  cid: `${address}-pinned`,
+                  communityAddress: address,
+                  timestamp: now - 20,
+                  pinned: true,
+                },
+                { cid: `${address}-old`, communityAddress: address, timestamp: now - 3 * 86400 },
+                {
+                  cid: `${address}-pinned-old`,
+                  communityAddress: address,
+                  timestamp: now - 4 * 86400,
+                  pinned: true,
+                },
+              ],
+            },
+          },
+        },
+      });
+      const getFeed = (communities: any, sortType: string) =>
+        getFilteredSortedFeeds(
+          {
+            feed1: {
+              communities: toCommunities(Object.keys(communities)),
+              sortType,
+              accountId: mockAccountId,
+            },
+          } as any,
+          communities,
+          {},
+          makeMockAccounts(),
+        ).feed1.map((post: any) => post.cid);
+
+      test("puts pinned posts first for a community that publishes no sort options", () => {
+        expect(getFeed({ sub1: makeCommunity("sub1") }, "new")).toEqual([
+          "sub1-pinned",
+          "sub1-pinned-old",
+          "sub1-new",
+          "sub1-old",
+        ]);
+        expect(getFeed({ sub1: makeCommunity("sub1", "true") }, "new")).toEqual([
+          "sub1-pinned",
+          "sub1-pinned-old",
+          "sub1-new",
+          "sub1-old",
+        ]);
+      });
+
+      test("ranks pinned posts like any other for a built-in sort with pinnedFirst false", () => {
+        expect(getFeed({ sub1: makeCommunity("sub1", "false") }, "new")).toEqual([
+          "sub1-new",
+          "sub1-pinned",
+          "sub1-old",
+          "sub1-pinned-old",
+        ]);
+      });
+
+      test("windows pinned posts of a client-side timeframe sort only when they are ordinary posts", () => {
+        expect(getFeed({ sub1: makeCommunity("sub1") }, "topDay")).toEqual([
+          "sub1-pinned",
+          "sub1-pinned-old",
+          "sub1-new",
+        ]);
+        // the community published nothing about topDay, so it follows the hot page it is read from
+        expect(getFeed({ sub1: makeCommunity("sub1", "false") }, "topDay")).toEqual([
+          "sub1-new",
+          "sub1-pinned",
+        ]);
+      });
+
+      test("a feed over several communities only leaves out the pinned posts a community puts first", () => {
+        expect(
+          getFeed({ sub1: makeCommunity("sub1"), sub2: makeCommunity("sub2", "false") }, "new"),
+        ).toEqual([
+          "sub1-new",
+          "sub2-new",
+          "sub2-pinned",
+          "sub1-old",
+          "sub2-old",
+          "sub2-pinned-old",
+        ]);
+      });
     });
 
     test("skips pinned post when feed has multiple communities", () => {
@@ -1451,6 +1555,66 @@ describe("feeds utils", () => {
         makeMockAccounts(),
       );
       expect(result.feed1).toBe(false);
+    });
+  });
+
+  describe("getFeedsCommunityKeysWithUnavailableSort", () => {
+    const communities = {
+      published: { address: "published", updatedAt: 1, posts: { pageCids: { sage: "sage-cid" } } },
+      "other-sort": {
+        address: "other-sort",
+        updatedAt: 1,
+        posts: { pages: { hot: { comments: [], nextCid: "hot-next" } } },
+      },
+      "client-sortable": {
+        address: "client-sortable",
+        updatedAt: 1,
+        posts: { pages: { hot: { comments: [{ cid: "post" }] } } },
+      },
+      "no-posts": { address: "no-posts", updatedAt: 1, posts: { pages: {} } },
+    };
+    const communityKeys = ["not-loaded", "published", "other-sort", "client-sortable", "no-posts"];
+    const toFeedsOptions = (options: any) =>
+      ({
+        feed1: { communities: toCommunities(communityKeys), accountId: mockAccountId, ...options },
+      }) as any;
+
+    test("lists the loaded communities that do not serve the requested sort", () => {
+      expect(
+        getFeedsCommunityKeysWithUnavailableSort(
+          toFeedsOptions({ sortType: "sage" }),
+          communities,
+          {},
+        ).feed1,
+      ).toEqual(["other-sort", "client-sortable"]);
+      expect(
+        getFeedsCommunityKeysWithUnavailableSort(
+          toFeedsOptions({ sortType: "new" }),
+          communities,
+          {},
+        ).feed1,
+      ).toEqual(["published", "other-sort"]);
+    });
+
+    test("lists nothing without a requested sort or for a mod queue feed", () => {
+      expect(
+        getFeedsCommunityKeysWithUnavailableSort(toFeedsOptions({}), communities, {}).feed1,
+      ).toEqual([]);
+      expect(
+        getFeedsCommunityKeysWithUnavailableSort(
+          toFeedsOptions({ sortType: "sage", modQueue: ["pendingApproval"] }),
+          communities,
+          {},
+        ).feed1,
+      ).toEqual([]);
+    });
+
+    test("keeps the previous array when the communities are the same", () => {
+      const feedsOptions = toFeedsOptions({ sortType: "sage" });
+      const previous = getFeedsCommunityKeysWithUnavailableSort(feedsOptions, communities, {});
+      expect(
+        getFeedsCommunityKeysWithUnavailableSort(feedsOptions, communities, previous).feed1,
+      ).toBe(previous.feed1);
     });
   });
 

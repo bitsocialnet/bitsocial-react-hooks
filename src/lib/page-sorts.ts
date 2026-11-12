@@ -8,8 +8,8 @@ type PagesRecord = {
 type PreloadedPage = { comments?: unknown; nextCid?: string } | undefined;
 
 // Standard pkc-js sorts (pkc-js src/pages/util.ts) whose scoring the feed sorter reproduces. pkc-js
-// preloads a single sort and only publishes pageCids once that page overflows, so a record whose
-// comments all fit in the preloaded page can serve any of these by re-sorting that page client-side.
+// only publishes pageCids once a preloaded page overflows, so a record whose comments all fit in
+// its preloaded pages can serve any of these by re-sorting such a page client-side.
 const CLIENT_SORTABLE_POST_SORT_TYPES = [
   "hot",
   "new",
@@ -128,10 +128,32 @@ const getAvailablePageSortTypes = (
   return sortTypes;
 };
 
-const getPreloadedPageSortType = (record?: PagesRecord): string | undefined => {
-  const preloadedSortType = Object.keys(record?.pages || {}).find(Boolean);
-  return preloadedSortType || getPublishedPageSortTypes(record)[0];
-};
+// the sorts whose first page the record embeds, in the record's key order. pkc-js publishes records
+// with sorted keys, so that order is not guaranteed to be the one the community configured and the
+// first sort is not necessarily its preference. A community may preload several sorts, or none: a
+// record with empty `pages` has no preloaded sort, even when it publishes `pageCids`.
+const getPreloadedPageSortTypes = (record?: PagesRecord): string[] =>
+  Object.keys(record?.pages || {}).filter(Boolean);
+
+// whether the record publishes any comment: a page cid, or a preloaded page that holds comments or
+// continues. A record with no comments can still carry empty preloaded pages (`comments: []`).
+const hasPublishedComments = (record?: PagesRecord): boolean =>
+  Object.keys(record?.pageCids || {}).length > 0 ||
+  Object.values(record?.pages || {}).some((page) => {
+    const { comments, nextCid } = (page as PreloadedPage) || {};
+    return Boolean(nextCid) || (Array.isArray(comments) && comments.length > 0);
+  });
+
+// a requested sort the record does not serve, as opposed to a record that has not loaded or has no
+// comments at all, where there is nothing a different sort would show
+const isPageSortTypeUnavailable = (
+  record: PagesRecord | undefined,
+  requestedSortType: string | undefined,
+  clientSortableSortTypes: string[],
+): boolean =>
+  requestedSortType !== undefined &&
+  hasPublishedComments(record) &&
+  !getAvailablePageSortTypes(record, clientSortableSortTypes).includes(requestedSortType);
 
 const resolvePageSortType = (
   record: PagesRecord | undefined,
@@ -143,7 +165,9 @@ const resolvePageSortType = (
       ? requestedSortType
       : undefined;
   }
-  return getPreloadedPageSortType(record);
+  // no sort requested: use the first preloaded sort in the record's key order. A record that preloads
+  // nothing still has to load something, so it falls back to the first sort it publishes page cids for.
+  return getPreloadedPageSortTypes(record)[0] ?? getPublishedPageSortTypes(record)[0];
 };
 
 // the page that serves a resolved sort: its published page, or the complete preloaded page the
@@ -174,11 +198,34 @@ export const getAvailablePostSortTypes = (community?: Community): string[] =>
 export const getAvailableReplySortTypes = (comment?: Comment): string[] =>
   getAvailablePageSortTypes(comment?.replies, getClientSortableReplySortTypes(comment));
 
+export const getPreloadedPostSortTypes = (community?: Community): string[] =>
+  getPreloadedPageSortTypes(community?.posts);
+
+export const getPreloadedReplySortTypes = (comment?: Comment): string[] =>
+  getPreloadedPageSortTypes(comment?.replies);
+
+// the first preloaded sort in the record's key order, undefined when the record preloads none
 export const getPreloadedPostSortType = (community?: Community): string | undefined =>
-  getPreloadedPageSortType(community?.posts);
+  getPreloadedPostSortTypes(community)[0];
 
 export const getPreloadedReplySortType = (comment?: Comment): string | undefined =>
-  getPreloadedPageSortType(comment?.replies);
+  getPreloadedReplySortTypes(comment)[0];
+
+export const isPostSortTypeUnavailable = (
+  community: Community | undefined,
+  requestedSortType?: string,
+): boolean =>
+  isPageSortTypeUnavailable(community?.posts, requestedSortType, CLIENT_SORTABLE_POST_SORT_TYPES);
+
+export const isReplySortTypeUnavailable = (
+  comment: Comment | undefined,
+  requestedSortType?: string,
+): boolean =>
+  isPageSortTypeUnavailable(
+    comment?.replies,
+    requestedSortType,
+    getClientSortableReplySortTypes(comment),
+  );
 
 export const resolvePostSortType = (
   community: Community | undefined,
@@ -239,3 +286,41 @@ export const getReplyPageSortType = (
   requestedSortType?: string,
 ): string | undefined =>
   getPageSortTypeToRead(comment?.replies, resolveReplySortType(comment, requestedSortType));
+
+// whether a sort puts pinned comments first. A community configured with `settings.pages` publishes
+// every sort's reserved options in `community.pageSorts`, so `pinnedFirst: "false"` (pinned comments
+// ranked and filtered like any other) is readable from the record; pkc-js defaults it to "true", which
+// is also what an unconfigured community, publishing no `pageSorts`, has always done. A sort the
+// client computes from another sort's complete page follows that page's placement when the community
+// published nothing about the requested sort.
+const isPinnedFirstPageSortType = (
+  community: Community | undefined,
+  scope: "posts" | "replies",
+  sortType: string | undefined,
+  pageSortType: string | undefined,
+): boolean => {
+  const publishedPageSorts = community?.pageSorts?.[scope];
+  const publishedPageSort =
+    (sortType !== undefined ? publishedPageSorts?.[sortType] : undefined) ??
+    (pageSortType !== undefined ? publishedPageSorts?.[pageSortType] : undefined);
+  const pinnedFirst = publishedPageSort?.publicOptions?.pinnedFirst;
+  return !(typeof pinnedFirst === "string" && pinnedFirst.trim().toLowerCase() === "false");
+};
+
+export const isPinnedFirstPostSortType = (
+  community: Community | undefined,
+  sortType?: string,
+): boolean =>
+  isPinnedFirstPageSortType(community, "posts", sortType, getPostPageSortType(community, sortType));
+
+export const isPinnedFirstReplySortType = (
+  community: Community | undefined,
+  comment: Comment | undefined,
+  sortType?: string,
+): boolean =>
+  isPinnedFirstPageSortType(
+    community,
+    "replies",
+    sortType,
+    getReplyPageSortType(comment, sortType),
+  );

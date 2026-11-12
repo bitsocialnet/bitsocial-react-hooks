@@ -212,6 +212,8 @@ export interface UseRepliesResult extends Result {
   bufferedReplies: Comment[];
   updatedReplies: Comment[];
   hasMore: boolean;
+  // the comment's replies are published, but not under the requested sortType
+  sortTypeUnavailable: boolean;
   loadMore(): Promise<void>;
   reset(): Promise<void>;
 }
@@ -299,6 +301,8 @@ export interface UseFeedResult extends Result {
   communityKeysWithNewerPosts: string[];
   // communities that still have posts to load, until each has loaded and fetched its last page
   communityKeysWithMore: string[];
+  // loaded communities that do not serve the requested sortType, so they add nothing to the feed
+  communityKeysWithUnavailableSort: string[];
   reset(): Promise<void>;
 }
 

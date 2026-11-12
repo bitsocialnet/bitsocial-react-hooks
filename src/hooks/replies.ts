@@ -13,6 +13,7 @@ import useRepliesStore, {
 } from "../stores/replies";
 import useAccountsStore from "../stores/accounts";
 import { addOptimisticVoteCountsToComments } from "../lib/utils/optimistic-vote-counts";
+import { isReplySortTypeUnavailable } from "../lib/page-sorts";
 
 /** Pure helper to append an error to the errors array; used for deterministic coverage of reset/loadMore catch paths. */
 export function appendErrorToErrors(prevErrors: Error[], e: Error): Error[] {
@@ -196,6 +197,9 @@ export function useReplies(options?: UseRepliesOptions): UseRepliesResult {
   }
 
   const state = !hasMore ? "succeeded" : "fetching";
+  // an empty result because the comment does not publish the requested sort, rather than because
+  // its replies are still loading or it has none
+  const sortTypeUnavailable = isReplySortTypeUnavailable(comment, sortType);
   const normalizedReplies = useMemo(
     () => addOptimisticVoteCountsToComments(addCommentModerationToComments(replies), accountVotes),
     [replies, accountVotes],
@@ -223,6 +227,7 @@ export function useReplies(options?: UseRepliesOptions): UseRepliesResult {
       bufferedReplies: normalizedBufferedReplies,
       updatedReplies: normalizedUpdatedReplies,
       hasMore,
+      sortTypeUnavailable,
       loadMore,
       reset,
       state,
@@ -235,6 +240,7 @@ export function useReplies(options?: UseRepliesOptions): UseRepliesResult {
       normalizedUpdatedReplies,
       repliesFeedName,
       hasMore,
+      sortTypeUnavailable,
       errors,
     ],
   );

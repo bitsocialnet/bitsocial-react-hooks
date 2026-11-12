@@ -29,6 +29,8 @@ import {
   getPostPageSortType,
   getSortTimeframeSeconds,
   isBuiltInPostSortType,
+  isPinnedFirstPostSortType,
+  isPostSortTypeUnavailable,
   resolvePostSortType,
 } from "../../lib/page-sorts";
 const log = Logger("bitsocial-react-hooks:feeds:stores");
@@ -193,10 +195,11 @@ export const getFilteredSortedFeeds = (
             continue;
           }
           // window the reconciled post: pinned is mutable moderation state, and like the pages a
-          // community windows itself, pinned posts stay regardless of age
+          // community windows itself, pinned posts stay regardless of age unless the community
+          // ranks them like any other post
           if (
             clientTimeframeTimestamp !== undefined &&
-            !nextPost.pinned &&
+            !(nextPost.pinned && isPinnedFirstPostSortType(community, sortType)) &&
             nextPost.timestamp <= clientTimeframeTimestamp
           ) {
             continue;
@@ -248,18 +251,32 @@ export const getFilteredSortedFeeds = (
     // built-in sorter of the same name would undo a sort the client cannot reproduce. A sort served
     // from another sort's complete page still needs the client sort. Feeds over several communities
     // interleave each community's order rather than re-sorting them together.
-    const communityFeeds = communityFeedPosts.map(({ community, posts }) => ({
-      posts,
-      keepOrder:
-        originalSortType !== undefined &&
-        getPostPageSortType(community, originalSortType) === originalSortType &&
-        !isBuiltInPostSortType(community, originalSortType),
-    }));
+    //
+    // Pinned placement is the community's too (`pinnedFirst`, published per sort): where the client
+    // re-sorts a community's posts it puts the pinned ones first unless the community turned that
+    // off. A feed over several communities has no single top to pin to, so it leaves out the pinned
+    // posts a community puts first, and ranks the ones a community treats like any other post.
+    const isMultiCommunityFeed = communityKeys.length > 1;
+    const communityFeeds = communityFeedPosts.map(({ community, posts }) => {
+      const pinnedFirst = isPinnedFirstPostSortType(community, originalSortType);
+      return {
+        posts: isMultiCommunityFeed && pinnedFirst ? posts.filter((post) => !post.pinned) : posts,
+        pinnedFirst,
+        keepOrder:
+          originalSortType !== undefined &&
+          getPostPageSortType(community, originalSortType) === originalSortType &&
+          !isBuiltInPostSortType(community, originalSortType),
+      };
+    });
+    const sortOptions = {
+      pinnedFirst: !isMultiCommunityFeed && communityFeeds.every(({ pinnedFirst }) => pinnedFirst),
+    };
     const sortedBufferedFeedPosts = communityFeeds.some(({ keepOrder }) => keepOrder)
-      ? feedSorter.merge(originalSortType, communityFeeds)
+      ? feedSorter.merge(originalSortType, communityFeeds, sortOptions)
       : feedSorter.sort(
           originalSortType,
           communityFeeds.flatMap(({ posts }) => posts),
+          sortOptions,
         );
 
     // filter the feed
@@ -275,12 +292,6 @@ export const getFilteredSortedFeeds = (
 
       // comment cid is blocked
       if (accounts[accountId]?.blockedCids[post.cid]) {
-        continue;
-      }
-
-      // if a feed has more than 1 sub, don't include pinned posts
-      // TODO: add test to check if pinned are filtered
-      if (post.pinned && communityKeys.length > 1) {
         continue;
       }
 
@@ -831,6 +842,38 @@ export const getFeedsCommunityKeysWithMore = (
         : communityKeysWithMore;
   }
   return feedsCommunityKeysWithMore;
+};
+
+/**
+ * Get which loaded communities of each feed do not serve the feed's requested sort: the community
+ * publishes sorts, but not this one, and it cannot be computed from a complete preloaded page. Such
+ * a community adds nothing to the feed, which is otherwise indistinguishable from one still loading
+ * or one without posts. A community that has not loaded yet or has no posts is not listed.
+ */
+export const getFeedsCommunityKeysWithUnavailableSort = (
+  feedsOptions: FeedsOptions,
+  communities: Communities,
+  previousFeedsCommunityKeysWithUnavailableSort: { [feedName: string]: string[] },
+) => {
+  const feedsCommunityKeysWithUnavailableSort: { [feedName: string]: string[] } = {};
+  for (const feedName in feedsOptions) {
+    const { sortType, pageType } = getFeedPageOptions(feedsOptions[feedName]);
+    const communityKeysWithUnavailableSort =
+      pageType === "posts"
+        ? getFeedCommunityKeys(feedsOptions[feedName]).filter((communityKey) =>
+            isPostSortTypeUnavailable(communities[communityKey], sortType),
+          )
+        : [];
+    // keep the previous array when the data is the same to avoid rerenders
+    const previousCommunityKeysWithUnavailableSort =
+      previousFeedsCommunityKeysWithUnavailableSort[feedName];
+    feedsCommunityKeysWithUnavailableSort[feedName] =
+      previousCommunityKeysWithUnavailableSort?.toString() ===
+      communityKeysWithUnavailableSort.toString()
+        ? previousCommunityKeysWithUnavailableSort
+        : communityKeysWithUnavailableSort;
+  }
+  return feedsCommunityKeysWithUnavailableSort;
 };
 
 // get all communities pages cids of all feeds, use to check if a communitiesStore change should trigger updateFeeds

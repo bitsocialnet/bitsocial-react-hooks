@@ -1147,6 +1147,40 @@ describe("feedSorter", () => {
     ]);
   });
 
+  test("puts pinned posts first by default when it re-sorts a feed", () => {
+    const posts = [
+      { cid: "old", timestamp: 1 },
+      { cid: "pinned", timestamp: 2, pinned: true },
+      { cid: "new", timestamp: 3 },
+    ];
+    expect(feedSorter.sort("new", posts).map((post) => post.cid)).toEqual(["pinned", "new", "old"]);
+    expect(feedSorter.sort("new", posts, {}).map((post) => post.cid)).toEqual([
+      "pinned",
+      "new",
+      "old",
+    ]);
+  });
+
+  test("ranks pinned posts like any other when the community turned pinnedFirst off", () => {
+    const posts = [
+      { cid: "old", timestamp: 1 },
+      { cid: "pinned", timestamp: 2, pinned: true },
+      { cid: "new", timestamp: 3 },
+    ];
+    const sorted = feedSorter.sort("new", posts, { pinnedFirst: false });
+    expect(sorted.map((post) => post.cid)).toEqual(["new", "pinned", "old"]);
+    // the caller's feed is not reordered in place
+    expect(posts.map((post) => post.cid)).toEqual(["old", "pinned", "new"]);
+  });
+
+  test("keeps the published order of an unknown sort whatever pinnedFirst says", () => {
+    const customFeed = [{ cid: "first" }, { cid: "second", pinned: true }];
+    expect(feedSorter.sort("sage", customFeed, { pinnedFirst: true })).toBe(customFeed);
+    expect(feedSorter.sort("sage", customFeed, { pinnedFirst: false })).toBe(customFeed);
+    // a sort named like an Object.prototype property is not a client sorter
+    expect(feedSorter.sort("constructor", customFeed)).toBe(customFeed);
+  });
+
   test("does not infer scoring from an unknown sort name", () => {
     const unknownFeed = [{ cid: "new-looking" }, { cid: "old-looking" }];
     expect(feedSorter.sort("newCustom", unknownFeed)).toBe(unknownFeed);
@@ -1464,6 +1498,28 @@ describe("feedSorter", () => {
           { posts, keepOrder: true },
         ]),
       ).toBe(posts);
+    });
+
+    test("ranks pinned posts by the sort options it is given", () => {
+      const pinned = { cid: "pinned", timestamp: 40, pinned: true };
+      const feeds = [
+        { posts: [bumped, saged], keepOrder: true },
+        { posts: [pinned, older, newer], keepOrder: false },
+      ];
+      expect(cids(feedSorter.merge("active", feeds))).toEqual([
+        "pinned",
+        "newer",
+        "bumped",
+        "saged",
+        "older",
+      ]);
+      expect(cids(feedSorter.merge("active", feeds, { pinnedFirst: false }))).toEqual([
+        "newer",
+        "bumped",
+        "saged",
+        "pinned",
+        "older",
+      ]);
     });
 
     test("merges feeds that all use the built-in sort as one sort", () => {

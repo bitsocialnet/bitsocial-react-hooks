@@ -51,6 +51,8 @@ export default function CommunityCard({ name }) {
 
 The package initializes a local account automatically. You can also identify a community with `{ publicKey }`, or pass both `{ name, publicKey }`. Hooks share cached data and subscriptions; use `syncState` when you need to show background refresh progress.
 
+Feeds and replies can contain removed or deleted comments: communities choose per sort whether to publish them, and the hooks do not filter them. Check `comment.removed` and `comment.deleted` before rendering a comment, whichever hook returned it.
+
 ## Explore the docs
 
 Read the guides at [hooks.bitsocial.net](https://hooks.bitsocial.net/), or browse their source here:

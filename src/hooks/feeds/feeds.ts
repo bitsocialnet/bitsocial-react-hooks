@@ -27,6 +27,7 @@ import { serializeFeedKey } from "../../lib/serialize-feed-key";
 
 let feedAutoUpdateSubscriptionCount = 0;
 const emptyErrors: Error[] = [];
+const emptyCommunityKeys: string[] = [];
 
 /**
  * @param communities - The communities to fetch, e.g. [{name: 'memes.eth'}, {publicKey: '12D3KooW...'}]
@@ -106,6 +107,9 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
   );
   const feedCommunityKeysWithMore = useFeedsStore(
     (state) => state.feedsCommunityKeysWithMore[feedName],
+  );
+  const communityKeysWithUnavailableSort = useFeedsStore(
+    (state) => state.feedsCommunityKeysWithUnavailableSort[feedName],
   );
 
   // add feed to store
@@ -240,6 +244,7 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
       hasMore,
       communityKeysWithNewerPosts: communityKeysWithNewerPosts || [],
       communityKeysWithMore,
+      communityKeysWithUnavailableSort: communityKeysWithUnavailableSort || emptyCommunityKeys,
       loadMore,
       expandTimeWindow,
       reset,
@@ -256,6 +261,7 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
       errors,
       communityKeysWithNewerPosts,
       communityKeysWithMore,
+      communityKeysWithUnavailableSort,
     ],
   );
 }

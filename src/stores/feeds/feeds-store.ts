@@ -42,6 +42,7 @@ import {
   getFilteredSortedFeeds,
   getFeedsCommunityKeysWithNewerPosts,
   getFeedsCommunityKeysWithMore,
+  getFeedsCommunityKeysWithUnavailableSort,
 } from "./utils";
 
 // reddit loads approximately 25 posts per page
@@ -60,6 +61,7 @@ type FeedsState = {
   feedsHaveMore: { [feedName: string]: boolean };
   feedsCommunityKeysWithNewerPosts: { [feedName: string]: string[] };
   feedsCommunityKeysWithMore: { [feedName: string]: string[] };
+  feedsCommunityKeysWithUnavailableSort: { [feedName: string]: string[] };
   addFeedToStore: Function;
   startFeedAutoUpdate: Function;
   stopFeedAutoUpdate: Function;
@@ -152,6 +154,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
   feedsHaveMore: {},
   feedsCommunityKeysWithNewerPosts: {},
   feedsCommunityKeysWithMore: {},
+  feedsCommunityKeysWithUnavailableSort: {},
 
   async addFeedToStore(
     feedName: string,
@@ -500,6 +503,11 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
         accounts,
         previousState.feedsCommunityKeysWithMore,
       );
+      const feedsCommunityKeysWithUnavailableSort = getFeedsCommunityKeysWithUnavailableSort(
+        feedsOptions,
+        communities,
+        previousState.feedsCommunityKeysWithUnavailableSort,
+      );
       const feedsCommunityKeysWithNewerPosts = getFeedsCommunityKeysWithNewerPosts(
         feedsOptions,
         filteredSortedFeeds,
@@ -532,6 +540,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
         feedsHaveMore,
         feedsCommunityKeysWithNewerPosts,
         feedsCommunityKeysWithMore,
+        feedsCommunityKeysWithUnavailableSort,
       }));
       log.trace("feedsStore.updateFeeds", {
         feedsOptions,
