@@ -371,12 +371,24 @@ export function useNotifications(options?: UseNotificationsOptions): UseNotifica
   );
 }
 
+// a pending comment or edit that nothing resolved within this time is considered failed
+const pendingExpirySeconds = 60 * 20;
+
+/** Calls onTime once Date.now() reaches time (in seconds), for states derived from the clock. */
+const useTimeoutAt = (time: number | undefined, onTime: () => void) => {
+  useEffect(() => {
+    if (time === undefined) return;
+    const timeout = setTimeout(onTime, Math.max(time * 1000 - Date.now(), 0));
+    return () => clearTimeout(timeout);
+  }, [time]);
+};
+
 const getAccountCommentsStates = (accountComments: AccountComment[]) => {
   // Without a cid, the account comment is still a local pending publish. pkc-js marks
   // terminal publish failures when `publishingState === "failed"` and publication `state`
   // is `"stopped"`, so we derive failed from that terminal pair or recorded publish errors.
   const now = Math.round(Date.now() / 1000);
-  const expiryTime = now - 60 * 20;
+  const expiryTime = now - pendingExpirySeconds;
 
   const states: string[] = [];
   for (const accountComment of accountComments) {
@@ -640,6 +652,12 @@ export function useAccountComment(options?: UseAccountCommentOptions): UseAccoun
   const state = storedAccountComment
     ? getAccountCommentsStates([storedAccountComment])[0]
     : "initializing";
+  // rerender when a pending comment expires, even if no store update rerenders the hook
+  const [, setPendingExpiryRerenders] = useState(0);
+  useTimeoutAt(
+    state === "pending" ? storedAccountComment!.timestamp + pendingExpirySeconds : undefined,
+    () => setPendingExpiryRerenders((rerenders) => rerenders + 1),
+  );
 
   return useMemo(() => {
     const accountComment = (
@@ -893,7 +911,9 @@ export function useEditedComment(options?: UseEditedCommentOptions): UseEditedCo
     initialState = "unedited";
   }
 
-  const editedResult = useMemo(() => {
+  // bumped when an edit stops being too recent to evaluate, so the memo below evaluates it again
+  const [pendingExpiryRerenders, setPendingExpiryRerenders] = useState(0);
+  const { editedResult, pendingEditsExpireAt } = useMemo(() => {
     const editedResult: any = {
       editedComment: undefined,
       succeededEdits: {},
@@ -901,18 +921,24 @@ export function useEditedComment(options?: UseEditedCommentOptions): UseEditedCo
       failedEdits: {},
       state: undefined,
     };
+    // when the earliest edit that is pending only because it is recent expires
+    let pendingEditsExpireAt: number | undefined;
 
     // there are no edits
     const propertyNameEdits: any =
       commentEdits?.length > 0 ? getAccountEditPropertySummary(commentEdits) : commentEditSummary;
 
     if (!propertyNameEdits || Object.keys(propertyNameEdits).length === 0) {
-      return editedResult;
+      return { editedResult, pendingEditsExpireAt };
     }
 
     const now = Math.round(Date.now() / 1000);
     // no longer consider an edit pending ater an expiry time of 20 minutes
-    const expiryTime = 60 * 20;
+    const expiryTime = pendingExpirySeconds;
+    const expirePendingEditLater = (propertyNameEdit: any) => {
+      const expireAt = propertyNameEdit.timestamp + expiryTime;
+      pendingEditsExpireAt = Math.min(pendingEditsExpireAt ?? expireAt, expireAt);
+    };
 
     // iterate over propertyNameEdits and find if succeeded, pending or failed
     for (const propertyName in propertyNameEdits) {
@@ -943,6 +969,7 @@ export function useEditedComment(options?: UseEditedCommentOptions): UseEditedCo
           setPropertyNameEditState("succeeded");
         } else if (propertyNameEdit.timestamp > now - expiryTime) {
           setPropertyNameEditState("pending");
+          expirePendingEditLater(propertyNameEdit);
         } else {
           setPropertyNameEditState("failed");
         }
@@ -971,6 +998,7 @@ export function useEditedComment(options?: UseEditedCommentOptions): UseEditedCo
           // so we should assume pending
           if (propertyNameEdit.timestamp > now - expiryTime) {
             setPropertyNameEditState("pending");
+            expirePendingEditLater(propertyNameEdit);
             continue;
           }
 
@@ -1015,8 +1043,9 @@ export function useEditedComment(options?: UseEditedCommentOptions): UseEditedCo
     }
     editedResult.editedComment = addCommentModeration(editedResult.editedComment);
 
-    return editedResult;
-  }, [comment, commentEditSummary, commentEdits]);
+    return { editedResult, pendingEditsExpireAt };
+  }, [comment, commentEditSummary, commentEdits, pendingExpiryRerenders]);
+  useTimeoutAt(pendingEditsExpireAt, () => setPendingExpiryRerenders((rerenders) => rerenders + 1));
 
   return useMemo(
     () => ({

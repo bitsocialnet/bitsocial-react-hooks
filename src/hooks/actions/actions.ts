@@ -32,6 +32,11 @@ export function handlePublishErrorWhenAbandoned(
   (onError ?? noop)(error);
 }
 
+/** Clears what the previous publication left in a publish hook's result. */
+const clearPublicationResult = (...setters: Dispatch<SetStateAction<any>>[]) => {
+  for (const setState of setters) setState(undefined);
+};
+
 /** For usePublishVote catch. Exported for coverage. */
 export function handlePublishVoteError(
   error: Error,
@@ -75,7 +80,6 @@ import type {
 
 type PublishChallengeAnswers = (challengeAnswers?: string[]) => Promise<void>;
 type DeferredAbandon = {
-  promise: Promise<void>;
   resolve: () => void;
   reject: (error: unknown) => void;
 };
@@ -263,13 +267,12 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
   const [challenge, setChallenge] = useState<Challenge>();
   const [challengeVerification, setChallengeVerification] = useState<ChallengeVerification>();
   const [publishChallengeAnswers, setPublishChallengeAnswers] = useState<PublishChallengeAnswers>();
-  const indexRef = useRef<number | undefined>(undefined);
   const publishRequestIdRef = useRef(0);
+  // the latest publication, until it is abandoned or the store rejects it. Only its events write the
+  // hook state, and abandonPublish() abandons it.
   const activePublishRequestIdRef = useRef<number | undefined>(undefined);
-  const deferredAbandonsRef = useRef(new Map<number, DeferredAbandon>());
+  const abandonActivePublishRef = useRef<() => Promise<void>>(async () => {});
   const mountedRef = useRef(true);
-  const guardActiveHook = () =>
-    mountedRef.current && activePublishRequestIdRef.current !== undefined;
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -279,96 +282,129 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
   let initialState = "initializing";
   if (accountId && options) initialState = "ready";
 
-  const originalOnError = publishCommentOptions.onError;
-  const onError = async (error: Error) => {
-    if (activePublishRequestIdRef.current === undefined) return;
-    if (mountedRef.current) {
-      setErrors((errors) => [...errors, error]);
-    }
-    (originalOnError ?? noop)(error);
-  };
-  publishCommentOptions.onError = onError;
-
-  const originalOnChallenge = publishCommentOptions.onChallenge;
-  publishCommentOptions.onChallenge = async (challenge: Challenge, comment: Comment) => {
-    if (activePublishRequestIdRef.current === undefined) return;
-    if (mountedRef.current) {
-      setPublishChallengeAnswers(() => comment?.publishChallengeAnswers.bind(comment));
-      setChallenge(challenge);
-    }
-    (originalOnChallenge ?? noop)(challenge, comment);
-  };
-
-  const originalOnChallengeVerification = publishCommentOptions.onChallengeVerification;
-  publishCommentOptions.onChallengeVerification = async (
-    challengeVerification: ChallengeVerification,
-    comment: Comment,
-  ) => {
-    if (activePublishRequestIdRef.current === undefined) return;
-    if (mountedRef.current) {
-      setChallengeVerification(challengeVerification);
-    }
-    (originalOnChallengeVerification ?? noop)(challengeVerification, comment);
-  };
-
-  publishCommentOptions.onPublishingStateChange = withGuardActive(
-    guardActiveHook,
-    (publishingState: string) => setPublishingState(publishingState),
-  );
+  const resetPublishState = () =>
+    clearPublicationResult(
+      setChallenge,
+      setChallengeVerification,
+      setPublishChallengeAnswers,
+      setIndex,
+      setPublishingState,
+    );
 
   const publishComment = async () => {
     const requestId = publishRequestIdRef.current + 1;
     publishRequestIdRef.current = requestId;
     activePublishRequestIdRef.current = requestId;
-    indexRef.current = undefined;
-    setIndex(undefined);
-    const originalOnPendingComment = publishCommentOptions.onPendingComment;
+    const isActive = () => activePublishRequestIdRef.current === requestId;
+    const updatesHookState = () => mountedRef.current && isActive();
+    if (mountedRef.current) {
+      resetPublishState();
+      setErrors([]);
+    }
+    // once abandoned, the publication's late events reach neither the hook state nor the callbacks
+    let abandoned = false;
+    let settled = false;
+    // given by the store with the pending comment index, bound to the account that publishes and to
+    // the index the comment has now
+    let abandonPendingComment: (() => Promise<void>) | undefined;
+    let deferredAbandon: DeferredAbandon | undefined;
+    const resolveDeferredAbandon = () => {
+      deferredAbandon?.resolve();
+      deferredAbandon = undefined;
+    };
+    const abandon = async () => {
+      if (abandoned) return;
+      abandoned = true;
+      if (isActive()) {
+        activePublishRequestIdRef.current = undefined;
+        if (mountedRef.current) resetPublishState();
+      }
+      if (abandonPendingComment) {
+        await abandonPendingComment();
+        return;
+      }
+      if (settled) return;
+      // abandon the comment once the store reports it, or resolve if the store never does
+      await new Promise<void>((resolve, reject) => {
+        deferredAbandon = { resolve, reject };
+      });
+    };
+    abandonActivePublishRef.current = abandon;
+
+    const {
+      onError: originalOnError,
+      onChallenge: originalOnChallenge,
+      onChallengeVerification: originalOnChallengeVerification,
+      onPendingComment: originalOnPendingComment,
+    } = publishCommentOptions;
     const activePublishCommentOptions = {
       ...publishCommentOptions,
-      _onPendingCommentIndex: (pendingIndex: number) => {
-        const deferredAbandon = deferredAbandonsRef.current.get(requestId);
+      onError: async (error: Error) => {
+        if (abandoned) return;
+        if (updatesHookState()) {
+          setErrors((errors) => [...errors, error]);
+        }
+        (originalOnError ?? noop)(error);
+      },
+      onChallenge: async (challenge: Challenge, comment: Comment) => {
+        if (abandoned) return;
+        if (updatesHookState()) {
+          setPublishChallengeAnswers(() => comment?.publishChallengeAnswers.bind(comment));
+          setChallenge(challenge);
+          // an automatic republish's challenge replaces the previous attempt's failed verification
+          setChallengeVerification(undefined);
+        }
+        (originalOnChallenge ?? noop)(challenge, comment, abandon);
+      },
+      onChallengeVerification: async (
+        challengeVerification: ChallengeVerification,
+        comment: Comment,
+      ) => {
+        if (abandoned) return;
+        if (updatesHookState()) {
+          setChallengeVerification(challengeVerification);
+        }
+        (originalOnChallengeVerification ?? noop)(challengeVerification, comment);
+      },
+      onPublishingStateChange: withGuardActive(updatesHookState, (publishingState: string) =>
+        setPublishingState(publishingState),
+      ),
+      // called once the pending comment is stored, and again when a deletion shifts its index
+      _onPendingCommentIndex: (
+        pendingIndex: number,
+        _pendingComment: Comment,
+        abandonComment: () => Promise<void>,
+      ) => {
+        abandonPendingComment = abandonComment;
         if (deferredAbandon) {
-          deferredAbandonsRef.current.delete(requestId);
-          void accountsActions
-            .deleteComment(pendingIndex, accountName)
-            .then(deferredAbandon.resolve, deferredAbandon.reject);
+          const { resolve, reject } = deferredAbandon;
+          deferredAbandon = undefined;
+          void abandonComment().then(resolve, reject);
           return;
         }
-        if (activePublishRequestIdRef.current !== requestId) {
-          return;
-        }
-        indexRef.current = pendingIndex;
-        if (mountedRef.current) {
+        if (updatesHookState()) {
           setIndex(pendingIndex);
         }
       },
-      onPendingComment: withGuardActive(
-        () => activePublishRequestIdRef.current === requestId,
-        (pendingIndex, pendingComment) => originalOnPendingComment?.(pendingIndex, pendingComment),
+      onPendingComment: withGuardActive(isActive, (pendingIndex, pendingComment) =>
+        originalOnPendingComment?.(pendingIndex, pendingComment),
       ),
     };
     try {
-      const { index } = await accountsActions.publishComment(
-        activePublishCommentOptions,
-        accountName,
-      );
-      if (activePublishRequestIdRef.current !== requestId) {
-        return;
-      }
-      indexRef.current = index;
-      if (mountedRef.current) {
-        setIndex(index);
-      }
+      await accountsActions.publishComment(activePublishCommentOptions, accountName);
+      settled = true;
+      // the comment was deleted before the store reported it, so there is nothing left to abandon
+      resolveDeferredAbandon();
     } catch (e: any) {
-      const deferredAbandon = deferredAbandonsRef.current.get(requestId);
-      if (deferredAbandon) {
-        deferredAbandonsRef.current.delete(requestId);
-        deferredAbandon.resolve();
-      }
+      settled = true;
+      resolveDeferredAbandon();
       try {
-        if (!mountedRef.current && activePublishRequestIdRef.current === requestId) {
+        if (!mountedRef.current && isActive()) {
           (originalOnError ?? noop)(e);
         } else {
+          if (isActive()) {
+            setPublishingState("failed");
+          }
           handlePublishErrorWhenAbandoned(
             activePublishRequestIdRef,
             requestId,
@@ -378,7 +414,7 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
           );
         }
       } finally {
-        if (activePublishRequestIdRef.current === requestId) {
+        if (isActive()) {
           activePublishRequestIdRef.current = undefined;
         }
       }
@@ -386,30 +422,12 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
   };
 
   const abandonPublish = async () => {
-    const requestId = activePublishRequestIdRef.current;
-    activePublishRequestIdRef.current = undefined;
-    const idx = indexRef.current;
-    indexRef.current = undefined;
-    if (mountedRef.current) {
-      setChallenge(undefined);
-      setChallengeVerification(undefined);
-      setPublishChallengeAnswers(undefined);
-      setIndex(undefined);
-      setPublishingState(undefined);
-    }
-    if (idx !== undefined) {
-      await accountsActions.deleteComment(idx, accountName);
+    if (activePublishRequestIdRef.current !== undefined) {
+      await abandonActivePublishRef.current();
       return;
     }
-    if (requestId !== undefined) {
-      let resolve!: () => void;
-      let reject!: (error: unknown) => void;
-      const promise = new Promise<void>((resolvePromise, rejectPromise) => {
-        resolve = resolvePromise;
-        reject = rejectPromise;
-      });
-      deferredAbandonsRef.current.set(requestId, { promise, resolve, reject });
-      await promise;
+    if (mountedRef.current) {
+      resetPublishState();
     }
   };
 
@@ -457,6 +475,8 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
   // the cleared hook state nor leak into the next publication
   const publishVoteRequestIdRef = useRef(0);
   const activePublishVoteRequestIdRef = useRef<number | undefined>(undefined);
+  // given by the store as publishVote() starts, it abandons the vote in the account that publishes it
+  const abandonActiveVoteRef = useRef<() => Promise<void>>(undefined);
 
   let initialState = "initializing";
   // before the accountId and options is defined, nothing can happen
@@ -477,6 +497,8 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
   const onChallenge = async (challenge: Challenge, vote: Vote) => {
     setPublishChallengeAnswers(() => vote?.publishChallengeAnswers.bind(vote));
     setChallenge(challenge);
+    // an automatic republish's challenge replaces the previous attempt's failed verification
+    setChallengeVerification(undefined);
     (originalOnChallenge ?? (() => {}))(challenge, vote);
   };
   publishVoteOptions.onChallenge = onChallenge;
@@ -500,7 +522,15 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
     const requestId = publishVoteRequestIdRef.current + 1;
     publishVoteRequestIdRef.current = requestId;
     activePublishVoteRequestIdRef.current = requestId;
+    abandonActiveVoteRef.current = undefined;
     const isActiveRequest = () => activePublishVoteRequestIdRef.current === requestId;
+    clearPublicationResult(
+      setChallenge,
+      setChallengeVerification,
+      setPublishChallengeAnswers,
+      setPublishingState,
+    );
+    setErrors([]);
     const activePublishVoteOptions = {
       ...publishVoteOptions,
       onChallenge: (challenge: Challenge, vote: Vote) => {
@@ -512,22 +542,36 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
       onPublishingStateChange: (publishingState: string) => {
         if (isActiveRequest()) setPublishingState(publishingState);
       },
+      // an earlier or abandoned vote's error still reaches the app's onError, but not the result
+      onError: (error: Error) => {
+        if (isActiveRequest()) onError(error);
+        else originalOnError?.(error);
+      },
+      _onVotePublishSession: (abandonVote: () => Promise<void>) => {
+        if (isActiveRequest()) abandonActiveVoteRef.current = abandonVote;
+      },
     };
     try {
       await accountsActions.publishVote(activePublishVoteOptions, accountName);
     } catch (e: any) {
-      handlePublishVoteError(e, setErrors, originalOnError);
+      if (isActiveRequest()) {
+        setPublishingState("failed");
+        handlePublishVoteError(e, setErrors, originalOnError);
+      } else {
+        originalOnError?.(e);
+      }
     }
   };
 
   const abandonPublish = async () => {
+    const abandonVote = abandonActiveVoteRef.current;
     activePublishVoteRequestIdRef.current = undefined;
+    abandonActiveVoteRef.current = undefined;
     setChallenge(undefined);
     setChallengeVerification(undefined);
     setPublishChallengeAnswers(undefined);
     setPublishingState(undefined);
-    if (!publishVoteOptions.commentCid) return;
-    await accountsActions.abandonVote(publishVoteOptions.commentCid, accountName);
+    await abandonVote?.();
   };
 
   return useMemo(
@@ -576,6 +620,9 @@ export function usePublishCommentEdit(
     initialState = "ready";
   }
 
+  // the latest publishCommentEdit() call owns the result
+  const publishRequestIdRef = useRef(0);
+
   // define onError if not defined
   const originalOnError = publishCommentEditOptions.onError;
   const onError = async (error: Error) => {
@@ -590,6 +637,8 @@ export function usePublishCommentEdit(
     // cannot set a function directly with setState
     setPublishChallengeAnswers(() => commentEdit?.publishChallengeAnswers.bind(commentEdit));
     setChallenge(challenge);
+    // an automatic republish's challenge replaces the previous attempt's failed verification
+    setChallengeVerification(undefined);
     originalOnChallenge?.(challenge, commentEdit);
   };
   publishCommentEditOptions.onChallenge = onChallenge;
@@ -611,10 +660,21 @@ export function usePublishCommentEdit(
   };
 
   const publishCommentEdit = async () => {
+    const requestId = ++publishRequestIdRef.current;
+    clearPublicationResult(
+      setChallenge,
+      setChallengeVerification,
+      setPublishChallengeAnswers,
+      setPublishingState,
+    );
+    setErrors([]);
     try {
       await accountsActions.publishCommentEdit(publishCommentEditOptions, accountName);
     } catch (e: any) {
-      setErrors((errors) => [...errors, e]);
+      if (publishRequestIdRef.current === requestId) {
+        setPublishingState("failed");
+        setErrors((errors) => [...errors, e]);
+      }
       originalOnError?.(e);
     }
   };
@@ -664,6 +724,9 @@ export function usePublishCommentModeration(
     initialState = "ready";
   }
 
+  // the latest publishCommentModeration() call owns the result
+  const publishRequestIdRef = useRef(0);
+
   // define onError if not defined
   const originalOnError = publishCommentModerationOptions.onError;
   const onError = async (error: Error) => {
@@ -680,6 +743,8 @@ export function usePublishCommentModeration(
       commentModeration?.publishChallengeAnswers.bind(commentModeration),
     );
     setChallenge(challenge);
+    // an automatic republish's challenge replaces the previous attempt's failed verification
+    setChallengeVerification(undefined);
     originalOnChallenge?.(challenge, commentModeration);
   };
   publishCommentModerationOptions.onChallenge = onChallenge;
@@ -701,10 +766,21 @@ export function usePublishCommentModeration(
   };
 
   const publishCommentModeration = async () => {
+    const requestId = ++publishRequestIdRef.current;
+    clearPublicationResult(
+      setChallenge,
+      setChallengeVerification,
+      setPublishChallengeAnswers,
+      setPublishingState,
+    );
+    setErrors([]);
     try {
       await accountsActions.publishCommentModeration(publishCommentModerationOptions, accountName);
     } catch (e: any) {
-      setErrors((errors) => [...errors, e]);
+      if (publishRequestIdRef.current === requestId) {
+        setPublishingState("failed");
+        setErrors((errors) => [...errors, e]);
+      }
       originalOnError?.(e);
     }
   };
@@ -754,6 +830,9 @@ export function usePublishCommunityEdit(
     initialState = "ready";
   }
 
+  // the latest publishCommunityEdit() call owns the result
+  const publishRequestIdRef = useRef(0);
+
   // define onError if not defined
   const originalOnError = publishCommunityEditOptions.onError;
   const onError = async (error: Error) => {
@@ -768,6 +847,8 @@ export function usePublishCommunityEdit(
     // cannot set a function directly with setState
     setPublishChallengeAnswers(() => communityEdit?.publishChallengeAnswers.bind(communityEdit));
     setChallenge(challenge);
+    // an automatic republish's challenge replaces the previous attempt's failed verification
+    setChallengeVerification(undefined);
     originalOnChallenge?.(challenge, communityEdit);
   };
   publishCommunityEditOptions.onChallenge = onChallenge;
@@ -789,6 +870,14 @@ export function usePublishCommunityEdit(
   };
 
   const publishCommunityEdit = async () => {
+    const requestId = ++publishRequestIdRef.current;
+    clearPublicationResult(
+      setChallenge,
+      setChallengeVerification,
+      setPublishChallengeAnswers,
+      setPublishingState,
+    );
+    setErrors([]);
     try {
       await accountsActions.publishCommunityEdit(
         communityAddress,
@@ -796,7 +885,10 @@ export function usePublishCommunityEdit(
         accountName,
       );
     } catch (e: any) {
-      setErrors((errors) => [...errors, e]);
+      if (publishRequestIdRef.current === requestId) {
+        setPublishingState("failed");
+        setErrors((errors) => [...errors, e]);
+      }
       originalOnError?.(e);
     }
   };
@@ -892,6 +984,7 @@ export function useExportCommunity(options?: UseExportCommunityOptions): UseExpo
   ]);
   const previousExportContextKeyRef = useRef(exportContextKey);
   const exportContextVersionRef = useRef(0);
+  const exportRequestIdRef = useRef(0);
   if (previousExportContextKeyRef.current !== exportContextKey) {
     previousExportContextKeyRef.current = exportContextKey;
     exportContextVersionRef.current += 1;
@@ -911,22 +1004,29 @@ export function useExportCommunity(options?: UseExportCommunityOptions): UseExpo
     exportingContext.version === exportContextVersionRef.current;
 
   const exportCommunity = async () => {
+    // only the latest export writes the result, whatever context an earlier one was started in
+    const requestId = ++exportRequestIdRef.current;
     try {
       setExportingContext({
         key: exportContextKey,
         version: exportContextVersionRef.current,
       });
       setExportingState("exporting");
+      setCommunityExports([]);
+      setErrors([]);
       const communityExports = await accountsActions.exportCommunity(
         targetCommunityAddresses,
         exportCommunityOptions,
         accountName,
       );
+      if (exportRequestIdRef.current !== requestId) return;
       setCommunityExports(communityExports);
       setExportingState("succeeded");
     } catch (e: any) {
-      setExportingState("failed");
-      setErrors((errors) => [...errors, e]);
+      if (exportRequestIdRef.current === requestId) {
+        setExportingState("failed");
+        setErrors((errors) => [...errors, e]);
+      }
       onError?.(e);
     }
   };
