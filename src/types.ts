@@ -309,7 +309,8 @@ export interface UseFeedResult extends Result {
 
 // useBufferedFeeds(options): result
 export interface UseBufferedFeedsOptions extends Options {
-  feedsOptions?: UseFeedOptions[];
+  // buffered feeds always leave out blocked cids, includeBlockedCids is a useFeed option
+  feedsOptions?: Omit<UseFeedOptions, "includeBlockedCids">[];
 }
 export interface UseBufferedFeedsResult extends Result {
   bufferedFeeds: Comment[][];

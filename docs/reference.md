@@ -178,7 +178,7 @@ setAuthorAvatarsWhitelistedTokenAddresses(tokenAddresses: string[])
 
 ```
 useFeed({communities?: CommunityIdentifier[], sortType?: string, postsPerPage?: number, filter?: CommentsFilter, newerThan?: number, accountComments?: {newerThan: number, append?: boolean, limit?: number}, modQueue: ['pendingApproval'], includeBlockedCids?: boolean}): {feed: Comment[], loadMore: function, expandTimeWindow: function, hasMore: boolean, reset: function, updatedFeed: Comment[], bufferedFeed: Comment[], communityKeysWithNewerPosts: string[], communityKeysWithMore: string[], communityKeysWithUnavailableSort: string[]}
-useBufferedFeeds({feedsOptions: UseFeedOptions[]}) // preload or buffer feeds in the background, so they load faster when you call `useFeed`
+useBufferedFeeds({feedsOptions: Omit<UseFeedOptions, "includeBlockedCids">[]}) // preload or buffer feeds in the background, so they load faster when you call `useFeed`
 ```
 
 `useFeed()` and `useBufferedFeeds()` keep their communities updating while mounted. A feed keeps its loaded posts after it unmounts, and stops fetching more pages 2 minutes later, until it is mounted again.
