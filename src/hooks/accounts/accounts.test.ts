@@ -3119,6 +3119,74 @@ describe("accounts", () => {
       expect(rendered.result.current.community.address).toBe(undefined);
     });
 
+    test("deleted community is removed from useAccountCommunities and stays removed after reload", async () => {
+      const createdCommunityAddress = "created community address";
+      const otherCommunityAddress = "moderating community address";
+      // every community the account fetches gives it a moderator role
+      const role = { role: "moderator" };
+      const authorAddress = rendered.result.current.account.author.address;
+      const rolesToGet = Community.prototype.rolesToGet;
+      Community.prototype.rolesToGet = () => ({ [authorAddress]: role });
+      try {
+        await act(async () => {
+          await rendered.result.current.createCommunity();
+        });
+        rendered.rerender(otherCommunityAddress);
+        // both roles are stored in account.communities
+        await waitFor(
+          () =>
+            rendered.result.current.account.communities[createdCommunityAddress]?.role &&
+            rendered.result.current.account.communities[otherCommunityAddress]?.role &&
+            rendered.result.current.accountCommunities[createdCommunityAddress]?.role?.role ===
+              "owner",
+        );
+        expect(rendered.result.current.account.communities[createdCommunityAddress].role).toEqual(
+          role,
+        );
+        expect(
+          rendered.result.current.accountCommunities[createdCommunityAddress]?.role?.role,
+        ).toBe("owner");
+
+        await act(async () => {
+          await rendered.result.current.deleteCommunity(createdCommunityAddress);
+        });
+        expect(rendered.result.current.account.communities[createdCommunityAddress]).toBe(
+          undefined,
+        );
+        await waitFor(
+          () => rendered.result.current.accountCommunities[createdCommunityAddress] === undefined,
+        );
+        expect(rendered.result.current.accountCommunities[createdCommunityAddress]).toBe(undefined);
+        expect(rendered.result.current.account.communities[createdCommunityAddress]).toBe(
+          undefined,
+        );
+        expect(rendered.result.current.accountCommunities[otherCommunityAddress].role).toEqual(
+          role,
+        );
+
+        // render again with new context and store
+        await testUtils.resetStores();
+        rendered = renderHook<any, any>(() => {
+          const account = useAccount();
+          const { accountCommunities } = useAccountCommunities();
+          return { account, accountCommunities };
+        });
+        waitFor = testUtils.createWaitFor(rendered);
+        await waitFor(
+          () => rendered.result.current.accountCommunities[otherCommunityAddress]?.role,
+        );
+        expect(rendered.result.current.accountCommunities[otherCommunityAddress].role).toEqual(
+          role,
+        );
+        expect(rendered.result.current.accountCommunities[createdCommunityAddress]).toBe(undefined);
+        expect(rendered.result.current.account.communities[createdCommunityAddress]).toBe(
+          undefined,
+        );
+      } finally {
+        Community.prototype.rolesToGet = rolesToGet;
+      }
+    });
+
     test("create and edit owner community useCommunity persists after reload", async () => {
       const createdCommunityAddress = "created community address";
       const createdCommunityTitle = "created community title";

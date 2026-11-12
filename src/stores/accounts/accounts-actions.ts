@@ -57,6 +57,7 @@ import { v4 as uuid } from "uuid";
 import utils from "../../lib/utils";
 import { addOptimisticVoteMetadata } from "../../lib/utils/optimistic-vote-counts";
 import { applyCommunityWordfilters } from "../../lib/wordfilters";
+import { doesAddressMatchCommunityRef } from "../../lib/community-ref";
 
 const PUBLICATION_COMMUNITY_LOAD_TIMEOUT_MS = 30_000;
 const COMMENT_AUTHOR_LOAD_TIMEOUT_MS = 10_000;
@@ -2794,6 +2795,37 @@ export const deleteCommunity = async (communityAddress: string, accountName?: st
     account = accounts[accountId];
   }
 
+  // read the other identifiers of the community (name, public key) before the store forgets them
+  const deletedCommunity = communitiesStore.getState().communities[communityAddress];
   await communitiesStore.getState().deleteCommunity(communityAddress, account);
+
+  // remove the deleted community from the deleting account's stored communities, under every
+  // address it is known by, or useAccountCommunities keeps listing it. Other local accounts keep
+  // their entry: they did not delete the community
+  const isDeletedCommunity = (accountCommunityAddress: string) =>
+    doesAddressMatchCommunityRef(
+      accountCommunityAddress,
+      { address: communityAddress },
+      deletedCommunity,
+    );
+  let updatedAccount: Account | undefined;
+  accountsStore.setState(({ accounts }) => {
+    const currentAccount = accounts[account.id];
+    const addressesToRemove = Object.keys(currentAccount?.communities || {}).filter(
+      isDeletedCommunity,
+    );
+    if (!addressesToRemove.length) {
+      return {};
+    }
+    const communities = { ...currentAccount.communities };
+    for (const address of addressesToRemove) {
+      delete communities[address];
+    }
+    updatedAccount = { ...currentAccount, communities };
+    return { accounts: { ...accounts, [account.id]: updatedAccount } };
+  });
+  if (updatedAccount) {
+    await accountsDatabase.addAccount(updatedAccount);
+  }
   log("accountsActions.deleteCommunity", { communityAddress });
 };

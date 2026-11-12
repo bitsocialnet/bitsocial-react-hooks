@@ -242,7 +242,7 @@ setActiveAccount(accountName: string)
 setAccountsOrder(accountNames: string[])
 importAccount(serializedAccount: string)
 exportAccount(accountName: string): string // don't allow undefined to prevent catastrophic bugs
-deleteCommunity(communityAddress: string, accountName?: string)
+deleteCommunity(communityAddress: string, accountName?: string) // also removes the community from that account's `account.communities`, so `useAccountCommunities` stops listing it
 deleteComment(commentCidOrAccountCommentIndex: string | number, accountName?: string): Promise<void>
 ```
 

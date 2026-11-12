@@ -2368,6 +2368,117 @@ describe("accounts-actions", () => {
       // no throw = success
     });
 
+    test("deleteCommunity removes the community from the deleting account only and persists it", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("DelOwner");
+        await accountsActions.createAccount("DelOther");
+      });
+      let sub: any;
+      await act(async () => {
+        sub = await accountsActions.createCommunity({ title: "To delete" }, "DelOwner");
+      });
+      const getAccountByName = (name: string) => {
+        const { accounts, accountNamesToAccountIds } = accountsStore.getState();
+        return accounts[accountNamesToAccountIds[name]];
+      };
+      const role = { role: "moderator" };
+      for (const name of ["DelOwner", "DelOther"]) {
+        await act(async () => {
+          await accountsActions.setAccount({
+            ...getAccountByName(name),
+            communities: { [sub.address]: { role }, "unrelated.bso": { role } },
+          });
+        });
+      }
+
+      await act(async () => {
+        await accountsActions.deleteCommunity(sub.address, "DelOwner");
+      });
+
+      expect(getAccountByName("DelOwner").communities).toEqual({ "unrelated.bso": { role } });
+      expect(getAccountByName("DelOther").communities).toEqual({
+        [sub.address]: { role },
+        "unrelated.bso": { role },
+      });
+
+      // the removal survives a reload from the database
+      const ownerId = getAccountByName("DelOwner").id;
+      const otherId = getAccountByName("DelOther").id;
+      await testUtils.resetStores();
+      await vi.waitFor(() => expect(accountsStore.getState().accounts[ownerId]).toBeDefined());
+      expect(accountsStore.getState().accounts[ownerId].communities).toEqual({
+        "unrelated.bso": { role },
+      });
+      expect(accountsStore.getState().accounts[otherId].communities[sub.address]).toEqual({
+        role,
+      });
+    });
+
+    test("deleteCommunity removes equivalent address aliases of the deleted community", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("DelAlias");
+      });
+      const getAccount = () => {
+        const { accounts, accountNamesToAccountIds } = accountsStore.getState();
+        return accounts[accountNamesToAccountIds["DelAlias"]];
+      };
+      const role = { role: "admin" };
+      await act(async () => {
+        await accountsActions.setAccount({
+          ...getAccount(),
+          communities: {
+            "music.eth": { role },
+            "music.bso": { role },
+            "music-public-key": { role },
+            "musical.bso": { role },
+          },
+        });
+      });
+      // the communities store knows the other identifiers of the community being deleted
+      communitiesStore.setState((state: any) => ({
+        communities: {
+          ...state.communities,
+          "music.bso": { address: "music.bso", name: "music.bso", publicKey: "music-public-key" },
+        },
+      }));
+
+      await act(async () => {
+        await accountsActions.deleteCommunity("music.bso", "DelAlias");
+      });
+
+      expect(getAccount().communities).toEqual({ "musical.bso": { role } });
+      const stored: any = await accountsDatabase.accountsDatabase.getItem(getAccount().id);
+      expect(stored.communities).toEqual({ "musical.bso": { role } });
+    });
+
+    test("deleteCommunity keeps account data when the deletion fails", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("DelFails");
+      });
+      const getAccount = () => {
+        const { accounts, accountNamesToAccountIds } = accountsStore.getState();
+        return accounts[accountNamesToAccountIds["DelFails"]];
+      };
+      const role = { role: "admin" };
+      await act(async () => {
+        await accountsActions.setAccount({
+          ...getAccount(),
+          communities: { "fails.bso": { role } },
+        });
+      });
+      const deleteSpy = vi
+        .spyOn(BaseCommunity.prototype, "delete")
+        .mockRejectedValueOnce(new Error("delete failed"));
+      try {
+        await expect(accountsActions.deleteCommunity("fails.bso", "DelFails")).rejects.toThrow(
+          "delete failed",
+        );
+      } finally {
+        deleteSpy.mockRestore();
+      }
+      expect(getAccount().communities).toEqual({ "fails.bso": { role } });
+    });
+
     test("deleteComment with accountName uses named account (by index)", async () => {
       await act(async () => {
         await accountsActions.createAccount();
