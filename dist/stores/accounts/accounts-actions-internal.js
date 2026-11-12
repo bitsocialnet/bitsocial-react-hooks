@@ -66,6 +66,23 @@ const backfillLiveCommentCommunityAddress = (comment, communityAddress) => {
         }
     }
 };
+// two accounts can hold the same comment, e.g. a backup of an identity imported next to the account
+// it was exported from, so each account updates its own copy
+const getAccountCommentUpdatingKey = (accountId, commentCid) => `${accountId}:${commentCid}`;
+// commentCidsToAccountsComments names only the last account holding a comment, so another account
+// holding it finds its own row by cid. Undefined once the account no longer has the comment.
+const getAccountCommentIndexByCid = (accountId, commentCid) => {
+    if (!commentCid) {
+        return;
+    }
+    const { commentCidsToAccountsComments, accountsComments } = accountsStore.getState();
+    const mapping = commentCidsToAccountsComments[commentCid];
+    if ((mapping === null || mapping === void 0 ? void 0 : mapping.accountId) === accountId) {
+        return mapping.accountCommentIndex;
+    }
+    const accountCommentIndex = (accountsComments[accountId] || []).findIndex((accountComment) => (accountComment === null || accountComment === void 0 ? void 0 : accountComment.cid) === commentCid);
+    return accountCommentIndex === -1 ? undefined : accountCommentIndex;
+};
 // TODO: we currently subscribe to updates for every single comment
 // in the user's account history. This probably does not scale, we
 // need to eventually schedule and queue older comments to look
@@ -80,11 +97,12 @@ export const startUpdatingAccountCommentOnCommentUpdateEvents = (comment, accoun
         return;
     }
     // account comment already updating
-    if (accountsStore.getState().accountsCommentsUpdating[comment.cid]) {
+    const updatingKey = getAccountCommentUpdatingKey(account.id, comment.cid);
+    if (accountsStore.getState().accountsCommentsUpdating[updatingKey]) {
         return;
     }
     accountsStore.setState(({ accountsCommentsUpdating }) => ({
-        accountsCommentsUpdating: Object.assign(Object.assign({}, accountsCommentsUpdating), { [comment.cid]: true }),
+        accountsCommentsUpdating: Object.assign(Object.assign({}, accountsCommentsUpdating), { [updatingKey]: true }),
     }));
     // comment is not a `Comment` instance
     if (!comment.on) {
@@ -96,11 +114,12 @@ export const startUpdatingAccountCommentOnCommentUpdateEvents = (comment, accoun
         (initialStoredComment === null || initialStoredComment === void 0 ? void 0 : initialStoredComment.communityAddress));
     comment.on("update", (updatedComment) => __awaiter(void 0, void 0, void 0, function* () {
         var _a, _b;
-        const mapping = accountsStore.getState().commentCidsToAccountsComments[updatedComment.cid || ""];
-        if (!mapping || mapping.accountId !== account.id) {
+        const currentIndex = getAccountCommentIndexByCid(account.id, updatedComment.cid);
+        // the account no longer has the comment, e.g. it was deleted
+        if (currentIndex === undefined) {
             accountsStore.setState(({ accountsCommentsUpdating }) => {
                 const next = Object.assign({}, accountsCommentsUpdating);
-                delete next[updatedComment.cid || ""];
+                delete next[updatingKey];
                 return { accountsCommentsUpdating: next };
             });
             try {
@@ -117,7 +136,6 @@ export const startUpdatingAccountCommentOnCommentUpdateEvents = (comment, accoun
             }
             return;
         }
-        const currentIndex = mapping.accountCommentIndex;
         // merge should not be needed if pkc-js is implemented properly, but no harm in fixing potential errors
         const storedComment = (_a = accountsStore.getState().accountsComments[account.id]) === null || _a === void 0 ? void 0 : _a[currentIndex];
         updatedComment = utils.merge(commentArgument, comment, updatedComment);

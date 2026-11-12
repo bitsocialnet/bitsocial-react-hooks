@@ -44,7 +44,7 @@ const initializeAccountsStore = () => __awaiter(void 0, void 0, void 0, function
     let activeAccountId;
     let accounts;
     let accountNamesToAccountIds;
-    accountIds = (yield accountsDatabase.accountsMetadataDatabase.getItem("accountIds")) || undefined;
+    accountIds = (yield accountsDatabase.repairAccountsMetadata()) || undefined;
     // get accounts from database if any
     if (accountIds === null || accountIds === void 0 ? void 0 : accountIds.length) {
         [activeAccountId, accounts, accountNamesToAccountIds] = yield Promise.all([

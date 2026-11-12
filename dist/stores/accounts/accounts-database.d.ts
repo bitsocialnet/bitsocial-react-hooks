@@ -18,6 +18,7 @@ declare const database: {
         returnHydratedAccount?: boolean;
     }) => Promise<Account | undefined>;
     removeAccount: (account: Account) => Promise<void>;
+    repairAccountsMetadata: () => Promise<string[]>;
     getExportedAccountJson: (accountId: string) => Promise<string>;
     getAccounts: (accountIds: string[]) => Promise<Accounts>;
     getAccount: (accountId: string) => Promise<Account>;

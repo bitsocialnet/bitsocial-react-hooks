@@ -262,7 +262,16 @@ const rebuildEditsTargetIndexes = (edits) => {
     }
     return targetToIndices;
 };
-const addAccount = (account, options) => __awaiter(void 0, void 0, void 0, function* () {
+// addAccount and removeAccount read the accountIds and accountNamesToAccountIds lists, await other
+// writes, then write the lists back, so they run one at a time: interleaved, one would write back a
+// list read before the other changed it, e.g. listing a removed account whose record is gone.
+let accountsMetadataMutation = Promise.resolve();
+const queueAccountsMetadataMutation = (mutation) => {
+    const queuedMutation = accountsMetadataMutation.catch(() => { }).then(mutation);
+    accountsMetadataMutation = queuedMutation;
+    return queuedMutation;
+};
+const addAccountUnqueued = (account, options) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     validator.validateAccountsDatabaseAddAccountArguments(account);
     let [accountIds, accountNamesToAccountIds] = yield Promise.all([
@@ -336,21 +345,13 @@ const addAccount = (account, options) => __awaiter(void 0, void 0, void 0, funct
     }
     return hydratedAccount;
 });
-const removeAccount = (account) => __awaiter(void 0, void 0, void 0, function* () {
+const addAccount = (account, options) => queueAccountsMetadataMutation(() => addAccountUnqueued(account, options));
+const removeAccountUnqueued = (account) => __awaiter(void 0, void 0, void 0, function* () {
     assert((account === null || account === void 0 ? void 0 : account.id) && typeof (account === null || account === void 0 ? void 0 : account.id) === "string", `accountsDatabase.removeAccount invalid account.id '${account.id}'`);
-    // handle updating accounts database
-    yield accountsDatabase.removeItem(account.id);
-    // handle updating accountNamesToAccountIds database
-    let accountNamesToAccountIds = yield accountsMetadataDatabase.getItem("accountNamesToAccountIds");
-    if (!accountNamesToAccountIds) {
-        accountNamesToAccountIds = {};
-    }
-    delete accountNamesToAccountIds[account.name];
-    yield accountsMetadataDatabase.setItem("accountNamesToAccountIds", accountNamesToAccountIds);
-    // handle updating accountIds database
+    // unlist the account before deleting its record: if the tab closes in between, a record nothing
+    // lists is ignored, while a listed id without a record would fail every later load
     let accountIds = yield accountsMetadataDatabase.getItem("accountIds");
     accountIds = (accountIds || []).filter((accountId) => accountId !== account.id);
-    yield accountsMetadataDatabase.setItem("accountIds", accountIds);
     // handle updating activeAccountId database
     const activeAccountId = yield accountsMetadataDatabase.getItem("activeAccountId");
     if (activeAccountId === account.id) {
@@ -361,6 +362,17 @@ const removeAccount = (account) => __awaiter(void 0, void 0, void 0, function* (
             yield accountsMetadataDatabase.removeItem("activeAccountId");
         }
     }
+    // handle updating accountIds database
+    yield accountsMetadataDatabase.setItem("accountIds", accountIds);
+    // handle updating accountNamesToAccountIds database
+    let accountNamesToAccountIds = yield accountsMetadataDatabase.getItem("accountNamesToAccountIds");
+    if (!accountNamesToAccountIds) {
+        accountNamesToAccountIds = {};
+    }
+    delete accountNamesToAccountIds[account.name];
+    yield accountsMetadataDatabase.setItem("accountNamesToAccountIds", accountNamesToAccountIds);
+    // handle updating accounts database
+    yield accountsDatabase.removeItem(account.id);
     const accountCommentsDatabase = getAccountCommentsDatabase(account.id);
     yield accountCommentsDatabase.clear();
     const accountVotesDatabase = getAccountVotesDatabase(account.id);
@@ -370,6 +382,46 @@ const removeAccount = (account) => __awaiter(void 0, void 0, void 0, function* (
     const accountEditsDatabase = getAccountEditsDatabase(account.id);
     yield accountEditsDatabase.clear();
 });
+const removeAccount = (account) => queueAccountsMetadataMutation(() => removeAccountUnqueued(account));
+// Returns the listed account ids after unlisting the ones without a record and dropping the names
+// of unlisted accounts. Earlier versions could leave a listed id without a record (a tab closed
+// during removeAccount, or interleaved account writes), and getAccounts throws on it, which kept the
+// accounts store from initializing on every load. A tab closed during removeAccount after it
+// unlisted the account leaves the name mapped to the still stored record, which addAccount would
+// keep rejecting as a duplicate name.
+const repairAccountsMetadata = () => queueAccountsMetadataMutation(() => __awaiter(void 0, void 0, void 0, function* () {
+    const accountIds = (yield accountsMetadataDatabase.getItem("accountIds")) || [];
+    const storedAccounts = yield Promise.all(accountIds.map((accountId) => accountsDatabase.getItem(accountId)));
+    const listedAccountIds = accountIds.filter((_accountId, index) => storedAccounts[index]);
+    if (listedAccountIds.length !== accountIds.length) {
+        log.error("accountsDatabase unlisting account ids without a record", {
+            accountIds: accountIds.filter((accountId) => !listedAccountIds.includes(accountId)),
+        });
+        const activeAccountId = yield accountsMetadataDatabase.getItem("activeAccountId");
+        if (!activeAccountId || !listedAccountIds.includes(activeAccountId)) {
+            if (listedAccountIds.length) {
+                yield accountsMetadataDatabase.setItem("activeAccountId", listedAccountIds[0]);
+            }
+            else {
+                yield accountsMetadataDatabase.removeItem("activeAccountId");
+            }
+        }
+        yield accountsMetadataDatabase.setItem("accountIds", listedAccountIds);
+    }
+    const accountNamesToAccountIds = yield accountsMetadataDatabase.getItem("accountNamesToAccountIds");
+    const accountNamesOfUnlistedAccounts = Object.keys(accountNamesToAccountIds || {}).filter((accountName) => !listedAccountIds.includes(accountNamesToAccountIds[accountName]));
+    if (accountNamesOfUnlistedAccounts.length) {
+        log.error("accountsDatabase dropping the names of unlisted accounts", {
+            accountNames: accountNamesOfUnlistedAccounts,
+        });
+        const listedAccountNamesToAccountIds = Object.assign({}, accountNamesToAccountIds);
+        for (const accountName of accountNamesOfUnlistedAccounts) {
+            delete listedAccountNamesToAccountIds[accountName];
+        }
+        yield accountsMetadataDatabase.setItem("accountNamesToAccountIds", listedAccountNamesToAccountIds);
+    }
+    return listedAccountIds;
+}));
 const accountsCommentsDatabases = {};
 const accountCommentsLayoutMigrations = {};
 const getAccountCommentsDatabase = (accountId) => {
@@ -413,7 +465,19 @@ const ensureAccountCommentsDatabaseLayout = (accountId) => __awaiter(void 0, voi
     }
     yield accountCommentsLayoutMigrations[accountId];
 });
-const deleteAccountComment = (accountId, accountCommentIndex) => __awaiter(void 0, void 0, void 0, function* () {
+// deleteAccountComment reads the rows, awaits, then writes them back moved down by one, and an
+// append writes at the length it read, so an account's comment writes run one at a time in call
+// order: a row written meanwhile would be overwritten or end up beyond the stored length. The
+// accounts store applies the deletion and moves its row indexes when deleteComment is called, so
+// call order matches the indexes the writes use.
+const accountCommentsMutations = {};
+const queueAccountCommentsMutation = (accountId, mutation) => {
+    const previousMutation = accountCommentsMutations[accountId] || Promise.resolve();
+    const queuedMutation = previousMutation.catch(() => { }).then(mutation);
+    accountCommentsMutations[accountId] = queuedMutation;
+    return queuedMutation;
+};
+const deleteAccountCommentUnqueued = (accountId, accountCommentIndex) => __awaiter(void 0, void 0, void 0, function* () {
     const accountCommentsDatabase = getAccountCommentsDatabase(accountId);
     yield ensureAccountCommentsDatabaseLayout(accountId);
     const length = (yield accountCommentsDatabase.getItem("length")) || 0;
@@ -429,7 +493,8 @@ const deleteAccountComment = (accountId, accountCommentIndex) => __awaiter(void 
     promises.push(accountCommentsDatabase.setItem("length", newLength));
     yield Promise.all(promises);
 });
-const addAccountComment = (accountId, comment, accountCommentIndex) => __awaiter(void 0, void 0, void 0, function* () {
+const deleteAccountComment = (accountId, accountCommentIndex) => queueAccountCommentsMutation(accountId, () => deleteAccountCommentUnqueued(accountId, accountCommentIndex));
+const addAccountCommentUnqueued = (accountId, comment, accountCommentIndex) => __awaiter(void 0, void 0, void 0, function* () {
     const accountCommentsDatabase = getAccountCommentsDatabase(accountId);
     yield ensureAccountCommentsDatabaseLayout(accountId);
     const length = (yield accountCommentsDatabase.getItem("length")) || 0;
@@ -449,6 +514,7 @@ const addAccountComment = (accountId, comment, accountCommentIndex) => __awaiter
         ]);
     }
 });
+const addAccountComment = (accountId, comment, accountCommentIndex) => queueAccountCommentsMutation(accountId, () => addAccountCommentUnqueued(accountId, comment, accountCommentIndex));
 const getAccountComments = (accountId) => __awaiter(void 0, void 0, void 0, function* () {
     const accountCommentsDatabase = getAccountCommentsDatabase(accountId);
     yield ensureAccountCommentsDatabaseLayout(accountId);
@@ -795,6 +861,7 @@ const database = {
     deleteAccountComment,
     addAccount,
     removeAccount,
+    repairAccountsMetadata,
     getExportedAccountJson,
     getAccounts,
     getAccount,

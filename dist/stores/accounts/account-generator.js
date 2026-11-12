@@ -137,9 +137,13 @@ const getNextAvailableDefaultAccountName = (authorAddress) => __awaiter(void 0, 
     const accountIds = yield accountsDatabase.accountsMetadataDatabase.getItem("accountIds");
     const accountNames = [];
     if (accountIds === null || accountIds === void 0 ? void 0 : accountIds.length) {
-        const accounts = yield accountsDatabase.getAccounts(accountIds);
-        for (const accountId of accountIds) {
-            accountNames.push(accounts[accountId].name);
+        // read the stored records: hydrating the accounts would create a pkc client per account that
+        // nothing destroys
+        const storedAccounts = yield Promise.all(accountIds.map((accountId) => accountsDatabase.accountsDatabase.getItem(accountId)));
+        for (const storedAccount of storedAccounts) {
+            if (storedAccount) {
+                accountNames.push(storedAccount.name);
+            }
         }
     }
     if (!(accountNames === null || accountNames === void 0 ? void 0 : accountNames.length)) {

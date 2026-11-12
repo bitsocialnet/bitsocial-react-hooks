@@ -9,7 +9,7 @@ type AccountsState = {
     accountsCommentsIndexes: AccountsCommentsIndexes;
     commentCidsToAccountsComments: CommentCidsToAccountsComments;
     accountsCommentsUpdating: {
-        [commentCid: string]: boolean;
+        [accountIdAndCommentCid: string]: boolean;
     };
     accountsCommentsReplies: AccountsCommentsReplies;
     accountsVotes: AccountsVotes;
