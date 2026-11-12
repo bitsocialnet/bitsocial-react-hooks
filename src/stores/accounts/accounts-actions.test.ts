@@ -2246,6 +2246,110 @@ describe("accounts-actions", () => {
       expect(Object.keys(accounts).length).toBeGreaterThan(0);
     });
 
+    describe("account createdAt", () => {
+      const getAccountByName = (name: string) => {
+        const { accounts, accountNamesToAccountIds } = accountsStore.getState();
+        return accounts[accountNamesToAccountIds[name]];
+      };
+
+      test("a created account keeps its createdAt through setAccount and a reload", async () => {
+        const before = Math.floor(Date.now() / 1000);
+        await act(async () => {
+          await accountsActions.createAccount("Created");
+        });
+        const { createdAt, id } = getAccountByName("Created");
+        expect(createdAt).toBeGreaterThanOrEqual(before);
+        expect(createdAt).toBeLessThanOrEqual(Math.floor(Date.now() / 1000));
+
+        await act(async () => {
+          await accountsActions.setAccount({
+            ...getAccountByName("Created"),
+            author: { ...getAccountByName("Created").author, displayName: "renamed" },
+          });
+        });
+        expect(getAccountByName("Created").createdAt).toBe(createdAt);
+
+        await testUtils.resetStores();
+        await vi.waitFor(() => expect(accountsStore.getState().accounts[id]).toBeDefined());
+        expect(accountsStore.getState().accounts[id].createdAt).toBe(createdAt);
+      });
+
+      test("export and import keep the original createdAt", async () => {
+        await act(async () => {
+          await accountsActions.createAccount("Portable createdAt");
+        });
+        const exported = JSON.parse(await accountsActions.exportAccount("Portable createdAt"));
+        expect(exported.account.createdAt).toBe(getAccountByName("Portable createdAt").createdAt);
+
+        // imported later, on another device
+        exported.account.createdAt = 1_600_000_000;
+        exported.account.name = "Imported createdAt";
+        await act(async () => {
+          await accountsActions.importAccount(JSON.stringify(exported));
+        });
+        const imported = getAccountByName("Imported createdAt");
+        expect(imported.createdAt).toBe(1_600_000_000);
+        const stored: any = await accountsDatabase.accountsDatabase.getItem(imported.id);
+        expect(stored.createdAt).toBe(1_600_000_000);
+      });
+
+      test("a legacy account without createdAt stays unknown", async () => {
+        await act(async () => {
+          await accountsActions.createAccount("Legacy source");
+        });
+        const exported = JSON.parse(await accountsActions.exportAccount("Legacy source"));
+        delete exported.account.createdAt;
+        exported.account.name = "Legacy";
+        await act(async () => {
+          await accountsActions.importAccount(JSON.stringify(exported));
+        });
+        const legacy = getAccountByName("Legacy");
+        expect(legacy.createdAt).toBeUndefined();
+
+        // neither editing nor reloading the account invents a date
+        await act(async () => {
+          await accountsActions.setAccount({
+            ...legacy,
+            author: { ...legacy.author, displayName: "legacy" },
+          });
+        });
+        expect(getAccountByName("Legacy").createdAt).toBeUndefined();
+        await testUtils.resetStores();
+        await vi.waitFor(() => expect(accountsStore.getState().accounts[legacy.id]).toBeDefined());
+        const reloaded = accountsStore.getState().accounts[legacy.id];
+        expect(reloaded.createdAt).toBeUndefined();
+        expect(
+          JSON.parse(await accountsActions.exportAccount("Legacy")).account,
+        ).not.toHaveProperty("createdAt");
+      });
+
+      test("createdAt is not sent in publications", async () => {
+        const account = Object.values(accountsStore.getState().accounts)[0];
+        expect(typeof account.createdAt).toBe("number");
+        const createComment = vi.spyOn(account.pkc, "createComment");
+        const createVote = vi.spyOn(account.pkc, "createVote");
+        await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "content",
+          onChallenge: () => {},
+          onChallengeVerification: () => {},
+        });
+        await accountsActions.publishVote({
+          communityAddress: "sub.eth",
+          commentCid: "comment cid",
+          vote: 1,
+          onChallenge: () => {},
+          onChallengeVerification: () => {},
+        });
+        for (const [options] of [...createComment.mock.calls, ...createVote.mock.calls]) {
+          expect(options).not.toHaveProperty("createdAt");
+          expect(options.author).not.toHaveProperty("createdAt");
+        }
+        expect(createComment).toHaveBeenCalled();
+        expect(createVote).toHaveBeenCalled();
+      });
+    });
+
     test("importAccount when name exists adds ' 2'", async () => {
       await act(async () => {
         await accountsActions.createAccount("Second");

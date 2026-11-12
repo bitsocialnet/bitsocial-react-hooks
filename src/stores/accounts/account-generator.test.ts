@@ -126,6 +126,17 @@ describe("account-generator", () => {
       expect(account.version).toBe(accountsDatabase.accountVersion);
     });
 
+    test("sets createdAt to the current unix time in seconds", async () => {
+      const before = Math.floor(Date.now() / 1000);
+      const account = await accountGenerator.generateDefaultAccount();
+      const after = Math.floor(Date.now() / 1000);
+      expect(Number.isInteger(account.createdAt)).toBe(true);
+      expect(account.createdAt).toBeGreaterThanOrEqual(before);
+      expect(account.createdAt).toBeLessThanOrEqual(after);
+      // the shared defaults are also applied to imported accounts, which must not get a date
+      expect("createdAt" in accountGenerator.getDefaultAccountFields()).toBe(false);
+    });
+
     test("registers error handler on pkc instance", async () => {
       let errorHandler: ((err: any) => void) | null = null;
       const OrigPkc = PkcJsMock;

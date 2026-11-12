@@ -143,6 +143,27 @@ describe("accounts", () => {
 
     // test.todo('default generated account has all the data defined in schema, like signer, author, pkcOptions, etc')
 
+    test("useAccount and useAccounts expose createdAt, which survives a reload", async () => {
+      const before = Math.floor(Date.now() / 1000);
+      const render = () =>
+        renderHook<any, any>(() => {
+          const account = useAccount();
+          const { accounts } = useAccounts();
+          return { account, accounts };
+        });
+      let rendered = render();
+      await testUtils.createWaitFor(rendered)(() => rendered.result.current.account);
+      const { createdAt } = rendered.result.current.account;
+      expect(createdAt).toBeGreaterThanOrEqual(before);
+      expect(createdAt).toBeLessThanOrEqual(Math.floor(Date.now() / 1000));
+      expect(rendered.result.current.accounts[0].createdAt).toBe(createdAt);
+
+      await testUtils.resetStores();
+      rendered = render();
+      await testUtils.createWaitFor(rendered)(() => rendered.result.current.account);
+      expect(rendered.result.current.account.createdAt).toBe(createdAt);
+    });
+
     test("create new accounts", async () => {
       const rendered = renderHook<any, any>((accountName) => {
         const account = useAccount({ accountName });

@@ -163,6 +163,10 @@ const generateDefaultAccount = async () => {
         pkcOptions,
         ...getDefaultAccountFields(),
         communities,
+        // unix timestamp in seconds, like community.createdAt. Only set when an account is
+        // generated (not in getDefaultAccountFields): accounts created before this field existed
+        // and their imports keep it undefined instead of an invented date
+        createdAt: Math.floor(Date.now() / 1000),
       },
       pkc,
       pkcOptions,
