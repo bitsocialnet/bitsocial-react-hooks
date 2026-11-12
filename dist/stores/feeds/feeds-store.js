@@ -289,6 +289,14 @@ const feedsStore = createStore((setState, getState) => ({
             const feedsCommunityKeysWithMore = getFeedsCommunityKeysWithMore(feedsOptions, bufferedFeedsCommunitiesPostCounts, communities, communitiesPages, accounts, previousState.feedsCommunityKeysWithMore);
             const feedsCommunityKeysWithNewerPosts = getFeedsCommunityKeysWithNewerPosts(feedsOptions, filteredSortedFeeds, loadedFeeds, previousState.feedsCommunityKeysWithNewerPosts);
             const updatedFeeds = yield getUpdatedFeeds(feedsOptions, filteredSortedFeeds, previousState.updatedFeeds, loadedFeeds, accounts);
+            // a feed reset while this pass awaited comment validation would get its old posts back, and
+            // loaded feeds never shrink, so drop this pass and calculate again from the reset feed
+            if (getState().loadedFeeds !== previousState.loadedFeeds) {
+                updateFeedsPending = false;
+                updateFeedsAgain = false;
+                updateFeeds();
+                return;
+            }
             // set new feeds
             setState((state) => ({
                 bufferedFeeds,
@@ -489,24 +497,22 @@ const updateFeedsOnFeedsCommunitiesChange = (communitiesStoreState) => {
     // decide if feeds communities have changed by looking at all feeds communities page cids
     // (in case that a community changed, but its first page cid didn't)
     const feedsCommunitiesFirstPageCids = getFeedsCommunitiesFirstPageCids(feedsCommunities);
-    // first page cids haven't changed, do nothing
-    if (feedsCommunitiesFirstPageCids.toString() === previousFeedsCommunitiesFirstPageCids.toString()) {
-        // if no new feed communities have loaded, do nothing
-        // in case a sub loads with no first page cid and first pages cids don't change, need to trigger hasMore update
-        const feedsCommunitiesLoadedCount = getFeedsCommunitiesLoadedCount(feedsCommunities);
-        if (feedsCommunitiesLoadedCount === previousFeedsCommunitiesLoadedCount) {
-            // if community.posts.pages haven't changed, do nothing
-            const feedsCommunitiesPostsPagesFirstUpdatedAts = getFeedsCommunitiesPostsPagesFirstUpdatedAts(feedsCommunities);
-            if (feedsCommunitiesPostsPagesFirstUpdatedAts ===
-                previousFeedsCommunitiesPostsPagesFirstUpdatedAts) {
-                return;
-            }
-            previousFeedsCommunitiesPostsPagesFirstUpdatedAts = feedsCommunitiesPostsPagesFirstUpdatedAts;
-        }
-        previousFeedsCommunitiesLoadedCount = feedsCommunitiesLoadedCount;
+    // in case a sub loads with no first page cid and first pages cids don't change, need to trigger hasMore update
+    const feedsCommunitiesLoadedCount = getFeedsCommunitiesLoadedCount(feedsCommunities);
+    // in case community.posts.pages changed without new page cids
+    const feedsCommunitiesPostsPagesFirstUpdatedAts = getFeedsCommunitiesPostsPagesFirstUpdatedAts(feedsCommunities);
+    const feedsCommunitiesPostsChanged = feedsCommunitiesFirstPageCids.toString() !== previousFeedsCommunitiesFirstPageCids.toString() ||
+        feedsCommunitiesLoadedCount !== previousFeedsCommunitiesLoadedCount ||
+        feedsCommunitiesPostsPagesFirstUpdatedAts !== previousFeedsCommunitiesPostsPagesFirstUpdatedAts;
+    // remember all of them on every pass, so the next change is compared with this one
+    previousFeedsCommunitiesFirstPageCids = feedsCommunitiesFirstPageCids;
+    previousFeedsCommunitiesLoadedCount = feedsCommunitiesLoadedCount;
+    previousFeedsCommunitiesPostsPagesFirstUpdatedAts = feedsCommunitiesPostsPagesFirstUpdatedAts;
+    // feeds communities posts haven't changed, do nothing
+    if (!feedsCommunitiesPostsChanged) {
+        return;
     }
     // feeds communities have changed, update feeds
-    previousFeedsCommunitiesFirstPageCids = feedsCommunitiesFirstPageCids;
     updateFeeds();
 };
 let previousAccountsCommentsCount = 0;

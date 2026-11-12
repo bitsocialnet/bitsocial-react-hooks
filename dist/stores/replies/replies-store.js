@@ -17,7 +17,7 @@ import repliesCommentsStore from "./replies-comments-store.js";
 import repliesPagesStore from "../replies-pages/index.js";
 import { serializeFeedKey } from "../../lib/serialize-feed-key.js";
 import { getReplyPageSortType } from "../../lib/page-sorts.js";
-import { getFeedsCommentsFirstPageCids, getLoadedFeeds, getBufferedFeedsWithoutLoadedFeeds, getUpdatedFeeds, getFeedsReplyCounts, getFeedsHaveMore, feedsCommentsChanged, getFeedsComments, getFeedsCommentsLoadedCount, getFeedsCommentsRepliesPagesFirstUpdatedAts, getFilteredSortedFeeds, getSortTypeFromComment, addAccountsComments, } from "./utils.js";
+import { getFeedsCommentsFirstPageCids, getLoadedFeeds, getBufferedFeedsWithoutLoadedFeeds, getUpdatedFeeds, getFeedsReplyCounts, getFeedsHaveMore, feedsCommentsChanged, getFeedsComments, getFeedsCommentsLoadedCount, getFeedsCommentsRepliesPagesFirstUpdatedAts, getFilteredSortedFeeds, getSortTypeFromComment, addAccountsComments, resetPreviousPageNumber, } from "./utils.js";
 // reddit loads approximately 25 posts per page
 // while infinite scrolling
 export const defaultRepliesPerPage = 25;
@@ -198,6 +198,7 @@ const repliesStore = createStore((setState, getState) => ({
                 updatedFeeds: Object.assign(Object.assign({}, updatedFeeds), { [feedName]: [] }),
             };
         });
+        resetPreviousPageNumber(feedName);
         updateFeeds();
     },
     // recalculate all feeds using new comments.replies.pages, repliesPagesStore and page numbers
@@ -233,6 +234,24 @@ const repliesStore = createStore((setState, getState) => ({
             const bufferedFeedsReplyCounts = getFeedsReplyCounts(feedsOptions, bufferedFeeds);
             const feedsHaveMore = getFeedsHaveMore(feedsOptions, bufferedFeeds, comments, repliesPages, accounts);
             const updatedFeeds = yield getUpdatedFeeds(feedsOptions, filteredSortedFeeds, previousState.updatedFeeds, loadedFeeds, accounts);
+            // a feed reset while this pass awaited comment validation would get its old replies back,
+            // and loaded feeds never shrink, so drop this pass and calculate again from the reset feed
+            const currentLoadedFeeds = getState().loadedFeeds;
+            if (currentLoadedFeeds !== previousState.loadedFeeds) {
+                // this pass already remembered the page numbers of the feeds it loaded replies for, and
+                // the old page number of a feed reset before the pass reached it, forget them so the next
+                // pass loads those replies again
+                for (const feedName in feedsOptions) {
+                    if (canonicalLoadedFeeds[feedName] !== previousState.loadedFeeds[feedName] ||
+                        currentLoadedFeeds[feedName] !== previousState.loadedFeeds[feedName]) {
+                        resetPreviousPageNumber(feedName);
+                    }
+                }
+                updateFeedsPending = false;
+                updateFeedsAgain = false;
+                updateFeeds();
+                return;
+            }
             // set new feeds
             setState((state) => ({
                 bufferedFeeds,

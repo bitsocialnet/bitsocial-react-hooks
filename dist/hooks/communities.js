@@ -22,6 +22,7 @@ import shallow from "zustand/shallow";
 import { getChainProviders, getPkcCommunityAddresses } from "../lib/pkc-compat.js";
 import { getCommunityRefKey, getUniqueSortedCommunityRefs } from "../lib/community-ref.js";
 let communityAutoUpdateSubscriptionCount = 0;
+const emptyErrors = [];
 const parseMaybeJson = (value) => (typeof value === "string" ? JSON.parse(value) : value);
 const tryParseMaybeJson = (value) => {
     try {
@@ -351,6 +352,10 @@ export function useResolvedCommunityAddress(options) {
     const [resolvedAddress, setResolvedAddress] = useState();
     const [errors, setErrors] = useState([]);
     const [state, setState] = useState();
+    // the address that resolvedAddress, state and errors belong to: the ref for completions that land
+    // later, the state for rendering because it updates in the same render as the result
+    const resultAddress = useRef(undefined);
+    const [renderedResultAddress, setRenderedResultAddress] = useState();
     let initialState = "initializing";
     // before those defined, nothing can happen
     if (options && account && communityAddress) {
@@ -358,14 +363,27 @@ export function useResolvedCommunityAddress(options) {
     }
     useInterval(() => {
         if (!account || !communityAddress) {
+            resultAddress.current = undefined;
+            setRenderedResultAddress(undefined);
             setResolvedAddress(undefined);
             setState(undefined);
             setErrors((prevErrors) => (prevErrors.length ? [] : prevErrors));
             return;
         }
+        // a new address starts without the result of the previous address
+        const address = communityAddress;
+        let currentState = state;
+        if (resultAddress.current !== address) {
+            resultAddress.current = address;
+            setRenderedResultAddress(address);
+            currentState = undefined;
+            setResolvedAddress(undefined);
+            setErrors((prevErrors) => (prevErrors.length ? [] : prevErrors));
+            setState(undefined);
+        }
         // address isn't a crypto domain, can't be resolved
         if (!(communityAddress === null || communityAddress === void 0 ? void 0 : communityAddress.includes("."))) {
-            if (state !== "failed") {
+            if (currentState !== "failed") {
                 setErrors([Error("not a crypto domain")]);
                 setState("failed");
                 setResolvedAddress(undefined);
@@ -374,7 +392,7 @@ export function useResolvedCommunityAddress(options) {
         }
         // only support resolving '.eth' for now
         if (!(communityAddress === null || communityAddress === void 0 ? void 0 : communityAddress.endsWith(".eth"))) {
-            if (state !== "failed") {
+            if (currentState !== "failed") {
                 setErrors([Error("crypto domain type unsupported")]);
                 setState("failed");
                 setResolvedAddress(undefined);
@@ -383,15 +401,24 @@ export function useResolvedCommunityAddress(options) {
         }
         (() => __awaiter(this, void 0, void 0, function* () {
             try {
-                setState("resolving");
-                const res = yield resolveCommunityAddress(communityAddress, chainProviders);
-                setState("succeeded");
-                if (res !== resolvedAddress) {
-                    setResolvedAddress(res);
+                // later polls keep reporting the current result instead of going back to resolving
+                if (!currentState) {
+                    setState("resolving");
                 }
+                const res = yield resolveCommunityAddress(address, chainProviders);
+                // the address changed while resolving
+                if (resultAddress.current !== address) {
+                    return;
+                }
+                setState("succeeded");
+                setErrors((prevErrors) => (prevErrors.length ? [] : prevErrors));
+                setResolvedAddress(res);
             }
             catch (error) {
-                setErrors([...errors, error]);
+                if (resultAddress.current !== address) {
+                    return;
+                }
+                setErrors((prevErrors) => [...prevErrors, error]);
                 setState("failed");
                 setResolvedAddress(undefined);
                 log.error("useResolvedCommunityAddress resolveCommunityAddress error", {
@@ -405,12 +432,14 @@ export function useResolvedCommunityAddress(options) {
     // only support ENS at the moment
     const chainProvider = chainProviders === null || chainProviders === void 0 ? void 0 : chainProviders["eth"];
     // log('useResolvedCommunityAddress', {communityAddress, state, errors, resolvedAddress, chainProviders})
+    // until the interval has run for a new address, the stored result is the previous address's
+    const isCurrentResult = renderedResultAddress === communityAddress;
     return {
-        resolvedAddress,
+        resolvedAddress: isCurrentResult ? resolvedAddress : undefined,
         chainProvider,
-        state: state || initialState,
-        error: errors[errors.length - 1],
-        errors,
+        state: (isCurrentResult && state) || initialState,
+        error: isCurrentResult ? errors[errors.length - 1] : undefined,
+        errors: isCurrentResult ? errors : emptyErrors,
     };
 }
 // NOTE: resolveCommunityAddress tests are skipped, if changes are made they must be tested manually

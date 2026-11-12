@@ -22,11 +22,23 @@ import { normalizeCommentCommunityAddress } from "../../lib/pkc-compat.js";
 let pkcGetCommentPending = {};
 const liveComments = {};
 const liveCommentPromises = {};
+// settles when every comment.stop() in progress for the CID has returned
+const liveCommentStops = {};
 const commentAutoUpdateSubscribers = {};
+// hooks and stores waiting for the update requested on open: a frozen useComment until it
+// settles, and the authors-comments store, which never leaves
+const openingUpdateWaiters = {};
 const stopCommentAfterNextUpdate = {};
 const sparseCommentFollowupRequested = {};
 // set when the current update attempt emitted an error, until the next attempt starts
 const commentUpdateAttemptFailed = {};
+// refreshComment calls waiting for their update cycle to end
+const pendingRefreshes = {};
+// CIDs whose pending refreshes outlived the last auto-update subscriber, e.g. the hook that called
+// refresh() unmounted
+const refreshesOutlivedSubscribers = {};
+// CIDs whose last hook or refresh left while their one-shot update may still be retrying
+const oneShotUpdateConsumersLeft = {};
 const initializedComments = new WeakSet();
 const trackedListeners = new WeakSet();
 // reset all event listeners in between tests
@@ -42,6 +54,16 @@ const removeCommentListener = (comment, event, listener) => {
 };
 const getCommentAutoUpdateSubscribersCount = (commentCid) => Object.keys(commentAutoUpdateSubscribers[commentCid] || {}).length;
 const hasCommentAutoUpdateSubscribers = (commentCid) => getCommentAutoUpdateSubscribersCount(commentCid) > 0;
+const hasOpeningUpdateWaiters = (commentCid) => Object.keys(openingUpdateWaiters[commentCid] || {}).length > 0;
+// hooks and refreshes that keep a failing one-shot update retrying
+const hasOneShotUpdateConsumers = (commentCid) => hasCommentAutoUpdateSubscribers(commentCid) ||
+    hasOpeningUpdateWaiters(commentCid) ||
+    (Boolean(pendingRefreshes[commentCid]) && !refreshesOutlivedSubscribers[commentCid]);
+const markOneShotUpdateConsumerLeft = (commentCid) => {
+    if (!hasOneShotUpdateConsumers(commentCid)) {
+        oneShotUpdateConsumersLeft[commentCid] = true;
+    }
+};
 const mergeCommentData = (commentCid, ...commentDataList) => {
     const mergedCommentData = { cid: commentCid };
     for (const commentData of commentDataList) {
@@ -108,14 +130,27 @@ const commentsStore = createStore((setState, getState) => {
             return { openingUpdatesPending };
         });
     };
-    // When the last auto-update subscriber leaves during the opening update, stopping would abort
-    // it and leave a frozen useComment on a cached copy, so stop when that update ends instead.
-    const deferStopUntilOpeningUpdateEnds = (commentCid) => {
-        if (!getState().openingUpdatesPending[commentCid]) {
+    // When the last auto-update subscriber leaves during the opening update or a refresh, stopping
+    // would abort it and leave a frozen useComment on a cached copy or a refresh that never
+    // settles, so stop when that update ends instead.
+    const deferStopUntilRequestedUpdateEnds = (commentCid) => {
+        if (!getState().openingUpdatesPending[commentCid] && !pendingRefreshes[commentCid]) {
             return false;
         }
         stopCommentAfterNextUpdate[commentCid] = true;
         return true;
+    };
+    // ensureLiveComment waits for these before it hands the comment out again
+    const trackLiveCommentStop = (commentCid, stopCall) => {
+        const stopped = Promise.resolve(stopCall).then(() => { }, () => { });
+        const previousStops = liveCommentStops[commentCid];
+        const stops = previousStops ? Promise.all([previousStops, stopped]).then(() => { }) : stopped;
+        liveCommentStops[commentCid] = stops;
+        void stops.then(() => {
+            if (liveCommentStops[commentCid] === stops) {
+                delete liveCommentStops[commentCid];
+            }
+        });
     };
     const stopLiveComment = (commentCid, comment) => __awaiter(void 0, void 0, void 0, function* () {
         clearCommentUpdateFollowup(commentCid);
@@ -126,7 +161,9 @@ const commentsStore = createStore((setState, getState) => {
             return;
         }
         try {
-            yield liveComment.stop();
+            const stopCall = liveComment.stop();
+            trackLiveCommentStop(commentCid, stopCall);
+            yield stopCall;
         }
         catch (error) {
             log.trace("comment.stop error", { commentCid, comment: liveComment, error });
@@ -137,6 +174,7 @@ const commentsStore = createStore((setState, getState) => {
             return;
         }
         delete stopCommentAfterNextUpdate[commentCid];
+        delete oneShotUpdateConsumersLeft[commentCid];
         if (hasCommentAutoUpdateSubscribers(commentCid)) {
             return;
         }
@@ -187,6 +225,14 @@ const commentsStore = createStore((setState, getState) => {
     const isUnchangedUpdateCycleEnd = (updatingState, commentCid, comment) => updatingState === "waiting-retry" &&
         !commentUpdateAttemptFailed[commentCid] &&
         typeof (comment === null || comment === void 0 ? void 0 : comment.updatedAt) === "number";
+    // A one-shot update keeps retrying after a retriable error while anything waits for it, and for
+    // callers that never register. Once the hooks and refreshes that used it have all left, e.g. a
+    // frozen useComment of a comment whose community is unreachable unmounted, its next retry ends
+    // it instead of retrying for the rest of the session.
+    const isUnusedOneShotRetry = (updatingState, commentCid) => updatingState === "waiting-retry" &&
+        Boolean(stopCommentAfterNextUpdate[commentCid]) &&
+        Boolean(oneShotUpdateConsumersLeft[commentCid]) &&
+        !hasOneShotUpdateConsumers(commentCid);
     const initializeComment = (commentCid, comment, account) => {
         var _a, _b, _c, _d;
         if (initializedComments.has(comment)) {
@@ -228,7 +274,8 @@ const commentsStore = createStore((setState, getState) => {
             }
             if (updatingState === "succeeded" ||
                 updatingState === "failed" ||
-                isUnchangedUpdateCycleEnd(updatingState, commentCid, comment)) {
+                isUnchangedUpdateCycleEnd(updatingState, commentCid, comment) ||
+                isUnusedOneShotRetry(updatingState, commentCid)) {
                 maybeStopCommentAfterOneShotUpdate(commentCid, comment);
                 endOpeningUpdate(commentCid);
             }
@@ -278,7 +325,16 @@ const commentsStore = createStore((setState, getState) => {
             listeners.push(comment);
         }
     };
-    const ensureLiveComment = (commentCid, account, commentData) => __awaiter(void 0, void 0, void 0, function* () {
+    // pkc-js stop() marks the comment stopped before it tears down the update loop, and update()
+    // in between joins that loop, after which the comment never updates again
+    const waitForLiveCommentStops = (commentCid) => __awaiter(void 0, void 0, void 0, function* () {
+        while (liveCommentStops[commentCid]) {
+            yield liveCommentStops[commentCid];
+        }
+    });
+    // addCommentToStore passes cacheChecked, because it has read the cache already
+    const ensureLiveComment = (commentCid, account, commentData, options) => __awaiter(void 0, void 0, void 0, function* () {
+        yield waitForLiveCommentStops(commentCid);
         if (liveComments[commentCid]) {
             return liveComments[commentCid];
         }
@@ -286,8 +342,12 @@ const commentsStore = createStore((setState, getState) => {
             return liveCommentPromises[commentCid];
         }
         const liveCommentPromise = (() => __awaiter(void 0, void 0, void 0, function* () {
-            const initialComment = normalizeCommentCommunityAddress(mergeCommentData(commentCid, commentData));
-            const liveComment = normalizeCommentCommunityAddress(yield account.pkc.createComment(initialComment));
+            // Whichever action creates the live comment, seed it from the cache: a comment created
+            // without its CommentIpfs emits that alone first, which would replace a cached CommentUpdate.
+            const cachedCommentData = (options === null || options === void 0 ? void 0 : options.cacheChecked)
+                ? undefined
+                : yield readCachedComment(commentCid);
+            const liveComment = normalizeCommentCommunityAddress(yield createCommentSeededFromCache(commentCid, account, cachedCommentData, commentData));
             initializeComment(commentCid, liveComment, account);
             return liveComment;
         }))();
@@ -341,6 +401,12 @@ const commentsStore = createStore((setState, getState) => {
             isUnchangedUpdateCycleEnd(updatingState, commentCid, comment);
         const onUpdatingStateChange = (updatingState) => {
             var _a;
+            // Nothing else waits for this cycle, which may never end, e.g. without a CommentUpdate, so
+            // settle at its next retry, where the store stops the comment if nothing else uses it.
+            if (updatingState === "waiting-retry" && refreshesOutlivedSubscribers[commentCid]) {
+                settle();
+                return;
+            }
             if (isSettledUpdatingState(updatingState)) {
                 if (shouldWaitForSparseCommentFollowup(commentCid, comment)) {
                     return;
@@ -389,11 +455,15 @@ const commentsStore = createStore((setState, getState) => {
                     return;
                 }
                 pkcGetCommentPending[pendingKey] = true;
+                // only hooks that leave during this fetch end its failing update early
+                delete oneShotUpdateConsumersLeft[commentCid];
                 try {
                     // try to find comment in database
                     comment = yield getCommentFromDatabase(commentCid, account, commentData);
                     if (!comment) {
-                        comment = yield ensureLiveComment(commentCid, account, commentData);
+                        comment = yield ensureLiveComment(commentCid, account, commentData, {
+                            cacheChecked: true,
+                        });
                         comment = normalizeCommentCommunityAddress(comment);
                         log("commentsStore.addCommentToStore", { commentCid, comment, account });
                         setState((state) => ({
@@ -409,7 +479,7 @@ const commentsStore = createStore((setState, getState) => {
                         }));
                         // add comment replies pages to repliesPagesStore so they can be used in useComment
                         repliesPagesStore.getState().addRepliesPageCommentsToStore(comment);
-                        comment = yield ensureLiveComment(commentCid, account, mergeCommentData(commentCid, comment, commentData));
+                        comment = yield ensureLiveComment(commentCid, account, mergeCommentData(commentCid, comment, commentData), { cacheChecked: true });
                     }
                     if (comment) {
                         const liveComment = comment;
@@ -435,6 +505,7 @@ const commentsStore = createStore((setState, getState) => {
             return __awaiter(this, void 0, void 0, function* () {
                 const hadAutoUpdateSubscribers = hasCommentAutoUpdateSubscribers(commentCid);
                 commentAutoUpdateSubscribers[commentCid] = Object.assign(Object.assign({}, (commentAutoUpdateSubscribers[commentCid] || {})), { [subscriberId]: true });
+                delete refreshesOutlivedSubscribers[commentCid];
                 if (hadAutoUpdateSubscribers && liveComments[commentCid]) {
                     return;
                 }
@@ -446,7 +517,7 @@ const commentsStore = createStore((setState, getState) => {
                     }));
                 }
                 if (!hasCommentAutoUpdateSubscribers(commentCid)) {
-                    if (deferStopUntilOpeningUpdateEnds(commentCid)) {
+                    if (deferStopUntilRequestedUpdateEnds(commentCid)) {
                         return;
                     }
                     yield stopLiveComment(commentCid, liveComment);
@@ -464,27 +535,66 @@ const commentsStore = createStore((setState, getState) => {
                         delete commentAutoUpdateSubscribers[commentCid];
                     }
                 }
+                if (pendingRefreshes[commentCid] && !hasCommentAutoUpdateSubscribers(commentCid)) {
+                    refreshesOutlivedSubscribers[commentCid] = true;
+                }
+                markOneShotUpdateConsumerLeft(commentCid);
                 if (hasCommentAutoUpdateSubscribers(commentCid) ||
-                    deferStopUntilOpeningUpdateEnds(commentCid)) {
+                    deferStopUntilRequestedUpdateEnds(commentCid)) {
                     return;
                 }
                 delete stopCommentAfterNextUpdate[commentCid];
+                delete oneShotUpdateConsumersLeft[commentCid];
                 const liveComment = liveComments[commentCid];
                 yield stopLiveComment(commentCid, liveComment);
                 maybeReleaseStoppedLiveComment(commentCid, liveComment);
             });
         },
+        // keeps a failing update requested on open retrying while a hook waits for it
+        addOpeningUpdateWaiter(commentCid, waiterId) {
+            openingUpdateWaiters[commentCid] = Object.assign(Object.assign({}, openingUpdateWaiters[commentCid]), { [waiterId]: true });
+        },
+        removeOpeningUpdateWaiter(commentCid, waiterId) {
+            if (!openingUpdateWaiters[commentCid]) {
+                return;
+            }
+            delete openingUpdateWaiters[commentCid][waiterId];
+            if (!hasOpeningUpdateWaiters(commentCid)) {
+                delete openingUpdateWaiters[commentCid];
+            }
+            markOneShotUpdateConsumerLeft(commentCid);
+        },
         refreshComment(commentCid, account, commentData) {
             return __awaiter(this, void 0, void 0, function* () {
-                const storedComment = getState().comments[commentCid];
-                const liveComment = yield ensureLiveComment(commentCid, account, mergeCommentData(commentCid, storedComment, commentData));
-                if (!hasCommentAutoUpdateSubscribers(commentCid) &&
-                    (liveComment === null || liveComment === void 0 ? void 0 : liveComment.updatingState) !== "stopped") {
-                    yield stopLiveComment(commentCid, liveComment);
+                // counted from the start, so a subscriber that leaves while the refresh stops the comment
+                // defers its stop instead of stopping the comment again
+                pendingRefreshes[commentCid] = (pendingRefreshes[commentCid] || 0) + 1;
+                // a new refresh wants its whole cycle, so earlier refreshes wait for the cycle end again too
+                delete refreshesOutlivedSubscribers[commentCid];
+                try {
+                    const storedComment = getState().comments[commentCid];
+                    const liveComment = yield ensureLiveComment(commentCid, account, mergeCommentData(commentCid, storedComment, commentData));
+                    if (!hasCommentAutoUpdateSubscribers(commentCid) &&
+                        (liveComment === null || liveComment === void 0 ? void 0 : liveComment.updatingState) !== "stopped") {
+                        yield stopLiveComment(commentCid, liveComment);
+                    }
+                    // another stop may have begun meanwhile, e.g. when the update requested on open ended
+                    yield waitForLiveCommentStops(commentCid);
+                    return yield waitForCommentUpdateCycle(commentCid, liveComment, () => requestCommentUpdate(commentCid, liveComment, {
+                        stopAfterNextUpdate: !hasCommentAutoUpdateSubscribers(commentCid),
+                    }));
                 }
-                return waitForCommentUpdateCycle(commentCid, liveComment, () => requestCommentUpdate(commentCid, liveComment, {
-                    stopAfterNextUpdate: !hasCommentAutoUpdateSubscribers(commentCid),
-                }));
+                finally {
+                    const remainingRefreshes = (pendingRefreshes[commentCid] || 0) - 1;
+                    if (remainingRefreshes > 0) {
+                        pendingRefreshes[commentCid] = remainingRefreshes;
+                    }
+                    else {
+                        delete pendingRefreshes[commentCid];
+                        delete refreshesOutlivedSubscribers[commentCid];
+                    }
+                    markOneShotUpdateConsumerLeft(commentCid);
+                }
             });
         },
     };
@@ -506,6 +616,30 @@ const getCommentFromDatabase = (commentCid, account, initialCommentData) => __aw
         });
     }
 });
+const readCachedComment = (commentCid) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        return (yield commentsDatabase.getItem(commentCid));
+    }
+    catch (error) {
+        log.error("commentsStore cached comment read error", { commentCid, error });
+    }
+});
+// Like getCommentFromDatabase, skips a cache entry pkc-js can no longer parse, e.g. after a schema
+// change, and creates the comment from the caller's data alone.
+const createCommentSeededFromCache = (commentCid, account, cachedCommentData, commentData) => __awaiter(void 0, void 0, void 0, function* () {
+    if (cachedCommentData) {
+        try {
+            return yield account.pkc.createComment(normalizeCommentCommunityAddress(mergeCommentData(commentCid, cachedCommentData, commentData)));
+        }
+        catch (error) {
+            console.error("failed pkc.createComment(cachedComment)", {
+                cachedComment: cachedCommentData,
+                error,
+            });
+        }
+    }
+    return account.pkc.createComment(normalizeCommentCommunityAddress(mergeCommentData(commentCid, commentData)));
+});
 // reset store in between tests
 const originalState = commentsStore.getState();
 // async function because some stores have async init
@@ -513,6 +647,9 @@ export const resetCommentsStore = () => __awaiter(void 0, void 0, void 0, functi
     pkcGetCommentPending = {};
     for (const commentCid in commentAutoUpdateSubscribers) {
         delete commentAutoUpdateSubscribers[commentCid];
+    }
+    for (const commentCid in openingUpdateWaiters) {
+        delete openingUpdateWaiters[commentCid];
     }
     for (const commentCid in stopCommentAfterNextUpdate) {
         delete stopCommentAfterNextUpdate[commentCid];
@@ -523,8 +660,20 @@ export const resetCommentsStore = () => __awaiter(void 0, void 0, void 0, functi
     for (const commentCid in commentUpdateAttemptFailed) {
         delete commentUpdateAttemptFailed[commentCid];
     }
+    for (const commentCid in pendingRefreshes) {
+        delete pendingRefreshes[commentCid];
+    }
+    for (const commentCid in refreshesOutlivedSubscribers) {
+        delete refreshesOutlivedSubscribers[commentCid];
+    }
+    for (const commentCid in oneShotUpdateConsumersLeft) {
+        delete oneShotUpdateConsumersLeft[commentCid];
+    }
     for (const commentCid in liveCommentPromises) {
         delete liveCommentPromises[commentCid];
+    }
+    for (const commentCid in liveCommentStops) {
+        delete liveCommentStops[commentCid];
     }
     for (const commentCid in liveComments) {
         delete liveComments[commentCid];

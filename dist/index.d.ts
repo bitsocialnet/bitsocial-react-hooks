@@ -81,8 +81,8 @@ declare const hooks: {
     validateEthWallet: (wallet: import("./types.js").Wallet, authorAddress: string) => Promise<void>;
     setPkcJs: typeof setPkcJs;
     restorePkcJs: typeof restorePkcJs;
-    deleteDatabases: () => Promise<[void, void, any, any, any]>;
-    deleteCaches: () => Promise<[any, any, any]>;
+    deleteDatabases: () => Promise<void>;
+    deleteCaches: () => Promise<void>;
     createCrosspost: (comment: import("./types.js").Comment) => import("./types.js").Crosspost;
     getAvailablePostSortTypes: (community?: import("./types.js").Community) => string[];
     getAvailableReplySortTypes: (comment?: import("./types.js").Comment) => string[];

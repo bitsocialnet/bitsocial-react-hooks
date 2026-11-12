@@ -21,6 +21,7 @@ import shallow from "zustand/shallow";
 import { getCommunityRefKeys, getUniqueSortedCommunityRefs, } from "../../lib/community-ref.js";
 import { serializeFeedKey } from "../../lib/serialize-feed-key.js";
 let feedAutoUpdateSubscriptionCount = 0;
+const emptyErrors = [];
 /**
  * @param communities - The communities to fetch, e.g. [{name: 'memes.eth'}, {publicKey: '12D3KooW...'}]
  * @param sortType - A sort name published by the community, or a standard sort computed client-side
@@ -56,7 +57,17 @@ export function useFeed(options) {
     const uniqueCommunityRefs = useUniqueSortedCommunityRefs(normalizedCommunityRefs);
     const uniqueCommunityKeys = useMemo(() => getCommunityRefKeys(uniqueCommunityRefs), [uniqueCommunityRefs]);
     const feedName = useFeedName(account === null || account === void 0 ? void 0 : account.id, sortType, uniqueCommunityKeys, postsPerPage, filter, newerThan, accountComments, modQueue);
-    const [errors, setErrors] = useState([]);
+    // errors belong to the feed they happened in, another feed starts without them. Drop them when
+    // the feed changes (or when one lands after it changed) so they don't return with the old feed
+    const [feedErrors, setFeedErrors] = useState();
+    if (feedErrors && feedErrors.feedName !== feedName) {
+        setFeedErrors(undefined);
+    }
+    const errors = (feedErrors === null || feedErrors === void 0 ? void 0 : feedErrors.feedName) === feedName ? feedErrors.errors : emptyErrors;
+    const addError = (error) => setFeedErrors((previous) => ({
+        feedName,
+        errors: (previous === null || previous === void 0 ? void 0 : previous.feedName) === feedName ? [...previous.errors, error] : [error],
+    }));
     const communityKeysWithNewerPosts = useFeedsStore((state) => state.feedsCommunityKeysWithNewerPosts[feedName]);
     const feedCommunityKeysWithMore = useFeedsStore((state) => state.feedsCommunityKeysWithMore[feedName]);
     // add feed to store
@@ -92,12 +103,20 @@ export function useFeed(options) {
             if (!uniqueCommunityRefs.length || !account) {
                 throw Error("useFeed cannot load more feed not initalized yet");
             }
-            incrementFeedPageNumber(feedName);
+            try {
+                incrementFeedPageNumber(feedName);
+            }
+            catch (error) {
+                // infinite scroll calls loadMore before the feed or its current page has loaded, the
+                // store refuses the page increment and that isn't a feed error
+                log("useFeed loadMore before the feed page loaded", { feedName, error });
+                yield new Promise((r) => setTimeout(r, 50));
+            }
         }
         catch (e) {
             // wait 100 ms so infinite scroll doesn't spam this function
             yield new Promise((r) => setTimeout(r, 50));
-            setErrors([...errors, e]);
+            addError(e);
         }
     });
     const reset = () => __awaiter(this, void 0, void 0, function* () {
@@ -110,7 +129,7 @@ export function useFeed(options) {
         catch (e) {
             // wait 100 ms so infinite scroll doesn't spam this function
             yield new Promise((r) => setTimeout(r, 50));
-            setErrors([...errors, e]);
+            addError(e);
         }
     });
     const expandTimeWindow = (nextNewerThan) => __awaiter(this, void 0, void 0, function* () {
@@ -122,7 +141,7 @@ export function useFeed(options) {
         }
         catch (e) {
             yield new Promise((r) => setTimeout(r, 50));
-            setErrors([...errors, e]);
+            addError(e);
         }
     });
     if (account && normalizedCommunityRefs.length) {

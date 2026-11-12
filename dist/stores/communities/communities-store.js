@@ -304,7 +304,7 @@ const communitiesStore = createStore((setState, getState) => ({
     syncStatuses: {},
     addCommunityToStore(communityAddressOrRef, account) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b;
+            var _a, _b, _c;
             const communityLookupOptions = getCommunityLookupOptions(communityAddressOrRef);
             const communityKey = typeof communityAddressOrRef === "string"
                 ? communityAddressOrRef
@@ -524,6 +524,19 @@ const communitiesStore = createStore((setState, getState) => ({
                 listeners.push(community);
                 liveCommunities[communityKey] = liveCommunity;
                 startCommunityUpdatePolling(communityKey, liveCommunity);
+                // joining a shared pkc-js instance that another consumer, e.g. a comment's update loop,
+                // keeps updating emits no state change until its next fetch, so take its current state
+                void ((_c = liveCommunity.updateCall) === null || _c === void 0 ? void 0 : _c.then(() => {
+                    var _a;
+                    const { updatingState } = liveCommunity.community;
+                    if (liveCommunities[communityKey] === liveCommunity &&
+                        liveCommunity.updateInterval &&
+                        typeof updatingState === "string" &&
+                        updatingState !== "stopped" &&
+                        ((_a = getState().syncStatuses[communityKey]) === null || _a === void 0 ? void 0 : _a.syncState) === "initializing") {
+                        liveCommunity.onUpdatingStateChange(updatingState);
+                    }
+                }));
                 // loaded without a subscriber, e.g. by a store-level caller: update until the grace period
                 // ends, and at least until the first fetch ends
                 if (!hasCommunityUpdateSubscribers(communityKey)) {

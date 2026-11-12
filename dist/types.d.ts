@@ -312,7 +312,11 @@ export interface UsePublishCommentOptions extends Options {
     gallery?: CommentGalleryItem[];
     /** Called immediately with the provisional comment, then again if persistence shifts its index. */
     onPendingComment?(accountCommentIndex: number, comment: AccountComment): void;
-    onChallenge?(challenge: Challenge, comment?: Comment): Promise<void>;
+    /**
+     * abandonPublish abandons this publication only, while the result's abandonPublish() abandons the
+     * latest one, which differs once publishComment() was called again before this challenge was answered.
+     */
+    onChallenge?(challenge: Challenge, comment?: Comment, abandonPublish?: () => Promise<void>): Promise<void>;
     onChallengeVerification?(challengeVerification: ChallengeVerification, comment?: Comment): Promise<void>;
     /**
      * Called before each automatic republish after a failed challenge answer, with the options about to be

@@ -5,7 +5,7 @@ import { Nft, ChainProviders, Author } from "../../types.js";
  * the active account.
  */
 export declare function useNftMetadataUrl(nft?: Nft, accountName?: string): {
-    metadataUrl: undefined;
+    metadataUrl: string | undefined;
     error: Error | undefined;
 };
 /**
@@ -14,7 +14,7 @@ export declare function useNftMetadataUrl(nft?: Nft, accountName?: string): {
  * the active account.
  */
 export declare function useNftImageUrl(nftMetadataUrl?: string, accountName?: string): {
-    imageUrl: undefined;
+    imageUrl: string | undefined;
     error: Error | undefined;
 };
 export declare function useVerifiedAuthorAvatarSignature(author?: Author, accountName?: string): {

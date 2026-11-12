@@ -29,7 +29,7 @@ const repliesPagesStore = createStore((setState, getState) => ({
     repliesPages: {},
     comments: {},
     addNextRepliesPageToStore: (comment, sortType, account) => __awaiter(void 0, void 0, void 0, function* () {
-        var _a, _b;
+        var _a, _b, _c;
         assert((comment === null || comment === void 0 ? void 0 : comment.cid) && typeof (comment === null || comment === void 0 ? void 0 : comment.cid) === "string", `repliesPagesStore.addNextRepliesPageToStore comment '${comment}' invalid`);
         assert(sortType === undefined || (typeof sortType === "string" && sortType.length > 0), `repliesPagesStore.addNextRepliesPageToStore sortType '${sortType}' invalid`);
         const resolvedSortType = resolveReplySortType(comment, sortType);
@@ -67,14 +67,16 @@ const repliesPagesStore = createStore((setState, getState) => ({
             pageCidToAdd = nextCid;
         }
         // page is already added or pending
+        const pendingKey = account.id + pageCidToAdd;
         if (repliesPagesStore.repliesPages[pageCidToAdd] ||
-            fetchPagePending[account.id + pageCidToAdd]) {
+            pageFetchIsPending(pendingKey, account.pkc)) {
             return;
         }
-        fetchPagePending[account.id + pageCidToAdd] = true;
+        const pendingFetch = { pkc: account.pkc, failed: false };
+        fetchPagePending[pendingKey] = [...(fetchPagePending[pendingKey] || []), pendingFetch];
         let page;
         try {
-            page = yield fetchPage(pageCidToAdd, comment, account);
+            page = yield fetchPage(pageCidToAdd, comment, account, pendingFetch);
             log.trace("repliesPagesStore.addNextRepliesPageToStore comment.replies.getPage", {
                 pageCid: pageCidToAdd,
                 page,
@@ -87,7 +89,7 @@ const repliesPagesStore = createStore((setState, getState) => ({
             throw e;
         }
         finally {
-            fetchPagePending[account.id + pageCidToAdd] = false;
+            fetchPagePending[pendingKey] = (_c = fetchPagePending[pendingKey]) === null || _c === void 0 ? void 0 : _c.filter((fetch) => fetch !== pendingFetch);
         }
         // find new comments in the page (missing-or-fresher: insert when absent or incoming is fresher)
         const flattenedComments = utils.flattenCommentsPages(page);
@@ -188,28 +190,81 @@ const onCommentRepliesClientsStateChange = (commentCid) => (clientState, clientT
         return { comments: Object.assign(Object.assign({}, state.comments), { [commentCid]: comment }) };
     });
 };
-const fetchPageComments = {}; // cache pkc.createComment because sometimes it's slow
+// cache pkc.createComment per account because sometimes it's slow, recreated when the account's pkc
+// client changes, so page fetches don't keep using a replaced client
+const fetchPageComments = {};
 let fetchPagePending = {};
-const fetchPage = (pageCid, comment, account) => __awaiter(void 0, void 0, void 0, function* () {
+const pageFetchIsPending = (key, pkc) => { var _a; return Boolean((_a = fetchPagePending[key]) === null || _a === void 0 ? void 0 : _a.some((fetch) => fetch.pkc === pkc || !fetch.failed)); };
+// a page fetch stops retrying with its pkc client once its account was deleted, or setAccount gave
+// the account another client. An account the accounts store didn't hold when the fetch started
+// keeps retrying
+const getShouldRetryPageFetch = (account) => {
     var _a;
+    const accountWasStored = Boolean((_a = accountsStore.getState().accounts) === null || _a === void 0 ? void 0 : _a[account.id]);
+    return () => {
+        var _a;
+        const storedAccount = (_a = accountsStore.getState().accounts) === null || _a === void 0 ? void 0 : _a[account.id];
+        return storedAccount ? storedAccount.pkc === account.pkc : !accountWasStored;
+    };
+};
+// setAccount gives the account a new pkc client on every edit, so a fetch that stopped retrying
+// with the replaced client continues with the account's new one, unless another fetch of the page
+// already uses it
+const getAccountWithNewPkc = (account, pendingKey, pendingFetch) => {
+    var _a, _b;
+    const storedAccount = (_a = accountsStore.getState().accounts) === null || _a === void 0 ? void 0 : _a[account.id];
+    if (!storedAccount ||
+        storedAccount.pkc === account.pkc ||
+        ((_b = fetchPagePending[pendingKey]) === null || _b === void 0 ? void 0 : _b.some((fetch) => fetch !== pendingFetch && fetch.pkc === storedAccount.pkc))) {
+        return;
+    }
+    return storedAccount;
+};
+const fetchPage = (pageCid, comment, account, pendingFetch) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    const shouldRetry = getShouldRetryPageFetch(account);
     // replies page is cached
     const cachedRepliesPage = yield repliesPagesDatabase.getItem(pageCid);
     if (cachedRepliesPage) {
         return cachedRepliesPage;
     }
-    if (!fetchPageComments[comment.cid]) {
-        fetchPageComments[comment.cid] = yield account.pkc.createComment({
+    if (!fetchPageComments[account.id] || fetchPageComments[account.id].pkc !== account.pkc) {
+        fetchPageComments[account.id] = { pkc: account.pkc, comments: {} };
+    }
+    const accountComments = fetchPageComments[account.id].comments;
+    if (!accountComments[comment.cid]) {
+        accountComments[comment.cid] = yield account.pkc.createComment({
             cid: comment.cid,
             postCid: comment.postCid,
             communityAddress: comment.communityAddress,
             depth: comment.depth,
         });
-        listeners.push(fetchPageComments[comment.cid]);
+        listeners.push(accountComments[comment.cid]);
         // set clients states on communities store so the frontend can display it
-        utils.pageClientsOnStateChange((_a = fetchPageComments[comment.cid].replies) === null || _a === void 0 ? void 0 : _a.clients, onCommentRepliesClientsStateChange(comment.cid));
+        utils.pageClientsOnStateChange((_a = accountComments[comment.cid].replies) === null || _a === void 0 ? void 0 : _a.clients, onCommentRepliesClientsStateChange(comment.cid));
     }
-    const onError = (error) => log.error(`repliesPagesStore comment '${comment.cid}' failed comment.replies.getPage page cid '${pageCid}':`, error);
-    const fetchedRepliesPage = yield utils.retryInfinity(() => fetchPageComments[comment.cid].replies.getPage({ cid: pageCid }), { onError });
+    const onError = (error) => {
+        if (pendingFetch) {
+            pendingFetch.failed = true;
+        }
+        log.error(`repliesPagesStore comment '${comment.cid}' failed comment.replies.getPage page cid '${pageCid}':`, error);
+    };
+    let fetchedRepliesPage;
+    try {
+        fetchedRepliesPage = yield utils.retryInfinity(() => accountComments[comment.cid].replies.getPage({ cid: pageCid }), { onError, shouldRetry });
+    }
+    catch (error) {
+        const accountWithNewPkc = getAccountWithNewPkc(account, account.id + pageCid, pendingFetch);
+        if (!accountWithNewPkc) {
+            throw error;
+        }
+        // the fetch continues as a new fetch with the new client, starting from the page cache
+        if (pendingFetch) {
+            pendingFetch.pkc = accountWithNewPkc.pkc;
+            pendingFetch.failed = false;
+        }
+        return fetchPage(pageCid, comment, accountWithNewPkc, pendingFetch);
+    }
     yield repliesPagesDatabase.setItem(pageCid, utils.clone(fetchedRepliesPage));
     return fetchedRepliesPage;
 });

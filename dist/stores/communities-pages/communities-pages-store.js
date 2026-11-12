@@ -103,7 +103,7 @@ const communitiesPagesStore = createStore((setState, getState) => ({
     communitiesPages: {},
     comments: {},
     addNextCommunityPageToStore: (community, sortType, account, modQueue) => __awaiter(void 0, void 0, void 0, function* () {
-        var _a;
+        var _a, _b;
         assert((community === null || community === void 0 ? void 0 : community.address) && typeof (community === null || community === void 0 ? void 0 : community.address) === "string", `communitiesPagesStore.addNextCommunityPageToStore community '${community}' invalid`);
         assert(sortType === undefined || (typeof sortType === "string" && sortType.length > 0), `communitiesPagesStore.addNextCommunityPageToStore sortType '${sortType}' invalid`);
         assert(typeof getPkcCreateCommunity(account === null || account === void 0 ? void 0 : account.pkc) === "function", `communitiesPagesStore.addNextCommunityPageToStore account '${account}' invalid`);
@@ -145,13 +145,18 @@ const communitiesPagesStore = createStore((setState, getState) => ({
         }
         // page is already added or pending
         const pageStoreKeyToAdd = getCommunityPageStoreKey(pageCidToAdd, pageType, account.id);
-        if (communitiesPages[pageStoreKeyToAdd] || fetchPagePending[pageStoreKeyToAdd]) {
+        if (communitiesPages[pageStoreKeyToAdd] ||
+            pageFetchIsPending(pageStoreKeyToAdd, account.pkc)) {
             return;
         }
-        fetchPagePending[pageStoreKeyToAdd] = true;
+        const pendingFetch = { pkc: account.pkc, failed: false };
+        fetchPagePending[pageStoreKeyToAdd] = [
+            ...(fetchPagePending[pageStoreKeyToAdd] || []),
+            pendingFetch,
+        ];
         let page;
         try {
-            page = yield fetchPage(pageCidToAdd, community.address, account, pageType);
+            page = yield fetchPage(pageCidToAdd, community.address, account, pageType, pendingFetch);
             log.trace("communitiesPagesStore.addNextCommunityPageToStore community.posts.getPage", {
                 pageCid: pageCidToAdd,
                 communityAddress: community.address,
@@ -162,7 +167,7 @@ const communitiesPagesStore = createStore((setState, getState) => ({
             throw e;
         }
         finally {
-            fetchPagePending[pageStoreKeyToAdd] = false;
+            fetchPagePending[pageStoreKeyToAdd] = (_b = fetchPagePending[pageStoreKeyToAdd]) === null || _b === void 0 ? void 0 : _b.filter((fetch) => fetch !== pendingFetch);
         }
         // find new comments in the page
         const flattenedComments = utils.flattenCommentsPages(page);
@@ -290,8 +295,35 @@ const onCommunityPostsClientsStateChange = (communityAddress) => (clientState, c
 };
 const fetchPageCommunities = {}; // cache created community clients per account because creating them can be slow
 let fetchPagePending = {};
-const fetchPage = (pageCid, communityAddress, account, pageType) => __awaiter(void 0, void 0, void 0, function* () {
+const pageFetchIsPending = (key, pkc) => { var _a; return Boolean((_a = fetchPagePending[key]) === null || _a === void 0 ? void 0 : _a.some((fetch) => fetch.pkc === pkc || !fetch.failed)); };
+// a page fetch stops retrying with its pkc client once its account was deleted, or setAccount gave
+// the account another client. An account the accounts store didn't hold when the fetch started
+// keeps retrying
+const getShouldRetryPageFetch = (account) => {
     var _a;
+    const accountWasStored = Boolean((_a = accountsStore.getState().accounts) === null || _a === void 0 ? void 0 : _a[account.id]);
+    return () => {
+        var _a;
+        const storedAccount = (_a = accountsStore.getState().accounts) === null || _a === void 0 ? void 0 : _a[account.id];
+        return storedAccount ? storedAccount.pkc === account.pkc : !accountWasStored;
+    };
+};
+// setAccount gives the account a new pkc client on every edit, so a fetch that stopped retrying
+// with the replaced client continues with the account's new one, unless another fetch of the page
+// already uses it
+const getAccountWithNewPkc = (account, pendingKey, pendingFetch) => {
+    var _a, _b;
+    const storedAccount = (_a = accountsStore.getState().accounts) === null || _a === void 0 ? void 0 : _a[account.id];
+    if (!storedAccount ||
+        storedAccount.pkc === account.pkc ||
+        ((_b = fetchPagePending[pendingKey]) === null || _b === void 0 ? void 0 : _b.some((fetch) => fetch !== pendingFetch && fetch.pkc === storedAccount.pkc))) {
+        return;
+    }
+    return storedAccount;
+};
+const fetchPage = (pageCid, communityAddress, account, pageType, pendingFetch) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    const shouldRetry = getShouldRetryPageFetch(account);
     // community page is cached
     const pageStoreKey = getCommunityPageStoreKey(pageCid, pageType, account.id);
     const cachedCommunityPage = yield communitiesPagesDatabase.getItem(pageStoreKey);
@@ -310,8 +342,28 @@ const fetchPage = (pageCid, communityAddress, account, pageType) => __awaiter(vo
         // set clients states on communities store so the frontend can display it
         utils.pageClientsOnStateChange((_a = accountCommunities[communityAddress][pageType]) === null || _a === void 0 ? void 0 : _a.clients, onCommunityPostsClientsStateChange(communityAddress));
     }
-    const onError = (error) => log.error(`communitiesPagesStore community '${communityAddress}' failed community.posts.getPage page cid '${pageCid}':`, error);
-    const fetchedCommunityPage = yield utils.retryInfinity(() => accountCommunities[communityAddress][pageType].getPage({ cid: pageCid }), { onError });
+    const onError = (error) => {
+        if (pendingFetch) {
+            pendingFetch.failed = true;
+        }
+        log.error(`communitiesPagesStore community '${communityAddress}' failed community.posts.getPage page cid '${pageCid}':`, error);
+    };
+    let fetchedCommunityPage;
+    try {
+        fetchedCommunityPage = yield utils.retryInfinity(() => accountCommunities[communityAddress][pageType].getPage({ cid: pageCid }), { onError, shouldRetry });
+    }
+    catch (error) {
+        const accountWithNewPkc = getAccountWithNewPkc(account, pageStoreKey, pendingFetch);
+        if (!accountWithNewPkc) {
+            throw error;
+        }
+        // the fetch continues as a new fetch with the new client, starting from the page cache
+        if (pendingFetch) {
+            pendingFetch.pkc = accountWithNewPkc.pkc;
+            pendingFetch.failed = false;
+        }
+        return fetchPage(pageCid, communityAddress, accountWithNewPkc, pageType, pendingFetch);
+    }
     yield communitiesPagesDatabase.setItem(pageStoreKey, utils.clone(fetchedCommunityPage));
     return fetchedCommunityPage;
 });

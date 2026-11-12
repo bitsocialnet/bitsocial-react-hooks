@@ -95,6 +95,10 @@ const pageNumberIncreased = (feedName, pageNumber, loadedFeed, bufferedFeed) => 
     }
     return false;
 };
+// a reset feed loads its first page again, even when its page number was already 1
+export const resetPreviousPageNumber = (feedName) => {
+    delete previousPageNumbers[feedName];
+};
 const alwaysStreamPage = (feedOptions) => {
     // feedOptions.streamPage set to true means always stream page
     if (feedOptions.streamPage) {
@@ -136,6 +140,10 @@ export const getLoadedFeeds = (feedsOptions_1, loadedFeeds_1, bufferedFeeds_1, a
             continue;
         }
         const pkc = (_a = accounts[accountId]) === null || _a === void 0 ? void 0 : _a.pkc;
+        // the feed's account was deleted, it can't validate replies, so leave the feed as it was
+        if (!pkc) {
+            continue;
+        }
         const loadedFeedReplyCount = pageNumber * repliesPerPage;
         const currentLoadedFeed = loadedFeeds[feedName] || [];
         // don't count account replies
@@ -340,6 +348,10 @@ export const getUpdatedFeeds = (feedsOptions, filteredSortedFeeds, updatedFeeds,
     ]);
     for (const feedName of feedNames) {
         const pkc = (_b = accounts[(_a = feedsOptions[feedName]) === null || _a === void 0 ? void 0 : _a.accountId]) === null || _b === void 0 ? void 0 : _b.pkc;
+        // the feed's account was deleted, it can't validate replies, so leave the feed as it was
+        if (!pkc) {
+            continue;
+        }
         const loadedFeed = loadedFeeds[feedName] || [];
         const previousUpdatedFeed = updatedFeeds[feedName] || [];
         const updatedFeed = [...loadedFeed];

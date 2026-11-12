@@ -293,6 +293,15 @@ const shiftPublishSessionIndicesAfterDelete = (accountId, deletedIndex) => {
         }
     }
 };
+// the sessions shifted by a deletion are the ones now at or after the deleted index
+const notifyShiftedPublishSessions = (accountId, deletedIndex) => {
+    var _a;
+    for (const session of activePublishSessions.values()) {
+        if (session.accountId === accountId && session.currentIndex >= deletedIndex) {
+            (_a = session.onIndexChange) === null || _a === void 0 ? void 0 : _a.call(session, session.currentIndex);
+        }
+    }
+};
 const cleanupPublishSessionOnTerminal = (sessionId) => {
     activePublishSessions.delete(sessionId);
     abandonedPublishSessionIds.delete(sessionId);
@@ -921,7 +930,7 @@ const omitPublishCommentCallbacks = (options) => {
     return publicationOptions;
 };
 export const publishComment = (publishCommentOptions, accountName) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
+    var _a;
     const { accounts, accountsComments, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
     assert(accounts && accountNamesToAccountIds && activeAccountId, `can't use accountsStore.accountActions before initialized`);
     let account = accounts[activeAccountId];
@@ -1072,7 +1081,15 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
     if (pendingCommentIndex !== accountCommentIndex) {
         notifyPendingComment(pendingCommentIndex, createdAccountComment);
     }
-    (_b = publishCommentOptions._onPendingCommentIndex) === null || _b === void 0 ? void 0 : _b.call(publishCommentOptions, pendingCommentIndex, createdAccountComment);
+    // the hooks abandon the pending comment with abandonPendingComment, and learn its new index when a
+    // deletion of an earlier account comment shifts it
+    const abandonPendingComment = () => abandonPublishSession(publishSessionId);
+    const onPendingCommentIndex = publishCommentOptions._onPendingCommentIndex;
+    onPendingCommentIndex === null || onPendingCommentIndex === void 0 ? void 0 : onPendingCommentIndex(pendingCommentIndex, createdAccountComment, abandonPendingComment);
+    const pendingPublishSession = getPublishSession(publishSessionId);
+    if (onPendingCommentIndex && pendingPublishSession) {
+        pendingPublishSession.onIndexChange = (index) => onPendingCommentIndex(index, Object.assign(Object.assign({}, createdAccountComment), { index }), abandonPendingComment);
+    }
     let comment;
     (() => __awaiter(void 0, void 0, void 0, function* () {
         // fetch comment.link dimensions
@@ -1363,24 +1380,38 @@ export const deleteComment = (commentCidOrAccountCommentIndex, accountName) => _
         assert(mapping && mapping.accountId === account.id, `accountsActions.deleteComment cid '${commentCidOrAccountCommentIndex}' not found for account`);
         accountCommentIndex = mapping.accountCommentIndex;
     }
+    yield deleteAccountComment(account.id, accountCommentIndex);
+});
+const deleteAccountComment = (accountId, accountCommentIndex) => __awaiter(void 0, void 0, void 0, function* () {
+    const { accountsComments } = accountsStore.getState();
+    const accountComments = accountsComments[accountId] || [];
     assert(accountCommentIndex >= 0 && accountCommentIndex < accountComments.length, `accountsActions.deleteComment index '${accountCommentIndex}' out of range`);
-    abandonAndStopPublishSession(account.id, accountCommentIndex);
-    shiftPublishSessionIndicesAfterDelete(account.id, accountCommentIndex);
+    abandonAndStopPublishSession(accountId, accountCommentIndex);
+    shiftPublishSessionIndicesAfterDelete(accountId, accountCommentIndex);
     const spliced = [...accountComments];
     spliced.splice(accountCommentIndex, 1);
-    const reindexed = spliced.map((c, i) => (Object.assign(Object.assign({}, c), { index: i, accountId: account.id })));
-    const newAccountsComments = Object.assign(Object.assign({}, accountsComments), { [account.id]: reindexed });
+    const reindexed = spliced.map((c, i) => (Object.assign(Object.assign({}, c), { index: i, accountId })));
+    const newAccountsComments = Object.assign(Object.assign({}, accountsComments), { [accountId]: reindexed });
     const newCommentCidsToAccountsComments = getCommentCidsToAccountsComments(newAccountsComments);
     accountsStore.setState(({ accountsCommentsIndexes }) => ({
         accountsComments: newAccountsComments,
-        accountsCommentsIndexes: Object.assign(Object.assign({}, accountsCommentsIndexes), { [account.id]: getAccountCommentsIndex(reindexed) }),
+        accountsCommentsIndexes: Object.assign(Object.assign({}, accountsCommentsIndexes), { [accountId]: getAccountCommentsIndex(reindexed) }),
         commentCidsToAccountsComments: newCommentCidsToAccountsComments,
     }));
-    yield accountsDatabase.deleteAccountComment(account.id, accountCommentIndex);
-    log("accountsActions.deleteComment", { accountId: account.id, accountCommentIndex });
+    notifyShiftedPublishSessions(accountId, accountCommentIndex);
+    yield accountsDatabase.deleteAccountComment(accountId, accountCommentIndex);
+    log("accountsActions.deleteComment", { accountId, accountCommentIndex });
+});
+// deletes a comment that is still publishing from where its session has it now, in the account that
+// published it, so a deletion that shifted it or a change of the active account can't redirect it
+const abandonPublishSession = (sessionId) => __awaiter(void 0, void 0, void 0, function* () {
+    const session = getPublishSession(sessionId);
+    if (!session || isPublishSessionAbandoned(sessionId))
+        return;
+    yield deleteAccountComment(session.accountId, session.currentIndex);
 });
 export const publishVote = (publishVoteOptions, accountName) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
+    var _a, _b, _c, _d;
     const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
     assert(accounts && accountNamesToAccountIds && activeAccountId, `can't use accountsStore.accountActions before initialized`);
     let account = accounts[activeAccountId];
@@ -1398,20 +1429,42 @@ export const publishVote = (publishVoteOptions, accountName) => __awaiter(void 0
     delete createVoteOptions.onChallengeVerification;
     delete createVoteOptions.onError;
     delete createVoteOptions.onPublishingStateChange;
-    createVoteOptions = yield applyPublicationWordfilters("vote", createVoteOptions, account);
+    delete createVoteOptions._onVotePublishSession;
+    const { commentCid } = createVoteOptions;
+    // started before the community's wordfilters load, so abandoning the vote meanwhile ends it
+    const votePublishSession = startVotePublishSession(account.id, commentCid, (_a = accountsStore.getState().accountsVotes[account.id]) === null || _a === void 0 ? void 0 : _a[commentCid]);
+    const votePublishSessionKey = getVotePublishSessionKey(account.id, commentCid);
+    const isVotePublishSessionActive = () => activeVotePublishSessions.get(votePublishSessionKey) === votePublishSession;
+    // the hooks abandon this vote's session in the account that published it, whichever is active
+    (_b = publishVoteOptions._onVotePublishSession) === null || _b === void 0 ? void 0 : _b.call(publishVoteOptions, () => abandonVotePublishSession(account.id, commentCid, votePublishSession));
+    // counted as a vote being created, so the rest of the burst can't end the session meanwhile
+    votePublishSession.creating++;
+    try {
+        createVoteOptions = yield applyPublicationWordfilters("vote", createVoteOptions, account);
+    }
+    catch (error) {
+        votePublishSession.creating--;
+        if (votePublishSession.publications.size === 0 &&
+            votePublishSession.creating === 0 &&
+            isVotePublishSessionActive()) {
+            endVotePublishSession(account.id, commentCid);
+        }
+        throw error;
+    }
+    votePublishSession.creating--;
+    // abandoned while the wordfilters loaded: nothing was published or written, so stop here
+    if (!isVotePublishSessionActive())
+        return;
     const accountsState = accountsStore.getState();
     const accountCommentInfo = accountsState.commentCidsToAccountsComments[createVoteOptions.commentCid];
     const accountComment = accountCommentInfo
-        ? (_a = accountsState.accountsComments[accountCommentInfo.accountId]) === null || _a === void 0 ? void 0 : _a[accountCommentInfo.accountCommentIndex]
+        ? (_c = accountsState.accountsComments[accountCommentInfo.accountId]) === null || _c === void 0 ? void 0 : _c[accountCommentInfo.accountCommentIndex]
         : undefined;
-    const previousAccountVote = (_b = accountsState.accountsVotes[account.id]) === null || _b === void 0 ? void 0 : _b[createVoteOptions.commentCid];
+    const previousAccountVote = (_d = accountsState.accountsVotes[account.id]) === null || _d === void 0 ? void 0 : _d[createVoteOptions.commentCid];
     const storedCreateVoteOptions = addOptimisticVoteMetadata(normalizePublicationOptionsForStore(createVoteOptions), previousAccountVote, getFreshestLoadedComment(createVoteOptions.commentCid, accountComment));
     const accountVote = Object.assign(Object.assign({}, storedCreateVoteOptions), { 
         // remove signer and author because not needed and they expose private key
         signer: undefined, author: undefined });
-    const votePublishSession = startVotePublishSession(account.id, createVoteOptions.commentCid, previousAccountVote);
-    const votePublishSessionKey = getVotePublishSessionKey(account.id, createVoteOptions.commentCid);
-    const isVotePublishSessionActive = () => activeVotePublishSessions.get(votePublishSessionKey) === votePublishSession;
     const createSessionVote = () => __awaiter(void 0, void 0, void 0, function* () {
         votePublishSession.creating++;
         try {
@@ -1490,7 +1543,6 @@ export const publishVote = (publishVoteOptions, accountName) => __awaiter(void 0
  * vote they optimistically replaced. Does nothing once the vote has been verified.
  */
 export const abandonVote = (commentCid, accountName) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
     const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
     assert(accounts && accountNamesToAccountIds && activeAccountId, `can't use accountsStore.accountActions before initialized`);
     let account = accounts[activeAccountId];
@@ -1500,10 +1552,15 @@ export const abandonVote = (commentCid, accountName) => __awaiter(void 0, void 0
     }
     assert(account === null || account === void 0 ? void 0 : account.id, `accountsActions.abandonVote account.id '${account === null || account === void 0 ? void 0 : account.id}' doesn't exist`);
     assert(commentCid && typeof commentCid === "string", `accountsActions.abandonVote commentCid '${commentCid}' not a string`);
-    const session = activeVotePublishSessions.get(getVotePublishSessionKey(account.id, commentCid));
-    if (!session)
+    yield abandonVotePublishSession(account.id, commentCid);
+});
+// with votePublishSession, abandons only that session, not a newer one for the same comment
+const abandonVotePublishSession = (accountId, commentCid, votePublishSession) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    const session = activeVotePublishSessions.get(getVotePublishSessionKey(accountId, commentCid));
+    if (!session || (votePublishSession && session !== votePublishSession))
         return;
-    endVotePublishSession(account.id, commentCid);
+    endVotePublishSession(accountId, commentCid);
     for (const publication of session.publications) {
         try {
             const stop = (_a = publication === null || publication === void 0 ? void 0 : publication.stop) === null || _a === void 0 ? void 0 : _a.bind(publication);
@@ -1512,14 +1569,14 @@ export const abandonVote = (commentCid, accountName) => __awaiter(void 0, void 0
         }
         catch (e) {
             log.error("vote.stop() error during abandon", {
-                accountId: account.id,
+                accountId,
                 commentCid,
                 error: e,
             });
         }
     }
-    yield restoreAccountVote(account.id, commentCid, session.previousAccountVote);
-    log("accountsActions.abandonVote", { accountId: account.id, commentCid });
+    yield restoreAccountVote(accountId, commentCid, session.previousAccountVote);
+    log("accountsActions.abandonVote", { accountId, commentCid });
 });
 export const publishCommentEdit = (publishCommentEditOptions, accountName) => __awaiter(void 0, void 0, void 0, function* () {
     const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();

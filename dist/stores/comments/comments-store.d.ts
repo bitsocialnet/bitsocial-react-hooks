@@ -13,6 +13,8 @@ export type CommentsState = {
     addCommentToStore: Function;
     startCommentAutoUpdate: Function;
     stopCommentAutoUpdate: Function;
+    addOpeningUpdateWaiter: Function;
+    removeOpeningUpdateWaiter: Function;
     refreshComment: Function;
 };
 declare const commentsStore: import("zustand").UseBoundStore<import("zustand").StoreApi<CommentsState>>;

@@ -241,6 +241,10 @@ export const getLoadedFeeds = (feedsOptions, filteredSortedFeeds, loadedFeeds, b
     for (const feedName in feedsOptions) {
         const { pageNumber, postsPerPage, accountId } = feedsOptions[feedName];
         const pkc = (_a = accounts[accountId]) === null || _a === void 0 ? void 0 : _a.pkc;
+        // the feed's account was deleted, it can't validate posts, so leave the feed as it was
+        if (!pkc) {
+            continue;
+        }
         const loadedFeedPostCount = pageNumber * postsPerPage;
         const currentLoadedFeed = reconcileLoadedModQueueFeed(feedsOptions[feedName], loadedFeeds[feedName] || [], filteredSortedFeeds[feedName] || []);
         if (currentLoadedFeed !== loadedFeeds[feedName]) {
@@ -451,6 +455,10 @@ export const getUpdatedFeeds = (feedsOptions, filteredSortedFeeds, updatedFeeds,
     const newUpdatedFeeds = Object.assign({}, updatedFeeds);
     for (const feedName in filteredSortedFeeds) {
         const pkc = (_b = accounts[(_a = feedsOptions[feedName]) === null || _a === void 0 ? void 0 : _a.accountId]) === null || _b === void 0 ? void 0 : _b.pkc;
+        // the feed's account was deleted, it can't validate posts, so leave the feed as it was
+        if (!pkc) {
+            continue;
+        }
         const updatedFeed = [...(updatedFeeds[feedName] || [])];
         const onlyHasNewPosts = updatedFeed.length === 0;
         let updatedFeedChanged = false;
@@ -677,15 +685,15 @@ export const getFeedsCommunitiesFirstPageCids = (feedsCommunities) => {
     }
     return [...feedsCommunitiesFirstPageCids].sort();
 };
-// get all communities posts pages first post updatedAts, use to check if a communitiesStore change should trigger updateFeeds
+// get all communities posts pages post cids and updatedAts, use to check if a communitiesStore change should trigger updateFeeds
+// (a post added, removed or updated anywhere in a preloaded page changes it without new page cids)
 export const getFeedsCommunitiesPostsPagesFirstUpdatedAts = (feedsCommunities) => {
-    var _a, _b, _c;
+    var _a, _b;
     let feedsCommunitiesPostsPagesFirstUpdatedAts = "";
     for (const community of feedsCommunities.values()) {
         for (const page of Object.values(((_a = community === null || community === void 0 ? void 0 : community.posts) === null || _a === void 0 ? void 0 : _a.pages) || {})) {
-            if ((_c = (_b = page === null || page === void 0 ? void 0 : page.comments) === null || _b === void 0 ? void 0 : _b[0]) === null || _c === void 0 ? void 0 : _c.updatedAt) {
-                feedsCommunitiesPostsPagesFirstUpdatedAts +=
-                    page.comments[0].cid + page.comments[0].updatedAt;
+            for (const post of (page === null || page === void 0 ? void 0 : page.comments) || []) {
+                feedsCommunitiesPostsPagesFirstUpdatedAts += `${post === null || post === void 0 ? void 0 : post.cid}${(_b = post === null || post === void 0 ? void 0 : post.updatedAt) !== null && _b !== void 0 ? _b : ""};`;
             }
         }
     }

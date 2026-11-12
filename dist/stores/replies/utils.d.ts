@@ -3,6 +3,7 @@ import { Feeds, RepliesFeedOptions, RepliesFeedsOptions, Comment, Comments, Acco
  * Calculate the feeds from all the loaded replies pages, filter and sort them
  */
 export declare const getFilteredSortedFeeds: (feedsOptions: RepliesFeedsOptions, comments: Comments, repliesPages: RepliesPages, accounts: Accounts) => Feeds;
+export declare const resetPreviousPageNumber: (feedName: string) => void;
 type GetLoadedFeedsOptions = {
     addAccountComments?: boolean;
     feedsHaveMore?: {

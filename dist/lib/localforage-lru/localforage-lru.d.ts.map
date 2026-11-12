@@ -1,1 +1,1 @@
-{"version":3,"file":"localforage-lru.d.ts","sourceRoot":"","sources":["../../../src/lib/localforage-lru/localforage-lru.ts"],"names":[],"mappings":"AA4JA,eAAO,MAAM,SAAS,EAAE,GAAQ,CAAC;;4CAEc,GAAG;;AAkBlD,wBAAkC"}
+{"version":3,"file":"localforage-lru.d.ts","sourceRoot":"","sources":["../../../src/lib/localforage-lru/localforage-lru.ts"],"names":[],"mappings":"AAqLA,eAAO,MAAM,SAAS,EAAE,GAAQ,CAAC;;4CAEc,GAAG;0BAoBf,MAAM;;AAWzC,wBAAiD"}

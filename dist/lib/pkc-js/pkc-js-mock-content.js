@@ -1105,6 +1105,7 @@ class Publication extends EventEmitter {
         }
     }
 }
+const commentUpdateLoops = new WeakMap();
 class Comment extends Publication {
     constructor(createCommentOptions) {
         super();
@@ -1158,12 +1159,15 @@ class Comment extends Publication {
             this.updating = true;
             this.updatingState = "fetching-ipfs";
             this.emit("updatingstatechange", "fetching-ipfs");
+            // a loop started before stop() ends even if update() started a new one before it woke up
+            const updateLoop = (commentUpdateLoops.get(this) || 0) + 1;
+            commentUpdateLoops.set(this, updateLoop);
             (() => __awaiter(this, void 0, void 0, function* () {
                 while (this.updating) {
                     yield simulateLoadingTime();
                     yield simulateLoadingTime();
                     yield simulateLoadingTime();
-                    if (!this.updating) {
+                    if (!this.updating || commentUpdateLoops.get(this) !== updateLoop) {
                         return;
                     }
                     this.simulateUpdateEvent();

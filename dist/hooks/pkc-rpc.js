@@ -7,7 +7,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useAccount } from "./accounts/index.js";
 import assert from "../lib/assert.js";
 import { getProtocolClient, getRpcClients } from "../lib/pkc-compat.js";
@@ -23,23 +23,39 @@ export function usePkcRpcSettings(options) {
     const protocolClient = getProtocolClient(account);
     const rpcClient = getFirstRpcClient(protocolClient);
     const [pkcRpcSettingsState, setPkcRpcSettingsState] = useState();
-    const [state, setState] = useState("initializing");
+    const [rpcState, setRpcState] = useState("initializing");
+    // the result of the last setPkcRpcSettings call, shown instead of the rpc state for a while
+    const [saveResult, setSaveResult] = useState();
+    const saveResultTimeout = useRef(undefined);
     const [errors, setErrors] = useState([]);
+    // the rpc client whose settings and state the hook shows
+    const shownRpcClient = useRef(rpcClient);
+    const showSaveResult = (result) => {
+        clearTimeout(saveResultTimeout.current);
+        setSaveResult(result);
+        if (result) {
+            saveResultTimeout.current = setTimeout(() => setSaveResult(undefined), 10000);
+        }
+    };
+    useEffect(() => () => clearTimeout(saveResultTimeout.current), []);
     useEffect(() => {
+        var _a;
+        // the settings, state and save result of a previous rpc client don't apply to this one
+        shownRpcClient.current = rpcClient;
+        showSaveResult(undefined);
+        setPkcRpcSettingsState((_a = rpcClient === null || rpcClient === void 0 ? void 0 : rpcClient.settings) !== null && _a !== void 0 ? _a : undefined);
+        setRpcState((rpcClient === null || rpcClient === void 0 ? void 0 : rpcClient.state) || "initializing");
         if (!account || !protocolClient)
             return;
         if (!rpcClient)
             return;
-        if (rpcClient.settings != null)
-            setPkcRpcSettingsState(rpcClient.settings);
-        const rpcState = rpcClient.state;
-        if (rpcState != null && rpcState !== "")
-            setState(rpcState);
         const onRpcSettingsChange = (pkcRpcSettings) => {
             setPkcRpcSettingsState(pkcRpcSettings);
         };
         const onRpcStateChange = (rpcState) => {
-            setState(rpcState);
+            // a newer rpc state replaces the save result
+            showSaveResult(undefined);
+            setRpcState(rpcState);
         };
         const onRpcError = (e) => {
             setErrors((prevErrors) => [...prevErrors, e]);
@@ -59,24 +75,21 @@ export function usePkcRpcSettings(options) {
         assert(pkcRpcSettings && typeof pkcRpcSettings === "object", `usePkcRpcSettings.setPkcRpcSettings pkcRpcSettings argument '${pkcRpcSettings}' not an object`);
         const currentRpcClient = getFirstRpcClient(getProtocolClient(account));
         assert(currentRpcClient, `can't use usePkcRpcSettings.setPkcRpcSettings no account.pkc.clients.pkcRpcClients`);
+        // a save that finishes after the hook switched to another rpc client doesn't apply to it
         try {
             yield currentRpcClient.setSettings(pkcRpcSettings);
-            setState("succeeded");
+            if (currentRpcClient === shownRpcClient.current) {
+                showSaveResult("succeeded");
+            }
         }
         catch (e) {
-            setErrors((prevErrors) => [...prevErrors, e]);
-            setState("failed");
+            if (currentRpcClient === shownRpcClient.current) {
+                setErrors((prevErrors) => [...prevErrors, e]);
+                showSaveResult("failed");
+            }
         }
-        const rpcStateAfter = currentRpcClient.state;
-        setTimeout(() => {
-            setState((prevState) => {
-                if (prevState !== rpcStateAfter && rpcStateAfter != null && rpcStateAfter !== "") {
-                    return rpcStateAfter;
-                }
-                return prevState;
-            });
-        }, 10000);
     });
+    const state = saveResult || rpcState;
     return useMemo(() => ({
         pkcRpcSettings: pkcRpcSettingsState,
         setPkcRpcSettings: updatePkcRpcSettings,

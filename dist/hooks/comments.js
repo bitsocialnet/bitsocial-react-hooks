@@ -111,6 +111,8 @@ export function useComment(options) {
     const addCommentToStore = useCommentsStore((state) => state.addCommentToStore);
     const startCommentAutoUpdate = useCommentsStore((state) => state.startCommentAutoUpdate);
     const stopCommentAutoUpdate = useCommentsStore((state) => state.stopCommentAutoUpdate);
+    const addOpeningUpdateWaiter = useCommentsStore((state) => state.addOpeningUpdateWaiter);
+    const removeOpeningUpdateWaiter = useCommentsStore((state) => state.removeOpeningUpdateWaiter);
     const refreshCommentInStore = useCommentsStore((state) => state.refreshComment);
     const communitiesPagesComment = useCommunitiesPagesStore((state) => state.comments[commentCid || ""]);
     const repliesPagesComment = useRepliesPagesStore((state) => state.comments[commentCid || ""]);
@@ -192,6 +194,15 @@ export function useComment(options) {
     // load requested has ended, so a returning visitor sees the current comment.
     const openingUpdateEnded = onlyIfCached || (Boolean(commentFromStore) && !openingUpdatePending);
     const freezeSettledForCurrentCid = freezeSettledCid === commentCid;
+    // the update requested on open keeps retrying until the frozen comment settles
+    useEffect(() => {
+        if (!commentCid || onlyIfCached || autoUpdate || freezeSettledForCurrentCid) {
+            return;
+        }
+        const waiterId = autoUpdateSubscriptionId.current;
+        addOpeningUpdateWaiter(commentCid, waiterId);
+        return () => removeOpeningUpdateWaiter(commentCid, waiterId);
+    }, [commentCid, onlyIfCached, autoUpdate, freezeSettledForCurrentCid]);
     useEffect(() => {
         if (autoUpdate) {
             setFrozenComment(undefined);
@@ -334,6 +345,8 @@ export function useComments(options) {
     const addCommentToStore = useCommentsStore((state) => state.addCommentToStore);
     const startCommentAutoUpdate = useCommentsStore((state) => state.startCommentAutoUpdate);
     const stopCommentAutoUpdate = useCommentsStore((state) => state.stopCommentAutoUpdate);
+    const addOpeningUpdateWaiter = useCommentsStore((state) => state.addOpeningUpdateWaiter);
+    const removeOpeningUpdateWaiter = useCommentsStore((state) => state.removeOpeningUpdateWaiter);
     const refreshCommentInStore = useCommentsStore((state) => state.refreshComment);
     const autoUpdateSubscriptionId = useRef(`useComments-${++commentsAutoUpdateSubscriptionCount}`);
     const commentCidsKey = JSON.stringify(commentCids);
@@ -393,6 +406,22 @@ export function useComments(options) {
         (Boolean(onlyIfCached) ||
             commentsStoreComments.every((comment, index) => comment && !openingUpdatesPending[index]));
     const freezeSettledForCurrentKey = freezeSettledKey === commentsKey;
+    // the updates requested on open keep retrying until the frozen comments settle
+    useEffect(() => {
+        if (!commentCids || onlyIfCached || autoUpdate || freezeSettledForCurrentKey) {
+            return;
+        }
+        const waiterId = autoUpdateSubscriptionId.current;
+        const uniqueCommentCids = [...new Set(commentCids)];
+        for (const commentCid of uniqueCommentCids) {
+            addOpeningUpdateWaiter(commentCid, waiterId);
+        }
+        return () => {
+            for (const commentCid of uniqueCommentCids) {
+                removeOpeningUpdateWaiter(commentCid, waiterId);
+            }
+        };
+    }, [commentCidsKey, onlyIfCached, autoUpdate, freezeSettledForCurrentKey]);
     useEffect(() => {
         if (autoUpdate) {
             setFrozenComments([]);
@@ -460,19 +489,41 @@ export function useValidateComment(options) {
     assert(!options || typeof options === "object", `useValidateComment options argument '${options}' not an object`);
     let { comment, validateReplies, accountName } = options !== null && options !== void 0 ? options : {};
     validateReplies = validateReplies !== null && validateReplies !== void 0 ? validateReplies : true;
-    const [validated, setValidated] = useState();
+    const [validation, setValidation] = useState();
     const [errors] = useState([]);
     const account = useAccount({ accountName });
     useEffect(() => {
         if (!comment || !(account === null || account === void 0 ? void 0 : account.pkc)) {
-            setValidated(undefined);
+            setValidation(undefined);
             return;
         }
         // don't automatically block community because what community it comes from
         // a malicious community could try to block other communities, etc
         const blockCommunity = false;
-        commentIsValid(comment, { validateReplies, blockCommunity }, account.pkc).then((validated) => setValidated(validated));
+        const cid = comment.cid;
+        let cancelled = false;
+        commentIsValid(comment, { validateReplies, blockCommunity }, account.pkc).then((validated) => {
+            if (cancelled) {
+                return;
+            }
+            setValidation((previous) => previous &&
+                previous.cid === cid &&
+                previous.validateReplies === validateReplies &&
+                previous.validated === validated
+                ? previous
+                : { cid, validateReplies, validated });
+        });
+        return () => {
+            cancelled = true;
+        };
     }, [comment, validateReplies, account === null || account === void 0 ? void 0 : account.pkc]);
+    // a verdict only applies to the comment it was made for, another comment starts unvalidated
+    const validated = comment &&
+        validation &&
+        validation.cid === comment.cid &&
+        validation.validateReplies === validateReplies
+        ? validation.validated
+        : undefined;
     let state = "initializing";
     if (validated === true) {
         state = "succeeded";

@@ -8,32 +8,49 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import localForage from "localforage";
+// the database made active by the last rotation holds the highest generation under this key, so a
+// reload finds the active database even after removeItem changed how many items each one holds
+const activeGenerationKey = "__localForageLruActiveGeneration";
 function createLocalForageInstance(localForageLruOptions) {
     if (typeof (localForageLruOptions === null || localForageLruOptions === void 0 ? void 0 : localForageLruOptions.size) !== "number") {
         throw Error(`LocalForageLru.createInstance localForageLruOptions.size '${localForageLruOptions === null || localForageLruOptions === void 0 ? void 0 : localForageLruOptions.size}' not a number`);
     }
     const localForageOptions = Object.assign({}, localForageLruOptions);
     delete localForageOptions.size;
-    let database1, database2, databaseSize, initialized = false;
+    let database1, database2, databaseSize, activeGeneration, initialized = false;
     const initializationPromize = new Promise((resolve) => __awaiter(this, void 0, void 0, function* () {
         const localForage1 = localForage.createInstance(Object.assign(Object.assign({}, localForageOptions), { name: localForageLruOptions.name }));
         const localForage2 = localForage.createInstance(Object.assign(Object.assign({}, localForageOptions), { name: localForageLruOptions.name + "2" }));
-        const [localForage1Size, localForage2Size] = yield Promise.all([
+        const [localForage1Size, localForage2Size, localForage1Generation, localForage2Generation] = yield Promise.all([
             localForage1.length(),
             localForage2.length(),
+            localForage1.getItem(activeGenerationKey),
+            localForage2.getItem(activeGenerationKey),
         ]);
-        // largest db is always active db, unless is max size, because max sized db is always inactive
-        if ((localForage1Size >= localForage2Size && localForage1Size !== localForageLruOptions.size) ||
-            localForage2Size === localForageLruOptions.size) {
+        const generation1 = typeof localForage1Generation === "number" ? localForage1Generation : -1;
+        const generation2 = typeof localForage2Generation === "number" ? localForage2Generation : -1;
+        let localForage1IsActive;
+        if (generation1 !== -1 || generation2 !== -1) {
+            localForage1IsActive = generation1 > generation2;
+        }
+        else {
+            // databases that never rotated with the generation key:
+            // largest db is always active db, unless is max size, because max sized db is always inactive
+            localForage1IsActive =
+                (localForage1Size >= localForage2Size && localForage1Size !== localForageLruOptions.size) ||
+                    localForage2Size === localForageLruOptions.size;
+        }
+        if (localForage1IsActive) {
             database2 = localForage2;
             database1 = localForage1;
-            databaseSize = localForage1Size;
+            databaseSize = localForage1Size - (generation1 !== -1 ? 1 : 0);
         }
         else {
             database2 = localForage1;
             database1 = localForage2;
-            databaseSize = localForage2Size;
+            databaseSize = localForage2Size - (generation2 !== -1 ? 1 : 0);
         }
+        activeGeneration = Math.max(generation1, generation2, 0);
         initialized = true;
         resolve(undefined);
     }));
@@ -96,7 +113,7 @@ function createLocalForageInstance(localForageLruOptions) {
             return __awaiter(this, void 0, void 0, function* () {
                 yield initialization();
                 const [keys1, keys2] = yield Promise.all([database1.keys(), database2.keys()]);
-                return [...new Set([...keys1, ...keys2])];
+                return [...new Set([...keys1, ...keys2])].filter((key) => key !== activeGenerationKey);
             });
         },
         // useful to init a react state on load
@@ -104,7 +121,7 @@ function createLocalForageInstance(localForageLruOptions) {
             return __awaiter(this, void 0, void 0, function* () {
                 yield initialization();
                 const [keys1, keys2] = yield Promise.all([database1.keys(), database2.keys()]);
-                const keys = [...new Set([...keys1, ...keys2])];
+                const keys = [...new Set([...keys1, ...keys2])].filter((key) => key !== activeGenerationKey);
                 const entries = [];
                 const getItem = (key) => __awaiter(this, void 0, void 0, function* () {
                     const [value, value2] = yield Promise.all([database1.getItem(key), database2.getItem(key)]);
@@ -152,6 +169,15 @@ function createLocalForageInstance(localForageLruOptions) {
                 database2 = database1Temp;
                 database1 = database2Temp;
                 yield database1.clear();
+                try {
+                    yield database1.setItem(activeGenerationKey, ++activeGeneration);
+                }
+                catch (error) {
+                    console.error("localforageLru updateDatabases setItem active generation error", {
+                        error,
+                        errorMessage: error === null || error === void 0 ? void 0 : error.message,
+                    });
+                }
             }
         });
     }
@@ -178,5 +204,17 @@ const createInstance = (localForageLruOptions) => {
     instances[localForageLruOptions.name] = createLocalForageInstance(localForageLruOptions);
     return instances[localForageLruOptions.name];
 };
-export default { createInstance };
+// clear an instance's databases, also when this session hasn't created the instance, e.g. the
+// databases of an account that wasn't loaded
+const clearInstance = (name) => __awaiter(void 0, void 0, void 0, function* () {
+    if (instances[name]) {
+        yield instances[name].clear();
+        return;
+    }
+    yield Promise.all([
+        localForage.createInstance({ name }).clear(),
+        localForage.createInstance({ name: name + "2" }).clear(),
+    ]);
+});
+export default { createInstance, clearInstance };
 //# sourceMappingURL=localforage-lru.js.map

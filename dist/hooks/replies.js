@@ -30,7 +30,6 @@ export function useReplies(options) {
     validateOptimistically = validateOptimistically !== false;
     const invalidFlatDepth = flat && typeof (comment === null || comment === void 0 ? void 0 : comment.depth) === "number" && flatDepth !== comment.depth;
     validator.validateUseRepliesArguments(comment, sortType, accountName, onlyIfCached, flat, accountComments, repliesPerPage, filter);
-    const [errors, setErrors] = useState([]);
     // add replies to store
     const account = useAccount({ accountName });
     const accountVotes = useAccountsStore((state) => (account === null || account === void 0 ? void 0 : account.id) ? state.accountsVotes[account.id] : undefined);
@@ -48,6 +47,19 @@ export function useReplies(options) {
         streamPage,
     };
     const repliesFeedName = feedOptionsToFeedName(feedOptions);
+    // errors belong to the replies feed they happened in, another feed starts without them. Drop them
+    // when the feed changes (or when one lands after it changed) so they don't return with the old
+    // feed. The comment's postCid only fills in once it loads, that doesn't make it another feed
+    const errorsFeedName = feedOptionsToFeedName(Object.assign(Object.assign({}, feedOptions), { postCid: undefined }));
+    const [feedErrors, setFeedErrors] = useState();
+    if (feedErrors && feedErrors.feedName !== errorsFeedName) {
+        setFeedErrors(undefined);
+    }
+    const errors = (feedErrors === null || feedErrors === void 0 ? void 0 : feedErrors.feedName) === errorsFeedName ? feedErrors.errors : emptyArray;
+    const addError = (error) => setFeedErrors((previous) => ({
+        feedName: errorsFeedName,
+        errors: appendErrorToErrors((previous === null || previous === void 0 ? void 0 : previous.feedName) === errorsFeedName ? previous.errors : emptyArray, error),
+    }));
     const addFeedToStoreOrUpdateComment = useRepliesStore((state) => state.addFeedToStoreOrUpdateComment);
     useEffect(() => {
         if (!(comment === null || comment === void 0 ? void 0 : comment.cid) || !account || invalidFlatDepth) {
@@ -75,11 +87,19 @@ export function useReplies(options) {
             if (!(comment === null || comment === void 0 ? void 0 : comment.cid) || !account) {
                 throw Error("useReplies cannot load more replies not initalized yet");
             }
-            incrementFeedPageNumber(repliesFeedName);
+            try {
+                incrementFeedPageNumber(repliesFeedName);
+            }
+            catch (error) {
+                // infinite scroll calls loadMore before the replies feed or its current page has loaded,
+                // the store refuses the page increment and that isn't a replies error
+                log("useReplies loadMore before the replies page loaded", { repliesFeedName, error });
+                yield new Promise((r) => setTimeout(r, 50));
+            }
         }
         catch (e) {
             yield new Promise((r) => setTimeout(r, 50));
-            setErrors(appendErrorToErrors(errors, e));
+            addError(e);
         }
     });
     const resetFeed = useRepliesStore((state) => state.resetFeed);
@@ -92,7 +112,7 @@ export function useReplies(options) {
         }
         catch (e) {
             yield new Promise((r) => setTimeout(r, 50));
-            setErrors(appendErrorToErrors(errors, e));
+            addError(e);
         }
     });
     // optimistically avoid the initial validation delay by using skipped validation until validated feed is loaded

@@ -182,6 +182,13 @@ const authorsCommentsStore = createStore((setState, getState) => ({
         }));
     },
 }));
+// This store watches the comments it fetches for the rest of the session, so it waits for the
+// update addCommentToStore requests on open, and a frozen useComment that leaves cannot end it.
+const addCommentToCommentsStore = (commentCid, account) => {
+    const { addOpeningUpdateWaiter, addCommentToStore } = commentsStore.getState();
+    addOpeningUpdateWaiter(commentCid, "authorsCommentsStore");
+    return addCommentToStore(commentCid, account);
+};
 // if nextCommentCidsToFetch or shouldFetchNextComment changed, fetch the next comment
 const fetchCommentOnShouldFetchOrNextCidChange = (options) => (state) => {
     const nextCommentCidToFetch = state.nextCommentCidsToFetch[options.authorAddress];
@@ -194,35 +201,51 @@ const fetchCommentOnShouldFetchOrNextCidChange = (options) => (state) => {
         return;
     }
     // when comment has fetched, update loadedComments, bufferedComments and shouldFetchNextComment
-    if (!authorCommentCidsFetching[nextCommentCidToFetch]) {
-        authorCommentCidsFetching[nextCommentCidToFetch] = true;
+    const authorCommentKey = getAuthorCommentKey(options.authorAddress, nextCommentCidToFetch);
+    if (!authorCommentCidsFetching[authorCommentKey]) {
+        authorCommentCidsFetching[authorCommentKey] = true;
         commentsStore.subscribe(updateCommentsOnCommentsChange(options, nextCommentCidToFetch));
     }
     // start fetching comment
     const account = accountsStore.getState().accounts[options.accountId];
-    const addCommentToStore = commentsStore.getState().addCommentToStore;
-    addCommentToStore(nextCommentCidToFetch, account).catch((error) => log.error("authorsCommentsStore fetchCommentOnShouldFetchOrNextCidChange addCommentToStore error", { error, nextCommentCidToFetch, account }));
+    addCommentToCommentsStore(nextCommentCidToFetch, account).catch((error) => log.error("authorsCommentsStore fetchCommentOnShouldFetchOrNextCidChange addCommentToStore error", { error, nextCommentCidToFetch, account }));
 };
+// the chains of 2 authors can reach the same cid, and each chain must handle it (e.g. end on a
+// comment by another author), so fetching listeners and previous comments are keyed per author
+const getAuthorCommentKey = (authorAddress, commentCid) => `${authorAddress} ${commentCid}`;
 // if commentStore changed, update loadedComments, bufferedCommentCids, shouldFetchNextComment and nextCommentCidsToFetch
 let previousComments = new QuickLru({ maxSize: 10000 });
 let authorCommentCidsFetching = {};
 let communityLastCommentCidsFetching = {};
 const updateCommentsOnCommentsChange = (options, commentCid) => (state) => {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
+    const authorCommentKey = getAuthorCommentKey(options.authorAddress, commentCid);
     // not a next cid, do nothing
-    if (!authorCommentCidsFetching[commentCid]) {
+    if (!authorCommentCidsFetching[authorCommentKey]) {
         return;
     }
     const comment = state.comments[commentCid];
     // comment hasn't changed, do nothing
-    if (!(comment === null || comment === void 0 ? void 0 : comment.timestamp) || comment === previousComments.get(commentCid)) {
+    if (!(comment === null || comment === void 0 ? void 0 : comment.timestamp) || comment === previousComments.get(authorCommentKey)) {
         return;
     }
     // comment author address is incorrect, do nothing
     if (((_a = comment.author) === null || _a === void 0 ? void 0 : _a.address) !== options.authorAddress) {
+        // a next cid by another author can't continue the author's comments, so nothing is left to
+        // fetch, otherwise the chain would wait on it forever
+        if (commentCid === authorsCommentsStore.getState().nextCommentCidsToFetch[options.authorAddress]) {
+            log.error("authorsCommentsStore next comment cid has a different author address", {
+                commentCid,
+                authorAddress: options.authorAddress,
+                commentAuthorAddress: (_b = comment.author) === null || _b === void 0 ? void 0 : _b.address,
+            });
+            authorsCommentsStore.setState((state) => ({
+                nextCommentCidsToFetch: Object.assign(Object.assign({}, state.nextCommentCidsToFetch), { [options.authorAddress]: undefined }),
+            }));
+        }
         return;
     }
-    previousComments.set(commentCid, comment);
+    previousComments.set(authorCommentKey, comment);
     const { addBufferedCommentCid, bufferedCommentCids, updateLoadedComments, setNextCommentCidsToFetch, nextCommentCidsToFetch, } = authorsCommentsStore.getState();
     // the comment is a new comment, add it to buffered comment cids
     if (!bufferedCommentCids[options.authorAddress].has(commentCid)) {
@@ -236,7 +259,7 @@ const updateCommentsOnCommentsChange = (options, commentCid) => (state) => {
     // one of the comment changed, must update loaded comments
     updateLoadedComments();
     // the changed comment might have a new author.community.lastCommentCid, try to fetch it
-    const communityLastCommentCid = (_c = (_b = comment.author) === null || _b === void 0 ? void 0 : _b.community) === null || _c === void 0 ? void 0 : _c.lastCommentCid;
+    const communityLastCommentCid = (_d = (_c = comment.author) === null || _c === void 0 ? void 0 : _c.community) === null || _d === void 0 ? void 0 : _d.lastCommentCid;
     if (communityLastCommentCid) {
         // when last comment has fetched, update lastCommentCid
         if (!communityLastCommentCidsFetching[communityLastCommentCid]) {
@@ -245,7 +268,7 @@ const updateCommentsOnCommentsChange = (options, commentCid) => (state) => {
         }
         // start fetching lastCommentCid
         const account = accountsStore.getState().accounts[options.accountId];
-        state.addCommentToStore(communityLastCommentCid, account).catch((error) => log.error("authorsCommentsStore updateCommentsOnCommentsChange addCommentToStore error", {
+        addCommentToCommentsStore(communityLastCommentCid, account).catch((error) => log.error("authorsCommentsStore updateCommentsOnCommentsChange addCommentToStore error", {
             error,
             communityLastCommentCid,
             account,
@@ -312,8 +335,12 @@ const setLastCommentCidOnCommentsChange = (options, commentCid) => (state) => {
     setLastCommentCid(options.authorAddress, commentCid);
     // add the last comment to loadedComments
     updateLoadedComments();
-    // start a new linked list of comments to fetch using the lastComment.author.previousCommentCid
-    if ((_b = comment.author) === null || _b === void 0 ? void 0 : _b.previousCommentCid) {
+    // start a new linked list of comments to fetch using the lastComment.author.previousCommentCid,
+    // unless the list already continues from there, e.g. the lastComment is the one it started from
+    const previousCommentCid = (_b = comment.author) === null || _b === void 0 ? void 0 : _b.previousCommentCid;
+    if (previousCommentCid &&
+        previousCommentCid !==
+            authorsCommentsStore.getState().nextCommentCidsToFetch[options.authorAddress]) {
         setNextCommentCidsToFetch(options.authorAddress, comment);
     }
 };
