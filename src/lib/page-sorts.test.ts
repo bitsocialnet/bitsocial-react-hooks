@@ -125,6 +125,13 @@ describe("page sort helpers", () => {
     expect(isReplySortTypeUnavailable(comment as any, "missing")).toBe(true);
     expect(isReplySortTypeUnavailable(comment as any, "nestedNewest")).toBe(false);
     expect(isReplySortTypeUnavailable({ cid: "no replies yet" } as any, "missing")).toBe(false);
+    // an empty preloaded page is still a comment or community without replies or posts
+    const emptyPage = { pages: { best: { comments: [] } }, pageCids: {} };
+    expect(isReplySortTypeUnavailable({ replies: emptyPage } as any, "missing")).toBe(false);
+    expect(isPostSortTypeUnavailable({ posts: emptyPage } as any, "missing")).toBe(false);
+    // unless that page continues
+    const continuedPage = { pages: { best: { comments: [], nextCid: "next" } } };
+    expect(isReplySortTypeUnavailable({ replies: continuedPage } as any, "missing")).toBe(true);
     // a standard sort computed from a complete preloaded page is available
     const singlePageCommunity = { posts: { pages: { hot: { comments: [{ cid: "post" }] } } } };
     expect(isPostSortTypeUnavailable(singlePageCommunity as any, "new")).toBe(false);

@@ -19,7 +19,6 @@ import accountsStore from "../accounts";
 import { flattenCommentsPages, commentIsValid, removeInvalidComments } from "../../lib/utils";
 import { areEquivalentCommunityAddresses } from "../../lib/community-address";
 import Logger from "@pkcprotocol/pkc-logger";
-import { doesAddressMatchCommunityRef } from "../../lib/community-ref";
 import {
   getReplyPageSortType,
   isFlatSortType,
@@ -37,12 +36,17 @@ const getCommentCommunity = (
   if (!communityAddress || !communities) {
     return;
   }
+  // the store keys a community by its public key, address or name, so match the candidate's own
+  // identifiers rather than the key
   return (
     communities[communityAddress] ||
-    Object.values(communities).find(
-      (community) =>
-        community &&
-        doesAddressMatchCommunityRef(communityAddress, { address: communityAddress }, community),
+    Object.values(communities).find((community) =>
+      [community?.address, community?.publicKey, community?.name].some(
+        (identifier) =>
+          typeof identifier === "string" &&
+          (identifier === communityAddress ||
+            areEquivalentCommunityAddresses(identifier, communityAddress)),
+      ),
     )
   );
 };

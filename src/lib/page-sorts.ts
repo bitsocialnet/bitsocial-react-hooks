@@ -135,15 +135,24 @@ const getAvailablePageSortTypes = (
 const getPreloadedPageSortTypes = (record?: PagesRecord): string[] =>
   Object.keys(record?.pages || {}).filter(Boolean);
 
+// whether the record publishes any comment: a page cid, or a preloaded page that holds comments or
+// continues. A record with no comments can still carry empty preloaded pages (`comments: []`).
+const hasPublishedComments = (record?: PagesRecord): boolean =>
+  Object.keys(record?.pageCids || {}).length > 0 ||
+  Object.values(record?.pages || {}).some((page) => {
+    const { comments, nextCid } = (page as PreloadedPage) || {};
+    return Boolean(nextCid) || (Array.isArray(comments) && comments.length > 0);
+  });
+
 // a requested sort the record does not serve, as opposed to a record that has not loaded or has no
-// comments at all, which publishes no sort to compare the request with
+// comments at all, where there is nothing a different sort would show
 const isPageSortTypeUnavailable = (
   record: PagesRecord | undefined,
   requestedSortType: string | undefined,
   clientSortableSortTypes: string[],
 ): boolean =>
   requestedSortType !== undefined &&
-  getPublishedPageSortTypes(record).length > 0 &&
+  hasPublishedComments(record) &&
   !getAvailablePageSortTypes(record, clientSortableSortTypes).includes(requestedSortType);
 
 const resolvePageSortType = (

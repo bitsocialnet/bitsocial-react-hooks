@@ -343,6 +343,11 @@ describe("replies utils", () => {
         feed1: { commentCid: "comment1", sortType: "new", accountId: mockAccountId },
       };
       const makeCommunities = (pinnedFirst: string) => ({
+        // an unrelated community listed first must not lend its options to the comment
+        unrelated: {
+          address: "unrelated.bso",
+          pageSorts: { replies: { new: { name: "new", publicOptions: { pinnedFirst: "false" } } } },
+        },
         // stored under its public key, found by the comment's community address
         "sub1-public-key": {
           address: "sub1.bso",
@@ -358,6 +363,23 @@ describe("replies utils", () => {
       // without the community record pinned replies go first, the pkc-js default
       expect(getFeed()).toEqual(["pinned-reply", "newer-reply", "older-reply"]);
       expect(getFeed({})).toEqual(["pinned-reply", "newer-reply", "older-reply"]);
+      // only another community is in the store
+      expect(getFeed({ unrelated: makeCommunities("false").unrelated })).toEqual([
+        "pinned-reply",
+        "newer-reply",
+        "older-reply",
+      ]);
+      // the community's .eth alias matches its .bso address
+      expect(
+        getFeed({
+          key: {
+            address: "sub1.eth",
+            pageSorts: {
+              replies: { new: { name: "new", publicOptions: { pinnedFirst: "false" } } },
+            },
+          },
+        }),
+      ).toEqual(["newer-reply", "pinned-reply", "older-reply"]);
       expect(getFeed(makeCommunities("true"))).toEqual([
         "pinned-reply",
         "newer-reply",
