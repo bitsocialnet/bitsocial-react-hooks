@@ -136,4 +136,29 @@ describe("localForageLru", () => {
     delete instances[name];
     testDatabase = localForageLru.createInstance({ name, size: 4 });
   });
+
+  test("reinstantiate after removing an item from the full database keeps the newest items", async () => {
+    const name = getNewTestDbName();
+    let testDatabase = localForageLru.createInstance({ name, size: 4 });
+
+    // fill the first database, which makes it the full inactive database
+    await testDatabase.setItem("one", 1);
+    await testDatabase.setItem("two", 2);
+    await testDatabase.setItem("three", 3);
+    await testDatabase.setItem("four", 4);
+    // the active database holds the newest item
+    await testDatabase.setItem("five", 5);
+    // the full database is no longer full
+    await testDatabase.removeItem("one");
+
+    // reinstantiate
+    delete instances[name];
+    testDatabase = localForageLru.createInstance({ name, size: 4 });
+
+    await testDatabase.setItem("six", 6);
+    expect(await testDatabase.getItem("five")).toBe(5);
+    expect(await testDatabase.getItem("six")).toBe(6);
+    expect(await testDatabase.getItem("one")).toBe(undefined);
+    expect((await testDatabase.keys()).sort()).toEqual(["five", "four", "six", "three", "two"]);
+  });
 });

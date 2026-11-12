@@ -66,6 +66,137 @@ describe("utils", () => {
         expect.objectContaining({ validateReplies: false }),
       );
     });
+
+    const getCommentWithReply = (communityAddress: string) => ({
+      cid: `${communityAddress} comment`,
+      depth: 0,
+      communityAddress,
+      replies: {
+        pages: {
+          new: {
+            comments: [
+              {
+                cid: `${communityAddress} reply`,
+                depth: 1,
+                parentCid: `${communityAddress} comment`,
+                communityAddress,
+              },
+            ],
+          },
+        },
+      },
+    });
+    const invalidSignaturePkc = {
+      validateComment: async () => {
+        throw Error("invalid reply signature");
+      },
+    };
+
+    test("rejects replies whose signature is invalid", async () => {
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        const comment = getCommentWithReply("invalid-reply-signature.bso");
+        await expect(utils.repliesAreValid(comment as any, {}, invalidSignaturePkc)).resolves.toBe(
+          false,
+        );
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
+
+    test("doesn't block the community of an invalid reply when blockCommunity is false", async () => {
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        const comment = getCommentWithReply("invalid-reply-not-blocked.bso");
+        await expect(
+          utils.repliesAreValid(comment as any, { blockCommunity: false }, invalidSignaturePkc),
+        ).resolves.toBe(false);
+        const validPkc = { validateComment: async () => {} };
+        await expect(utils.repliesAreValid(comment as any, {}, validPkc)).resolves.toBe(true);
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
+  });
+
+  describe("commentIsValid", () => {
+    const validPkc = { validateComment: async () => {} };
+
+    test("doesn't block the community when there is no pkc client to validate with", async () => {
+      const comment = { cid: "no-pkc-comment", communityAddress: "no-pkc-community.bso" };
+      await expect(utils.commentIsValid(comment as any, {}, undefined)).resolves.toBe(false);
+      await expect(utils.commentIsValid(comment as any, {}, validPkc)).resolves.toBe(true);
+    });
+
+    test("an invalid comment without a community address doesn't block other comments", async () => {
+      const pkc = {
+        validateComment: async (comment: any) => {
+          if (comment.cid === "invalid-comment-without-community") {
+            throw Error("invalid comment");
+          }
+        },
+      };
+      const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await expect(
+          utils.commentIsValid({ cid: "invalid-comment-without-community" } as any, {}, pkc),
+        ).resolves.toBe(false);
+        await expect(
+          utils.commentIsValid({ cid: "valid-comment-without-community" } as any, {}, pkc),
+        ).resolves.toBe(true);
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
+  });
+
+  describe("retryInfinity", () => {
+    let minTimeout: number, maxTimeout: number;
+    beforeEach(() => {
+      minTimeout = utils.retryInfinityMinTimeout;
+      maxTimeout = utils.retryInfinityMaxTimeout;
+      utils.retryInfinityMinTimeout = 1;
+      utils.retryInfinityMaxTimeout = 5;
+    });
+    afterEach(() => {
+      utils.retryInfinityMinTimeout = minTimeout;
+      utils.retryInfinityMaxTimeout = maxTimeout;
+    });
+
+    test("retries until the function succeeds", async () => {
+      let attempts = 0;
+      const onError = vi.fn();
+      const res = await utils.retryInfinity(
+        async () => {
+          if (++attempts < 3) {
+            throw Error(`failed attempt ${attempts}`);
+          }
+          return "result";
+        },
+        { onError },
+      );
+      expect(res).toBe("result");
+      expect(attempts).toBe(3);
+      expect(onError).toHaveBeenCalledTimes(2);
+    });
+
+    test("rejects with the last error once shouldRetry returns false", async () => {
+      let attempts = 0;
+      let retry = true;
+      const retrying = utils.retryInfinity(
+        async () => {
+          attempts++;
+          if (attempts === 3) {
+            retry = false;
+          }
+          throw Error(`failed attempt ${attempts}`);
+        },
+        { onError: () => {}, shouldRetry: () => retry },
+      );
+      const stillRetrying = new Promise((resolve) => setTimeout(() => resolve("retrying"), 500));
+      await expect(Promise.race([retrying, stillRetrying])).rejects.toThrow("failed attempt 3");
+      expect(attempts).toBe(3);
+    });
   });
 
   test("flattenCommentsPages", async () => {
