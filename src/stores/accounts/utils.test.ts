@@ -783,6 +783,22 @@ describe("accountsStore utils", () => {
       });
     });
 
+    test("uses an additional parent candidate when the caches don't have the parent", () => {
+      expect(
+        utils.getAccountCommentPostCid({ parentCid: "post cid" } as any, undefined, {
+          cid: "post cid",
+          depth: 0,
+        }),
+      ).toBe("post cid");
+      expect(
+        utils.getAccountCommentPostCid({ parentCid: "reply cid" } as any, {
+          cid: "reply cid",
+          depth: 1,
+          postCid: "post cid",
+        }),
+      ).toBe("post cid");
+    });
+
     test("returns undefined when the ancestry is unavailable", () => {
       expect(utils.getAccountCommentPostCid({ parentCid: "nonexistent" } as any)).toBeUndefined();
       // a nested parent that doesn't know its post yet

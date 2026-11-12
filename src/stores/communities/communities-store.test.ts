@@ -767,6 +767,58 @@ describe("communities store", () => {
     }
   });
 
+  test("an update still being saved when its community is deleted does not add the community's roles to accounts", async () => {
+    const address = "deleted-while-saving-address";
+    const pkc = await PkcJsMock();
+    const liveCommunity = await pkc.createCommunity({ address });
+    const deleteCommunity = await pkc.createCommunity({ address });
+    vi.spyOn(liveCommunity, "update").mockResolvedValue(undefined);
+    vi.spyOn(deleteCommunity, "delete").mockResolvedValue(undefined);
+    const createCommunityOrig = mockAccount.pkc.createCommunity;
+    mockAccount.pkc.createCommunity = vi
+      .fn()
+      .mockResolvedValueOnce(liveCommunity)
+      .mockResolvedValueOnce(deleteCommunity);
+    const { accountsActionsInternal } = accountsStore.getState();
+    const addRolesSpy = vi
+      .spyOn(accountsActionsInternal, "addCommunityRoleToAccountsCommunities")
+      .mockResolvedValue(undefined);
+    const db = localForageLru.createInstance({ name: "bitsocialReactHooks-communities" });
+    const setItem = db.setItem;
+    let finishSavingUpdate: Function = () => {};
+
+    try {
+      await act(async () => {
+        await communitiesStore.getState().addCommunityToStore(address, mockAccount);
+      });
+      addRolesSpy.mockClear();
+
+      // the update handler stays in its database write while the community is deleted
+      const setItemSpy = vi.spyOn(db, "setItem").mockImplementationOnce(async (...args: any[]) => {
+        await new Promise<void>((resolve) => (finishSavingUpdate = resolve));
+        return setItem(...args);
+      });
+      liveCommunity.emit("update", Object.assign(liveCommunity, { updatedAt: 1, title: "new" }));
+      await vi.waitFor(() => expect(setItemSpy).toHaveBeenCalled());
+      await act(async () => {
+        await communitiesStore.getState().deleteCommunity(address, mockAccount);
+      });
+      expect(communitiesStore.getState().communities[address]).toBeUndefined();
+
+      await act(async () => {
+        finishSavingUpdate();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+      expect(addRolesSpy).not.toHaveBeenCalled();
+      expect(communitiesStore.getState().communities[address]).toBeUndefined();
+      expect(await db.getItem(address)).toBeUndefined();
+    } finally {
+      finishSavingUpdate();
+      mockAccount.pkc.createCommunity = createCommunityOrig;
+      vi.restoreAllMocks();
+    }
+  });
+
   test("addCommunityToStore sets errors and throws when createCommunity rejects", async () => {
     const address = "create-reject-address";
     const createOrig = mockAccount.pkc.createCommunity;

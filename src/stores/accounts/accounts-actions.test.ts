@@ -940,6 +940,41 @@ describe("accounts-actions", () => {
         expect(storedComment.postCid).toBe("post cid");
       });
 
+      test("a reply to the account's own comment that only the accounts store has gets its post cid", async () => {
+        const account = Object.values(accountsStore.getState().accounts)[0];
+        const setOwnComments = (ownComments: any[]) =>
+          accountsStore.setState(({ accountsComments }) => ({
+            accountsComments: { ...accountsComments, [account.id]: ownComments },
+            commentCidsToAccountsComments: Object.fromEntries(
+              ownComments.map((comment, accountCommentIndex) => [
+                comment.cid,
+                { accountId: account.id, accountCommentIndex },
+              ]),
+            ),
+          }));
+        const ownPost = { cid: "own post cid", depth: 0, index: 0, accountId: account.id };
+        const ownReply = {
+          cid: "own reply cid",
+          depth: 1,
+          postCid: "post cid",
+          index: 1,
+          accountId: account.id,
+        };
+        setOwnComments([ownPost, ownReply]);
+        const publishOwnReply = async (parentCid: string) => {
+          const { index } = await accountsActions.publishComment({
+            communityAddress: "sub.eth",
+            content: "reply",
+            parentCid,
+            onChallenge: () => {},
+            onChallengeVerification: () => {},
+          });
+          return accountsStore.getState().accountsComments[account.id][index].postCid;
+        };
+        expect(await publishOwnReply("own post cid")).toBe("own post cid");
+        expect(await publishOwnReply("own reply cid")).toBe("post cid");
+      });
+
       test("a caller-supplied postCid is never overwritten", async () => {
         commentsStore.setState(({ comments }: any) => ({
           comments: {
@@ -2622,6 +2657,57 @@ describe("accounts-actions", () => {
       expect(getAccount().communities).toEqual({ "musical.bso": { role } });
       const stored: any = await accountsDatabase.accountsDatabase.getItem(getAccount().id);
       expect(stored.communities).toEqual({ "musical.bso": { role } });
+    });
+
+    test("deleteCommunity does not resurrect an account deleted while the community deletion is pending", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("DelRace");
+      });
+      const { accounts, accountNamesToAccountIds } = accountsStore.getState();
+      const account = accounts[accountNamesToAccountIds["DelRace"]];
+      await act(async () => {
+        await accountsActions.setAccount({
+          ...account,
+          communities: { "race.bso": { role: { role: "admin" } } },
+        });
+      });
+      let resolveDelete: Function = () => {};
+      const deleteSpy = vi
+        .spyOn(BaseCommunity.prototype, "delete")
+        .mockImplementationOnce(() => new Promise<void>((resolve) => (resolveDelete = resolve)));
+      // the account's record is removed, but the store has not dropped the account yet
+      let resolveRemoveAccount: Function = () => {};
+      const removeAccount = accountsDatabase.removeAccount;
+      const removeAccountSpy = vi
+        .spyOn(accountsDatabase, "removeAccount")
+        .mockImplementationOnce(async (accountToRemove: any) => {
+          await removeAccount(accountToRemove);
+          await new Promise<void>((resolve) => (resolveRemoveAccount = resolve));
+        });
+      try {
+        const deleteCommunityPromise = accountsActions.deleteCommunity("race.bso", "DelRace");
+        await vi.waitFor(() => expect(deleteSpy).toHaveBeenCalled());
+        const deleteAccountPromise = accountsActions.deleteAccount("DelRace");
+        await vi.waitFor(async () =>
+          expect(await accountsDatabase.accountsDatabase.getItem(account.id)).toBeNull(),
+        );
+        resolveDelete();
+        await deleteCommunityPromise;
+        resolveRemoveAccount();
+        await deleteAccountPromise;
+      } finally {
+        deleteSpy.mockRestore();
+        removeAccountSpy.mockRestore();
+      }
+      expect(await accountsDatabase.accountsDatabase.getItem(account.id)).toBeNull();
+      expect(await accountsDatabase.accountsMetadataDatabase.getItem("accountIds")).not.toContain(
+        account.id,
+      );
+
+      await testUtils.resetStores();
+      await vi.waitFor(() => expect(accountsStore.getState().activeAccountId).toBeDefined());
+      expect(accountsStore.getState().accounts[account.id]).toBeUndefined();
+      expect(accountsStore.getState().accountNamesToAccountIds["DelRace"]).toBeUndefined();
     });
 
     test("deleteCommunity keeps account data when the deletion fails", async () => {

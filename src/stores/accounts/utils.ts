@@ -491,7 +491,10 @@ export const getAccountCommentDepth = (comment: Comment) => {
 };
 
 // the cid of the post a pending account comment belongs to, when the caches know its parent
-export const getAccountCommentPostCid = (comment: Comment): string | undefined => {
+export const getAccountCommentPostCid = (
+  comment: Comment,
+  ...additionalParentCandidates: (Comment | undefined)[]
+): string | undefined => {
   // never replace the value the caller published with
   if (comment.postCid) {
     return comment.postCid;
@@ -504,6 +507,7 @@ export const getAccountCommentPostCid = (comment: Comment): string | undefined =
     commentsStore.getState().comments[comment.parentCid],
     repliesPagesStore.getState().comments[comment.parentCid],
     communitiesPagesStore.getState().comments[comment.parentCid],
+    ...additionalParentCandidates,
   ];
   for (const parentComment of parentComments) {
     if (typeof parentComment?.postCid === "string" && parentComment.postCid) {
