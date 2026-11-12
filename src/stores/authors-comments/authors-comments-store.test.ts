@@ -1,5 +1,6 @@
 import { vi } from "vitest";
 import { act } from "@testing-library/react";
+import EventEmitter from "events";
 import testUtils, { renderHook } from "../../lib/test-utils";
 import useAuthorsCommentsStore, {
   resetAuthorsCommentsDatabaseAndStore,
@@ -1114,6 +1115,87 @@ describe("authors comments store", () => {
 
       PKC.prototype.createComment = createComment;
     },
+  );
+
+  test.each(["after", "before"])(
+    "a frozen useComment that opens %s this store does not end the failing update of an author comment",
+    async (hookOrder) => {
+      const commentCid = `author comment with failing update ${hookOrder}`;
+      const hookWaiterId = "frozen-use-comment";
+      // Mirrors a pkc-js comment whose community is unreachable: every update cycle ends with a
+      // retriable error, then "waiting-retry".
+      const liveComment: any = new EventEmitter();
+      Object.assign(liveComment, {
+        cid: commentCid,
+        timestamp: 1000,
+        author: { address: authorAddress },
+        clients: {},
+      });
+      liveComment.stop = vi.fn().mockResolvedValue(undefined);
+      liveComment.update = vi.fn().mockResolvedValue(undefined);
+      const failUpdateCycle = () =>
+        act(() => {
+          liveComment.emit("error", new Error("gateway timeout"));
+          liveComment.updatingState = "waiting-retry";
+          liveComment.emit("updatingstatechange", "waiting-retry");
+        });
+      const createComment = PKC.prototype.createComment;
+      PKC.prototype.createComment = async function (opts: any) {
+        if (opts?.cid === commentCid) {
+          return liveComment;
+        }
+        return createComment.call(this, opts);
+      };
+      // a frozen useComment of the same comment waits for the update requested on open
+      const openFrozenHook = async () => {
+        commentsStore.getState().addOpeningUpdateWaiter(commentCid, hookWaiterId);
+        await act(async () => {
+          await commentsStore.getState().addCommentToStore(commentCid, account);
+        });
+      };
+
+      try {
+        if (hookOrder === "before") {
+          await openFrozenHook();
+        }
+        act(() => {
+          useAuthorsCommentsStore
+            .getState()
+            .addAuthorCommentsToStore(
+              authorAddress + "-failing-update",
+              authorAddress,
+              commentCid,
+              undefined,
+              account,
+            );
+        });
+        await waitFor(() => liveComment.update.mock.calls.length === 1);
+        failUpdateCycle();
+        if (hookOrder === "after") {
+          await openFrozenHook();
+        }
+
+        // the hook unmounts while the update keeps failing
+        commentsStore.getState().removeOpeningUpdateWaiter(commentCid, hookWaiterId);
+        failUpdateCycle();
+        failUpdateCycle();
+        expect(liveComment.stop).not.toHaveBeenCalled();
+        expect(commentsStore.getState().openingUpdatesPending[commentCid]).toBe(true);
+
+        act(() => {
+          liveComment.updatedAt = 300;
+          liveComment.emit("update", liveComment);
+          liveComment.updatingState = "succeeded";
+          liveComment.emit("updatingstatechange", "succeeded");
+        });
+        await waitFor(() => commentsStore.getState().comments[commentCid]?.updatedAt === 300);
+        expect(commentsStore.getState().comments[commentCid]?.updatedAt).toBe(300);
+      } finally {
+        commentsStore.getState().removeOpeningUpdateWaiter(commentCid, hookWaiterId);
+        PKC.prototype.createComment = createComment;
+      }
+    },
+    timeout,
   );
 
   test("resetAuthorsCommentsDatabaseAndStore is callable", { timeout }, async () => {

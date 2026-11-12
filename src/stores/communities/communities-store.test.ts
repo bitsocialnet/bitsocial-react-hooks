@@ -640,6 +640,24 @@ describe("communities store", () => {
       expect(communitiesStore.getState().communities[address].updatingState).toBe("succeeded");
     });
 
+    test("a first load that joins an already updating shared instance takes its state", async () => {
+      // another consumer, e.g. a comment's update loop, keeps the shared pkc-js instance updating,
+      // so update() emits no state change until that loop's next fetch
+      updateSpy.mockImplementation(async () => {
+        community.updatingState = "succeeded";
+      });
+      await start("subscriber");
+      await advance(0);
+
+      expect(communitiesStore.getState().syncStatuses[address]).toEqual(
+        expect.objectContaining({
+          syncState: "succeeded",
+          lastSuccessfulFetchAt: expect.any(Number),
+        }),
+      );
+      expect(communitiesStore.getState().communities[address].updatingState).toBe("succeeded");
+    });
+
     test("a second load of the same community by another account does not start a second loop", async () => {
       const pkc = await PkcJsMock();
       const otherCommunity = await pkc.createCommunity({ address });

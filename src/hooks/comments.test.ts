@@ -1819,6 +1819,27 @@ describe("comments", () => {
       expect(rendered.result.current.upvoteCount).toBe(3);
     });
 
+    test("useComment shows the cached copy until the update requested on open replaces it", async () => {
+      const commentCid = "comment cid cached auto update";
+      await cacheComment(commentCid);
+      const renderedUpvoteCounts: (number | undefined)[] = [];
+      const rendered = renderHook<any, any>(() => {
+        const comment = useComment({ commentCid });
+        renderedUpvoteCounts.push(comment.upvoteCount);
+        return comment;
+      });
+      const waitFor = testUtils.createWaitFor(rendered);
+
+      await waitFor(() => rendered.result.current.upvoteCount === 1);
+      releaseOpeningUpdates();
+      await waitFor(() => rendered.result.current.upvoteCount === 3);
+      expect(rendered.result.current.upvoteCount).toBe(3);
+
+      // the CommentIpfs a CID-only comment loads first must not replace the cached CommentUpdate
+      const shownFromCache = renderedUpvoteCounts.indexOf(1);
+      expect(renderedUpvoteCounts.slice(shownFromCache)).not.toContain(undefined);
+    });
+
     test("useComment with autoUpdate false keeps the update requested on open when an auto-updating hook on the comment unmounts", async () => {
       // e.g. a link prefetch subscribes on hover, then unmounts as the frozen page opens
       const commentCid = "comment cid cached prefetched";
@@ -1869,6 +1890,127 @@ describe("comments", () => {
       expect(storeUpvoteCounts()).toEqual([5, 5]);
       expect(upvoteCounts()).toEqual([3, 3]);
     });
+  });
+
+  describe("comment whose updates keep failing", () => {
+    let commentUpdate: typeof Comment.prototype.update;
+    let updatingComments: any[];
+
+    beforeEach(() => {
+      // e.g. its community is unreachable: every update cycle ends in a retriable error
+      commentUpdate = Comment.prototype.update;
+      updatingComments = [];
+      Comment.prototype.update = async function (this: any) {
+        updatingComments.push(this);
+        this.state = "updating";
+        this.updatingState = "fetching-ipfs";
+        this.emit("updatingstatechange", "fetching-ipfs");
+      };
+    });
+    afterEach(() => {
+      Comment.prototype.update = commentUpdate;
+    });
+
+    const failUpdateCycle = (comment: any) =>
+      act(() => {
+        comment.emit("error", Error("gateway timeout"));
+        comment.updatingState = "waiting-retry";
+        comment.emit("updatingstatechange", "waiting-retry");
+      });
+
+    test("useComment with autoUpdate false keeps the update requested on open retrying only while mounted", async () => {
+      const commentCid = "comment cid failing updates frozen";
+      const rendered = renderHook<any, any>(() => useComment({ commentCid, autoUpdate: false }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => updatingComments.length > 0);
+      const liveComment = updatingComments[0];
+      const stop = vi.spyOn(liveComment, "stop");
+
+      failUpdateCycle(liveComment);
+      failUpdateCycle(liveComment);
+      expect(stop).not.toHaveBeenCalled();
+      expect(commentsStore.getState().openingUpdatesPending[commentCid]).toBe(true);
+
+      rendered.unmount();
+      failUpdateCycle(liveComment);
+      expect(stop).toHaveBeenCalledTimes(1);
+      expect(commentsStore.getState().openingUpdatesPending[commentCid]).toBeUndefined();
+    });
+
+    test("useComments with autoUpdate false keeps the updates requested on open retrying only while mounted", async () => {
+      const commentCids = [
+        "comment cid failing updates frozen 1",
+        "comment cid failing updates frozen 2",
+      ];
+      const rendered = renderHook<any, any>(() => useComments({ commentCids, autoUpdate: false }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => updatingComments.length === commentCids.length);
+      const stops = updatingComments.map((comment) => vi.spyOn(comment, "stop"));
+
+      updatingComments.forEach(failUpdateCycle);
+      stops.forEach((stop) => expect(stop).not.toHaveBeenCalled());
+
+      rendered.unmount();
+      updatingComments.forEach(failUpdateCycle);
+      stops.forEach((stop) => expect(stop).toHaveBeenCalledTimes(1));
+    });
+
+    const succeedUpdateCycle = (comment: any) =>
+      act(() => {
+        comment.timestamp = 1;
+        comment.updatedAt = Math.floor(Date.now() / 1000);
+        comment.upvoteCount = 3;
+        comment.updatingState = "succeeded";
+        comment.emit("update", comment);
+        comment.emit("updatingstatechange", "succeeded");
+      });
+
+    test.each([
+      [
+        "useComment",
+        (commentCid: string) => {
+          const comment = useComment({ commentCid, autoUpdate: false });
+          return { upvoteCount: comment.upvoteCount, refresh: comment.refresh };
+        },
+      ],
+      [
+        "useComments",
+        (commentCid: string) => {
+          const { comments, refresh } = useComments({
+            commentCids: [commentCid],
+            autoUpdate: false,
+          });
+          return { upvoteCount: comments[0]?.upvoteCount, refresh };
+        },
+      ],
+    ])(
+      "%s with autoUpdate false stops a failed refresh at its next retry once frozen",
+      async (hookName, useFrozenComment) => {
+        const commentCid = `comment cid failing refresh ${hookName}`;
+        const rendered = renderHook<any, any>(() => useFrozenComment(commentCid));
+        const waitFor = testUtils.createWaitFor(rendered);
+        await waitFor(() => updatingComments.length === 1);
+        succeedUpdateCycle(updatingComments[0]);
+        await waitFor(() => rendered.result.current.upvoteCount === 3);
+        await act(async () => {});
+
+        let refreshing: Promise<void> | undefined;
+        act(() => {
+          refreshing = rendered.result.current.refresh();
+          refreshing?.catch(() => {});
+        });
+        await waitFor(() => updatingComments.length === 2);
+        const refreshedComment = updatingComments[1];
+        const stop = vi.spyOn(refreshedComment, "stop");
+
+        failUpdateCycle(refreshedComment);
+        await expect(refreshing).rejects.toThrow("gateway timeout");
+        failUpdateCycle(refreshedComment);
+        // the frozen hook no longer waits for an update, so nothing uses the retries
+        expect(stop).toHaveBeenCalledTimes(1);
+        rendered.unmount();
+      },
+    );
   });
 
   describe("getCommentFreshness and preferFresher", () => {

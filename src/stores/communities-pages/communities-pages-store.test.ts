@@ -664,6 +664,51 @@ describe("communities pages store", () => {
     }
   });
 
+  test("a page fetch that kept failing through a long outage loads within a minute of the network returning", async () => {
+    const mockCommunity = await mockAccount.pkc.createCommunity({
+      address: "community address 1",
+    });
+    const sortType = "new";
+    const firstPageCid = mockCommunity.posts.pageCids[sortType];
+    const getPageOrig = MockPages.prototype.getPage;
+    let networkDown = true;
+    MockPages.prototype.getPage = async function (this: MockPages, options: { cid: string }) {
+      if (networkDown) {
+        throw Error("network unreachable");
+      }
+      return {
+        nextCid: options.cid + " - next page cid",
+        comments: this.getPageMockComments(options.cid),
+      };
+    };
+    const logSpy = vi.spyOn(log, "error").mockImplementation(() => {});
+    vi.useFakeTimers();
+
+    try {
+      void rendered.result.current.addNextCommunityPageToStore(
+        mockCommunity,
+        sortType,
+        mockAccount,
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(6 * 60 * 60 * 1000);
+      });
+      expect(useCommunitiesPagesStore.getState().communitiesPages[firstPageCid]).toBeUndefined();
+
+      networkDown = false;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60 * 1000);
+      });
+      expect(
+        useCommunitiesPagesStore.getState().communitiesPages[firstPageCid]?.comments?.length,
+      ).toBe(100);
+    } finally {
+      vi.useRealTimers();
+      logSpy.mockRestore();
+      MockPages.prototype.getPage = getPageOrig;
+    }
+  });
+
   test("addCidToAccountComment error is logged when it rejects", async () => {
     const addCidSpy = vi.fn().mockRejectedValue(new Error("addCid failed"));
     const accountsGetState = accountsStore.getState;
