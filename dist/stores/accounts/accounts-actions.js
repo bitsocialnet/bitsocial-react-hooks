@@ -30,12 +30,21 @@ import assert from "../../lib/assert.js";
 const log = Logger("bitsocial-react-hooks:accounts:stores");
 import * as accountsActionsInternal from "./accounts-actions-internal.js";
 import { backfillPublicationCommunityAddress, createPkcCommunity, createPkcCommunityEdit, getPkcCommunityAddresses, normalizeCommunityEditOptionsForPkc, normalizePublicationOptionsForStore, normalizePublicationOptionsForPkc, withPublishChallengeAnswersCompat, } from "../../lib/pkc-compat.js";
-import { getAccountCommentsIndex, getAccountCommunities, getCommentCidsToAccountsComments, COMMENT_MODERATION_AUTHOR_SUMMARY_KEY, getAccountEditPropertySummary, fetchCommentLinkDimensions, getAccountCommentDepth, addShortAddressesToAccountComment, sanitizeAccountCommentForState, sanitizeStoredAccountComment, getFreshestLoadedComment, getInitAccountCommentsToUpdate, } from "./utils.js";
+import { getAccountCommentsIndex, getAccountCommunities, getCommentCidsToAccountsComments, COMMENT_MODERATION_AUTHOR_SUMMARY_KEY, getAccountEditPropertySummary, fetchCommentLinkDimensions, getAccountCommentDepth, getAccountCommentPostCid, addShortAddressesToAccountComment, sanitizeAccountCommentForState, sanitizeStoredAccountComment, getFreshestLoadedComment, getInitAccountCommentsToUpdate, } from "./utils.js";
 import isEqual from "../../lib/is-equal.js";
 import { v4 as uuid } from "uuid";
 import utils from "../../lib/utils/index.js";
 import { addOptimisticVoteMetadata } from "../../lib/utils/optimistic-vote-counts.js";
 import { applyCommunityWordfilters } from "../../lib/wordfilters.js";
+import { doesAddressMatchCommunityRef } from "../../lib/community-ref.js";
+const getAccountCommentByCid = (commentCid) => {
+    var _a;
+    const { commentCidsToAccountsComments, accountsComments } = accountsStore.getState();
+    const accountCommentInfo = commentCid ? commentCidsToAccountsComments[commentCid] : undefined;
+    return accountCommentInfo
+        ? (_a = accountsComments[accountCommentInfo.accountId]) === null || _a === void 0 ? void 0 : _a[accountCommentInfo.accountCommentIndex]
+        : undefined;
+};
 const PUBLICATION_COMMUNITY_LOAD_TIMEOUT_MS = 30000;
 const COMMENT_AUTHOR_LOAD_TIMEOUT_MS = 10000;
 const communityHasPublicationConfig = (community) => community &&
@@ -1039,7 +1048,11 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
     });
     const createAccountComment = (createCommentOptions, index) => addShortAddressesToAccountComment(sanitizeAccountCommentForState(Object.assign(Object.assign({}, normalizePublicationOptionsForStore(createCommentOptions)), { 
         // try to get comment depth needed for custom depth flat account replies
-        depth: getAccountCommentDepth(createCommentOptions), index, accountId: account.id })));
+        depth: getAccountCommentDepth(createCommentOptions), 
+        // try to get the post cid so a pending reply can link to its thread
+        postCid: getAccountCommentPostCid(createCommentOptions, 
+        // the parent can be a comment of a local account that only the accounts store has so far
+        getAccountCommentByCid(createCommentOptions.parentCid)), index, accountId: account.id })));
     const commentLinkDimensionsPromises = new Map();
     const getCommentLinkDimensions = (link) => {
         if (!commentLinkDimensionsPromises.has(link)) {
@@ -2035,6 +2048,7 @@ export const createCommunity = (createCommunityOptions, accountName) => __awaite
     return community;
 });
 export const deleteCommunity = (communityAddress, accountName) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     const { accounts, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
     assert(accounts && accountNamesToAccountIds && activeAccountId, `can't use accountsStore.accountsActions before initialized`);
     let account = accounts[activeAccountId];
@@ -2042,7 +2056,39 @@ export const deleteCommunity = (communityAddress, accountName) => __awaiter(void
         const accountId = accountNamesToAccountIds[accountName];
         account = accounts[accountId];
     }
+    // read the other identifiers of the community (name, public key) before the store forgets them
+    const deletedCommunity = communitiesStore.getState().communities[communityAddress];
     yield communitiesStore.getState().deleteCommunity(communityAddress, account);
+    // remove the deleted community from the deleting account's stored communities, under every
+    // address it is known by, or useAccountCommunities keeps listing it. Other local accounts keep
+    // their entry: they did not delete the community
+    const isDeletedCommunity = (accountCommunityAddress) => doesAddressMatchCommunityRef(accountCommunityAddress, { address: communityAddress }, deletedCommunity);
+    // a saveComment still writing has the database ahead of the store: let it merge first, or the
+    // store snapshot written below drops its saved comment
+    while (savedCommentMutationQueues.has(account.id)) {
+        yield ((_a = savedCommentMutationQueues.get(account.id)) === null || _a === void 0 ? void 0 : _a.catch(() => { }));
+    }
+    // the account was deleted while the community was: writing it would restore its record
+    if (isAccountDeleted(account.id)) {
+        return;
+    }
+    let updatedAccount;
+    accountsStore.setState(({ accounts }) => {
+        const currentAccount = accounts[account.id];
+        const addressesToRemove = Object.keys((currentAccount === null || currentAccount === void 0 ? void 0 : currentAccount.communities) || {}).filter(isDeletedCommunity);
+        if (!addressesToRemove.length) {
+            return {};
+        }
+        const communities = Object.assign({}, currentAccount.communities);
+        for (const address of addressesToRemove) {
+            delete communities[address];
+        }
+        updatedAccount = Object.assign(Object.assign({}, currentAccount), { communities });
+        return { accounts: Object.assign(Object.assign({}, accounts), { [account.id]: updatedAccount }) };
+    });
+    if (updatedAccount) {
+        yield accountsDatabase.addAccount(updatedAccount);
+    }
     log("accountsActions.deleteCommunity", { communityAddress });
 });
 //# sourceMappingURL=accounts-actions.js.map

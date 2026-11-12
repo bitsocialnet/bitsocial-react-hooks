@@ -16,7 +16,7 @@ const log = Logger("bitsocial-react-hooks:accounts:hooks");
 import assert from "../../lib/assert.js";
 import { useListCommunities, useCommunities } from "../communities.js";
 import { useAccountsWithCalculatedProperties, useAccountWithCalculatedProperties, useCalculatedNotifications, } from "./utils.js";
-import { COMMENT_MODERATION_AUTHOR_SUMMARY_KEY, getAccountEditPropertySummary, } from "../../stores/accounts/utils.js";
+import { COMMENT_MODERATION_AUTHOR_SUMMARY_KEY, getAccountEditPropertySummary, addShortCommunityAddressToAccountPublication, } from "../../stores/accounts/utils.js";
 import { getCanonicalCommunityAddress, getEquivalentCommunityAddressGroupKey, pickPreferredEquivalentCommunityAddress, } from "../../lib/community-address.js";
 import { addCommentModeration } from "../../lib/utils/comment-moderation.js";
 import useInterval from "../utils/use-interval.js";
@@ -488,7 +488,7 @@ export function useAccountVotes(options) {
             return accountVotesArray;
         }
         for (const i in accountVotes) {
-            accountVotesArray.push(accountVotes[i]);
+            accountVotesArray.push(addShortCommunityAddressToAccountPublication(accountVotes[i]));
         }
         if (typeof vote === "number") {
             accountVotesArray = accountVotesArray.filter((accountVote) => accountVote.vote === vote);
@@ -562,7 +562,7 @@ export function useAccountVote(options) {
     const accountIdKey = accountId || "";
     const commentCidKey = commentCid || "";
     const accountVotes = useAccountsStore((state) => state.accountsVotes[accountIdKey]);
-    const accountVote = accountVotes === null || accountVotes === void 0 ? void 0 : accountVotes[commentCidKey];
+    const accountVote = addShortCommunityAddressToAccountPublication(accountVotes === null || accountVotes === void 0 ? void 0 : accountVotes[commentCidKey]);
     const state = accountId && commentCid ? "succeeded" : "initializing";
     // TODO: add failed / pending state
     return useMemo(() => (Object.assign(Object.assign({}, accountVote), { state, error: undefined, errors: [] })), [accountVote, state]);
@@ -588,7 +588,7 @@ export function useAccountEdits(options) {
     const accountEditsArray = useMemo(() => {
         const accountEditsArray = [];
         for (const i in accountEdits || {}) {
-            accountEditsArray.push(...accountEdits[i]);
+            accountEditsArray.push(...accountEdits[i].map(addShortCommunityAddressToAccountPublication));
         }
         // sort by oldest first
         return accountEditsArray.sort((a, b) => a.timestamp - b.timestamp);

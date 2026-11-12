@@ -25,6 +25,7 @@ declare const accountGenerator: {
         communities: {
             [communityAddress: string]: AccountCommunity;
         };
+        createdAt: number;
         subscriptions: never[];
         blockedAddresses: {};
         blockedCids: {};

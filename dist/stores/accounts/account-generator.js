@@ -127,7 +127,11 @@ const generateDefaultAccount = () => __awaiter(void 0, void 0, void 0, function*
     const account = normalizeAccountProtocolConfig(withProtocolAliases(Object.assign(Object.assign({ id: uuid(), version: accountsDatabase.accountVersion, name: accountName, author,
         signer,
         chainProviders,
-        pkcOptions }, getDefaultAccountFields()), { communities }), pkc, pkcOptions), chainProviders);
+        pkcOptions }, getDefaultAccountFields()), { communities, 
+        // unix timestamp in seconds, like community.createdAt. Only set when an account is
+        // generated (not in getDefaultAccountFields): accounts created before this field existed
+        // and their imports keep it undefined instead of an invented date
+        createdAt: Math.floor(Date.now() / 1000) }), pkc, pkcOptions), chainProviders);
     return account;
 });
 const getNextAvailableDefaultAccountName = (authorAddress) => __awaiter(void 0, void 0, void 0, function* () {

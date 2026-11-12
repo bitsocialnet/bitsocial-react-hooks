@@ -1,4 +1,4 @@
-import { Account, Communities, AccountComment, AccountsComments, AccountsCommentsIndexes, AccountCommentsIndex, CommentCidsToAccountsComments, Comment, AccountEdit, AccountEditsSummary } from "../../types.js";
+import { Account, Communities, AccountComment, AccountsComments, AccountsCommentsIndexes, AccountCommentsIndex, CommentCidsToAccountsComments, Comment, AccountEdit, AccountEditsSummary, AccountVote } from "../../types.js";
 export declare const getAccountCommunities: (account: Account, communities: Communities) => any;
 export declare const getCommentCidsToAccountsComments: (accountsComments: AccountsComments) => CommentCidsToAccountsComments;
 export declare const sanitizeAccountCommentForState: (comment: Comment) => any;
@@ -23,8 +23,10 @@ export declare const getInitAccountCommentsToUpdate: (accountsComments: Accounts
     accountId: string;
 }[];
 export declare const getAccountCommentDepth: (comment: Comment) => number | undefined;
+export declare const getAccountCommentPostCid: (comment: Comment, ...additionalParentCandidates: (Comment | undefined)[]) => string | undefined;
 export declare const getFreshestLoadedComment: (commentCid: string, ...additionalCandidates: (Comment | undefined)[]) => Comment | undefined;
 export declare const addShortAddressesToAccountComment: (comment: Comment) => Comment;
+export declare const addShortCommunityAddressToAccountPublication: <Publication extends AccountVote | AccountEdit | undefined>(publication: Publication) => Publication;
 declare const utils: {
     getAccountCommunities: (account: Account, communities: Communities) => any;
     getCommentCidsToAccountsComments: (accountsComments: AccountsComments) => CommentCidsToAccountsComments;
@@ -44,8 +46,10 @@ declare const utils: {
         accountId: string;
     }[];
     getAccountCommentDepth: (comment: Comment) => number | undefined;
+    getAccountCommentPostCid: (comment: Comment, ...additionalParentCandidates: (Comment | undefined)[]) => string | undefined;
     getFreshestLoadedComment: (commentCid: string, ...additionalCandidates: (Comment | undefined)[]) => Comment | undefined;
     addShortAddressesToAccountComment: (comment: Comment) => Comment;
+    addShortCommunityAddressToAccountPublication: <Publication extends AccountVote | AccountEdit | undefined>(publication: Publication) => Publication;
     promiseAny: <T>(promises: Promise<T>[]) => Promise<T>;
 };
 export default utils;

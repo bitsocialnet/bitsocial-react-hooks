@@ -406,6 +406,34 @@ export const getAccountCommentDepth = (comment) => {
     // if can't find the parent comment depth anywhere, don't include it with the account comment
     // it will be added automatically when challenge verification is received
 };
+// the cid of the post a pending account comment belongs to, when the caches know its parent
+export const getAccountCommentPostCid = (comment, ...additionalParentCandidates) => {
+    // never replace the value the caller published with
+    if (comment.postCid) {
+        return comment.postCid;
+    }
+    // a post's own postCid is its cid, which doesn't exist until challenge verification
+    if (!comment.parentCid) {
+        return;
+    }
+    const parentComments = [
+        commentsStore.getState().comments[comment.parentCid],
+        repliesPagesStore.getState().comments[comment.parentCid],
+        communitiesPagesStore.getState().comments[comment.parentCid],
+        ...additionalParentCandidates,
+    ];
+    for (const parentComment of parentComments) {
+        if (typeof (parentComment === null || parentComment === void 0 ? void 0 : parentComment.postCid) === "string" && parentComment.postCid) {
+            return parentComment.postCid;
+        }
+        // the parent is the post
+        if ((parentComment === null || parentComment === void 0 ? void 0 : parentComment.depth) === 0) {
+            return comment.parentCid;
+        }
+    }
+    // if can't find the thread root anywhere, don't include it with the account comment
+    // it will be added automatically when challenge verification is received
+};
 export const getFreshestLoadedComment = (commentCid, ...additionalCandidates) => {
     const candidates = [
         commentsStore.getState().comments[commentCid],
@@ -435,6 +463,34 @@ export const addShortAddressesToAccountComment = (comment) => {
     catch (e) { }
     return comment;
 };
+// Account votes and edits are stored as their publish options, without the short community address
+// account comments get when they are created. Derive it when they are read instead of storing it,
+// so history stored by earlier versions has it too and no stored record is rewritten. Votes and
+// edits are stored without their author, so there is no author.shortAddress to add.
+// Cached per record so a record that didn't change keeps its identity between renders.
+const accountPublicationsWithShortCommunityAddress = new WeakMap();
+export const addShortCommunityAddressToAccountPublication = (publication) => {
+    if (!publication ||
+        typeof publication.communityAddress !== "string" ||
+        publication.shortCommunityAddress) {
+        return publication;
+    }
+    let publicationWithShortCommunityAddress = accountPublicationsWithShortCommunityAddress.get(publication);
+    if (!publicationWithShortCommunityAddress) {
+        publicationWithShortCommunityAddress = publication;
+        try {
+            const shortCommunityAddress = PkcJs.PKC.getShortAddress({
+                address: publication.communityAddress,
+            });
+            if (shortCommunityAddress) {
+                publicationWithShortCommunityAddress = Object.assign(Object.assign({}, publication), { shortCommunityAddress });
+            }
+        }
+        catch (_a) { }
+        accountPublicationsWithShortCommunityAddress.set(publication, publicationWithShortCommunityAddress);
+    }
+    return publicationWithShortCommunityAddress;
+};
 const utils = {
     getAccountCommunities,
     getCommentCidsToAccountsComments,
@@ -447,8 +503,10 @@ const utils = {
     fetchCommentLinkDimensions,
     getInitAccountCommentsToUpdate,
     getAccountCommentDepth,
+    getAccountCommentPostCid,
     getFreshestLoadedComment,
     addShortAddressesToAccountComment,
+    addShortCommunityAddressToAccountPublication,
     promiseAny,
 };
 export default utils;
