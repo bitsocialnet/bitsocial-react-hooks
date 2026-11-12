@@ -895,6 +895,75 @@ describe("accounts-actions", () => {
       );
     });
 
+    describe("pending reply postCid", () => {
+      const publishReply = async (options: any) => {
+        const account = Object.values(accountsStore.getState().accounts)[0];
+        const createComment = vi.spyOn(account.pkc, "createComment");
+        const { index } = await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "reply",
+          onChallenge: () => {},
+          onChallengeVerification: () => {},
+          ...options,
+        });
+        const pendingComment = accountsStore.getState().accountsComments[account.id][index];
+        const storedComment = (await accountsDatabase.getAccountComments(account.id))[index];
+        await accountsActions.deleteComment(index);
+        return { pendingComment, storedComment, createComment };
+      };
+
+      test("a direct reply to a post gets the post cid", async () => {
+        commentsStore.setState(({ comments }: any) => ({
+          comments: { ...comments, "post cid": { cid: "post cid", depth: 0 } },
+        }));
+        const { pendingComment, storedComment, createComment } = await publishReply({
+          parentCid: "post cid",
+        });
+        expect(pendingComment.cid).toBeUndefined();
+        expect(pendingComment.postCid).toBe("post cid");
+        expect(pendingComment.depth).toBe(1);
+        expect(storedComment.postCid).toBe("post cid");
+        // the derived value is local metadata only, the publication is what the caller passed
+        expect(createComment.mock.calls[0][0].postCid).toBeUndefined();
+      });
+
+      test("a nested reply gets its parent's postCid", async () => {
+        commentsStore.setState(({ comments }: any) => ({
+          comments: {
+            ...comments,
+            "reply cid": { cid: "reply cid", depth: 1, postCid: "post cid" },
+          },
+        }));
+        const { pendingComment, storedComment } = await publishReply({ parentCid: "reply cid" });
+        expect(pendingComment.postCid).toBe("post cid");
+        expect(pendingComment.depth).toBe(2);
+        expect(storedComment.postCid).toBe("post cid");
+      });
+
+      test("a caller-supplied postCid is never overwritten", async () => {
+        commentsStore.setState(({ comments }: any) => ({
+          comments: {
+            ...comments,
+            "reply cid": { cid: "reply cid", depth: 1, postCid: "post cid" },
+          },
+        }));
+        const { pendingComment, createComment } = await publishReply({
+          parentCid: "reply cid",
+          postCid: "caller post cid",
+        });
+        expect(pendingComment.postCid).toBe("caller post cid");
+        expect(createComment.mock.calls[0][0].postCid).toBe("caller post cid");
+      });
+
+      test("stays undefined when the parent is not in any cache", async () => {
+        const { pendingComment, storedComment } = await publishReply({
+          parentCid: "unknown parent cid",
+        });
+        expect(pendingComment.postCid).toBeUndefined();
+        expect("postCid" in storedComment).toBe(false);
+      });
+    });
+
     test("publishComment does not inherit the account comment chain for another author address", async () => {
       const account = Object.values(accountsStore.getState().accounts)[0];
       const createComment = vi.spyOn(account.pkc, "createComment");

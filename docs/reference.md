@@ -1167,6 +1167,7 @@ for (const accountComment of accountComments) {
 // `state` becomes `failed` as soon as a pending local publish records terminal failure (`publishingState === "failed"` and `state === "stopped"`) or a publish error, instead of waiting for the 20-minute fallback.
 // local account comments returned by useAccountComment and useAccountComments include the account author's address and shortAddress when an older cached account comment is missing author identity fields.
 // comments published in a pseudonymous community (comment.pseudonymityMode is set) keep their community-assigned author instead, because the account identity was never published.
+// a pending reply published without `postCid` gets it from its parent when the parent is already loaded (the parent's `postCid`, or the parent's `cid` when the parent is a post), so it can link to its thread before it has a cid; it stays undefined when the parent isn't loaded. This is local metadata: the published reply contains only the `postCid` passed to `publishComment`.
 // note: accountComment.index can change after deletions; prefer commentCid for stable identifiers
 
 // all my own votes

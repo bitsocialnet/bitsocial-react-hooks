@@ -714,6 +714,84 @@ describe("accountsStore utils", () => {
     });
   });
 
+  describe("getAccountCommentPostCid", () => {
+    const stores: [string, any][] = [
+      ["commentsStore", commentsStore],
+      ["repliesPagesStore", repliesPagesStore],
+      ["communitiesPagesStore", communitiesPagesStore],
+    ];
+    const withComments = (store: any, comments: any, callback: () => void) => {
+      const previousComments = store.getState().comments;
+      store.setState({ comments: { ...previousComments, ...comments } });
+      try {
+        callback();
+      } finally {
+        store.setState({ comments: previousComments });
+      }
+    };
+
+    test("keeps the caller's postCid, also when the caches disagree", () => {
+      withComments(
+        commentsStore,
+        { "parent cid": { cid: "parent cid", depth: 1, postCid: "cache post cid" } },
+        () => {
+          expect(
+            utils.getAccountCommentPostCid({
+              parentCid: "parent cid",
+              postCid: "caller post cid",
+            } as any),
+          ).toBe("caller post cid");
+        },
+      );
+    });
+
+    test("returns undefined for a post", () => {
+      expect(utils.getAccountCommentPostCid({} as any)).toBeUndefined();
+    });
+
+    for (const [storeName, store] of stores) {
+      test(`direct reply to a post in ${storeName} uses the parent cid`, () => {
+        withComments(store, { "post cid": { cid: "post cid", depth: 0 } }, () => {
+          expect(utils.getAccountCommentPostCid({ parentCid: "post cid" } as any)).toBe("post cid");
+        });
+      });
+
+      test(`nested reply uses the postCid of the parent in ${storeName}`, () => {
+        withComments(
+          store,
+          { "reply cid": { cid: "reply cid", depth: 2, postCid: "post cid" } },
+          () => {
+            expect(utils.getAccountCommentPostCid({ parentCid: "reply cid" } as any)).toBe(
+              "post cid",
+            );
+          },
+        );
+      });
+    }
+
+    test("falls through to a later cache when an earlier one has no usable parent data", () => {
+      withComments(commentsStore, { "reply cid": { cid: "reply cid" } }, () => {
+        withComments(
+          communitiesPagesStore,
+          { "reply cid": { cid: "reply cid", depth: 1, postCid: "post cid" } },
+          () => {
+            expect(utils.getAccountCommentPostCid({ parentCid: "reply cid" } as any)).toBe(
+              "post cid",
+            );
+          },
+        );
+      });
+    });
+
+    test("returns undefined when the ancestry is unavailable", () => {
+      expect(utils.getAccountCommentPostCid({ parentCid: "nonexistent" } as any)).toBeUndefined();
+      // a nested parent that doesn't know its post yet
+      withComments(commentsStore, { "reply cid": { cid: "reply cid", depth: 1 } }, () => {
+        expect(utils.getAccountCommentPostCid({ parentCid: "reply cid" } as any)).toBeUndefined();
+      });
+    });
+  });
+
   describe("getFreshestLoadedComment", () => {
     test("returns the freshest matching comment across comment page stores", () => {
       const commentCid = "freshest-loaded-comment";

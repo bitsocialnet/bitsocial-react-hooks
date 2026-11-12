@@ -46,6 +46,7 @@ import {
   getAccountEditPropertySummary,
   fetchCommentLinkDimensions,
   getAccountCommentDepth,
+  getAccountCommentPostCid,
   addShortAddressesToAccountComment,
   sanitizeAccountCommentForState,
   sanitizeStoredAccountComment,
@@ -1448,6 +1449,8 @@ export const publishComment = async (
         ...normalizePublicationOptionsForStore(createCommentOptions),
         // try to get comment depth needed for custom depth flat account replies
         depth: getAccountCommentDepth(createCommentOptions),
+        // try to get the post cid so a pending reply can link to its thread
+        postCid: getAccountCommentPostCid(createCommentOptions),
         index,
         accountId: account.id,
       }),

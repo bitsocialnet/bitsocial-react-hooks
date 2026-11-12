@@ -489,6 +489,34 @@ export const getAccountCommentDepth = (comment: Comment) => {
   // it will be added automatically when challenge verification is received
 };
 
+// the cid of the post a pending account comment belongs to, when the caches know its parent
+export const getAccountCommentPostCid = (comment: Comment): string | undefined => {
+  // never replace the value the caller published with
+  if (comment.postCid) {
+    return comment.postCid;
+  }
+  // a post's own postCid is its cid, which doesn't exist until challenge verification
+  if (!comment.parentCid) {
+    return;
+  }
+  const parentComments = [
+    commentsStore.getState().comments[comment.parentCid],
+    repliesPagesStore.getState().comments[comment.parentCid],
+    communitiesPagesStore.getState().comments[comment.parentCid],
+  ];
+  for (const parentComment of parentComments) {
+    if (typeof parentComment?.postCid === "string" && parentComment.postCid) {
+      return parentComment.postCid;
+    }
+    // the parent is the post
+    if (parentComment?.depth === 0) {
+      return comment.parentCid;
+    }
+  }
+  // if can't find the thread root anywhere, don't include it with the account comment
+  // it will be added automatically when challenge verification is received
+};
+
 export const getFreshestLoadedComment = (
   commentCid: string,
   ...additionalCandidates: (Comment | undefined)[]
@@ -537,6 +565,7 @@ const utils = {
   fetchCommentLinkDimensions,
   getInitAccountCommentsToUpdate,
   getAccountCommentDepth,
+  getAccountCommentPostCid,
   getFreshestLoadedComment,
   addShortAddressesToAccountComment,
   promiseAny,
