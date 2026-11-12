@@ -95,7 +95,7 @@ export const getFilteredSortedFeeds = (feedsOptions, communities, communitiesPag
     for (const feedName in feedsOptions) {
         const communityRefs = getFeedCommunityRefs(feedsOptions[feedName]);
         const communityKeys = getFeedCommunityKeys(feedsOptions[feedName]);
-        let { sortType, accountId, filter, newerThan, modQueue } = feedsOptions[feedName];
+        let { sortType, accountId, filter, newerThan, modQueue, includeBlockedCids } = feedsOptions[feedName];
         const newerThanTimestamp = newerThan ? Math.floor(Date.now() / 1000) - newerThan : undefined;
         let pageType = "posts";
         if (modQueue === null || modQueue === void 0 ? void 0 : modQueue[0]) {
@@ -199,8 +199,8 @@ export const getFilteredSortedFeeds = (feedsOptions, communities, communitiesPag
                 (((_b = post.author) === null || _b === void 0 ? void 0 : _b.address) && ((_c = accounts[accountId]) === null || _c === void 0 ? void 0 : _c.blockedAddresses[post.author.address]))) {
                 continue;
             }
-            // comment cid is blocked
-            if ((_d = accounts[accountId]) === null || _d === void 0 ? void 0 : _d.blockedCids[post.cid]) {
+            // comment cid is blocked, unless the feed opted out of hiding blocked cids
+            if (!includeBlockedCids && ((_d = accounts[accountId]) === null || _d === void 0 ? void 0 : _d.blockedCids[post.cid])) {
                 continue;
             }
             // feedOptions filter function
@@ -306,20 +306,33 @@ const getApprovalPublicationKey = (comment) => {
         (_j = comment.link) !== null && _j !== void 0 ? _j : "",
     ].join("\0");
 };
+/**
+ * Keep the `limit` newest account comments (greatest timestamp, then greatest index), in their
+ * original order. No limit keeps them all.
+ */
+export const getNewestAccountComments = (accountComments, limit) => {
+    if (limit === undefined || limit === null || accountComments.length <= limit) {
+        return accountComments;
+    }
+    const newest = new Set([...accountComments]
+        .sort((a, b) => { var _a, _b; return b.timestamp - a.timestamp || ((_a = b.index) !== null && _a !== void 0 ? _a : 0) - ((_b = a.index) !== null && _b !== void 0 ? _b : 0); })
+        .slice(0, Math.max(limit, 0)));
+    return accountComments.filter((accountComment) => newest.has(accountComment));
+};
 export const addAccountsComments = (feedsOptions, loadedFeeds) => {
     let loadedFeedsChanged = false;
     const accountsComments = accountsStore.getState().accountsComments || {};
     for (const feedName in feedsOptions) {
         const { accountId, accountComments: accountCommentsOptions } = feedsOptions[feedName];
         const communityRefs = getFeedCommunityRefs(feedsOptions[feedName]);
-        const { newerThan, append } = accountCommentsOptions || {};
+        const { newerThan, append, limit } = accountCommentsOptions || {};
         if (!newerThan) {
             continue;
         }
         const newerThanTimestamp = newerThan === Infinity ? 0 : Math.floor(Date.now() / 1000) - newerThan;
         const isNewerThan = (post) => post.timestamp > newerThanTimestamp;
         const accountComments = accountsComments[accountId] || [];
-        const accountPosts = accountComments.filter((comment) => {
+        const matchingAccountPosts = accountComments.filter((comment) => {
             // is a reply, not a post
             if (comment.parentCid || comment.depth > 0) {
                 return false;
@@ -329,6 +342,9 @@ export const addAccountsComments = (feedsOptions, loadedFeeds) => {
             }
             return (getMatchingCommunityRefKeys(communityRefs, getCommentCommunityAddress(comment)).length > 0);
         });
+        // older account posts over the limit are treated like posts that no longer match: they are
+        // not added, and removed if a newer account post took their place
+        const accountPosts = getNewestAccountComments(matchingAccountPosts, limit);
         const validAccountIndices = new Set(accountPosts.map((p) => p.index));
         const accountCidToPost = new Map();
         for (const p of accountPosts) {

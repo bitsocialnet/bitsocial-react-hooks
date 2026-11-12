@@ -38,9 +38,9 @@ const addDefaultFeedOptions = (feedOptions) => {
     return feedOptions;
 };
 export const feedOptionsToFeedName = (feedOptions) => {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e;
     feedOptions = addDefaultFeedOptions(feedOptions);
-    return serializeFeedKey([
+    const feedKey = [
         feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.accountId,
         feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.commentCid,
         feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.postCid,
@@ -52,7 +52,13 @@ export const feedOptionsToFeedName = (feedOptions) => {
         feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.repliesPerPage,
         (_c = feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.filter) === null || _c === void 0 ? void 0 : _c.key,
         feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.streamPage,
-    ]);
+    ];
+    // options added later are only part of the name when set, feeds without them keep their name
+    const accountCommentsLimit = (_e = (_d = feedOptions === null || feedOptions === void 0 ? void 0 : feedOptions.accountComments) === null || _d === void 0 ? void 0 : _d.limit) !== null && _e !== void 0 ? _e : undefined;
+    if (accountCommentsLimit !== undefined) {
+        feedKey.push(accountCommentsLimit);
+    }
+    return serializeFeedKey(feedKey);
 };
 const getFeedsUpdatedAts = (feedsOptions, comments) => {
     var _a;

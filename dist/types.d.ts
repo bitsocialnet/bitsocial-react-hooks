@@ -240,6 +240,7 @@ export interface UseFeedOptions extends Options {
     accountComments?: FeedOptionsAccountComments;
     filter?: CommentsFilter;
     modQueue?: string[];
+    includeBlockedCids?: boolean;
 }
 export interface UseFeedResult extends Result {
     feed: Comment[];
@@ -252,7 +253,7 @@ export interface UseFeedResult extends Result {
     reset(): Promise<void>;
 }
 export interface UseBufferedFeedsOptions extends Options {
-    feedsOptions?: UseFeedOptions[];
+    feedsOptions?: Omit<UseFeedOptions, "includeBlockedCids">[];
 }
 export interface UseBufferedFeedsResult extends Result {
     bufferedFeeds: Comment[][];
@@ -688,10 +689,12 @@ export type FeedOptions = {
     newerThan?: number;
     accountComments?: FeedOptionsAccountComments;
     modQueue?: string[];
+    includeBlockedCids?: boolean;
 };
 export type FeedOptionsAccountComments = {
     newerThan?: number;
     append?: boolean;
+    limit?: number;
 };
 export type FeedsOptions = {
     [feedName: string]: FeedOptions;

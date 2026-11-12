@@ -20,7 +20,7 @@ declare const validator: {
     validateUseCommunitiesArguments: ({ communities, communityRefs, communityAddresses, account, }: any) => void;
     validateUseCommunitiesStatesArguments: ({ communities, communityRefs, communityAddresses, }: any) => void;
     validateFeedSortType: (sortType: any) => void;
-    validateUseFeedArguments: ({ communities, communityRefs, communityAddresses, sortType, accountName, postsPerPage, filter, newerThan, accountComments, }: any) => void;
+    validateUseFeedArguments: ({ communities, communityRefs, communityAddresses, sortType, accountName, postsPerPage, filter, newerThan, accountComments, includeBlockedCids, }: any) => void;
     validateUseBufferedFeedsArguments: ({ feedsOptions, accountName, }: {
         feedsOptions?: any;
         accountName?: any;

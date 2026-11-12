@@ -9,6 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import { getRepliesPages, getRepliesFirstPageCid } from "../replies-pages/index.js";
 import repliesSorter from "../feeds/feed-sorter.js";
+import { getNewestAccountComments } from "../feeds/utils.js";
 import accountsStore from "../accounts/index.js";
 import { flattenCommentsPages, commentIsValid, removeInvalidComments } from "../../lib/utils/index.js";
 import { areEquivalentCommunityAddresses } from "../../lib/community-address.js";
@@ -207,7 +208,7 @@ export const addAccountsComments = (feedsOptions, loadedFeeds, feedsHaveMore, fe
     const accountsComments = accountsStore.getState().accountsComments || {};
     for (const feedName in feedsOptions) {
         const { accountId, accountComments: accountCommentsOptions, commentCid, postCid, commentDepth, flat, } = feedsOptions[feedName];
-        const { newerThan, append } = accountCommentsOptions || {};
+        const { newerThan, append, limit } = accountCommentsOptions || {};
         if (!newerThan) {
             continue;
         }
@@ -216,7 +217,7 @@ export const addAccountsComments = (feedsOptions, loadedFeeds, feedsHaveMore, fe
         const hidePurgedAccountReplies = (feedsHaveMore === null || feedsHaveMore === void 0 ? void 0 : feedsHaveMore[feedName]) === false;
         const feedUpdatedAt = feedsUpdatedAts === null || feedsUpdatedAts === void 0 ? void 0 : feedsUpdatedAts[feedName];
         const accountComments = accountsComments[accountId] || [];
-        const accountReplies = accountComments.filter((reply) => {
+        const matchingAccountReplies = accountComments.filter((reply) => {
             if (shouldHidePurgedAccountReply(reply, hidePurgedAccountReplies, feedUpdatedAt)) {
                 return false;
             }
@@ -229,6 +230,9 @@ export const addAccountsComments = (feedsOptions, loadedFeeds, feedsHaveMore, fe
             }
             return reply.parentCid === commentCid;
         });
+        // older account replies over the limit are treated like replies that no longer match: they
+        // are not added, and removed if a newer account reply took their place
+        const accountReplies = getNewestAccountComments(matchingAccountReplies, limit);
         const validAccountIndices = new Set(accountReplies.map((r) => r.index));
         const accountCidToReply = new Map();
         for (const r of accountReplies) {

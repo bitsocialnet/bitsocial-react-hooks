@@ -205,7 +205,8 @@ const validateUseCommunitiesArguments = ({ communities, communityRefs, community
 const validateFeedSortType = (sortType) => {
     assert(sortType === undefined || (typeof sortType === "string" && sortType.length > 0), `invalid feed sort type '${sortType}'`);
 };
-const validateUseFeedArguments = ({ communities, communityRefs, communityAddresses, sortType, accountName, postsPerPage, filter, newerThan, accountComments, }) => {
+const isValidAccountCommentsLimit = (limit) => limit === undefined || limit === null || (Number.isInteger(limit) && limit >= 0);
+const validateUseFeedArguments = ({ communities, communityRefs, communityAddresses, sortType, accountName, postsPerPage, filter, newerThan, accountComments, includeBlockedCids, }) => {
     validateCommunitiesArguments(communities, communityRefs, communityAddresses, "useFeed");
     assert(sortType === undefined || (typeof sortType === "string" && sortType.length > 0), `useFeed sortType argument '${sortType}' invalid`);
     if (accountName) {
@@ -224,6 +225,10 @@ const validateUseFeedArguments = ({ communities, communityRefs, communityAddress
     if (accountComments) {
         assert(typeof accountComments === "object", `useFeed accountComments argument '${accountComments}' not an object`);
         assert(typeof accountComments.newerThan === "number", `useFeed accountComments.newerThan argument '${accountComments}' not a number`);
+        assert(isValidAccountCommentsLimit(accountComments.limit), `useFeed accountComments.limit argument '${accountComments.limit}' not a non-negative integer`);
+    }
+    if (includeBlockedCids !== undefined && includeBlockedCids !== null) {
+        assert(typeof includeBlockedCids === "boolean", `useFeed includeBlockedCids argument '${includeBlockedCids}' not a boolean`);
     }
 };
 const validateUseBufferedFeedsArguments = ({ feedsOptions, accountName, }) => {
@@ -271,6 +276,7 @@ const validateUseRepliesArguments = (comment, sortType, accountName, onlyIfCache
     if (accountComments !== undefined && accountComments !== null) {
         assert(typeof accountComments.newerThan === "number", `useReplies accountComments.newerThan argument '${accountComments.newerThan}' not a number`);
         assert(!accountComments.append || typeof accountComments.append === "boolean", `useReplies accountComments.append argument '${accountComments.append}' not a boolean`);
+        assert(isValidAccountCommentsLimit(accountComments.limit), `useReplies accountComments.limit argument '${accountComments.limit}' not a non-negative integer`);
     }
     if (filter) {
         assert(typeof filter.filter === "function", `useReplies filter.filter argument '${filter.filter}' not a function, useRepliesOptions.filter is now an object Filter {filter: (comment: Comment) => Boolean, key: string}`);

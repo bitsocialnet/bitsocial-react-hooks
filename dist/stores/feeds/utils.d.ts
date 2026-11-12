@@ -6,6 +6,11 @@ export declare const getFilteredSortedFeeds: (feedsOptions: FeedsOptions, commun
     [commentCid: string]: Comment;
 }) => Feeds;
 export declare const getLoadedFeeds: (feedsOptions: FeedsOptions, filteredSortedFeeds: Feeds, loadedFeeds: Feeds, bufferedFeeds: Feeds, accounts: Accounts) => Promise<Feeds>;
+/**
+ * Keep the `limit` newest account comments (greatest timestamp, then greatest index), in their
+ * original order. No limit keeps them all.
+ */
+export declare const getNewestAccountComments: (accountComments: Comment[], limit?: number | null) => Comment[];
 export declare const addAccountsComments: (feedsOptions: FeedsOptions, loadedFeeds: Feeds) => boolean;
 export declare const getBufferedFeedsWithoutLoadedFeeds: (bufferedFeeds: Feeds, loadedFeeds: Feeds) => Feeds;
 export declare const getUpdatedFeeds: (feedsOptions: FeedsOptions, filteredSortedFeeds: Feeds, updatedFeeds: Feeds, loadedFeeds: Feeds, accounts: Accounts) => Promise<Feeds>;

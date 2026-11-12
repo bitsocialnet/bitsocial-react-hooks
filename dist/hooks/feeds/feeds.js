@@ -33,7 +33,7 @@ const emptyCommunityKeys = [];
 export function useFeed(options) {
     assert(!options || typeof options === "object", `useFeed options argument '${options}' not an object`);
     const opts = options || {};
-    let { communities, sortType, accountName, postsPerPage, filter, newerThan, accountComments, modQueue, } = opts;
+    let { communities, sortType, accountName, postsPerPage, filter, newerThan, accountComments, modQueue, includeBlockedCids, } = opts;
     validator.validateUseFeedArguments({
         communities,
         communityRefs: opts.communityRefs,
@@ -44,6 +44,7 @@ export function useFeed(options) {
         filter,
         newerThan,
         accountComments,
+        includeBlockedCids,
     });
     const account = useAccount({ accountName });
     const accountVotes = useAccountsStore((state) => (account === null || account === void 0 ? void 0 : account.id) ? state.accountsVotes[account.id] : undefined);
@@ -57,7 +58,7 @@ export function useFeed(options) {
     const normalizedCommunityRefs = useMemo(() => communities || [], [communities]);
     const uniqueCommunityRefs = useUniqueSortedCommunityRefs(normalizedCommunityRefs);
     const uniqueCommunityKeys = useMemo(() => getCommunityRefKeys(uniqueCommunityRefs), [uniqueCommunityRefs]);
-    const feedName = useFeedName(account === null || account === void 0 ? void 0 : account.id, sortType, uniqueCommunityKeys, postsPerPage, filter, newerThan, accountComments, modQueue);
+    const feedName = useFeedName(account === null || account === void 0 ? void 0 : account.id, sortType, uniqueCommunityKeys, postsPerPage, filter, newerThan, accountComments, modQueue, includeBlockedCids);
     // errors belong to the feed they happened in, another feed starts without them. Drop them when
     // the feed changes (or when one lands after it changed) so they don't return with the old feed
     const [feedErrors, setFeedErrors] = useState();
@@ -78,7 +79,7 @@ export function useFeed(options) {
             return;
         }
         const isBufferedFeed = false;
-        addFeedToStore(feedName, uniqueCommunityRefs, uniqueCommunityKeys, sortType, account, isBufferedFeed, postsPerPage, filter, newerThan, accountComments, modQueue).catch((error) => log.error("useFeed addFeedToStore error", { feedName, error }));
+        addFeedToStore(feedName, uniqueCommunityRefs, uniqueCommunityKeys, sortType, account, isBufferedFeed, postsPerPage, filter, newerThan, accountComments, modQueue, includeBlockedCids).catch((error) => log.error("useFeed addFeedToStore error", { feedName, error }));
     }, [feedName]);
     // keep the feed's communities updating while mounted, after the feed was added above
     useEffect(() => {
@@ -324,12 +325,14 @@ function useUniqueSortedCommunityRefs(communityRefs) {
         return getUniqueSortedCommunityRefs(communityRefs);
     }, [communityRefs]);
 }
-function useFeedName(accountId, sortType, uniqueCommunityKeys, postsPerPage, filter, newerThan, accountComments, modQueue) {
+function useFeedName(accountId, sortType, uniqueCommunityKeys, postsPerPage, filter, newerThan, accountComments, modQueue, includeBlockedCids) {
+    var _a;
     const filterKey = filter === null || filter === void 0 ? void 0 : filter.key;
     const accountCommentsNewerThan = accountComments === null || accountComments === void 0 ? void 0 : accountComments.newerThan;
     const accountCommentsAppend = accountComments === null || accountComments === void 0 ? void 0 : accountComments.append;
+    const accountCommentsLimit = (_a = accountComments === null || accountComments === void 0 ? void 0 : accountComments.limit) !== null && _a !== void 0 ? _a : undefined;
     return useMemo(() => {
-        return serializeFeedKey([
+        const feedKey = [
             accountId,
             sortType,
             uniqueCommunityKeys,
@@ -339,7 +342,15 @@ function useFeedName(accountId, sortType, uniqueCommunityKeys, postsPerPage, fil
             accountCommentsNewerThan,
             accountCommentsAppend,
             modQueue,
-        ]);
+        ];
+        // options added later are only part of the name when set, feeds without them keep their name
+        if (accountCommentsLimit !== undefined) {
+            feedKey.push(accountCommentsLimit);
+        }
+        if (includeBlockedCids === true) {
+            feedKey.push(includeBlockedCids);
+        }
+        return serializeFeedKey(feedKey);
     }, [
         accountId,
         sortType,
@@ -349,7 +360,9 @@ function useFeedName(accountId, sortType, uniqueCommunityKeys, postsPerPage, fil
         newerThan,
         accountCommentsNewerThan,
         accountCommentsAppend,
+        accountCommentsLimit,
         modQueue === null || modQueue === void 0 ? void 0 : modQueue.toString(),
+        includeBlockedCids,
     ]);
 }
 function useFeedNames(accountId, sortTypes, uniqueCommunityKeysArrays, postsPerPages, filters, newerThans) {

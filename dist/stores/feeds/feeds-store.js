@@ -103,7 +103,7 @@ const feedsStore = createStore((setState, getState) => ({
     feedsCommunityKeysWithNewerPosts: {},
     feedsCommunityKeysWithMore: {},
     feedsCommunityKeysWithUnavailableSort: {},
-    addFeedToStore(feedName, communities, communityKeys, sortType, account, isBufferedFeed, postsPerPage, filter, newerThan, accountComments, modQueue) {
+    addFeedToStore(feedName, communities, communityKeys, sortType, account, isBufferedFeed, postsPerPage, filter, newerThan, accountComments, modQueue, includeBlockedCids) {
         return __awaiter(this, void 0, void 0, function* () {
             // init here because must be called after async accounts store finished initializing
             initializeFeedsStore();
@@ -124,7 +124,13 @@ const feedsStore = createStore((setState, getState) => ({
             postsPerPage = postsPerPage || defaultPostsPerPage;
             assert(typeof postsPerPage === "number", `addFeedToStore.addFeedToStore postsPerPage '${postsPerPage}' invalid`);
             assert(!accountComments || typeof (accountComments === null || accountComments === void 0 ? void 0 : accountComments.newerThan) === "number", `addFeedToStore.addFeedToStore accountComments.newerThan '${accountComments === null || accountComments === void 0 ? void 0 : accountComments.newerThan}' invalid`);
+            assert((accountComments === null || accountComments === void 0 ? void 0 : accountComments.limit) === undefined ||
+                (accountComments === null || accountComments === void 0 ? void 0 : accountComments.limit) === null ||
+                (Number.isInteger(accountComments.limit) && accountComments.limit >= 0), `addFeedToStore.addFeedToStore accountComments.limit '${accountComments === null || accountComments === void 0 ? void 0 : accountComments.limit}' invalid`);
             assert(!modQueue || Array.isArray(modQueue), `addFeedToStore.addFeedToStore modQueue '${modQueue}' invalid`);
+            assert(includeBlockedCids === undefined ||
+                includeBlockedCids === null ||
+                typeof includeBlockedCids === "boolean", `addFeedToStore.addFeedToStore includeBlockedCids '${includeBlockedCids}' invalid`);
             const { feedsOptions, updateFeeds } = getState();
             touchFeed(feedName);
             // feed is in store already, do nothing
@@ -133,19 +139,14 @@ const feedsStore = createStore((setState, getState) => ({
                 return;
             }
             // to add a buffered feed, add a feed with pageNumber 0
-            const feedOptions = {
-                communities,
+            const feedOptions = Object.assign({ communities,
                 communityKeys,
-                sortType,
-                accountId: account.id,
-                pageNumber: isBufferedFeed === true ? 0 : 1,
-                postsPerPage,
+                sortType, accountId: account.id, pageNumber: isBufferedFeed === true ? 0 : 1, postsPerPage,
                 newerThan,
                 filter,
                 accountComments,
                 // TODO: allow multiple modQueue at once, fow now only use first in array
-                modQueue,
-            };
+                modQueue }, (includeBlockedCids === true ? { includeBlockedCids } : undefined));
             log("feedsActions.addFeedToStore", feedOptions);
             setState(({ feedsOptions }) => ({
                 feedsOptions: Object.assign(Object.assign({}, feedsOptions), { [feedName]: feedOptions }),
