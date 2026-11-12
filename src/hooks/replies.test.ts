@@ -2234,6 +2234,30 @@ describe("replies", () => {
       ).toBe(false);
     });
 
+    test("accountComments.limit only adds the newest account replies", async () => {
+      rendered.rerender({
+        commentCid: postCid,
+        sortType,
+        accountComments: { newerThan: Infinity, limit: 1 },
+      });
+
+      await waitFor(
+        () =>
+          rendered.result.current.repliesDepth1.replies.length > 1 &&
+          rendered.result.current.repliesDepth1.replies[0].cid === accountReplyCid1,
+      );
+      const { replies } = rendered.result.current.repliesDepth1;
+      // only the newest account reply is added, the older pending one is not
+      expect(replies[0].cid).toBe(accountReplyCid1);
+      expect(replies.filter((reply: any) => reply.author.address === authorAddress).length).toBe(1);
+    });
+
+    test("invalid accountComments.limit throws", () => {
+      expect(() =>
+        renderHook(() => useReplies({ accountComments: { newerThan: Infinity, limit: -1 } })),
+      ).toThrow(/accountComments.limit/);
+    });
+
     test("change accountComments options, append, prepend, newerThan", async () => {
       // default (prepend) + newerThan Infinity
       rendered.rerender({

@@ -292,6 +292,7 @@ export interface UseFeedOptions extends Options {
   accountComments?: FeedOptionsAccountComments;
   filter?: CommentsFilter;
   modQueue?: string[];
+  includeBlockedCids?: boolean; // keep the posts whose cid the account blocked (account.blockedCids) in the feed
 }
 export interface UseFeedResult extends Result {
   feed: Comment[];
@@ -308,7 +309,8 @@ export interface UseFeedResult extends Result {
 
 // useBufferedFeeds(options): result
 export interface UseBufferedFeedsOptions extends Options {
-  feedsOptions?: UseFeedOptions[];
+  // buffered feeds always leave out blocked cids, includeBlockedCids is a useFeed option
+  feedsOptions?: Omit<UseFeedOptions, "includeBlockedCids">[];
 }
 export interface UseBufferedFeedsResult extends Result {
   bufferedFeeds: Comment[][];
@@ -832,10 +834,12 @@ export type FeedOptions = {
   newerThan?: number;
   accountComments?: FeedOptionsAccountComments;
   modQueue?: string[];
+  includeBlockedCids?: boolean;
 };
 export type FeedOptionsAccountComments = {
   newerThan?: number;
   append?: boolean; // default to prepend, set append: true to append instead
+  limit?: number; // only add the newest `limit` account comments, default to no limit
 };
 export type FeedsOptions = { [feedName: string]: FeedOptions };
 export type FeedCommunitiesPostCounts = { [communityAddress: string]: number };

@@ -456,6 +456,72 @@ describe("replies utils", () => {
       });
     });
 
+    test("accountComments.limit only adds the newest account replies", () => {
+      const feedName = "feed1";
+      const recentTs = Math.floor(Date.now() / 1000) - 1000;
+      const makeFeedsOptions = (accountComments: any, flat = false) => ({
+        [feedName]: {
+          commentCid: "c1",
+          postCid: "p1",
+          commentDepth: 0,
+          flat,
+          accountId: mockAccountId,
+          accountComments,
+        },
+      });
+      const makeAccountReply = (index: number, parentCid = "c1", depth = 1) => ({
+        index,
+        parentCid,
+        postCid: "p1",
+        depth,
+        communityAddress: "sub1",
+        timestamp: recentTs + index,
+      });
+      const setAccountComments = (accountComments: any[]) => {
+        (accountsStore as any).getState = () => ({
+          accountsComments: { [mockAccountId]: accountComments },
+          accounts: { [mockAccountId]: { pkc: {} } },
+        });
+      };
+      const networkReply = { cid: "network-cid", parentCid: "c1", timestamp: recentTs };
+      setAccountComments([
+        makeAccountReply(0),
+        makeAccountReply(1),
+        makeAccountReply(2, "other-parent", 2),
+        makeAccountReply(3),
+      ]);
+
+      const prepended = { [feedName]: [networkReply] as any[] };
+      expect(
+        addAccountsComments(makeFeedsOptions({ newerThan: 3600, limit: 2 }) as any, prepended),
+      ).toBe(true);
+      expect(prepended[feedName].map((reply) => reply.index)).toEqual([3, 1, undefined]);
+
+      // flat feeds count the account replies of every depth together
+      const flat = { [feedName]: [networkReply] as any[] };
+      addAccountsComments(
+        makeFeedsOptions({ newerThan: 3600, append: true, limit: 2 }, true) as any,
+        flat,
+      );
+      expect(flat[feedName].map((reply) => reply.index)).toEqual([undefined, 2, 3]);
+
+      // a newer account reply replaces the oldest added one
+      setAccountComments([
+        makeAccountReply(0),
+        makeAccountReply(1),
+        makeAccountReply(2, "other-parent", 2),
+        makeAccountReply(3),
+        makeAccountReply(4),
+      ]);
+      addAccountsComments(makeFeedsOptions({ newerThan: 3600, limit: 2 }) as any, prepended);
+      expect(prepended[feedName].map((reply) => reply.index)).toEqual([4, 3, undefined]);
+
+      // no limit adds them all
+      const all = { [feedName]: [networkReply] as any[] };
+      addAccountsComments(makeFeedsOptions({ newerThan: 3600 }) as any, all);
+      expect(all[feedName].map((reply) => reply.index)).toEqual([4, 3, 1, 0, undefined]);
+    });
+
     test("cid/index drift: replaces loaded reply when cid matches but index changed", () => {
       const feedName = "feed1";
       const recentTs = Math.floor(Date.now() / 1000) - 100;
