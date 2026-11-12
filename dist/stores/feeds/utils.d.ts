@@ -30,6 +30,17 @@ export declare const getFeedsCommunityKeysWithMore: (feedsOptions: FeedsOptions,
 }) => {
     [feedName: string]: string[];
 };
+/**
+ * Get which loaded communities of each feed do not serve the feed's requested sort: the community
+ * publishes sorts, but not this one, and it cannot be computed from a complete preloaded page. Such
+ * a community adds nothing to the feed, which is otherwise indistinguishable from one still loading
+ * or one without posts. A community that has not loaded yet or has no posts is not listed.
+ */
+export declare const getFeedsCommunityKeysWithUnavailableSort: (feedsOptions: FeedsOptions, communities: Communities, previousFeedsCommunityKeysWithUnavailableSort: {
+    [feedName: string]: string[];
+}) => {
+    [feedName: string]: string[];
+};
 export declare const getFeedsCommunities: (feedsOptions: FeedsOptions, communities: Communities) => Map<string, Community>;
 export declare const feedsCommunitiesChanged: (previousFeedsCommunities: Map<string, Community>, feedsCommunities: Map<string, Community>) => boolean;
 export declare const getFeedsCommunitiesFirstPageCids: (feedsCommunities: Map<string, Community>) => string[];

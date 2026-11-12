@@ -1,8 +1,8 @@
-import { Feeds, RepliesFeedOptions, RepliesFeedsOptions, Comment, Comments, Accounts, RepliesPages } from "../../types.js";
+import { Feeds, RepliesFeedOptions, RepliesFeedsOptions, Comment, Comments, Communities, Accounts, RepliesPages } from "../../types.js";
 /**
  * Calculate the feeds from all the loaded replies pages, filter and sort them
  */
-export declare const getFilteredSortedFeeds: (feedsOptions: RepliesFeedsOptions, comments: Comments, repliesPages: RepliesPages, accounts: Accounts) => Feeds;
+export declare const getFilteredSortedFeeds: (feedsOptions: RepliesFeedsOptions, comments: Comments, repliesPages: RepliesPages, accounts: Accounts, communities?: Communities) => Feeds;
 export declare const resetPreviousPageNumber: (feedName: string) => void;
 type GetLoadedFeedsOptions = {
     addAccountComments?: boolean;

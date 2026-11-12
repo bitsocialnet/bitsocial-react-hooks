@@ -15,6 +15,9 @@ type FeedsState = {
     feedsCommunityKeysWithMore: {
         [feedName: string]: string[];
     };
+    feedsCommunityKeysWithUnavailableSort: {
+        [feedName: string]: string[];
+    };
     addFeedToStore: Function;
     startFeedAutoUpdate: Function;
     stopFeedAutoUpdate: Function;

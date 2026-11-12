@@ -175,6 +175,7 @@ export interface UseRepliesResult extends Result {
     bufferedReplies: Comment[];
     updatedReplies: Comment[];
     hasMore: boolean;
+    sortTypeUnavailable: boolean;
     loadMore(): Promise<void>;
     reset(): Promise<void>;
 }
@@ -247,6 +248,7 @@ export interface UseFeedResult extends Result {
     expandTimeWindow(newerThan?: number): Promise<void>;
     communityKeysWithNewerPosts: string[];
     communityKeysWithMore: string[];
+    communityKeysWithUnavailableSort: string[];
     reset(): Promise<void>;
 }
 export interface UseBufferedFeedsOptions extends Options {

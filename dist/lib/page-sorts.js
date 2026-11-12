@@ -1,6 +1,6 @@
 // Standard pkc-js sorts (pkc-js src/pages/util.ts) whose scoring the feed sorter reproduces. pkc-js
-// preloads a single sort and only publishes pageCids once that page overflows, so a record whose
-// comments all fit in the preloaded page can serve any of these by re-sorting that page client-side.
+// only publishes pageCids once a preloaded page overflows, so a record whose comments all fit in
+// its preloaded pages can serve any of these by re-sorting such a page client-side.
 const CLIENT_SORTABLE_POST_SORT_TYPES = [
     "hot",
     "new",
@@ -103,17 +103,33 @@ const getAvailablePageSortTypes = (record, clientSortableSortTypes) => {
     }
     return sortTypes;
 };
-const getPreloadedPageSortType = (record) => {
-    const preloadedSortType = Object.keys((record === null || record === void 0 ? void 0 : record.pages) || {}).find(Boolean);
-    return preloadedSortType || getPublishedPageSortTypes(record)[0];
-};
+// the sorts whose first page the record embeds, in the record's key order. pkc-js publishes records
+// with sorted keys, so that order is not guaranteed to be the one the community configured and the
+// first sort is not necessarily its preference. A community may preload several sorts, or none: a
+// record with empty `pages` has no preloaded sort, even when it publishes `pageCids`.
+const getPreloadedPageSortTypes = (record) => Object.keys((record === null || record === void 0 ? void 0 : record.pages) || {}).filter(Boolean);
+// whether the record publishes any comment: a page cid, or a preloaded page that holds comments or
+// continues. A record with no comments can still carry empty preloaded pages (`comments: []`).
+const hasPublishedComments = (record) => Object.keys((record === null || record === void 0 ? void 0 : record.pageCids) || {}).length > 0 ||
+    Object.values((record === null || record === void 0 ? void 0 : record.pages) || {}).some((page) => {
+        const { comments, nextCid } = page || {};
+        return Boolean(nextCid) || (Array.isArray(comments) && comments.length > 0);
+    });
+// a requested sort the record does not serve, as opposed to a record that has not loaded or has no
+// comments at all, where there is nothing a different sort would show
+const isPageSortTypeUnavailable = (record, requestedSortType, clientSortableSortTypes) => requestedSortType !== undefined &&
+    hasPublishedComments(record) &&
+    !getAvailablePageSortTypes(record, clientSortableSortTypes).includes(requestedSortType);
 const resolvePageSortType = (record, requestedSortType, clientSortableSortTypes) => {
+    var _a;
     if (requestedSortType !== undefined) {
         return getAvailablePageSortTypes(record, clientSortableSortTypes).includes(requestedSortType)
             ? requestedSortType
             : undefined;
     }
-    return getPreloadedPageSortType(record);
+    // no sort requested: use the first preloaded sort in the record's key order. A record that preloads
+    // nothing still has to load something, so it falls back to the first sort it publishes page cids for.
+    return (_a = getPreloadedPageSortTypes(record)[0]) !== null && _a !== void 0 ? _a : getPublishedPageSortTypes(record)[0];
 };
 // the page that serves a resolved sort: its published page, or the complete preloaded page the
 // client re-sorts (a flat sort prefers a complete flat page, else flattens a hierarchical one)
@@ -134,8 +150,13 @@ const getPageSortTypeToRead = (record, sortType) => {
 };
 export const getAvailablePostSortTypes = (community) => getAvailablePageSortTypes(community === null || community === void 0 ? void 0 : community.posts, CLIENT_SORTABLE_POST_SORT_TYPES);
 export const getAvailableReplySortTypes = (comment) => getAvailablePageSortTypes(comment === null || comment === void 0 ? void 0 : comment.replies, getClientSortableReplySortTypes(comment));
-export const getPreloadedPostSortType = (community) => getPreloadedPageSortType(community === null || community === void 0 ? void 0 : community.posts);
-export const getPreloadedReplySortType = (comment) => getPreloadedPageSortType(comment === null || comment === void 0 ? void 0 : comment.replies);
+export const getPreloadedPostSortTypes = (community) => getPreloadedPageSortTypes(community === null || community === void 0 ? void 0 : community.posts);
+export const getPreloadedReplySortTypes = (comment) => getPreloadedPageSortTypes(comment === null || comment === void 0 ? void 0 : comment.replies);
+// the first preloaded sort in the record's key order, undefined when the record preloads none
+export const getPreloadedPostSortType = (community) => getPreloadedPostSortTypes(community)[0];
+export const getPreloadedReplySortType = (comment) => getPreloadedReplySortTypes(comment)[0];
+export const isPostSortTypeUnavailable = (community, requestedSortType) => isPageSortTypeUnavailable(community === null || community === void 0 ? void 0 : community.posts, requestedSortType, CLIENT_SORTABLE_POST_SORT_TYPES);
+export const isReplySortTypeUnavailable = (comment, requestedSortType) => isPageSortTypeUnavailable(comment === null || comment === void 0 ? void 0 : comment.replies, requestedSortType, getClientSortableReplySortTypes(comment));
 export const resolvePostSortType = (community, requestedSortType) => resolvePageSortType(community === null || community === void 0 ? void 0 : community.posts, requestedSortType, CLIENT_SORTABLE_POST_SORT_TYPES);
 export const resolveReplySortType = (comment, requestedSortType) => resolvePageSortType(comment === null || comment === void 0 ? void 0 : comment.replies, requestedSortType, getClientSortableReplySortTypes(comment));
 // the options pkc-js applies to every sort; any other published option belongs to the sort file itself
@@ -164,4 +185,19 @@ export const isBuiltInPostSortType = (community, sortType) => {
 // single-page community serves `active` client-side; undefined when the sort cannot be served
 export const getPostPageSortType = (community, requestedSortType) => getPageSortTypeToRead(community === null || community === void 0 ? void 0 : community.posts, resolvePostSortType(community, requestedSortType));
 export const getReplyPageSortType = (comment, requestedSortType) => getPageSortTypeToRead(comment === null || comment === void 0 ? void 0 : comment.replies, resolveReplySortType(comment, requestedSortType));
+// whether a sort puts pinned comments first. A community configured with `settings.pages` publishes
+// every sort's reserved options in `community.pageSorts`, so `pinnedFirst: "false"` (pinned comments
+// ranked and filtered like any other) is readable from the record; pkc-js defaults it to "true", which
+// is also what an unconfigured community, publishing no `pageSorts`, has always done. A sort the
+// client computes from another sort's complete page follows that page's placement when the community
+// published nothing about the requested sort.
+const isPinnedFirstPageSortType = (community, scope, sortType, pageSortType) => {
+    var _a, _b, _c;
+    const publishedPageSorts = (_a = community === null || community === void 0 ? void 0 : community.pageSorts) === null || _a === void 0 ? void 0 : _a[scope];
+    const publishedPageSort = (_b = (sortType !== undefined ? publishedPageSorts === null || publishedPageSorts === void 0 ? void 0 : publishedPageSorts[sortType] : undefined)) !== null && _b !== void 0 ? _b : (pageSortType !== undefined ? publishedPageSorts === null || publishedPageSorts === void 0 ? void 0 : publishedPageSorts[pageSortType] : undefined);
+    const pinnedFirst = (_c = publishedPageSort === null || publishedPageSort === void 0 ? void 0 : publishedPageSort.publicOptions) === null || _c === void 0 ? void 0 : _c.pinnedFirst;
+    return !(typeof pinnedFirst === "string" && pinnedFirst.trim().toLowerCase() === "false");
+};
+export const isPinnedFirstPostSortType = (community, sortType) => isPinnedFirstPageSortType(community, "posts", sortType, getPostPageSortType(community, sortType));
+export const isPinnedFirstReplySortType = (community, comment, sortType) => isPinnedFirstPageSortType(community, "replies", sortType, getReplyPageSortType(comment, sortType));
 //# sourceMappingURL=page-sorts.js.map

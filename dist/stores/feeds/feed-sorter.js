@@ -126,10 +126,21 @@ const sorters = {
     oldFlat: sortByOld,
     best: sortByBest,
 };
-const sort = (sortType, feed) => {
-    const sorter = sortType && sorters[sortType];
+/**
+ * Sort a feed with the client's scorer for the sort. Pinned placement is the community's decision
+ * either way, never a consequence of the client recognising the sort name: a sort the client cannot
+ * score keeps the order the community published, pinned posts included, and a sort it re-scores
+ * puts pinned posts where the community's `pinnedFirst` says.
+ */
+const sort = (sortType, feed, { pinnedFirst = true } = {}) => {
+    const sorter = sortType !== undefined && Object.prototype.hasOwnProperty.call(sorters, sortType)
+        ? sorters[sortType]
+        : undefined;
     if (!sorter) {
         return feed;
+    }
+    if (!pinnedFirst) {
+        return sorter([...feed]);
     }
     // NOTE: pinned posts are not sorted, maybe in a future version we can sort them based on something
     // NOTE: with useReplies({flat: true}), nested pins are at the top, unclear yet what we should do with them
@@ -143,13 +154,13 @@ const sort = (sortType, feed) => {
  * is whichever feed's next post the built-in sorter ranks first, so a thread never rises above one
  * its own community ranks higher, and feeds that all use the built-in sort merge as one sort.
  */
-const merge = (sortType, feeds) => {
+const merge = (sortType, feeds, sortOptions) => {
     const nonEmptyFeeds = feeds.filter(({ posts }) => posts.length > 0);
     if (nonEmptyFeeds.length === 1 && nonEmptyFeeds[0].keepOrder) {
         return nonEmptyFeeds[0].posts;
     }
     const ranks = new Map();
-    sort(sortType, nonEmptyFeeds.flatMap(({ posts }) => posts)).forEach((post, index) => ranks.set(post, index));
+    sort(sortType, nonEmptyFeeds.flatMap(({ posts }) => posts), sortOptions).forEach((post, index) => ranks.set(post, index));
     const rankOf = (post) => ranks.get(post);
     const orderedFeeds = nonEmptyFeeds.map(({ posts, keepOrder }) => keepOrder ? posts : [...posts].sort((a, b) => rankOf(a) - rankOf(b)));
     const nextIndexes = orderedFeeds.map(() => 0);

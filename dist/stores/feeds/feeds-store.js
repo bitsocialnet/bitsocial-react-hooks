@@ -29,7 +29,7 @@ import { getCommunityRefKeys } from "../../lib/community-ref.js";
 import accountsStore from "../accounts/index.js";
 import communitiesStore, { COMMUNITY_UPDATE_STOP_GRACE_MS } from "../communities/index.js";
 import communitiesPagesStore from "../communities-pages/index.js";
-import { getFeedsCommunitiesFirstPageCids, getLoadedFeeds, getUpdatedFeeds, getBufferedFeedsWithoutLoadedFeeds, getFeedsCommunitiesPostCounts, getFeedsHaveMore, getAccountsBlockedAddresses, feedsHaveChangedBlockedAddresses, accountsBlockedAddressesChanged, getAccountsBlockedCids, feedsHaveChangedBlockedCids, accountsBlockedCidsChanged, feedsCommunitiesChanged, getFeedsCommunities, getFeedsCommunitiesLoadedCount, getFeedsCommunitiesPostsPagesFirstUpdatedAts, getFilteredSortedFeeds, getFeedsCommunityKeysWithNewerPosts, getFeedsCommunityKeysWithMore, } from "./utils.js";
+import { getFeedsCommunitiesFirstPageCids, getLoadedFeeds, getUpdatedFeeds, getBufferedFeedsWithoutLoadedFeeds, getFeedsCommunitiesPostCounts, getFeedsHaveMore, getAccountsBlockedAddresses, feedsHaveChangedBlockedAddresses, accountsBlockedAddressesChanged, getAccountsBlockedCids, feedsHaveChangedBlockedCids, accountsBlockedCidsChanged, feedsCommunitiesChanged, getFeedsCommunities, getFeedsCommunitiesLoadedCount, getFeedsCommunitiesPostsPagesFirstUpdatedAts, getFilteredSortedFeeds, getFeedsCommunityKeysWithNewerPosts, getFeedsCommunityKeysWithMore, getFeedsCommunityKeysWithUnavailableSort, } from "./utils.js";
 // reddit loads approximately 25 posts per page
 // while infinite scrolling
 export const defaultPostsPerPage = 25;
@@ -102,6 +102,7 @@ const feedsStore = createStore((setState, getState) => ({
     feedsHaveMore: {},
     feedsCommunityKeysWithNewerPosts: {},
     feedsCommunityKeysWithMore: {},
+    feedsCommunityKeysWithUnavailableSort: {},
     addFeedToStore(feedName, communities, communityKeys, sortType, account, isBufferedFeed, postsPerPage, filter, newerThan, accountComments, modQueue) {
         return __awaiter(this, void 0, void 0, function* () {
             // init here because must be called after async accounts store finished initializing
@@ -287,6 +288,7 @@ const feedsStore = createStore((setState, getState) => ({
             const bufferedFeedsCommunitiesPostCounts = getFeedsCommunitiesPostCounts(feedsOptions, bufferedFeeds);
             const feedsHaveMore = getFeedsHaveMore(feedsOptions, bufferedFeeds, communities, communitiesPages, accounts);
             const feedsCommunityKeysWithMore = getFeedsCommunityKeysWithMore(feedsOptions, bufferedFeedsCommunitiesPostCounts, communities, communitiesPages, accounts, previousState.feedsCommunityKeysWithMore);
+            const feedsCommunityKeysWithUnavailableSort = getFeedsCommunityKeysWithUnavailableSort(feedsOptions, communities, previousState.feedsCommunityKeysWithUnavailableSort);
             const feedsCommunityKeysWithNewerPosts = getFeedsCommunityKeysWithNewerPosts(feedsOptions, filteredSortedFeeds, loadedFeeds, previousState.feedsCommunityKeysWithNewerPosts);
             const updatedFeeds = yield getUpdatedFeeds(feedsOptions, filteredSortedFeeds, previousState.updatedFeeds, loadedFeeds, accounts);
             // a feed reset while this pass awaited comment validation would get its old posts back, and
@@ -306,6 +308,7 @@ const feedsStore = createStore((setState, getState) => ({
                 feedsHaveMore,
                 feedsCommunityKeysWithNewerPosts,
                 feedsCommunityKeysWithMore,
+                feedsCommunityKeysWithUnavailableSort,
             }));
             log.trace("feedsStore.updateFeeds", {
                 feedsOptions,

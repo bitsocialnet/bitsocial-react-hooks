@@ -22,6 +22,7 @@ import { getCommunityRefKeys, getUniqueSortedCommunityRefs, } from "../../lib/co
 import { serializeFeedKey } from "../../lib/serialize-feed-key.js";
 let feedAutoUpdateSubscriptionCount = 0;
 const emptyErrors = [];
+const emptyCommunityKeys = [];
 /**
  * @param communities - The communities to fetch, e.g. [{name: 'memes.eth'}, {publicKey: '12D3KooW...'}]
  * @param sortType - A sort name published by the community, or a standard sort computed client-side
@@ -70,6 +71,7 @@ export function useFeed(options) {
     }));
     const communityKeysWithNewerPosts = useFeedsStore((state) => state.feedsCommunityKeysWithNewerPosts[feedName]);
     const feedCommunityKeysWithMore = useFeedsStore((state) => state.feedsCommunityKeysWithMore[feedName]);
+    const communityKeysWithUnavailableSort = useFeedsStore((state) => state.feedsCommunityKeysWithUnavailableSort[feedName]);
     // add feed to store
     useEffect(() => {
         if (!uniqueCommunityRefs.length || !account) {
@@ -174,6 +176,7 @@ export function useFeed(options) {
         hasMore,
         communityKeysWithNewerPosts: communityKeysWithNewerPosts || [],
         communityKeysWithMore,
+        communityKeysWithUnavailableSort: communityKeysWithUnavailableSort || emptyCommunityKeys,
         loadMore,
         expandTimeWindow,
         reset,
@@ -189,6 +192,7 @@ export function useFeed(options) {
         errors,
         communityKeysWithNewerPosts,
         communityKeysWithMore,
+        communityKeysWithUnavailableSort,
     ]);
 }
 /**

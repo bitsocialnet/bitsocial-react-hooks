@@ -13,6 +13,7 @@ const log = Logger("bitsocial-react-hooks:replies:stores");
 import createStore from "zustand";
 import localForageLru from "../../lib/localforage-lru/index.js";
 import accountsStore from "../accounts/index.js";
+import communitiesStore from "../communities/index.js";
 import repliesCommentsStore from "./replies-comments-store.js";
 import repliesPagesStore from "../replies-pages/index.js";
 import { serializeFeedKey } from "../../lib/serialize-feed-key.js";
@@ -218,7 +219,7 @@ const repliesStore = createStore((setState, getState) => ({
             const { repliesPages } = repliesPagesStore.getState();
             const { accounts } = accountsStore.getState();
             // calculate new feeds
-            const filteredSortedFeeds = getFilteredSortedFeeds(feedsOptions, comments, repliesPages, accounts);
+            const filteredSortedFeeds = getFilteredSortedFeeds(feedsOptions, comments, repliesPages, accounts, communitiesStore.getState().communities);
             const bufferedFeedsWithoutPreviousLoadedFeeds = getBufferedFeedsWithoutLoadedFeeds(filteredSortedFeeds, previousState.loadedFeeds);
             const canonicalLoadedFeeds = yield getLoadedFeeds(feedsOptions, previousState.loadedFeeds, bufferedFeedsWithoutPreviousLoadedFeeds, accounts, { addAccountComments: false });
             const canonicalBufferedFeeds = getBufferedFeedsWithoutLoadedFeeds(bufferedFeedsWithoutPreviousLoadedFeeds, canonicalLoadedFeeds);
@@ -430,7 +431,7 @@ export const getRepliesFirstPageSkipValidation = (comment, feedOptions) => {
     const comments = { [comment.cid]: comment };
     // don't use any reply pages, they can't provide instant loading like preloaded comment.replies.pages
     const repliesPages = {};
-    const filteredSortedFeeds = getFilteredSortedFeeds(feedsOptions, comments, repliesPages, accounts);
+    const filteredSortedFeeds = getFilteredSortedFeeds(feedsOptions, comments, repliesPages, accounts, communitiesStore.getState().communities);
     // only get first page and put next page in buffered
     const bufferedFeeds = { [feedName]: [] };
     const repliesPerPage = feedOptions.repliesPerPage || defaultRepliesPerPage;
