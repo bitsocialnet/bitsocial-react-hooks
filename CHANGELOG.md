@@ -1,3 +1,25 @@
+## [0.2.3](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.2.2...v0.2.3) (2026-11-12)
+
+
+### Bug Fixes
+
+* **accounts:** keep account comments, votes and the account list consistent ([#169](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/169)) ([6d5279c](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/6d5279c0eecac9e6c46f68176f08db29dd077c12))
+* **actions:** bind publish hook abandon and results to each publication ([#171](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/171)) ([d0d8ca4](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/d0d8ca441ce72d87627c257d25ac4a67f41755d0))
+* **feeds:** fix stuck and stale states in feeds, replies and author comments ([#179](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/179)) ([9b4e846](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/9b4e84678c325c66f11928f5e9e72b530cd3ce0e))
+* **feeds:** honour published pinned placement and preloaded page sorts ([#182](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/182)) ([af31eb5](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/af31eb570175b8803e6f5bd9c07ae3b25a22dff7)), closes [#95](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/95) [#96](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/96) [#97](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/97) [#95](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/95) [#96](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/96) [#95](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/95) [#96](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/96)
+* **hooks:** stop read hooks reporting results of previous inputs ([#175](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/175)) ([30ba3e1](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/30ba3e13ae8bca7c3e2d00bad11cb24ca1563b8f))
+* stop orphaned test-server daemons, report e2e failures and space out mesh WebGL retries ([#181](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/181)) ([4fa6b8d](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/4fa6b8df26fcc92746c63947daf40ed929edb515))
+* **stores:** close update races in the comment, community and page stores ([#173](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/173)) ([6629f8c](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/6629f8ce6cce51cd9773760acef47f5d1260d3bf))
+* **stores:** stop invalid replies, stuck page retries and stale cache databases ([#177](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/177)) ([2f30a8a](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/2f30a8ae1b054803c2ee952773f059e0a4552d40))
+
+
+### Features
+
+* **accounts:** drop deleted communities and add account, vote and reply metadata ([#183](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/183)) ([420611a](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/420611a2f240b227d1115a09d081578c35b1a90c)), closes [#144](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/144) [#138](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/138) [#126](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/126) [#123](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/123) [#144](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/144) [#138](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/138)
+* **feeds:** add accountComments.limit and includeBlockedCids feed options ([#184](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/184)) ([deef572](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/deef5729cfca161b149de2e2dcb086b2692af3bf)), closes [#141](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/141) [#136](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/136) [#136](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/136)
+
+
+
 ## [0.2.2](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.2.1...v0.2.2) (2026-11-07)
 
 
