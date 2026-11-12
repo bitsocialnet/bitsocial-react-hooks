@@ -8,6 +8,7 @@ import {
   getUpdatedFeeds,
 } from "./utils";
 import accountsStore from "../accounts";
+import { commentIsValid } from "../../lib/utils";
 
 const mockAccountId = "mock-account";
 
@@ -1394,6 +1395,61 @@ describe("replies utils", () => {
         accounts,
       );
       expect(result[feedName][0].updatedAt).toBe(100);
+    });
+  });
+
+  describe("feeds of a deleted account", () => {
+    const deletedAccountId = "deleted-account-id";
+    // a pkc that accepts every comment, to check that the community of a deleted account's feed
+    // isn't blocked as having invalid comments
+    const pkc = { validateComment: async () => {} };
+    const getFeedsOptions = () => ({
+      feed1: {
+        commentCid: "c1",
+        postCid: "p1",
+        accountId: deletedAccountId,
+        pageNumber: 1,
+        repliesPerPage: 2,
+        streamPage: true,
+      },
+    });
+
+    beforeEach(() => {
+      (accountsStore as any).getState = () => ({ accountsComments: {}, accounts: {} });
+    });
+
+    test("getLoadedFeeds leaves the feed as it was and keeps its community valid", async () => {
+      // unique address, a blocked community stays blocked for the whole session
+      const communityAddress = "deleted-account-loaded-replies-sub";
+      const replies = [1, 2, 3].map((index) => ({
+        cid: `deleted-account-loaded-reply-${index}`,
+        communityAddress,
+        timestamp: index,
+      }));
+      const loadedFeeds = { feed1: [] };
+      const result = await getLoadedFeeds(getFeedsOptions(), loadedFeeds, { feed1: replies }, {});
+      expect(result).toBe(loadedFeeds);
+      expect(await commentIsValid(replies[0] as any, {}, pkc)).toBe(true);
+    });
+
+    test("getUpdatedFeeds leaves the feed as it was and keeps its community valid", async () => {
+      const communityAddress = "deleted-account-updated-replies-sub";
+      const loadedReply = {
+        cid: "deleted-account-updated-reply",
+        communityAddress,
+        timestamp: 1,
+        updatedAt: 1,
+      };
+      const updatedFeeds = { feed1: [loadedReply] };
+      const result = await getUpdatedFeeds(
+        getFeedsOptions(),
+        { feed1: [{ ...loadedReply, updatedAt: 2 }] },
+        updatedFeeds,
+        { feed1: [loadedReply] },
+        {},
+      );
+      expect(result.feed1).toBe(updatedFeeds.feed1);
+      expect(await commentIsValid(loadedReply as any, {}, pkc)).toBe(true);
     });
   });
 });

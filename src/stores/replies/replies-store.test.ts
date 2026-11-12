@@ -467,6 +467,178 @@ describe("replies store", () => {
     expect(rendered.result.current.updatedFeeds[feedName]).toEqual([]);
   });
 
+  const createCommentWithPreloadedReplies = (
+    commentCid: string,
+    depth: number,
+    replyCount: number,
+    firstReplyUpdatedAt = 1,
+  ) => {
+    const communityAddress = `${commentCid} community address`;
+    const replies = [];
+    for (let index = replyCount; index > 0; index--) {
+      replies.push({
+        cid: `${commentCid} reply ${index}`,
+        communityAddress,
+        depth: depth + 1,
+        parentCid: commentCid,
+        postCid: "post cid",
+        timestamp: index,
+        updatedAt: index === replyCount ? firstReplyUpdatedAt : 1,
+      });
+    }
+    return {
+      cid: commentCid,
+      communityAddress,
+      depth,
+      postCid: "post cid",
+      timestamp: 1,
+      updatedAt: firstReplyUpdatedAt,
+      replies: { pages: { new: { comments: replies } } },
+    };
+  };
+
+  test("resetFeed loads the first page of a nested replies feed again", async () => {
+    const commentCid = "nested-reset-feed-cid";
+    const feedOptions = { sortType: "new", commentCid, accountId: mockAccount.id };
+    const feedName = feedOptionsToFeedName(feedOptions);
+
+    act(() => {
+      rendered.result.current.addFeedToStoreOrUpdateComment(
+        createCommentWithPreloadedReplies(commentCid, 1, 3),
+        feedOptions,
+      );
+    });
+    await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length === 3);
+
+    act(() => rendered.result.current.resetFeed(feedName));
+    expect(rendered.result.current.loadedFeeds[feedName]).toEqual([]);
+    await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length === 3);
+    expect(rendered.result.current.loadedFeeds[feedName]).toHaveLength(3);
+  });
+
+  test("resetFeed during a replies update keeps the feed reset", async () => {
+    const commentCid = "reset-during-update-cid";
+    const feedOptions = { sortType: "new", commentCid, accountId: mockAccount.id, flat: true };
+    const feedName = feedOptionsToFeedName(feedOptions);
+    const replyCount = repliesPerPage + 5;
+    // a nested feed loading its next page in the same update
+    const nestedCommentCid = "reset-during-update-nested-cid";
+    const nestedFeedOptions = {
+      sortType: "new",
+      commentCid: nestedCommentCid,
+      accountId: mockAccount.id,
+    };
+    const nestedFeedName = feedOptionsToFeedName(nestedFeedOptions);
+
+    act(() => {
+      rendered.result.current.addFeedToStoreOrUpdateComment(
+        createCommentWithPreloadedReplies(commentCid, 0, replyCount),
+        feedOptions,
+      );
+      rendered.result.current.addFeedToStoreOrUpdateComment(
+        createCommentWithPreloadedReplies(nestedCommentCid, 1, replyCount),
+        nestedFeedOptions,
+      );
+    });
+    await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length === repliesPerPage);
+    await waitFor(
+      () => rendered.result.current.loadedFeeds[nestedFeedName]?.length === repliesPerPage,
+    );
+    act(() => rendered.result.current.incrementFeedPageNumber(feedName));
+    await waitFor(() => rendered.result.current.updatedFeeds[feedName]?.length === replyCount);
+
+    // hold the comment validation of the next replies update
+    let releaseValidation = () => {};
+    const validation = new Promise<void>((resolve) => (releaseValidation = resolve));
+    const validateCommentSpy = vi
+      .spyOn(mockAccount.pkc, "validateComment")
+      .mockImplementation(() => validation);
+    try {
+      // a newer version of a loaded reply makes the next replies update validate it
+      act(() => {
+        rendered.result.current.addFeedToStoreOrUpdateComment(
+          createCommentWithPreloadedReplies(commentCid, 0, replyCount, 1000),
+          feedOptions,
+        );
+        rendered.result.current.incrementFeedPageNumber(nestedFeedName);
+      });
+      await waitFor(() => validateCommentSpy.mock.calls.length > 0);
+
+      act(() => rendered.result.current.resetFeed(feedName));
+      releaseValidation();
+
+      await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length === repliesPerPage);
+      await waitFor(
+        () => rendered.result.current.loadedFeeds[nestedFeedName]?.length === replyCount,
+      );
+      await sleep(300);
+      expect(rendered.result.current.feedsOptions[feedName].pageNumber).toBe(1);
+      expect(rendered.result.current.loadedFeeds[feedName].length).toBe(repliesPerPage);
+      expect(rendered.result.current.loadedFeeds[nestedFeedName].length).toBe(replyCount);
+    } finally {
+      releaseValidation();
+      validateCommentSpy.mockRestore();
+    }
+  });
+
+  test("resetFeed of a nested replies feed during an update of an earlier feed loads its first page again", async () => {
+    const commentCid = "reset-nested-during-update-cid";
+    const feedOptions = { sortType: "new", commentCid, accountId: mockAccount.id, flat: true };
+    const feedName = feedOptionsToFeedName(feedOptions);
+    const nestedCommentCid = "reset-nested-during-update-nested-cid";
+    const nestedFeedOptions = {
+      sortType: "new",
+      commentCid: nestedCommentCid,
+      accountId: mockAccount.id,
+    };
+    const nestedFeedName = feedOptionsToFeedName(nestedFeedOptions);
+
+    act(() => {
+      rendered.result.current.addFeedToStoreOrUpdateComment(
+        createCommentWithPreloadedReplies(commentCid, 0, repliesPerPage * 2 + 10),
+        feedOptions,
+      );
+    });
+    await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length === repliesPerPage);
+    act(() => {
+      rendered.result.current.addFeedToStoreOrUpdateComment(
+        createCommentWithPreloadedReplies(nestedCommentCid, 1, 3),
+        nestedFeedOptions,
+      );
+    });
+    await waitFor(() => rendered.result.current.loadedFeeds[nestedFeedName]?.length === 3);
+    // the update calculates the flat feed before the nested feed
+    const feedNames = Object.keys(rendered.result.current.feedsOptions);
+    expect(feedNames.indexOf(feedName)).toBeLessThan(feedNames.indexOf(nestedFeedName));
+
+    // hold the comment validation of the flat feed's next page
+    let releaseValidation = () => {};
+    const validation = new Promise<void>((resolve) => (releaseValidation = resolve));
+    const validateCommentSpy = vi
+      .spyOn(mockAccount.pkc, "validateComment")
+      .mockImplementation(() => validation);
+    try {
+      act(() => rendered.result.current.incrementFeedPageNumber(feedName));
+      await waitFor(() => validateCommentSpy.mock.calls.length > 0);
+
+      // reset the nested feed before the held update reaches it
+      act(() => rendered.result.current.resetFeed(nestedFeedName));
+      expect(rendered.result.current.loadedFeeds[nestedFeedName]).toEqual([]);
+      releaseValidation();
+
+      await waitFor(
+        () => rendered.result.current.loadedFeeds[feedName]?.length === repliesPerPage * 2,
+      );
+      await waitFor(() => rendered.result.current.loadedFeeds[nestedFeedName]?.length === 3);
+      await sleep(300);
+      expect(rendered.result.current.loadedFeeds[feedName].length).toBe(repliesPerPage * 2);
+      expect(rendered.result.current.loadedFeeds[nestedFeedName]).toHaveLength(3);
+    } finally {
+      releaseValidation();
+      validateCommentSpy.mockRestore();
+    }
+  });
+
   test("getRepliesFirstPageSkipValidation returns first page without validation", () => {
     const subAddr = "skip-validation-sub";
     const commentCid = "skip-validation-cid";

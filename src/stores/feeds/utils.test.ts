@@ -5,6 +5,7 @@ import {
   getBufferedFeedsWithoutLoadedFeeds,
   getUpdatedFeeds,
   getFeedsCommunitiesFirstPageCids,
+  getFeedsCommunitiesPostsPagesFirstUpdatedAts,
   getFeedsCommunities,
   getAccountsBlockedAddresses,
   accountsBlockedAddressesChanged,
@@ -16,6 +17,7 @@ import {
   getFeedsCommunityKeysWithMore,
 } from "./utils";
 import accountsStore from "../accounts";
+import { commentIsValid } from "../../lib/utils";
 
 const mockAccountId = "mock-account-id";
 
@@ -1305,6 +1307,67 @@ describe("feeds utils", () => {
     });
   });
 
+  describe("feeds of a deleted account", () => {
+    const deletedAccountId = "deleted-account-id";
+    // a pkc that accepts every comment, to check that the community of a deleted account's feed
+    // isn't blocked as having invalid comments
+    const pkc = { validateComment: async () => {} };
+    const getFeedsOptions = (communityAddress: string) => ({
+      feed1: {
+        communities: toCommunities([communityAddress]),
+        sortType: "new",
+        accountId: deletedAccountId,
+        pageNumber: 1,
+        postsPerPage: 2,
+      },
+    });
+
+    beforeEach(() => {
+      // @ts-ignore
+      accountsStore.getState = () => ({ accountsComments: {}, accounts: {} });
+    });
+
+    test("getLoadedFeeds leaves the feed as it was and keeps its community valid", async () => {
+      // unique address, a blocked community stays blocked for the whole session
+      const communityAddress = "deleted-account-loaded-feed-sub";
+      const posts = [1, 2, 3].map((index) => ({
+        cid: `deleted-account-loaded-post-${index}`,
+        communityAddress,
+        timestamp: index,
+      }));
+      const loadedFeeds = { feed1: [] };
+      const result = await getLoadedFeeds(
+        getFeedsOptions(communityAddress),
+        { feed1: posts },
+        loadedFeeds,
+        { feed1: posts },
+        {},
+      );
+      expect(result).toBe(loadedFeeds);
+      expect(await commentIsValid(posts[0] as any, {}, pkc)).toBe(true);
+    });
+
+    test("getUpdatedFeeds leaves the feed as it was and keeps its community valid", async () => {
+      const communityAddress = "deleted-account-updated-feed-sub";
+      const loadedPost = {
+        cid: "deleted-account-updated-post",
+        communityAddress,
+        timestamp: 1,
+        updatedAt: 1,
+      };
+      const updatedFeeds = { feed1: [loadedPost] };
+      const result = await getUpdatedFeeds(
+        getFeedsOptions(communityAddress),
+        { feed1: [{ ...loadedPost, updatedAt: 2 }] },
+        updatedFeeds,
+        { feed1: [loadedPost] },
+        {},
+      );
+      expect(result.feed1).toBe(updatedFeeds.feed1);
+      expect(await commentIsValid(loadedPost as any, {}, pkc)).toBe(true);
+    });
+  });
+
   describe("getFeedsHaveMore", () => {
     test("continues when community address is blocked", () => {
       const feedsOptions = {
@@ -1531,6 +1594,35 @@ describe("feeds utils", () => {
       expect(cids).toContain("page-cid-1");
       expect(cids).toContain("next-cid-1");
       expect(cids).toContain("mod-cid-1");
+    });
+  });
+
+  describe("getFeedsCommunitiesPostsPagesFirstUpdatedAts", () => {
+    const getPostsPagesUpdatedAts = (posts: any[]) =>
+      getFeedsCommunitiesPostsPagesFirstUpdatedAts(
+        new Map([["s1", { address: "s1", posts: { pages: { hot: { comments: posts } } } } as any]]),
+      );
+    const posts = [
+      { cid: "post-2", updatedAt: 10 },
+      { cid: "post-1", updatedAt: 10 },
+    ];
+
+    test("changes when a post is added after the first post of a preloaded page", () => {
+      expect(getPostsPagesUpdatedAts([...posts, { cid: "post-0" }])).not.toBe(
+        getPostsPagesUpdatedAts(posts),
+      );
+    });
+
+    test("changes when a post after the first post of a preloaded page is updated", () => {
+      expect(getPostsPagesUpdatedAts([posts[0], { cid: "post-1", updatedAt: 20 }])).not.toBe(
+        getPostsPagesUpdatedAts(posts),
+      );
+    });
+
+    test("stays the same when the preloaded pages stay the same", () => {
+      expect(getPostsPagesUpdatedAts(posts.map((post) => ({ ...post })))).toBe(
+        getPostsPagesUpdatedAts(posts),
+      );
     });
   });
 

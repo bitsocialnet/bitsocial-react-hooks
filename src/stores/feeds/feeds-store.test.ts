@@ -651,6 +651,68 @@ describe("feeds store", () => {
     await new Promise((r) => setTimeout(r, 150));
   });
 
+  test("updates feeds when a single preloaded page changes past its first post", async () => {
+    const communityAddress = "community address preloaded page only";
+    const sortType = "hot";
+    const feedName = JSON.stringify([mockAccount?.id, sortType, [communityAddress]]);
+    const post = (cid: string, timestamp: number, updatedAt: number, upvoteCount = 0) => ({
+      cid,
+      communityAddress,
+      timestamp,
+      updatedAt,
+      upvoteCount,
+    });
+    // all the posts fit in the preloaded page, so the community has no page cids
+    const setCommunity = (updatedAt: number, posts: any[]) =>
+      act(() => {
+        communitiesStore.setState((state: any) => ({
+          communities: {
+            ...state.communities,
+            [communityAddress]: {
+              address: communityAddress,
+              updatedAt,
+              posts: { pages: { [sortType]: { comments: posts } } },
+            },
+          },
+        }));
+      });
+    const getPost = (feed: any[] | undefined, cid: string) =>
+      feed?.find((feedPost: any) => feedPost.cid === cid);
+
+    setCommunity(10, [post("post 2", 300, 10), post("post 1", 200, 10)]);
+    act(() => {
+      rendered.result.current.addFeedToStore(
+        feedName,
+        toCommunities([communityAddress]),
+        [communityAddress],
+        sortType,
+        mockAccount,
+      );
+    });
+    await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length === 2);
+    // community updates that leave the posts as they were, so the feeds store has seen the page
+    for (const updatedAt of [11, 12, 13]) {
+      setCommunity(updatedAt, [post("post 2", 300, 10), post("post 1", 200, 10)]);
+      await sleep(150);
+    }
+
+    // a post added after the first post of the page
+    setCommunity(20, [post("post 2", 300, 10), post("post 1", 200, 10), post("post 0", 100, 20)]);
+    await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length === 3);
+    expect(getPost(rendered.result.current.loadedFeeds[feedName], "post 0")).toBeDefined();
+
+    // a vote on a post after the first post of the page
+    setCommunity(30, [
+      post("post 2", 300, 10),
+      post("post 1", 200, 30, 5),
+      post("post 0", 100, 20),
+    ]);
+    await waitFor(
+      () => getPost(rendered.result.current.updatedFeeds[feedName], "post 1")?.upvoteCount === 5,
+    );
+    expect(getPost(rendered.result.current.updatedFeeds[feedName], "post 1").upvoteCount).toBe(5);
+  });
+
   test("resetFeed resets page to 1 and clears loaded/updated", async () => {
     const communityAddresses = ["community address reset-feed"];
     const sortType = "new";
@@ -679,6 +741,56 @@ describe("feeds store", () => {
     expect(rendered.result.current.updatedFeeds[feedName]).toEqual([]);
     expect(getCommunitySpy).toHaveBeenCalledWith({ address: communityAddresses[0] });
     getCommunitySpy.mockRestore();
+  });
+
+  test("resetFeed during a feeds update keeps the feed reset", async () => {
+    const communityAddresses = ["community address reset during update"];
+    const sortType = "new";
+    const feedName = JSON.stringify([mockAccount?.id, sortType, communityAddresses]);
+
+    act(() => {
+      rendered.result.current.addFeedToStore(
+        feedName,
+        toCommunities(communityAddresses),
+        communityAddresses,
+        sortType,
+        mockAccount,
+      );
+    });
+    await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length >= postsPerPage);
+    act(() => rendered.result.current.incrementFeedPageNumber(feedName));
+    await waitFor(() => rendered.result.current.updatedFeeds[feedName]?.length >= postsPerPage * 2);
+
+    // hold the comment validation of the next feeds update
+    let releaseValidation = () => {};
+    const validation = new Promise<void>((resolve) => (releaseValidation = resolve));
+    const validateCommentSpy = vi
+      .spyOn(mockAccount.pkc, "validateComment")
+      .mockImplementation(() => validation);
+    try {
+      // a newer version of a loaded post makes the next feeds update validate it
+      const loadedPost = rendered.result.current.loadedFeeds[feedName][0];
+      act(() => {
+        communitiesPagesStore.setState((state: any) => ({
+          comments: { ...state.comments, [loadedPost.cid]: { ...loadedPost, updatedAt: 1000 } },
+        }));
+        rendered.result.current.updateFeeds();
+      });
+      await waitFor(() => validateCommentSpy.mock.calls.length > 0);
+
+      await act(async () => {
+        await rendered.result.current.resetFeed(feedName);
+      });
+      releaseValidation();
+
+      await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length === postsPerPage);
+      await sleep(300);
+      expect(rendered.result.current.feedsOptions[feedName].pageNumber).toBe(1);
+      expect(rendered.result.current.loadedFeeds[feedName].length).toBe(postsPerPage);
+    } finally {
+      releaseValidation();
+      validateCommentSpy.mockRestore();
+    }
   });
 
   test("resetFeed refreshes publicKey-keyed communities with their original refs", async () => {
