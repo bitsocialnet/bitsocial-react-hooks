@@ -119,6 +119,112 @@ describe("accounts-store", () => {
     });
   });
 
+  describe("init with a listed account whose record is missing", () => {
+    test("unlists the missing account instead of failing to initialize", async () => {
+      await testUtils.resetDatabasesAndStores();
+      const accountId = accountsStore.getState().activeAccountId!;
+      const accountName = accountsStore.getState().accounts[accountId].name;
+      const metadata = accountsDatabase.accountsMetadataDatabase;
+      await metadata.setItem("accountIds", [accountId, "missing-account-id"]);
+      await metadata.setItem("activeAccountId", "missing-account-id");
+      await metadata.setItem("accountNamesToAccountIds", {
+        [accountName]: accountId,
+        "Missing Account": "missing-account-id",
+      });
+
+      await resetAccountsStore();
+
+      const state = accountsStore.getState();
+      expect(state.accountIds).toEqual([accountId]);
+      expect(state.activeAccountId).toBe(accountId);
+      expect(Object.keys(state.accounts)).toEqual([accountId]);
+      expect(state.accountNamesToAccountIds).toEqual({ [accountName]: accountId });
+      expect(await metadata.getItem("accountIds")).toEqual([accountId]);
+      expect(await metadata.getItem("activeAccountId")).toBe(accountId);
+      expect(await metadata.getItem("accountNamesToAccountIds")).toEqual({
+        [accountName]: accountId,
+      });
+    });
+
+    test("creates a default account when no listed account has a record", async () => {
+      await testUtils.resetDatabasesAndStores();
+      const metadata = accountsDatabase.accountsMetadataDatabase;
+      await metadata.setItem("accountIds", ["missing-account-id"]);
+      await metadata.setItem("activeAccountId", "missing-account-id");
+      await metadata.setItem("accountNamesToAccountIds", {
+        "Missing Account": "missing-account-id",
+      });
+
+      await resetAccountsStore();
+
+      const state = accountsStore.getState();
+      expect(state.accountIds).toHaveLength(1);
+      expect(state.accountIds[0]).not.toBe("missing-account-id");
+      expect(state.activeAccountId).toBe(state.accountIds[0]);
+      expect(state.accounts[state.accountIds[0]]).toBeDefined();
+    });
+
+    // simulate a tab closed during removeAccount, after it unlisted the account but before it
+    // dropped the account name and deleted the record
+    const removeAccountUntilNameUnlisted = async (account: any) => {
+      const metadata = accountsDatabase.accountsMetadataDatabase;
+      const setItem = metadata.setItem.bind(metadata);
+      const setItemSpy = vi
+        .spyOn(metadata, "setItem")
+        .mockImplementation(async (key: string, value: any) => {
+          if (key === "accountNamesToAccountIds") {
+            throw Error("tab closed");
+          }
+          return setItem(key, value);
+        });
+      try {
+        await expect(accountsDatabase.removeAccount(account)).rejects.toThrow("tab closed");
+      } finally {
+        setItemSpy.mockRestore();
+      }
+      expect(await metadata.getItem("accountIds")).not.toContain(account.id);
+      expect(await accountsDatabase.accountsDatabase.getItem(account.id)).not.toBeNull();
+    };
+
+    test("drops the name of an unlisted account so the name can be used again", async () => {
+      await testUtils.resetDatabasesAndStores();
+      await accountsStore.getState().accountsActions.createAccount("Doomed");
+      const doomedId = accountsStore.getState().accountNamesToAccountIds.Doomed;
+      await removeAccountUntilNameUnlisted(accountsStore.getState().accounts[doomedId]);
+
+      await resetAccountsStore();
+
+      const metadata = accountsDatabase.accountsMetadataDatabase;
+      expect(accountsStore.getState().accountNamesToAccountIds.Doomed).toBeUndefined();
+      expect(await metadata.getItem("accountNamesToAccountIds")).not.toHaveProperty("Doomed");
+      await accountsStore.getState().accountsActions.createAccount("Doomed");
+      const newDoomedId = accountsStore.getState().accountNamesToAccountIds.Doomed;
+      expect(newDoomedId).toBeDefined();
+      expect(newDoomedId).not.toBe(doomedId);
+      expect(accountsStore.getState().accounts[newDoomedId].name).toBe("Doomed");
+    });
+
+    test("drops the name of an unlisted account when no account is listed", async () => {
+      await testUtils.resetDatabasesAndStores();
+      const { accounts, activeAccountId, accountsActions } = accountsStore.getState();
+      await accountsActions.setAccount({ ...accounts[activeAccountId!], name: "Doomed" });
+      const removedAccount = accountsStore.getState().accounts[activeAccountId!];
+      await removeAccountUntilNameUnlisted(removedAccount);
+      expect(await accountsDatabase.accountsMetadataDatabase.getItem("accountIds")).toEqual([]);
+
+      await resetAccountsStore();
+
+      const state = accountsStore.getState();
+      expect(state.accountIds).toHaveLength(1);
+      expect(state.accountIds[0]).not.toBe(removedAccount.id);
+      expect(state.accountNamesToAccountIds.Doomed).toBeUndefined();
+      await state.accountsActions.createAccount("Doomed");
+      const newDoomedId = accountsStore.getState().accountNamesToAccountIds.Doomed;
+      expect(newDoomedId).toBeDefined();
+      expect(newDoomedId).not.toBe(removedAccount.id);
+    });
+  });
+
   describe("init edge cases", () => {
     test("IIFE returns early when BITSOCIAL_REACT_HOOKS_ACCOUNTS_STORE_INITIALIZED_ONCE is set", async () => {
       // @ts-ignore

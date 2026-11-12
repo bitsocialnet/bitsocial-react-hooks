@@ -197,17 +197,17 @@ describe("accounts-actions-internal", () => {
       const account = Object.values(accountsStore.getState().accounts)[0];
       const comment = new Comment({ cid: "cid1", author: { address: account.author.address } });
       accountsStore.setState((s) => ({
-        accountsCommentsUpdating: { ...s.accountsCommentsUpdating, cid1: true },
+        accountsCommentsUpdating: { ...s.accountsCommentsUpdating, [`${account.id}:cid1`]: true },
       }));
       await accountsActionsInternal.startUpdatingAccountCommentOnCommentUpdateEvents(
         comment,
         account,
         0,
       );
-      expect(accountsStore.getState().accountsCommentsUpdating["cid1"]).toBe(true);
+      expect(accountsStore.getState().accountsCommentsUpdating[`${account.id}:cid1`]).toBe(true);
     });
 
-    test("mapping missing or wrong accountId: cleanup removeAllListeners/stop", async () => {
+    test("account no longer has the comment: cleanup removeAllListeners/stop", async () => {
       const account = Object.values(accountsStore.getState().accounts)[0];
       const comment = new Comment({
         cid: "cid-orphan",
@@ -216,7 +216,7 @@ describe("accounts-actions-internal", () => {
       accountsStore.setState((s) => ({
         accountsComments: {
           ...s.accountsComments,
-          [account.id]: [{ cid: "cid-orphan", index: 0, accountId: account.id, timestamp: 1 }],
+          [account.id]: [],
         },
         commentCidsToAccountsComments: {},
       }));
@@ -237,7 +237,9 @@ describe("accounts-actions-internal", () => {
       await new Promise((r) => setTimeout(r, 50));
       expect(removeAllListenersSpy).toHaveBeenCalled();
       expect(stopSpy).toHaveBeenCalled();
-      expect(accountsStore.getState().accountsCommentsUpdating["cid-orphan"]).toBeUndefined();
+      expect(
+        accountsStore.getState().accountsCommentsUpdating[`${account.id}:cid-orphan`],
+      ).toBeUndefined();
     });
 
     test("removeAllListeners/stop throws: catch logs trace", async () => {
@@ -252,7 +254,7 @@ describe("accounts-actions-internal", () => {
       accountsStore.setState((s) => ({
         accountsComments: {
           ...s.accountsComments,
-          [account.id]: [{ cid: "cid-throw", index: 0, accountId: account.id, timestamp: 1 }],
+          [account.id]: [],
         },
         commentCidsToAccountsComments: {},
       }));
@@ -287,7 +289,7 @@ describe("accounts-actions-internal", () => {
       accountsStore.setState((s) => ({
         accountsComments: {
           ...s.accountsComments,
-          [account.id]: [{ cid: "cid-no-methods", index: 0, accountId: account.id, timestamp: 1 }],
+          [account.id]: [],
         },
         commentCidsToAccountsComments: {
           "cid-no-methods": { accountId: "other-id", accountCommentIndex: 0 },
@@ -305,7 +307,9 @@ describe("accounts-actions-internal", () => {
       });
 
       await new Promise((r) => setTimeout(r, 50));
-      expect(accountsStore.getState().accountsCommentsUpdating["cid-no-methods"]).toBeUndefined();
+      expect(
+        accountsStore.getState().accountsCommentsUpdating[`${account.id}:cid-no-methods`],
+      ).toBeUndefined();
       const idx = listeners.indexOf(plainComment);
       if (idx >= 0) listeners.splice(idx, 1);
     });
@@ -322,7 +326,7 @@ describe("accounts-actions-internal", () => {
       accountsStore.setState((s) => ({
         accountsComments: {
           ...s.accountsComments,
-          [account.id]: [{ cid: "cid-stop-throw", index: 0, accountId: account.id, timestamp: 1 }],
+          [account.id]: [],
         },
         commentCidsToAccountsComments: {},
       }));
@@ -338,11 +342,13 @@ describe("accounts-actions-internal", () => {
       });
 
       await new Promise((r) => setTimeout(r, 50));
-      expect(accountsStore.getState().accountsCommentsUpdating["cid-stop-throw"]).toBeUndefined();
+      expect(
+        accountsStore.getState().accountsCommentsUpdating[`${account.id}:cid-stop-throw`],
+      ).toBeUndefined();
       vi.restoreAllMocks();
     });
 
-    test("update with updatedComment.cid undefined: cleanup uses empty string key", async () => {
+    test("update with updatedComment.cid undefined: cleanup clears the comment's flag", async () => {
       const account = Object.values(accountsStore.getState().accounts)[0];
       const comment = new Comment({
         cid: "cid-undefined",
@@ -369,7 +375,9 @@ describe("accounts-actions-internal", () => {
       });
 
       await new Promise((r) => setTimeout(r, 50));
-      expect(accountsStore.getState().accountsCommentsUpdating[""]).toBeUndefined();
+      expect(
+        accountsStore.getState().accountsCommentsUpdating[`${account.id}:cid-undefined`],
+      ).toBeUndefined();
     });
 
     test("update with replyPage.comments undefined: replyPage?.comments?.length || 0 branch (110)", async () => {
@@ -514,7 +522,7 @@ describe("accounts-actions-internal", () => {
       expect(replies["reply-p1"]).toBeDefined();
     });
 
-    test("mapping wrong accountId: cleanup and return", async () => {
+    test("mapping names another account and this one no longer has the comment: cleanup and return", async () => {
       const account = Object.values(accountsStore.getState().accounts)[0];
       const comment = new Comment({
         cid: "cid-wrong",
@@ -530,7 +538,7 @@ describe("accounts-actions-internal", () => {
       accountsStore.setState((s) => ({
         accountsComments: {
           ...s.accountsComments,
-          [account.id]: [{ cid: "cid-wrong", index: 0, accountId: account.id, timestamp: 1 }],
+          [account.id]: [],
         },
         commentCidsToAccountsComments: {
           "cid-wrong": { accountId: "other-account-id", accountCommentIndex: 0 },
@@ -548,7 +556,9 @@ describe("accounts-actions-internal", () => {
       });
 
       await new Promise((r) => setTimeout(r, 50));
-      expect(accountsStore.getState().accountsCommentsUpdating["cid-wrong"]).toBeUndefined();
+      expect(
+        accountsStore.getState().accountsCommentsUpdating[`${account.id}:cid-wrong`],
+      ).toBeUndefined();
     });
 
     test("update with replies.pages undefined: uses empty object (branch 110)", async () => {
@@ -592,6 +602,63 @@ describe("accounts-actions-internal", () => {
       });
 
       await new Promise((r) => setTimeout(r, 50));
+    });
+
+    test("keeps updating a comment that two accounts hold, in both accounts", async () => {
+      // e.g. a backup of an identity imported next to the account it was exported from
+      const firstAccount = Object.values(accountsStore.getState().accounts)[0];
+      await accountsStore.getState().accountsActions.createAccount("second account");
+      const { accounts, accountNamesToAccountIds } = accountsStore.getState();
+      const secondAccount = accounts[accountNamesToAccountIds["second account"]];
+      const storedComment = {
+        cid: "shared-cid",
+        content: "shared",
+        communityAddress: "sub.eth",
+        timestamp: 1,
+        author: { address: firstAccount.author.address },
+      };
+      for (const account of [firstAccount, secondAccount]) {
+        await accountsDatabase.addAccountComment(account.id, storedComment as any);
+      }
+      accountsStore.setState((state) => ({
+        accountsComments: {
+          ...state.accountsComments,
+          [firstAccount.id]: [{ ...storedComment, index: 0, accountId: firstAccount.id }],
+          [secondAccount.id]: [{ ...storedComment, index: 0, accountId: secondAccount.id }],
+        },
+        // the cid mapping names only the last account holding the comment
+        commentCidsToAccountsComments: {
+          "shared-cid": { accountId: secondAccount.id, accountCommentIndex: 0 },
+        },
+      }));
+      const firstComment = new Comment(storedComment);
+      const secondComment = new Comment(storedComment);
+      const firstStop = vi.spyOn(firstComment, "stop");
+
+      await accountsActionsInternal.startUpdatingAccountCommentOnCommentUpdateEvents(
+        firstComment,
+        firstAccount,
+        0,
+      );
+      await accountsActionsInternal.startUpdatingAccountCommentOnCommentUpdateEvents(
+        secondComment,
+        secondAccount,
+        0,
+      );
+
+      // each comment emits one update with vote counts after comment.update()
+      await vi.waitFor(() => {
+        const { accountsComments } = accountsStore.getState();
+        expect(accountsComments[firstAccount.id][0].upvoteCount).toBe(3);
+        expect(accountsComments[secondAccount.id][0].upvoteCount).toBe(3);
+      });
+      expect(firstStop).not.toHaveBeenCalled();
+      const persistedComments = await accountsDatabase.getAccountsComments([
+        firstAccount.id,
+        secondAccount.id,
+      ]);
+      expect(persistedComments[firstAccount.id][0].upvoteCount).toBe(3);
+      expect(persistedComments[secondAccount.id][0].upvoteCount).toBe(3);
     });
 
     test("update with hasReplies and repliesAreValid: updates accountsCommentsReplies", async () => {

@@ -1259,6 +1259,255 @@ describe("accounts-actions", () => {
       ).toBeUndefined();
     });
 
+    test("deleteAccount stops the publications still pending for the deleted account", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("ToDeleteWhilePublishing");
+      });
+      const deletedAccountId =
+        accountsStore.getState().accountNamesToAccountIds["ToDeleteWhilePublishing"];
+      const publications: any[] = [];
+      const onChallengeVerification = vi.fn();
+      await act(async () => {
+        await accountsActions.publishComment(
+          {
+            communityAddress: "sub.eth",
+            content: "pending when its account is deleted",
+            onChallenge: (_challenge: any, comment: any) => publications.push(comment),
+            onChallengeVerification,
+          },
+          "ToDeleteWhilePublishing",
+        );
+        await accountsActions.publishVote(
+          {
+            communityAddress: "sub.eth",
+            commentCid: "vote when its account is deleted",
+            vote: 1,
+            onChallenge: (_challenge: any, vote: any) => publications.push(vote),
+            onChallengeVerification,
+          },
+          "ToDeleteWhilePublishing",
+        );
+      });
+      await vi.waitFor(() => expect(publications).toHaveLength(2));
+      const stops = publications.map((publication) => vi.spyOn(publication, "stop"));
+      const addAccountComment = vi.spyOn(accountsDatabase, "addAccountComment");
+      const addAccountVote = vi.spyOn(accountsDatabase, "addAccountVote");
+      try {
+        await act(async () => {
+          await accountsActions.deleteAccount("ToDeleteWhilePublishing");
+        });
+        for (const stop of stops) {
+          expect(stop).toHaveBeenCalledOnce();
+        }
+        expect(accountsStore.getState().accountsCommentsReplies[deletedAccountId]).toBeUndefined();
+
+        // a verification arriving anyway writes nothing for the deleted account
+        await act(async () => {
+          await Promise.all(
+            publications.map((publication) => publication.publishChallengeAnswers(["4"])),
+          );
+        });
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        expect(onChallengeVerification).toHaveBeenCalledTimes(2);
+        expect(addAccountComment).not.toHaveBeenCalled();
+        expect(addAccountVote).not.toHaveBeenCalled();
+        expect(accountsStore.getState().accountsComments[deletedAccountId]).toBeUndefined();
+        expect(accountsStore.getState().accountsVotes[deletedAccountId]).toBeUndefined();
+      } finally {
+        for (const spy of [...stops, addAccountComment, addAccountVote]) {
+          spy.mockRestore();
+        }
+      }
+    });
+
+    test("deleteAccount stops the publications that start while the account is being deleted", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("ToDeleteBeforePublishing");
+      });
+      const deletedAccountId =
+        accountsStore.getState().accountNamesToAccountIds["ToDeleteBeforePublishing"];
+      const deletedAccount = accountsStore.getState().accounts[deletedAccountId];
+      // both publications wait on their wordfilter community load, before anything is saved
+      let releaseCommunityLoads!: () => void;
+      const communityLoadsBlocked = new Promise<void>(
+        (resolve) => (releaseCommunityLoads = resolve),
+      );
+      const originalCreateCommunity = deletedAccount.pkc.createCommunity.bind(deletedAccount.pkc);
+      const createCommunity = vi
+        .spyOn(deletedAccount.pkc, "createCommunity")
+        .mockImplementation(async (...args: any[]) => {
+          await communityLoadsBlocked;
+          return originalCreateCommunity(...args);
+        });
+      // and continue while deleteAccount is still removing the account
+      let releaseRemoval!: () => void;
+      const removalBlocked = new Promise<void>((resolve) => (releaseRemoval = resolve));
+      const originalRemoveAccount = accountsDatabase.removeAccount.bind(accountsDatabase);
+      const removeAccount = vi
+        .spyOn(accountsDatabase, "removeAccount")
+        .mockImplementation(async (...args) => {
+          await removalBlocked;
+          return originalRemoveAccount(...args);
+        });
+      const addAccountComment = vi.spyOn(accountsDatabase, "addAccountComment");
+      const addAccountVote = vi.spyOn(accountsDatabase, "addAccountVote");
+      const onPendingComment = vi.fn();
+      const onChallenge = vi.fn();
+      try {
+        const publishCommentPromise = accountsActions.publishComment(
+          {
+            communityAddress: "sub.eth",
+            content: "started when its account is deleted",
+            onPendingComment,
+            onChallenge,
+            onChallengeVerification: () => {},
+          },
+          "ToDeleteBeforePublishing",
+        );
+        const publishVotePromise = accountsActions.publishVote(
+          {
+            communityAddress: "sub.eth",
+            commentCid: "vote started when its account is deleted",
+            vote: 1,
+            onChallenge,
+            onChallengeVerification: () => {},
+          },
+          "ToDeleteBeforePublishing",
+        );
+        await vi.waitFor(() => expect(createCommunity).toHaveBeenCalledTimes(2));
+        const deleteAccountPromise = accountsActions.deleteAccount("ToDeleteBeforePublishing");
+        await vi.waitFor(() => expect(removeAccount).toHaveBeenCalledOnce());
+
+        releaseCommunityLoads();
+        await expect(publishCommentPromise).rejects.toThrow(
+          `account '${deletedAccountId}' was deleted`,
+        );
+        await publishVotePromise;
+        releaseRemoval();
+        await act(async () => {
+          await deleteAccountPromise;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        expect(onPendingComment).not.toHaveBeenCalled();
+        expect(onChallenge).not.toHaveBeenCalled();
+        expect(addAccountComment).not.toHaveBeenCalled();
+        expect(addAccountVote).not.toHaveBeenCalled();
+        expect(accountsStore.getState().accountsComments[deletedAccountId]).toBeUndefined();
+        expect(accountsStore.getState().accountsVotes[deletedAccountId]).toBeUndefined();
+      } finally {
+        releaseCommunityLoads();
+        releaseRemoval();
+        for (const spy of [createCommunity, removeAccount, addAccountComment, addAccountVote]) {
+          spy.mockRestore();
+        }
+      }
+    });
+
+    test("deleteAccount clears the account comments after a pending comment's first save", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("ToDeleteWhileSaving");
+      });
+      const deletedAccountId =
+        accountsStore.getState().accountNamesToAccountIds["ToDeleteWhileSaving"];
+      let markSaveStarted!: () => void;
+      const saveStarted = new Promise<void>((resolve) => (markSaveStarted = resolve));
+      let releaseSave!: () => void;
+      const saveBlocked = new Promise<void>((resolve) => (releaseSave = resolve));
+      const originalAddAccountComment = accountsDatabase.addAccountComment.bind(accountsDatabase);
+      const addAccountComment = vi
+        .spyOn(accountsDatabase, "addAccountComment")
+        .mockImplementation(async (...args) => {
+          markSaveStarted();
+          await saveBlocked;
+          return originalAddAccountComment(...args);
+        });
+      const onChallenge = vi.fn();
+      try {
+        const publishPromise = accountsActions.publishComment(
+          {
+            communityAddress: "sub.eth",
+            content: "saving when its account is deleted",
+            onChallenge,
+            onChallengeVerification: () => {},
+          },
+          "ToDeleteWhileSaving",
+        );
+        await saveStarted;
+        const deleteAccountPromise = accountsActions.deleteAccount("ToDeleteWhileSaving");
+        // long enough for the account database to be cleared if deleteAccount did not wait
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        releaseSave();
+        await act(async () => {
+          await deleteAccountPromise;
+        });
+        await publishPromise;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        expect(onChallenge).not.toHaveBeenCalled();
+        expect(await accountsDatabase.getAccountComments(deletedAccountId)).toEqual([]);
+        expect(accountsStore.getState().accountsComments[deletedAccountId]).toBeUndefined();
+      } finally {
+        releaseSave();
+        addAccountComment.mockRestore();
+      }
+    });
+
+    test("deleteAccount keeps the comments and votes another account saves meanwhile", async () => {
+      await act(async () => {
+        await accountsActions.createAccount("ToDeleteWhileOtherAccountPublishes");
+      });
+      const { accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
+      const deletedAccountId = accountNamesToAccountIds["ToDeleteWhileOtherAccountPublishes"];
+      let releaseRemoval!: () => void;
+      const removalBlocked = new Promise<void>((resolve) => (releaseRemoval = resolve));
+      const originalRemoveAccount = accountsDatabase.removeAccount.bind(accountsDatabase);
+      const removeAccount = vi
+        .spyOn(accountsDatabase, "removeAccount")
+        .mockImplementation(async (...args) => {
+          await removalBlocked;
+          return originalRemoveAccount(...args);
+        });
+      try {
+        const deleteAccountPromise = accountsActions.deleteAccount(
+          "ToDeleteWhileOtherAccountPublishes",
+        );
+        await vi.waitFor(() => expect(removeAccount).toHaveBeenCalledOnce());
+        await act(async () => {
+          await accountsActions.publishComment({
+            communityAddress: "sub.eth",
+            content: "saved while another account is deleted",
+            onChallenge: () => {},
+            onChallengeVerification: () => {},
+          });
+          await accountsActions.publishVote({
+            communityAddress: "sub.eth",
+            commentCid: "voted while another account is deleted",
+            vote: 1,
+            onChallenge: () => {},
+            onChallengeVerification: () => {},
+          });
+        });
+        releaseRemoval();
+        await act(async () => {
+          await deleteAccountPromise;
+        });
+
+        const state = accountsStore.getState();
+        expect(state.accounts[deletedAccountId]).toBeUndefined();
+        expect(state.accountsComments[deletedAccountId]).toBeUndefined();
+        expect(state.accountsComments[activeAccountId].map((comment) => comment.content)).toEqual([
+          "saved while another account is deleted",
+        ]);
+        expect(
+          state.accountsVotes[activeAccountId]["voted while another account is deleted"]?.vote,
+        ).toBe(1);
+      } finally {
+        releaseRemoval();
+        removeAccount.mockRestore();
+      }
+    });
+
     test("publishComment with accountName uses named account", async () => {
       await act(async () => {
         await accountsActions.createAccount();
@@ -3280,6 +3529,44 @@ describe("accounts-actions", () => {
       );
     });
 
+    test("overlapping publishComment calls save their pending comments on separate rows", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const onPendingComment = vi.fn();
+      const publishOptions = (content: string) => ({
+        communityAddress: "sub.eth",
+        content,
+        onPendingComment,
+        onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+        onChallengeVerification: () => {},
+      });
+
+      const [firstComment, secondComment] = await Promise.all([
+        accountsActions.publishComment(publishOptions("first overlapping")),
+        accountsActions.publishComment(publishOptions("second overlapping")),
+      ]);
+
+      expect([firstComment.index, secondComment.index].sort()).toEqual([0, 1]);
+      expect(onPendingComment.mock.calls.map(([index]) => index).sort()).toEqual([0, 1]);
+      const pendingComments = accountsStore.getState().accountsComments[account.id];
+      expect(pendingComments).toHaveLength(2);
+      expect(pendingComments[firstComment.index].content).toBe("first overlapping");
+      expect(pendingComments[secondComment.index].content).toBe("second overlapping");
+
+      await vi.waitFor(() =>
+        expect(
+          accountsStore.getState().accountsComments[account.id].filter((comment) => comment.cid),
+        ).toHaveLength(2),
+      );
+      const publishedComments = accountsStore.getState().accountsComments[account.id];
+      expect(publishedComments[firstComment.index].cid).toBe("first overlapping cid");
+      expect(publishedComments[secondComment.index].cid).toBe("second overlapping cid");
+      const persistedComments = await accountsDatabase.getAccountComments(account.id);
+      expect(persistedComments.map((comment: any) => comment.content).sort()).toEqual([
+        "first overlapping",
+        "second overlapping",
+      ]);
+    });
+
     test("publishComment persists when onPendingComment throws", async () => {
       const account = Object.values(accountsStore.getState().accounts)[0];
       const callbackError = new Error("pending callback failed");
@@ -4097,6 +4384,116 @@ describe("accounts-actions", () => {
       expect(onError).not.toHaveBeenCalled();
     });
 
+    test("publishComment saves the cid of a verification that follows an error pkc-js recovered from", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      const onError = vi.fn();
+      await act(async () => {
+        await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "verified after a recovered error",
+          onChallenge: (_challenge: any, comment: any) => {
+            // e.g. a challenge message with an invalid signature: pkc-js emits an error without
+            // stopping the publication and keeps waiting for a valid challenge
+            comment.publishingState = "failed";
+            comment.emit("error", new Error("challenge signature is invalid"));
+            comment.emit("publishingstatechange", "failed");
+            comment.publishChallengeAnswers(["4"]);
+          },
+          onChallengeVerification: () => {},
+          onError,
+        });
+      });
+
+      await vi.waitFor(() =>
+        expect(accountsStore.getState().accountsComments[account.id][0].cid).toBe(
+          "verified after a recovered error cid",
+        ),
+      );
+      expect(onError).toHaveBeenCalledTimes(1);
+      const accountComment = accountsStore.getState().accountsComments[account.id][0];
+      expect(accountComment.error).toBeUndefined();
+      expect(accountComment.errors).toBeUndefined();
+      expect(
+        accountsStore.getState().commentCidsToAccountsComments[
+          "verified after a recovered error cid"
+        ],
+      ).toEqual({ accountId: account.id, accountCommentIndex: 0 });
+    });
+
+    test("publishComment saves the cid on the shifted row when an earlier comment is deleted meanwhile", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      await act(async () => {
+        await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "earlier comment",
+          onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+          onChallengeVerification: () => {},
+        });
+      });
+      await vi.waitFor(() =>
+        expect(accountsStore.getState().accountsComments[account.id][0].cid).toBeDefined(),
+      );
+
+      // hold the cid save of the later comment, and let the deletion's database write run after it
+      const originalAddAccountComment = accountsDatabase.addAccountComment.bind(accountsDatabase);
+      const originalDeleteAccountComment =
+        accountsDatabase.deleteAccountComment.bind(accountsDatabase);
+      let markCidSaveStarted!: () => void;
+      const cidSaveStarted = new Promise<void>((resolve) => (markCidSaveStarted = resolve));
+      let releaseCidSave!: () => void;
+      const cidSaveReleased = new Promise<void>((resolve) => (releaseCidSave = resolve));
+      let markCidSaved!: () => void;
+      const cidSaved = new Promise<void>((resolve) => (markCidSaved = resolve));
+      const addAccountComment = vi
+        .spyOn(accountsDatabase, "addAccountComment")
+        .mockImplementation(async (...args) => {
+          if (args[1]?.content !== "later comment" || !args[1]?.cid) {
+            return originalAddAccountComment(...args);
+          }
+          markCidSaveStarted();
+          await cidSaveReleased;
+          await originalAddAccountComment(...args);
+          markCidSaved();
+        });
+      const deleteAccountComment = vi
+        .spyOn(accountsDatabase, "deleteAccountComment")
+        .mockImplementation(async (...args) => {
+          await cidSaved;
+          return originalDeleteAccountComment(...args);
+        });
+      try {
+        await act(async () => {
+          await accountsActions.publishComment({
+            communityAddress: "sub.eth",
+            content: "later comment",
+            onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+            onChallengeVerification: () => {},
+          });
+        });
+        await cidSaveStarted;
+        const deletePromise = accountsActions.deleteComment(0);
+        releaseCidSave();
+        await act(async () => {
+          await deletePromise;
+        });
+
+        await vi.waitFor(() =>
+          expect(accountsStore.getState().accountsComments[account.id][0].cid).toBe(
+            "later comment cid",
+          ),
+        );
+        expect(accountsStore.getState().accountsComments[account.id]).toHaveLength(1);
+        expect(accountsStore.getState().commentCidsToAccountsComments["later comment cid"]).toEqual(
+          { accountId: account.id, accountCommentIndex: 0 },
+        );
+        const persistedComments = await accountsDatabase.getAccountComments(account.id);
+        expect(persistedComments.map((comment: any) => comment.cid)).toEqual(["later comment cid"]);
+      } finally {
+        addAccountComment.mockRestore();
+        deleteAccountComment.mockRestore();
+      }
+    });
+
     test("publishComment startUpdatingAccountCommentOnCommentUpdateEvents error: catch logs (line 760)", async () => {
       vi.spyOn(
         accountsActionsInternal,
@@ -4525,6 +4922,230 @@ describe("accounts-actions", () => {
       expect(
         accountsStore.getState().accountsVotes[accountId]?.["never voted cid"],
       ).toBeUndefined();
+    });
+  });
+
+  describe("failed vote publications", () => {
+    beforeEach(async () => {
+      await testUtils.resetDatabasesAndStores();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    const getAccountVote = (commentCid: string) => {
+      const { accountsVotes, activeAccountId } = accountsStore.getState();
+      return accountsVotes[activeAccountId!]?.[commentCid];
+    };
+
+    // lets each created vote be changed before it is published
+    const mockCreateVote = (changeVote: (vote: any) => void) => {
+      const account = accountsStore.getState().accounts[accountsStore.getState().activeAccountId!];
+      const originalCreateVote = account.pkc.createVote.bind(account.pkc);
+      return vi.spyOn(account.pkc, "createVote").mockImplementation(async (...args: any[]) => {
+        const vote = await originalCreateVote(...args);
+        changeVote(vote);
+        return vote;
+      });
+    };
+
+    const rejectWithChallengeErrors = (vote: any) => {
+      vote.simulateChallengeVerificationEvent = function () {
+        this.state = "stopped";
+        this.emit("challengeverification", {
+          type: "CHALLENGEVERIFICATION",
+          challengeSuccess: false,
+          challengeErrors: { 0: "wrong answer" },
+        });
+      };
+    };
+
+    const publishVote = async (commentCid: string, vote: number, onError = vi.fn()) => {
+      const votes: any[] = [];
+      await act(async () => {
+        await accountsActions.publishVote({
+          communityAddress: "sub.eth",
+          commentCid,
+          vote,
+          onChallenge: (_challenge: any, publication: any) => {
+            votes.push(publication);
+            publication.publishChallengeAnswers(["4"]);
+          },
+          onChallengeVerification: () => {},
+          onError,
+        });
+      });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return votes;
+    };
+
+    test("restores the verified vote after a later vote is rejected", async () => {
+      const accountId = accountsStore.getState().activeAccountId!;
+      await publishVote("rejected cid", 1);
+      const verifiedVote = getAccountVote("rejected cid");
+      expect(verifiedVote.vote).toBe(1);
+
+      mockCreateVote(rejectWithChallengeErrors);
+      await publishVote("rejected cid", -1);
+
+      await vi.waitFor(() => expect(getAccountVote("rejected cid")).toEqual(verifiedVote));
+      const persistedVotes = await accountsDatabase.getAccountVotes(accountId);
+      expect(persistedVotes["rejected cid"].vote).toBe(1);
+    });
+
+    test("neutralizes a rejected vote the comment did not have before", async () => {
+      mockCreateVote(rejectWithChallengeErrors);
+      await publishVote("rejected first vote cid", 1);
+
+      await vi.waitFor(() => expect(getAccountVote("rejected first vote cid").vote).toBe(0));
+      expect(getAccountVote("rejected first vote cid")._optimisticVoteTransitions).toBeUndefined();
+    });
+
+    test("restores the verified vote of a burst whose later vote was rejected first", async () => {
+      const votes: any[] = [];
+      await act(async () => {
+        await accountsActions.publishVote({
+          communityAddress: "sub.eth",
+          commentCid: "burst rejected cid",
+          vote: 1,
+          onChallenge: (_challenge: any, publication: any) => votes.push(publication),
+          onChallengeVerification: () => {},
+        });
+      });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const [firstVote] = votes;
+
+      mockCreateVote(rejectWithChallengeErrors);
+      await publishVote("burst rejected cid", -1);
+      // the first vote is still waiting on its challenge, so the burst is not over yet
+      expect(getAccountVote("burst rejected cid").vote).toBe(-1);
+
+      await act(async () => {
+        await firstVote.publishChallengeAnswers(["4"]);
+      });
+      await vi.waitFor(() => expect(getAccountVote("burst rejected cid").vote).toBe(1));
+    });
+
+    test("restores the account vote when publish() rejects", async () => {
+      mockCreateVote((vote) => {
+        vi.spyOn(vote, "publish").mockRejectedValue(new Error("community not found"));
+      });
+      const onError = vi.fn();
+      await publishVote("publish rejected cid", 1, onError);
+
+      await vi.waitFor(() => expect(getAccountVote("publish rejected cid").vote).toBe(0));
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "community not found" }),
+        expect.anything(),
+      );
+    });
+
+    test("restores the account vote after an error that stopped the publication", async () => {
+      mockCreateVote((vote) => {
+        vi.spyOn(vote, "publish").mockImplementation(async () => {
+          vote.state = "stopped";
+          vote.emit("error", new Error("all pubsub providers failed"));
+        });
+      });
+      const onError = vi.fn();
+      await publishVote("stopped error cid", 1, onError);
+
+      await vi.waitFor(() => expect(getAccountVote("stopped error cid").vote).toBe(0));
+      expect(onError).toHaveBeenCalledTimes(1);
+    });
+
+    test("keeps the vote after an error that did not stop the publication", async () => {
+      mockCreateVote((vote) => {
+        const publishChallengeAnswers = vote.publishChallengeAnswers.bind(vote);
+        vote.publishChallengeAnswers = async (...args: any[]) => {
+          // e.g. a challenge message with an invalid signature, pkc-js keeps waiting for a valid one
+          vote.emit("error", new Error("invalid challenge signature"));
+          return publishChallengeAnswers(...args);
+        };
+      });
+      const onError = vi.fn();
+      await publishVote("non-terminal error cid", 1, onError);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(onError).toHaveBeenCalledTimes(1);
+      expect(getAccountVote("non-terminal error cid").vote).toBe(1);
+    });
+
+    test("restores the account vote when the retry of a failed vote cannot be created", async () => {
+      const account = accountsStore.getState().accounts[accountsStore.getState().activeAccountId!];
+      const originalCreateVote = account.pkc.createVote.bind(account.pkc);
+      let createdVotes = 0;
+      vi.spyOn(account.pkc, "createVote").mockImplementation(async (...args: any[]) => {
+        if (++createdVotes > 1) throw new Error("retry vote not created");
+        const vote = await originalCreateVote(...args);
+        // a failed verification without challenge errors is retried
+        vote.simulateChallengeVerificationEvent = function () {
+          this.emit("challengeverification", {
+            type: "CHALLENGEVERIFICATION",
+            challengeSuccess: false,
+          });
+        };
+        return vote;
+      });
+      const onError = vi.fn();
+      await publishVote("retry not created cid", 1, onError);
+
+      await vi.waitFor(() => expect(getAccountVote("retry not created cid").vote).toBe(0));
+      expect(createdVotes).toBe(2);
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "retry vote not created" }),
+        expect.anything(),
+      );
+    });
+
+    test("restores a rejected vote when a later vote of the burst cannot be created", async () => {
+      const account = accountsStore.getState().accounts[accountsStore.getState().activeAccountId!];
+      const originalCreateVote = account.pkc.createVote.bind(account.pkc);
+      let releaseSecondVote!: () => void;
+      const secondVoteGate = new Promise<void>((resolve) => (releaseSecondVote = resolve));
+      let createdVotes = 0;
+      vi.spyOn(account.pkc, "createVote").mockImplementation(async (...args: any[]) => {
+        if (++createdVotes > 1) {
+          await secondVoteGate;
+          throw new Error("second vote not created");
+        }
+        const vote = await originalCreateVote(...args);
+        rejectWithChallengeErrors(vote);
+        return vote;
+      });
+      const votes: any[] = [];
+      await act(async () => {
+        await accountsActions.publishVote({
+          communityAddress: "sub.eth",
+          commentCid: "burst not created cid",
+          vote: 1,
+          onChallenge: (_challenge: any, publication: any) => votes.push(publication),
+          onChallengeVerification: () => {},
+        });
+      });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const [firstVote] = votes;
+      expect(getAccountVote("burst not created cid").vote).toBe(1);
+
+      const secondPublish = accountsActions.publishVote({
+        communityAddress: "sub.eth",
+        commentCid: "burst not created cid",
+        vote: -1,
+        onChallenge: () => {},
+        onChallengeVerification: () => {},
+      });
+      await vi.waitFor(() => expect(createdVotes).toBe(2));
+      // the first vote is rejected while the second one is still being created
+      await act(async () => {
+        await firstVote.publishChallengeAnswers(["4"]);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(getAccountVote("burst not created cid").vote).toBe(1);
+
+      releaseSecondVote();
+      await expect(secondPublish).rejects.toThrow("second vote not created");
+      await vi.waitFor(() => expect(getAccountVote("burst not created cid").vote).toBe(0));
     });
   });
 

@@ -621,6 +621,69 @@ describe("accounts-database", () => {
       expect(stored).toBeNull();
     });
 
+    test("unlists the account before deleting its record", async () => {
+      const acc1 = makeAccount({ id: "r1", name: "First" });
+      const acc2 = makeAccount({ id: "r2", name: "Second" });
+      await accountsDatabase.addAccount(acc1);
+      await accountsDatabase.addAccount(acc2);
+      const removeItem = accountsDatabase.accountsDatabase.removeItem.bind(
+        accountsDatabase.accountsDatabase,
+      );
+      let listedWhenRecordRemoved: string[] | null = null;
+      const removeItemSpy = vi
+        .spyOn(accountsDatabase.accountsDatabase, "removeItem")
+        .mockImplementation(async (key: string) => {
+          listedWhenRecordRemoved =
+            await accountsDatabase.accountsMetadataDatabase.getItem("accountIds");
+          return removeItem(key);
+        });
+      try {
+        await accountsDatabase.removeAccount(acc1);
+      } finally {
+        removeItemSpy.mockRestore();
+      }
+      expect(listedWhenRecordRemoved).toEqual(["r2"]);
+      expect(await accountsDatabase.accountsDatabase.getItem("r1")).toBeNull();
+    });
+
+    test("does not let an overlapping addAccount list a removed account again", async () => {
+      const acc1 = makeAccount({ id: "r1", name: "First" });
+      const acc2 = makeAccount({ id: "r2", name: "Second" });
+      await accountsDatabase.addAccount(acc1);
+      await accountsDatabase.addAccount(acc2);
+
+      // hold addAccount(acc2) on its pkc options validation, after it read the account lists
+      let markPkcRequested!: () => void;
+      const pkcRequested = new Promise<void>((resolve) => (markPkcRequested = resolve));
+      let releasePkc!: () => void;
+      const pkcReleased = new Promise<void>((resolve) => (releasePkc = resolve));
+      const OrigPkc = (await import("../../lib/pkc-js")).default.PKC;
+      setPkcJs(async (opts: any) => {
+        markPkcRequested();
+        await pkcReleased;
+        return OrigPkc(opts);
+      });
+      try {
+        const addPromise = accountsDatabase.addAccount({ ...acc2, subscriptions: ["sub.eth"] });
+        await pkcRequested;
+        const removePromise = accountsDatabase.removeAccount(acc1);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        releasePkc();
+        await Promise.all([addPromise, removePromise]);
+      } finally {
+        setPkcJs(PkcJsMock);
+      }
+
+      expect(await accountsDatabase.accountsMetadataDatabase.getItem("accountIds")).toEqual(["r2"]);
+      expect(
+        await accountsDatabase.accountsMetadataDatabase.getItem("accountNamesToAccountIds"),
+      ).toEqual({ Second: "r2" });
+      expect(await accountsDatabase.accountsDatabase.getItem("r1")).toBeNull();
+      expect((await accountsDatabase.accountsDatabase.getItem<any>("r2"))?.subscriptions).toEqual([
+        "sub.eth",
+      ]);
+    });
+
     test("cleans metadata and account-specific databases", async () => {
       const acc = makeAccount({ id: "r-clean", name: "Clean" });
       await accountsDatabase.addAccount(acc);
@@ -1486,6 +1549,28 @@ describe("accounts-database", () => {
       const comments = await accountsDatabase.getAccountComments(acc.id);
       expect(comments).toHaveLength(1);
       expect(comments[0].cid).toBe("c2");
+    });
+
+    test("comment writes called while deleteAccountComment runs apply after it", async () => {
+      const acc = makeAccount({ id: "del-overlap-acc", name: "DelOverlap" });
+      await accountsDatabase.addAccount(acc);
+      const comment = (content: string, timestamp: number) =>
+        ({ content, communityAddress: "s", timestamp, author: { address: "a" } }) as any;
+      await accountsDatabase.addAccountComment(acc.id, comment("deleted", 1));
+      await accountsDatabase.addAccountComment(acc.id, comment("kept", 2));
+
+      // the store has already moved "kept" to row 0 and appends the new comment at row 1
+      await Promise.all([
+        accountsDatabase.deleteAccountComment(acc.id, 0),
+        accountsDatabase.addAccountComment(acc.id, comment("kept and updated", 2), 0),
+        accountsDatabase.addAccountComment(acc.id, comment("appended", 3)),
+      ]);
+
+      const comments = await accountsDatabase.getAccountComments(acc.id);
+      expect(comments.map((comment: any) => comment.content)).toEqual([
+        "kept and updated",
+        "appended",
+      ]);
     });
   });
 

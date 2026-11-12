@@ -149,6 +149,28 @@ describe("account-generator", () => {
       }
     });
 
+    test("reads existing account names without creating a pkc client per account", async () => {
+      await accountsDatabase.addAccount(await accountGenerator.generateDefaultAccount());
+      await accountsDatabase.addAccount({
+        ...(await accountGenerator.generateDefaultAccount()),
+        name: "Second Account",
+      });
+      let createdPkcCount = 0;
+      const countingPkc: any = async (options: any) => {
+        createdPkcCount++;
+        return PkcJsMock(options);
+      };
+      countingPkc.getShortAddress = PkcJsMock.getShortAddress;
+      setPkcJs(countingPkc);
+      try {
+        await accountGenerator.generateDefaultAccount();
+      } finally {
+        setPkcJs(PkcJsMock);
+      }
+      // only the generated account's own client, the 2 stored accounts are never hydrated
+      expect(createdPkcCount).toBe(1);
+    });
+
     test("adds a suffix when generated short addresses collide", async () => {
       const acc1 = await accountGenerator.generateDefaultAccount();
       await accountsDatabase.addAccount(acc1);

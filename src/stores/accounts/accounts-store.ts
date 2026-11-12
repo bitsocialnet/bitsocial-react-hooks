@@ -40,7 +40,8 @@ type AccountsState = {
   accountsComments: AccountsComments;
   accountsCommentsIndexes: AccountsCommentsIndexes;
   commentCidsToAccountsComments: CommentCidsToAccountsComments;
-  accountsCommentsUpdating: { [commentCid: string]: boolean };
+  // keyed by `${accountId}:${commentCid}`
+  accountsCommentsUpdating: { [accountIdAndCommentCid: string]: boolean };
   accountsCommentsReplies: AccountsCommentsReplies;
   accountsVotes: AccountsVotes;
   accountsEdits: AccountsEdits;
@@ -76,7 +77,7 @@ const initializeAccountsStore = async () => {
   let activeAccountId: string | undefined;
   let accounts: Accounts;
   let accountNamesToAccountIds: AccountNamesToAccountIds | undefined;
-  accountIds = (await accountsDatabase.accountsMetadataDatabase.getItem("accountIds")) || undefined;
+  accountIds = (await accountsDatabase.repairAccountsMetadata()) || undefined;
   // get accounts from database if any
   if (accountIds?.length) {
     [activeAccountId, accounts, accountNamesToAccountIds] = await Promise.all<any>([

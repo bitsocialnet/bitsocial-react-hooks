@@ -343,7 +343,20 @@ const rebuildEditsTargetIndexes = (edits: any[]) => {
   return targetToIndices;
 };
 
-const addAccount = async (account: Account, options?: { returnHydratedAccount?: boolean }) => {
+// addAccount and removeAccount read the accountIds and accountNamesToAccountIds lists, await other
+// writes, then write the lists back, so they run one at a time: interleaved, one would write back a
+// list read before the other changed it, e.g. listing a removed account whose record is gone.
+let accountsMetadataMutation: Promise<unknown> = Promise.resolve();
+const queueAccountsMetadataMutation = <T>(mutation: () => Promise<T>): Promise<T> => {
+  const queuedMutation = accountsMetadataMutation.catch(() => {}).then(mutation);
+  accountsMetadataMutation = queuedMutation;
+  return queuedMutation;
+};
+
+const addAccountUnqueued = async (
+  account: Account,
+  options?: { returnHydratedAccount?: boolean },
+) => {
   validator.validateAccountsDatabaseAddAccountArguments(account);
   let [accountIds, accountNamesToAccountIds] = await Promise.all([
     accountsMetadataDatabase.getItem<string[]>("accountIds"),
@@ -429,28 +442,19 @@ const addAccount = async (account: Account, options?: { returnHydratedAccount?: 
   return hydratedAccount;
 };
 
-const removeAccount = async (account: Account) => {
+const addAccount = (account: Account, options?: { returnHydratedAccount?: boolean }) =>
+  queueAccountsMetadataMutation(() => addAccountUnqueued(account, options));
+
+const removeAccountUnqueued = async (account: Account) => {
   assert(
     account?.id && typeof account?.id === "string",
     `accountsDatabase.removeAccount invalid account.id '${account.id}'`,
   );
 
-  // handle updating accounts database
-  await accountsDatabase.removeItem(account.id);
-
-  // handle updating accountNamesToAccountIds database
-  let accountNamesToAccountIds: AccountNamesToAccountIds | null =
-    await accountsMetadataDatabase.getItem("accountNamesToAccountIds");
-  if (!accountNamesToAccountIds) {
-    accountNamesToAccountIds = {};
-  }
-  delete accountNamesToAccountIds[account.name];
-  await accountsMetadataDatabase.setItem("accountNamesToAccountIds", accountNamesToAccountIds);
-
-  // handle updating accountIds database
+  // unlist the account before deleting its record: if the tab closes in between, a record nothing
+  // lists is ignored, while a listed id without a record would fail every later load
   let accountIds: string[] | null = await accountsMetadataDatabase.getItem("accountIds");
   accountIds = (accountIds || []).filter((accountId) => accountId !== account.id);
-  await accountsMetadataDatabase.setItem("accountIds", accountIds);
 
   // handle updating activeAccountId database
   const activeAccountId = await accountsMetadataDatabase.getItem("activeAccountId");
@@ -461,6 +465,21 @@ const removeAccount = async (account: Account) => {
       await accountsMetadataDatabase.removeItem("activeAccountId");
     }
   }
+
+  // handle updating accountIds database
+  await accountsMetadataDatabase.setItem("accountIds", accountIds);
+
+  // handle updating accountNamesToAccountIds database
+  let accountNamesToAccountIds: AccountNamesToAccountIds | null =
+    await accountsMetadataDatabase.getItem("accountNamesToAccountIds");
+  if (!accountNamesToAccountIds) {
+    accountNamesToAccountIds = {};
+  }
+  delete accountNamesToAccountIds[account.name];
+  await accountsMetadataDatabase.setItem("accountNamesToAccountIds", accountNamesToAccountIds);
+
+  // handle updating accounts database
+  await accountsDatabase.removeItem(account.id);
 
   const accountCommentsDatabase = getAccountCommentsDatabase(account.id);
   await accountCommentsDatabase.clear();
@@ -474,6 +493,58 @@ const removeAccount = async (account: Account) => {
   const accountEditsDatabase = getAccountEditsDatabase(account.id);
   await accountEditsDatabase.clear();
 };
+
+const removeAccount = (account: Account) =>
+  queueAccountsMetadataMutation(() => removeAccountUnqueued(account));
+
+// Returns the listed account ids after unlisting the ones without a record and dropping the names
+// of unlisted accounts. Earlier versions could leave a listed id without a record (a tab closed
+// during removeAccount, or interleaved account writes), and getAccounts throws on it, which kept the
+// accounts store from initializing on every load. A tab closed during removeAccount after it
+// unlisted the account leaves the name mapped to the still stored record, which addAccount would
+// keep rejecting as a duplicate name.
+const repairAccountsMetadata = () =>
+  queueAccountsMetadataMutation(async () => {
+    const accountIds = (await accountsMetadataDatabase.getItem<string[]>("accountIds")) || [];
+    const storedAccounts = await Promise.all(
+      accountIds.map((accountId) => accountsDatabase.getItem(accountId)),
+    );
+    const listedAccountIds = accountIds.filter((_accountId, index) => storedAccounts[index]);
+    if (listedAccountIds.length !== accountIds.length) {
+      log.error("accountsDatabase unlisting account ids without a record", {
+        accountIds: accountIds.filter((accountId) => !listedAccountIds.includes(accountId)),
+      });
+      const activeAccountId = await accountsMetadataDatabase.getItem<string>("activeAccountId");
+      if (!activeAccountId || !listedAccountIds.includes(activeAccountId)) {
+        if (listedAccountIds.length) {
+          await accountsMetadataDatabase.setItem("activeAccountId", listedAccountIds[0]);
+        } else {
+          await accountsMetadataDatabase.removeItem("activeAccountId");
+        }
+      }
+      await accountsMetadataDatabase.setItem("accountIds", listedAccountIds);
+    }
+
+    const accountNamesToAccountIds =
+      await accountsMetadataDatabase.getItem<AccountNamesToAccountIds>("accountNamesToAccountIds");
+    const accountNamesOfUnlistedAccounts = Object.keys(accountNamesToAccountIds || {}).filter(
+      (accountName) => !listedAccountIds.includes(accountNamesToAccountIds![accountName]),
+    );
+    if (accountNamesOfUnlistedAccounts.length) {
+      log.error("accountsDatabase dropping the names of unlisted accounts", {
+        accountNames: accountNamesOfUnlistedAccounts,
+      });
+      const listedAccountNamesToAccountIds = { ...accountNamesToAccountIds };
+      for (const accountName of accountNamesOfUnlistedAccounts) {
+        delete listedAccountNamesToAccountIds[accountName];
+      }
+      await accountsMetadataDatabase.setItem(
+        "accountNamesToAccountIds",
+        listedAccountNamesToAccountIds,
+      );
+    }
+    return listedAccountIds;
+  });
 
 const accountsCommentsDatabases: any = {};
 const accountCommentsLayoutMigrations: Record<string, Promise<void> | undefined> = {};
@@ -525,7 +596,23 @@ const ensureAccountCommentsDatabaseLayout = async (accountId: string) => {
   await accountCommentsLayoutMigrations[accountId];
 };
 
-const deleteAccountComment = async (accountId: string, accountCommentIndex: number) => {
+// deleteAccountComment reads the rows, awaits, then writes them back moved down by one, and an
+// append writes at the length it read, so an account's comment writes run one at a time in call
+// order: a row written meanwhile would be overwritten or end up beyond the stored length. The
+// accounts store applies the deletion and moves its row indexes when deleteComment is called, so
+// call order matches the indexes the writes use.
+const accountCommentsMutations: Record<string, Promise<unknown> | undefined> = {};
+const queueAccountCommentsMutation = <T>(
+  accountId: string,
+  mutation: () => Promise<T>,
+): Promise<T> => {
+  const previousMutation = accountCommentsMutations[accountId] || Promise.resolve();
+  const queuedMutation = previousMutation.catch(() => {}).then(mutation);
+  accountCommentsMutations[accountId] = queuedMutation;
+  return queuedMutation;
+};
+
+const deleteAccountCommentUnqueued = async (accountId: string, accountCommentIndex: number) => {
   const accountCommentsDatabase = getAccountCommentsDatabase(accountId);
   await ensureAccountCommentsDatabaseLayout(accountId);
   const length = (await accountCommentsDatabase.getItem("length")) || 0;
@@ -545,7 +632,12 @@ const deleteAccountComment = async (accountId: string, accountCommentIndex: numb
   await Promise.all(promises);
 };
 
-const addAccountComment = async (
+const deleteAccountComment = (accountId: string, accountCommentIndex: number) =>
+  queueAccountCommentsMutation(accountId, () =>
+    deleteAccountCommentUnqueued(accountId, accountCommentIndex),
+  );
+
+const addAccountCommentUnqueued = async (
   accountId: string,
   comment: CreateCommentOptions | Comment,
   accountCommentIndex?: number,
@@ -571,6 +663,15 @@ const addAccountComment = async (
     ]);
   }
 };
+
+const addAccountComment = (
+  accountId: string,
+  comment: CreateCommentOptions | Comment,
+  accountCommentIndex?: number,
+) =>
+  queueAccountCommentsMutation(accountId, () =>
+    addAccountCommentUnqueued(accountId, comment, accountCommentIndex),
+  );
 
 const getAccountComments = async (accountId: string) => {
   const accountCommentsDatabase = getAccountCommentsDatabase(accountId);
@@ -1022,6 +1123,7 @@ const database = {
   deleteAccountComment,
   addAccount,
   removeAccount,
+  repairAccountsMetadata,
   getExportedAccountJson,
   getAccounts,
   getAccount,
