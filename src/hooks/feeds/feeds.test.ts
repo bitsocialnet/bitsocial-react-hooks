@@ -1551,6 +1551,20 @@ describe("feeds", () => {
       });
       await waitFor(() => Array.isArray(rendered.result.current.feed));
       expect(rendered.result.current.feed).toEqual([]);
+      // the loaded communities report that they do not serve the sort, unlike a feed still loading
+      await waitFor(() => rendered.result.current.communityKeysWithUnavailableSort.length === 3);
+      expect(rendered.result.current.communityKeysWithUnavailableSort).toEqual([
+        "community address 1",
+        "community address 2",
+        "community address 3",
+      ]);
+
+      rendered.rerender({
+        communityAddresses: ["community address 1", "community address 2", "community address 3"],
+        sortType: "new",
+      });
+      await waitFor(() => rendered.result.current.feed.length > 0);
+      expect(rendered.result.current.communityKeysWithUnavailableSort).toEqual([]);
     });
 
     test("serves a standard sort client-side when every post fits in the preloaded page", async () => {

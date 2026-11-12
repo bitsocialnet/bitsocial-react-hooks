@@ -15,6 +15,7 @@ import {
   getAccountsBlockedCids,
   getFeedsHaveMore,
   getFeedsCommunityKeysWithMore,
+  getFeedsCommunityKeysWithUnavailableSort,
 } from "./utils";
 import accountsStore from "../accounts";
 import { commentIsValid } from "../../lib/utils";
@@ -1554,6 +1555,66 @@ describe("feeds utils", () => {
         makeMockAccounts(),
       );
       expect(result.feed1).toBe(false);
+    });
+  });
+
+  describe("getFeedsCommunityKeysWithUnavailableSort", () => {
+    const communities = {
+      published: { address: "published", updatedAt: 1, posts: { pageCids: { sage: "sage-cid" } } },
+      "other-sort": {
+        address: "other-sort",
+        updatedAt: 1,
+        posts: { pages: { hot: { comments: [], nextCid: "hot-next" } } },
+      },
+      "client-sortable": {
+        address: "client-sortable",
+        updatedAt: 1,
+        posts: { pages: { hot: { comments: [{ cid: "post" }] } } },
+      },
+      "no-posts": { address: "no-posts", updatedAt: 1, posts: { pages: {} } },
+    };
+    const communityKeys = ["not-loaded", "published", "other-sort", "client-sortable", "no-posts"];
+    const toFeedsOptions = (options: any) =>
+      ({
+        feed1: { communities: toCommunities(communityKeys), accountId: mockAccountId, ...options },
+      }) as any;
+
+    test("lists the loaded communities that do not serve the requested sort", () => {
+      expect(
+        getFeedsCommunityKeysWithUnavailableSort(
+          toFeedsOptions({ sortType: "sage" }),
+          communities,
+          {},
+        ).feed1,
+      ).toEqual(["other-sort", "client-sortable"]);
+      expect(
+        getFeedsCommunityKeysWithUnavailableSort(
+          toFeedsOptions({ sortType: "new" }),
+          communities,
+          {},
+        ).feed1,
+      ).toEqual(["published", "other-sort"]);
+    });
+
+    test("lists nothing without a requested sort or for a mod queue feed", () => {
+      expect(
+        getFeedsCommunityKeysWithUnavailableSort(toFeedsOptions({}), communities, {}).feed1,
+      ).toEqual([]);
+      expect(
+        getFeedsCommunityKeysWithUnavailableSort(
+          toFeedsOptions({ sortType: "sage", modQueue: ["pendingApproval"] }),
+          communities,
+          {},
+        ).feed1,
+      ).toEqual([]);
+    });
+
+    test("keeps the previous array when the communities are the same", () => {
+      const feedsOptions = toFeedsOptions({ sortType: "sage" });
+      const previous = getFeedsCommunityKeysWithUnavailableSort(feedsOptions, communities, {});
+      expect(
+        getFeedsCommunityKeysWithUnavailableSort(feedsOptions, communities, previous).feed1,
+      ).toBe(previous.feed1);
     });
   });
 

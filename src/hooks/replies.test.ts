@@ -985,6 +985,7 @@ describe("replies", () => {
         "newer reply",
       ]);
       expect(rendered.result.current.hasMore).toBe(false);
+      expect(rendered.result.current.sortTypeUnavailable).toBe(false);
 
       // a custom sort the comment does not publish is still not substituted
       rendered.rerender({ comment, sortType: "customSort" });
@@ -993,6 +994,10 @@ describe("replies", () => {
           rendered.result.current.hasMore === false && rendered.result.current.replies.length === 0,
       );
       expect(rendered.result.current.replies).toEqual([]);
+      // and the empty result says why, unlike a comment that has no replies
+      expect(rendered.result.current.sortTypeUnavailable).toBe(true);
+      rendered.rerender({ comment: { ...comment, replies: undefined }, sortType: "customSort" });
+      expect(rendered.result.current.sortTypeUnavailable).toBe(false);
     });
   });
 

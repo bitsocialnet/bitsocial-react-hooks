@@ -30,6 +30,7 @@ import {
   getSortTimeframeSeconds,
   isBuiltInPostSortType,
   isPinnedFirstPostSortType,
+  isPostSortTypeUnavailable,
   resolvePostSortType,
 } from "../../lib/page-sorts";
 const log = Logger("bitsocial-react-hooks:feeds:stores");
@@ -841,6 +842,38 @@ export const getFeedsCommunityKeysWithMore = (
         : communityKeysWithMore;
   }
   return feedsCommunityKeysWithMore;
+};
+
+/**
+ * Get which loaded communities of each feed do not serve the feed's requested sort: the community
+ * publishes sorts, but not this one, and it cannot be computed from a complete preloaded page. Such
+ * a community adds nothing to the feed, which is otherwise indistinguishable from one still loading
+ * or one without posts. A community that has not loaded yet or has no posts is not listed.
+ */
+export const getFeedsCommunityKeysWithUnavailableSort = (
+  feedsOptions: FeedsOptions,
+  communities: Communities,
+  previousFeedsCommunityKeysWithUnavailableSort: { [feedName: string]: string[] },
+) => {
+  const feedsCommunityKeysWithUnavailableSort: { [feedName: string]: string[] } = {};
+  for (const feedName in feedsOptions) {
+    const { sortType, pageType } = getFeedPageOptions(feedsOptions[feedName]);
+    const communityKeysWithUnavailableSort =
+      pageType === "posts"
+        ? getFeedCommunityKeys(feedsOptions[feedName]).filter((communityKey) =>
+            isPostSortTypeUnavailable(communities[communityKey], sortType),
+          )
+        : [];
+    // keep the previous array when the data is the same to avoid rerenders
+    const previousCommunityKeysWithUnavailableSort =
+      previousFeedsCommunityKeysWithUnavailableSort[feedName];
+    feedsCommunityKeysWithUnavailableSort[feedName] =
+      previousCommunityKeysWithUnavailableSort?.toString() ===
+      communityKeysWithUnavailableSort.toString()
+        ? previousCommunityKeysWithUnavailableSort
+        : communityKeysWithUnavailableSort;
+  }
+  return feedsCommunityKeysWithUnavailableSort;
 };
 
 // get all communities pages cids of all feeds, use to check if a communitiesStore change should trigger updateFeeds
