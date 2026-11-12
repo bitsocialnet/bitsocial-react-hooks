@@ -276,4 +276,153 @@ describe("pkc-rpc", () => {
       vi.useRealTimers();
     }
   });
+
+  test("usePkcRpcSettings shows the rpc state that changed after a save, not the state at save time", async () => {
+    const rendered = renderHook<any, any>(() => usePkcRpcSettings());
+    const waitFor = testUtils.createWaitFor(rendered);
+    await waitFor(() => rendered.result.current.state === "connected");
+    const { accounts, activeAccountId } = accountsStore.getState();
+    const account = accounts[activeAccountId || ""];
+    const rpc = Object.values(account?.pkc?.clients?.pkcRpcClients || {})[0] as any;
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        await rendered.result.current.setPkcRpcSettings({ challenges: {} });
+      });
+      expect(rendered.result.current.state).toBe("succeeded");
+
+      // the rpc disconnects before the save result is cleared
+      await act(async () => {
+        rpc.state = "failed";
+        rpc.emit("statechange", "failed");
+      });
+      expect(rendered.result.current.state).toBe("failed");
+      await act(async () => {
+        vi.advanceTimersByTime(10010);
+      });
+      expect(rendered.result.current.state).toBe("failed");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("usePkcRpcSettings keeps the latest save result for its whole display time", async () => {
+    const rendered = renderHook<any, any>(() => usePkcRpcSettings());
+    const waitFor = testUtils.createWaitFor(rendered);
+    await waitFor(() => rendered.result.current.state === "connected");
+    const { accounts, activeAccountId } = accountsStore.getState();
+    const account = accounts[activeAccountId || ""];
+    const rpc = Object.values(account?.pkc?.clients?.pkcRpcClients || {})[0] as any;
+    const origSet = rpc.setSettings;
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        await rendered.result.current.setPkcRpcSettings({ challenges: {} });
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(6000);
+      });
+      rpc.setSettings = () => Promise.reject(new Error("setSettings failed"));
+      await act(async () => {
+        await rendered.result.current.setPkcRpcSettings({ challenges: {} });
+      });
+      expect(rendered.result.current.state).toBe("failed");
+
+      // the first save's timer must not cut the second save's result short
+      await act(async () => {
+        vi.advanceTimersByTime(6000);
+      });
+      expect(rendered.result.current.state).toBe("failed");
+      await act(async () => {
+        vi.advanceTimersByTime(4010);
+      });
+      expect(rendered.result.current.state).toBe("connected");
+    } finally {
+      rpc.setSettings = origSet;
+      vi.useRealTimers();
+    }
+  });
+
+  test("usePkcRpcSettings resets when the account has no rpc client anymore", async () => {
+    const rpcClient = {
+      settings: { challenges: { "first-account-challenge": {} } },
+      state: "connected",
+      on: () => {},
+      removeListener: () => {},
+    };
+    let account: any = {
+      id: "account-with-rpc",
+      pkc: { clients: { pkcRpcClients: { "http://x": rpcClient } } },
+    };
+    vi.spyOn(accountsHooks, "useAccount").mockImplementation(() => account);
+    try {
+      const rendered = renderHook<any, any>(() => usePkcRpcSettings());
+      await act(async () => {});
+      expect(rendered.result.current.state).toBe("connected");
+      expect(rendered.result.current.pkcRpcSettings).toBeDefined();
+
+      account = { id: "account-without-rpc", pkc: { clients: { pkcRpcClients: {} } } };
+      rendered.rerender(undefined);
+      await act(async () => {});
+      expect(rendered.result.current.state).toBe("initializing");
+      expect(rendered.result.current.pkcRpcSettings).toBe(undefined);
+    } finally {
+      vi.mocked(accountsHooks.useAccount).mockRestore();
+    }
+  });
+
+  test("usePkcRpcSettings ignores saves that finish after the rpc client changed", async () => {
+    let resolveFirstSave: () => void = () => {};
+    let rejectSecondSave: (error: Error) => void = () => {};
+    const firstRpcClient = {
+      settings: { challenges: {} },
+      state: "connected",
+      on: () => {},
+      removeListener: () => {},
+      setSettings: vi
+        .fn()
+        .mockImplementationOnce(() => new Promise<void>((resolve) => (resolveFirstSave = resolve)))
+        .mockImplementationOnce(
+          () => new Promise<void>((_, reject) => (rejectSecondSave = reject)),
+        ),
+    };
+    const secondRpcClient = {
+      settings: { challenges: {} },
+      state: "connecting",
+      on: () => {},
+      removeListener: () => {},
+    };
+    let account: any = {
+      id: "first-account",
+      pkc: { clients: { pkcRpcClients: { "http://first": firstRpcClient } } },
+    };
+    vi.spyOn(accountsHooks, "useAccount").mockImplementation(() => account);
+    try {
+      const rendered = renderHook<any, any>(() => usePkcRpcSettings());
+      await act(async () => {});
+      expect(rendered.result.current.state).toBe("connected");
+      const saves = [
+        rendered.result.current.setPkcRpcSettings({ challenges: {} }),
+        rendered.result.current.setPkcRpcSettings({ challenges: {} }),
+      ];
+
+      account = {
+        id: "second-account",
+        pkc: { clients: { pkcRpcClients: { "http://second": secondRpcClient } } },
+      };
+      rendered.rerender(undefined);
+      await act(async () => {});
+      expect(rendered.result.current.state).toBe("connecting");
+
+      await act(async () => {
+        resolveFirstSave();
+        rejectSecondSave(new Error("first account save failed"));
+        await Promise.all(saves);
+      });
+      expect(rendered.result.current.state).toBe("connecting");
+      expect(rendered.result.current.error).toBe(undefined);
+    } finally {
+      vi.mocked(accountsHooks.useAccount).mockRestore();
+    }
+  });
 });

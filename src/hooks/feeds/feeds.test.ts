@@ -251,6 +251,56 @@ describe("feeds", () => {
       );
     });
 
+    test("a loadMore before the current page has loaded doesn't leave an error", async () => {
+      rendered.rerender({ communityAddresses: ["community address 1"] });
+      await waitFor(() => rendered.result.current.feed.length >= postsPerPage);
+
+      // infinite scroll calls loadMore again before the next page has loaded
+      await act(async () => {
+        await Promise.all([rendered.result.current.loadMore(), rendered.result.current.loadMore()]);
+      });
+      await waitFor(() => rendered.result.current.feed.length >= postsPerPage * 2);
+      expect(rendered.result.current.error).toBe(undefined);
+      expect(rendered.result.current.errors).toEqual([]);
+    });
+
+    test("errors of a previous feed are not reported for the current feed", async () => {
+      rendered.rerender({
+        communityAddresses: ["community address 1"],
+        accountName: "nonexistent-account-xyz",
+      });
+      // concurrent failures are all kept
+      await act(async () => {
+        await Promise.all([rendered.result.current.loadMore(), rendered.result.current.reset()]);
+      });
+      expect(rendered.result.current.errors.length).toBe(2);
+
+      rendered.rerender({ communityAddresses: ["community address 1"] });
+      expect(rendered.result.current.error).toBe(undefined);
+      expect(rendered.result.current.errors).toEqual([]);
+
+      // going back to the previous feed doesn't bring its old errors back
+      rendered.rerender({
+        communityAddresses: ["community address 1"],
+        accountName: "nonexistent-account-xyz",
+      });
+      expect(rendered.result.current.error).toBe(undefined);
+      expect(rendered.result.current.errors).toEqual([]);
+
+      // nor an error that landed after the feed changed
+      const lateLoadMore = rendered.result.current.loadMore();
+      rendered.rerender({ communityAddresses: ["community address 1"] });
+      await act(async () => {
+        await lateLoadMore;
+      });
+      rendered.rerender({
+        communityAddresses: ["community address 1"],
+        accountName: "nonexistent-account-xyz",
+      });
+      expect(rendered.result.current.error).toBe(undefined);
+      expect(rendered.result.current.errors).toEqual([]);
+    });
+
     test("not yet loaded feed hasMore true", async () => {
       expect(rendered.result.current.hasMore).toBe(false);
       rendered.rerender({ communityAddresses: ["community address 1"] });

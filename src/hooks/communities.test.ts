@@ -1022,6 +1022,146 @@ describe("communities", () => {
       resolveSpy.mockRestore();
       vi.useRealTimers();
     });
+
+    test("useResolvedCommunityAddress only reports the result of the current address", async () => {
+      const releases: { [address: string]: (resolved: string) => void } = {};
+      const resolveSpy = vi
+        .spyOn(chain, "resolveEnsTxtRecord")
+        .mockImplementation(
+          (address: string) => new Promise((resolve) => (releases[address] = resolve)),
+        );
+      try {
+        const rendered = renderHook<any, any>((communityAddress) =>
+          useResolvedCommunityAddress({ communityAddress, cache: false }),
+        );
+        rendered.rerender("first.eth");
+        await act(async () => {});
+        rendered.rerender("second.eth");
+        await act(async () => {});
+        expect(releases["second.eth"]).toBeDefined();
+
+        // the first address resolves after the address changed
+        await act(async () => {
+          releases["first.eth"]("first-resolved");
+        });
+        expect(rendered.result.current.resolvedAddress).toBe(undefined);
+        expect(rendered.result.current.state).toBe("resolving");
+
+        await act(async () => {
+          releases["second.eth"]("second-resolved");
+        });
+        expect(rendered.result.current.resolvedAddress).toBe("second-resolved");
+        expect(rendered.result.current.state).toBe("succeeded");
+
+        // a new address doesn't report the previous address's result while it resolves
+        rendered.rerender("third.eth");
+        await act(async () => {});
+        expect(rendered.result.current.resolvedAddress).toBe(undefined);
+        expect(rendered.result.current.state).toBe("resolving");
+      } finally {
+        resolveSpy.mockRestore();
+      }
+    });
+
+    test("useResolvedCommunityAddress never renders the previous address's result for a new address", async () => {
+      const resolveSpy = vi
+        .spyOn(chain, "resolveEnsTxtRecord")
+        .mockImplementation((address: string) => {
+          if (address === "first.eth") {
+            return Promise.resolve("first-resolved");
+          }
+          if (address === "second.eth") {
+            return Promise.reject(new Error("name not registered"));
+          }
+          return new Promise(() => {});
+        });
+      try {
+        const renders: {
+          communityAddress?: string;
+          resolvedAddress?: string;
+          state: string;
+          error?: Error;
+        }[] = [];
+        const rendered = renderHook<any, any>((communityAddress) => {
+          const result = useResolvedCommunityAddress({ communityAddress, cache: false });
+          const { resolvedAddress, state, error } = result;
+          renders.push({ communityAddress, resolvedAddress, state, error });
+          return result;
+        });
+        const waitFor = testUtils.createWaitFor(rendered);
+        rendered.rerender("first.eth");
+        await waitFor(() => rendered.result.current.state === "succeeded");
+
+        rendered.rerender("second.eth");
+        await waitFor(() => rendered.result.current.state === "failed");
+        const secondAddressRenders = renders.filter(
+          ({ communityAddress }) => communityAddress === "second.eth",
+        );
+        expect(secondAddressRenders.length).toBeGreaterThan(1);
+        for (const render of secondAddressRenders) {
+          expect(render.resolvedAddress).toBe(undefined);
+          expect(render.state).not.toBe("succeeded");
+        }
+
+        rendered.rerender("third.eth");
+        await act(async () => {});
+        expect(rendered.result.current.state).toBe("resolving");
+        const thirdAddressRenders = renders.filter(
+          ({ communityAddress }) => communityAddress === "third.eth",
+        );
+        for (const render of thirdAddressRenders) {
+          expect(render.error).toBe(undefined);
+          expect(render.state).not.toBe("failed");
+        }
+      } finally {
+        resolveSpy.mockRestore();
+      }
+    });
+
+    test("useResolvedCommunityAddress keeps its result while polling and clears a recovered error", async () => {
+      vi.useFakeTimers();
+      let resolveCalls = 0;
+      const resolveSpy = vi.spyOn(chain, "resolveEnsTxtRecord").mockImplementation(() => {
+        resolveCalls++;
+        if (resolveCalls === 1) {
+          return Promise.reject(new Error("name not registered"));
+        }
+        if (resolveCalls === 2) {
+          return Promise.resolve("resolved");
+        }
+        // the next poll never finishes
+        return new Promise(() => {});
+      });
+      try {
+        const rendered = renderHook<any, any>(() =>
+          useResolvedCommunityAddress({ communityAddress: "polled.eth", cache: false }),
+        );
+        await act(async () => {});
+        expect(rendered.result.current.state).toBe("failed");
+        expect(rendered.result.current.error?.message).toBe("name not registered");
+
+        // the next poll succeeds
+        await act(async () => {
+          vi.advanceTimersByTime(15000);
+        });
+        expect(resolveCalls).toBe(2);
+        expect(rendered.result.current.state).toBe("succeeded");
+        expect(rendered.result.current.resolvedAddress).toBe("resolved");
+        expect(rendered.result.current.error).toBe(undefined);
+        expect(rendered.result.current.errors).toEqual([]);
+
+        // a background poll doesn't go back to 'resolving'
+        await act(async () => {
+          vi.advanceTimersByTime(15000);
+        });
+        expect(resolveCalls).toBe(3);
+        expect(rendered.result.current.state).toBe("succeeded");
+        expect(rendered.result.current.resolvedAddress).toBe("resolved");
+      } finally {
+        resolveSpy.mockRestore();
+        vi.useRealTimers();
+      }
+    });
   });
 
   test("resolveCommunityAddress throw for non-.eth", async () => {

@@ -26,6 +26,7 @@ import {
 import { serializeFeedKey } from "../../lib/serialize-feed-key";
 
 let feedAutoUpdateSubscriptionCount = 0;
+const emptyErrors: Error[] = [];
 
 /**
  * @param communities - The communities to fetch, e.g. [{name: 'memes.eth'}, {publicKey: '12D3KooW...'}]
@@ -88,7 +89,18 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
     accountComments,
     modQueue,
   );
-  const [errors, setErrors] = useState<Error[]>([]);
+  // errors belong to the feed they happened in, another feed starts without them. Drop them when
+  // the feed changes (or when one lands after it changed) so they don't return with the old feed
+  const [feedErrors, setFeedErrors] = useState<{ feedName: string; errors: Error[] }>();
+  if (feedErrors && feedErrors.feedName !== feedName) {
+    setFeedErrors(undefined);
+  }
+  const errors = feedErrors?.feedName === feedName ? feedErrors.errors : emptyErrors;
+  const addError = (error: Error) =>
+    setFeedErrors((previous) => ({
+      feedName,
+      errors: previous?.feedName === feedName ? [...previous.errors, error] : [error],
+    }));
   const communityKeysWithNewerPosts = useFeedsStore(
     (state) => state.feedsCommunityKeysWithNewerPosts[feedName],
   );
@@ -144,11 +156,18 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
       if (!uniqueCommunityRefs.length || !account) {
         throw Error("useFeed cannot load more feed not initalized yet");
       }
-      incrementFeedPageNumber(feedName);
+      try {
+        incrementFeedPageNumber(feedName);
+      } catch (error) {
+        // infinite scroll calls loadMore before the feed or its current page has loaded, the
+        // store refuses the page increment and that isn't a feed error
+        log("useFeed loadMore before the feed page loaded", { feedName, error });
+        await new Promise((r) => setTimeout(r, 50));
+      }
     } catch (e: any) {
       // wait 100 ms so infinite scroll doesn't spam this function
       await new Promise((r) => setTimeout(r, 50));
-      setErrors([...errors, e]);
+      addError(e);
     }
   };
 
@@ -161,7 +180,7 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
     } catch (e: any) {
       // wait 100 ms so infinite scroll doesn't spam this function
       await new Promise((r) => setTimeout(r, 50));
-      setErrors([...errors, e]);
+      addError(e);
     }
   };
 
@@ -173,7 +192,7 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
       expandFeedTimeWindow(feedName, nextNewerThan);
     } catch (e: any) {
       await new Promise((r) => setTimeout(r, 50));
-      setErrors([...errors, e]);
+      addError(e);
     }
   };
 

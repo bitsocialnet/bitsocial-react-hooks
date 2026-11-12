@@ -2058,6 +2058,41 @@ describe("comments", () => {
       await testUtils.resetDatabasesAndStores();
     });
 
+    test("doesn't report the previous comment's verdict for a new comment", async () => {
+      const { accounts, activeAccountId } = accountsStore.getState();
+      const pkc = accounts[activeAccountId || ""].pkc as any;
+      const origValidate = pkc.validateComment;
+      let releaseSlowComment = () => {};
+      pkc.validateComment = (comment: any) => {
+        if (comment.cid === "valid comment cid") {
+          return Promise.resolve();
+        }
+        if (comment.cid === "invalid comment cid") {
+          return Promise.reject(Error("invalid signature"));
+        }
+        return new Promise<void>((resolve) => (releaseSlowComment = resolve));
+      };
+      try {
+        rendered.rerender({ comment: { cid: "valid comment cid", communityAddress: "c1" } });
+        await waitFor(() => rendered.result.current.state === "succeeded");
+
+        // a new comment starts unvalidated
+        rendered.rerender({ comment: { cid: "slow comment cid", communityAddress: "c2" } });
+        expect(rendered.result.current.state).toBe("initializing");
+
+        // the slower validation of the previous comment doesn't overwrite the current verdict
+        rendered.rerender({ comment: { cid: "invalid comment cid", communityAddress: "c3" } });
+        await waitFor(() => rendered.result.current.state === "failed");
+        await act(async () => {
+          releaseSlowComment();
+        });
+        expect(rendered.result.current.state).toBe("failed");
+        expect(rendered.result.current.valid).toBe(false);
+      } finally {
+        pkc.validateComment = origValidate;
+      }
+    });
+
     test("is valid", async () => {
       expect(rendered.result.current.valid).toBe(false);
       expect(rendered.result.current.state).toBe("initializing");

@@ -53,8 +53,6 @@ export function useReplies(options?: UseRepliesOptions): UseRepliesResult {
     filter,
   );
 
-  const [errors, setErrors] = useState<Error[]>([]);
-
   // add replies to store
   const account = useAccount({ accountName });
   const accountVotes = useAccountsStore((state: any) =>
@@ -74,6 +72,24 @@ export function useReplies(options?: UseRepliesOptions): UseRepliesResult {
     streamPage,
   };
   const repliesFeedName = feedOptionsToFeedName(feedOptions);
+
+  // errors belong to the replies feed they happened in, another feed starts without them. Drop them
+  // when the feed changes (or when one lands after it changed) so they don't return with the old
+  // feed. The comment's postCid only fills in once it loads, that doesn't make it another feed
+  const errorsFeedName = feedOptionsToFeedName({ ...feedOptions, postCid: undefined });
+  const [feedErrors, setFeedErrors] = useState<{ feedName: string; errors: Error[] }>();
+  if (feedErrors && feedErrors.feedName !== errorsFeedName) {
+    setFeedErrors(undefined);
+  }
+  const errors = feedErrors?.feedName === errorsFeedName ? feedErrors.errors : emptyArray;
+  const addError = (error: Error) =>
+    setFeedErrors((previous) => ({
+      feedName: errorsFeedName,
+      errors: appendErrorToErrors(
+        previous?.feedName === errorsFeedName ? previous.errors : emptyArray,
+        error,
+      ),
+    }));
   const addFeedToStoreOrUpdateComment = useRepliesStore(
     (state: RepliesState) => state.addFeedToStoreOrUpdateComment,
   );
@@ -115,10 +131,17 @@ export function useReplies(options?: UseRepliesOptions): UseRepliesResult {
       if (!comment?.cid || !account) {
         throw Error("useReplies cannot load more replies not initalized yet");
       }
-      incrementFeedPageNumber(repliesFeedName);
+      try {
+        incrementFeedPageNumber(repliesFeedName);
+      } catch (error) {
+        // infinite scroll calls loadMore before the replies feed or its current page has loaded,
+        // the store refuses the page increment and that isn't a replies error
+        log("useReplies loadMore before the replies page loaded", { repliesFeedName, error });
+        await new Promise((r) => setTimeout(r, 50));
+      }
     } catch (e: any) {
       await new Promise((r) => setTimeout(r, 50));
-      setErrors(appendErrorToErrors(errors, e));
+      addError(e);
     }
   };
 
@@ -131,7 +154,7 @@ export function useReplies(options?: UseRepliesOptions): UseRepliesResult {
       resetFeed(repliesFeedName);
     } catch (e: any) {
       await new Promise((r) => setTimeout(r, 50));
-      setErrors(appendErrorToErrors(errors, e));
+      addError(e);
     }
   };
 

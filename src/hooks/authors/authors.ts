@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import useInterval from "../utils/use-interval";
 import { useAccount } from "../accounts";
 import Logger from "@pkcprotocol/pkc-logger";
@@ -307,9 +307,15 @@ export function useAuthorAddress(options?: UseAuthorAddressOptions): UseAuthorAd
   const account = useAccount({ accountName });
   const protocolClient = getProtocolClient(account);
   const isCryptoName = !!comment?.author?.address?.includes?.(".");
-  const [resolvedAddress, setResolvedAddress] = useState<string | undefined>(
-    isCryptoName ? resolvedAuthorAddressCache.get(comment?.author?.address) : undefined,
-  );
+  // keep the name with its resolved address, a resolution only verifies the name it was made for
+  const [resolved, setResolved] = useState<{ name: string; address: string }>();
+  let resolvedAddress: string | undefined;
+  if (isCryptoName) {
+    resolvedAddress =
+      resolved?.name === comment?.author?.address
+        ? resolved?.address
+        : resolvedAuthorAddressCache.get(comment?.author?.address);
+  }
   const signerAddress = usePkcAddress(isCryptoName ? comment?.signature?.publicKey : undefined);
 
   // useful for triggering css animation when the address changes from unverified to verified
@@ -336,14 +342,25 @@ export function useAuthorAddress(options?: UseAuthorAddressOptions): UseAuthorAd
       resolvedAuthorAddressCache.set(addr, res);
       return res;
     };
+    let cancelled = false;
     resolveAuthorAddress()
       .then((_resolvedAddress: string) => {
+        if (cancelled) {
+          return;
+        }
+        setResolved((previous) =>
+          previous && previous.name === addr && previous.address === _resolvedAddress
+            ? previous
+            : { name: addr, address: _resolvedAddress },
+        );
         if (_resolvedAddress !== resolvedAddress) {
-          setResolvedAddress(_resolvedAddress);
           setAuthorAddressChanged(true);
         }
       })
       .catch((error: any) => log.error("useAuthorAddress error", { error, comment }));
+    return () => {
+      cancelled = true;
+    };
   }, [protocolClient, comment?.author?.address, isCryptoName]);
 
   // use signer address by default
@@ -394,6 +411,7 @@ export function useAuthorAddress(options?: UseAuthorAddressOptions): UseAuthorAd
 // TODO: figure out how to upgrade to quick-lru 6+ to use maxAge
 const resolvedAuthorAddressCache = new QuickLRU<string, string>({ maxSize: 1000 });
 const resolveAuthorAddressPromises: { [address: string]: Promise<string> } = {};
+const emptyErrors: Error[] = [];
 
 /** For tests: reset caches to make resolution paths deterministic. */
 export function resetAuthorAddressCacheForTesting() {
@@ -445,6 +463,10 @@ export function useResolvedAuthorAddress(
   const [errors, setErrors] = useState<Error[]>([]);
   const [state, setState] = useState<string>();
   const [activeNameResolverKey, setActiveNameResolverKey] = useState<string>();
+  // the name that resolvedAddress, state and errors belong to: the ref for completions that land
+  // later, the state for rendering because it updates in the same render as the result
+  const resultName = useRef<string | undefined>(undefined);
+  const [renderedResultName, setRenderedResultName] = useState<string>();
 
   let initialState = "initializing";
   // before those defined, nothing can happen
@@ -539,6 +561,8 @@ export function useResolvedAuthorAddress(
     () => {
       // no options, do nothing or reset
       if (!account || !author?.address) {
+        resultName.current = undefined;
+        setRenderedResultName(undefined);
         if (resolvedAddress !== undefined) {
           setResolvedAddress(undefined);
         }
@@ -554,9 +578,21 @@ export function useResolvedAuthorAddress(
         return;
       }
 
+      // a new name starts without the result of the previous name
+      const name = author.address;
+      let currentState = state;
+      if (resultName.current !== name) {
+        resultName.current = name;
+        setRenderedResultName(name);
+        currentState = undefined;
+        setResolvedAddress(undefined);
+        setErrors((previousErrors) => (previousErrors.length ? [] : previousErrors));
+        setState(undefined);
+      }
+
       // address isn't a crypto domain, can't be resolved
       if (!isCryptoName) {
-        if (state !== "failed") {
+        if (currentState !== "failed") {
           setErrors([Error("not a crypto domain")]);
           setState("failed");
           setResolvedAddress(undefined);
@@ -566,7 +602,7 @@ export function useResolvedAuthorAddress(
       }
 
       if (!configuredNameResolvers.length) {
-        if (state !== "failed") {
+        if (currentState !== "failed") {
           setErrors([Error("crypto domain type unsupported")]);
           setState("failed");
           setResolvedAddress(undefined);
@@ -580,21 +616,30 @@ export function useResolvedAuthorAddress(
           setActiveNameResolverKey(
             (previousResolverKey) => previousResolverKey || configuredNameResolvers[0]?.key,
           );
-          setState("resolving");
+          // later polls keep reporting the current result instead of going back to resolving
+          if (!currentState) {
+            setState("resolving");
+          }
           let res;
           if (cache) {
             res = await resolveAuthorAddress();
           } else {
             res = await resolveAuthorAddressNoCache();
           }
+          // the name changed while resolving
+          if (resultName.current !== name) {
+            return;
+          }
           setState("succeeded");
+          setErrors((previousErrors) => (previousErrors.length ? [] : previousErrors));
 
           // TODO: check if resolved address is the same as author.signer.publicKey
 
-          if (res !== resolvedAddress) {
-            setResolvedAddress(res);
-          }
+          setResolvedAddress(res);
         } catch (error: any) {
+          if (resultName.current !== name) {
+            return;
+          }
           setErrors((previousErrors) => [...previousErrors, error]);
           setState("failed");
           setResolvedAddress(undefined);
@@ -627,15 +672,17 @@ export function useResolvedAuthorAddress(
     nameResolver,
   });
 
+  // until the interval has run for a new name, the stored result is the previous name's
+  const isCurrentResult = renderedResultName === author?.address;
   return useMemo(
     () => ({
-      resolvedAddress,
+      resolvedAddress: isCurrentResult ? resolvedAddress : undefined,
       chainProvider,
       nameResolver,
-      state: state || initialState,
-      error: errors[errors.length - 1],
-      errors,
+      state: (isCurrentResult && state) || initialState,
+      error: isCurrentResult ? errors[errors.length - 1] : undefined,
+      errors: isCurrentResult ? errors : emptyErrors,
     }),
-    [resolvedAddress, chainProvider, nameResolver, state, errors],
+    [isCurrentResult, resolvedAddress, chainProvider, nameResolver, state, errors],
   );
 }
