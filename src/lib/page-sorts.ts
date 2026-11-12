@@ -239,3 +239,41 @@ export const getReplyPageSortType = (
   requestedSortType?: string,
 ): string | undefined =>
   getPageSortTypeToRead(comment?.replies, resolveReplySortType(comment, requestedSortType));
+
+// whether a sort puts pinned comments first. A community configured with `settings.pages` publishes
+// every sort's reserved options in `community.pageSorts`, so `pinnedFirst: "false"` (pinned comments
+// ranked and filtered like any other) is readable from the record; pkc-js defaults it to "true", which
+// is also what an unconfigured community, publishing no `pageSorts`, has always done. A sort the
+// client computes from another sort's complete page follows that page's placement when the community
+// published nothing about the requested sort.
+const isPinnedFirstPageSortType = (
+  community: Community | undefined,
+  scope: "posts" | "replies",
+  sortType: string | undefined,
+  pageSortType: string | undefined,
+): boolean => {
+  const publishedPageSorts = community?.pageSorts?.[scope];
+  const publishedPageSort =
+    (sortType !== undefined ? publishedPageSorts?.[sortType] : undefined) ??
+    (pageSortType !== undefined ? publishedPageSorts?.[pageSortType] : undefined);
+  const pinnedFirst = publishedPageSort?.publicOptions?.pinnedFirst;
+  return !(typeof pinnedFirst === "string" && pinnedFirst.trim().toLowerCase() === "false");
+};
+
+export const isPinnedFirstPostSortType = (
+  community: Community | undefined,
+  sortType?: string,
+): boolean =>
+  isPinnedFirstPageSortType(community, "posts", sortType, getPostPageSortType(community, sortType));
+
+export const isPinnedFirstReplySortType = (
+  community: Community | undefined,
+  comment: Comment | undefined,
+  sortType?: string,
+): boolean =>
+  isPinnedFirstPageSortType(
+    community,
+    "replies",
+    sortType,
+    getReplyPageSortType(comment, sortType),
+  );

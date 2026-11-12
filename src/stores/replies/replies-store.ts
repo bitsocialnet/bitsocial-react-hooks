@@ -15,6 +15,7 @@ import {
 import createStore from "zustand";
 import localForageLru from "../../lib/localforage-lru";
 import accountsStore from "../accounts";
+import communitiesStore from "../communities";
 import repliesCommentsStore from "./replies-comments-store";
 import repliesPagesStore from "../replies-pages";
 import { serializeFeedKey } from "../../lib/serialize-feed-key";
@@ -322,6 +323,7 @@ const repliesStore = createStore<RepliesState>((setState: Function, getState: Fu
         comments,
         repliesPages,
         accounts,
+        communitiesStore.getState().communities,
       );
       const bufferedFeedsWithoutPreviousLoadedFeeds = getBufferedFeedsWithoutLoadedFeeds(
         filteredSortedFeeds,
@@ -635,6 +637,7 @@ export const getRepliesFirstPageSkipValidation = (
     comments,
     repliesPages,
     accounts,
+    communitiesStore.getState().communities,
   );
 
   // only get first page and put next page in buffered

@@ -8,6 +8,8 @@ import {
   getReplyPageSortType,
   getSortTimeframeSeconds,
   isBuiltInPostSortType,
+  isPinnedFirstPostSortType,
+  isPinnedFirstReplySortType,
   resolvePostSortType,
   resolveReplySortType,
 } from "./page-sorts";
@@ -76,6 +78,36 @@ describe("page sort helpers", () => {
     );
     expect(getAvailablePostSortTypes()).toEqual([]);
     expect(getAvailableReplySortTypes()).toEqual([]);
+  });
+
+  test("reads pinned placement from the published sort options", () => {
+    const pageSorts = {
+      posts: {
+        hot: { name: "hot", publicOptions: { pinnedFirst: "false" } },
+        new: { name: "new", publicOptions: { pinnedFirst: "true" } },
+        active: { name: "active", publicOptions: { pinnedFirst: " FALSE " } },
+        top: { name: "top" },
+      },
+      replies: { best: { name: "best", publicOptions: { pinnedFirst: "false" } } },
+    };
+    const posts = { pages: { hot: { comments: [{ cid: "post" }] } } };
+    // an unconfigured community publishes no pageSorts and puts pinned posts first
+    expect(isPinnedFirstPostSortType(undefined, "hot")).toBe(true);
+    expect(isPinnedFirstPostSortType({ posts } as any, "hot")).toBe(true);
+    expect(isPinnedFirstPostSortType({ posts, pageSorts } as any, "hot")).toBe(false);
+    expect(isPinnedFirstPostSortType({ posts, pageSorts } as any, "new")).toBe(true);
+    expect(isPinnedFirstPostSortType({ posts, pageSorts } as any, "active")).toBe(false);
+    expect(isPinnedFirstPostSortType({ posts, pageSorts } as any, "top")).toBe(true);
+    // the default sort, and a sort computed from its complete page that the community published
+    // nothing about, follow that page
+    expect(isPinnedFirstPostSortType({ posts, pageSorts } as any)).toBe(false);
+    expect(isPinnedFirstPostSortType({ posts, pageSorts } as any, "topAll")).toBe(false);
+
+    const comment = { replies: { pages: { best: { comments: [{ cid: "reply" }] } } } };
+    expect(isPinnedFirstReplySortType({ pageSorts } as any, comment as any, "best")).toBe(false);
+    expect(isPinnedFirstReplySortType({ pageSorts } as any, comment as any, "new")).toBe(false);
+    expect(isPinnedFirstReplySortType(undefined, comment as any, "best")).toBe(true);
+    expect(isPinnedFirstReplySortType({} as any, comment as any, "best")).toBe(true);
   });
 
   describe("complete preloaded pages", () => {
