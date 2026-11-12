@@ -128,8 +128,9 @@ const getAvailablePageSortTypes = (
   return sortTypes;
 };
 
-// the sorts whose first page the record embeds, in the order the community configured them, so the
-// first one is the community's default sort. A community may preload several sorts, or none: a
+// the sorts whose first page the record embeds, in the record's key order. pkc-js publishes records
+// with sorted keys, so that order is not guaranteed to be the one the community configured and the
+// first sort is not necessarily its preference. A community may preload several sorts, or none: a
 // record with empty `pages` has no preloaded sort, even when it publishes `pageCids`.
 const getPreloadedPageSortTypes = (record?: PagesRecord): string[] =>
   Object.keys(record?.pages || {}).filter(Boolean);
@@ -155,7 +156,7 @@ const resolvePageSortType = (
       ? requestedSortType
       : undefined;
   }
-  // no sort requested: the community's default is its first preloaded sort. A record that preloads
+  // no sort requested: use the first preloaded sort in the record's key order. A record that preloads
   // nothing still has to load something, so it falls back to the first sort it publishes page cids for.
   return getPreloadedPageSortTypes(record)[0] ?? getPublishedPageSortTypes(record)[0];
 };
@@ -194,7 +195,7 @@ export const getPreloadedPostSortTypes = (community?: Community): string[] =>
 export const getPreloadedReplySortTypes = (comment?: Comment): string[] =>
   getPreloadedPageSortTypes(comment?.replies);
 
-// the community's default sort: its first preloaded sort, undefined when it preloads none
+// the first preloaded sort in the record's key order, undefined when the record preloads none
 export const getPreloadedPostSortType = (community?: Community): string | undefined =>
   getPreloadedPostSortTypes(community)[0];
 

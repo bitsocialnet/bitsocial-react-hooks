@@ -76,7 +76,7 @@ describe("page sort helpers", () => {
     expect(isBuiltInPostSortType({ pageSorts } as any, "top")).toBe(false);
   });
 
-  test("returns every preloaded sort in published order, the first being the default", () => {
+  test("returns every preloaded sort in the record key order", () => {
     const multiPreloadedCommunity = {
       posts: {
         pages: { active: { comments: [] }, new: { comments: [] } },
