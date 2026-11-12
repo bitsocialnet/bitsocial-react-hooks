@@ -518,6 +518,8 @@ const validateFeedSortType = (sortType: any) => {
     `invalid feed sort type '${sortType}'`,
   );
 };
+const isValidAccountCommentsLimit = (limit: any) =>
+  limit === undefined || limit === null || (Number.isInteger(limit) && limit >= 0);
 const validateUseFeedArguments = ({
   communities,
   communityRefs,
@@ -567,6 +569,10 @@ const validateUseFeedArguments = ({
     assert(
       typeof accountComments.newerThan === "number",
       `useFeed accountComments.newerThan argument '${accountComments}' not a number`,
+    );
+    assert(
+      isValidAccountCommentsLimit(accountComments.limit),
+      `useFeed accountComments.limit argument '${accountComments.limit}' not a non-negative integer`,
     );
   }
 };
@@ -701,6 +707,10 @@ const validateUseRepliesArguments = (
     assert(
       !accountComments.append || typeof accountComments.append === "boolean",
       `useReplies accountComments.append argument '${accountComments.append}' not a boolean`,
+    );
+    assert(
+      isValidAccountCommentsLimit(accountComments.limit),
+      `useReplies accountComments.limit argument '${accountComments.limit}' not a non-negative integer`,
     );
   }
   if (filter) {

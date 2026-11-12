@@ -2575,6 +2575,89 @@ describe("feeds", () => {
         expect(rendered.result.current.feed.length).toBe(postsPerPage + 3);
       });
 
+      test("limit only adds the newest account posts", async () => {
+        addMockAccountCommentsToStore();
+        rendered.rerender({
+          communityAddresses,
+          sortType,
+          accountComments: { newerThan: Infinity, limit: 1 },
+        });
+        await waitFor(() => rendered.result.current.feed.length === postsPerPage + 1);
+
+        // only the newest of the 2 matching account posts is added
+        expect(rendered.result.current.feed.length).toBe(postsPerPage + 1);
+        expect(rendered.result.current.feed[0].cid).toBe(accountPostCid1);
+        expect(rendered.result.current.feed[1].author.address).not.toBe(authorAddress);
+
+        // a newer account post takes its place
+        await act(async () => {
+          await accountsActions.publishComment({
+            communityAddress,
+            content: "newest account post",
+            onChallenge: () => {},
+            onChallengeVerification: () => {},
+          });
+        });
+        await waitFor(() => rendered.result.current.feed[0].content === "newest account post");
+        expect(rendered.result.current.feed[0].content).toBe("newest account post");
+        expect(rendered.result.current.feed.length).toBe(postsPerPage + 1);
+        expect(
+          rendered.result.current.feed.filter((post: any) => post.cid === accountPostCid1).length,
+        ).toBe(0);
+
+        // a different limit is a different feed
+        rendered.rerender({
+          communityAddresses,
+          sortType,
+          accountComments: { newerThan: Infinity, limit: 2 },
+        });
+        await waitFor(() => rendered.result.current.feed.length === postsPerPage + 2);
+        expect(rendered.result.current.feed.length).toBe(postsPerPage + 2);
+        expect(rendered.result.current.feed[0].content).toBe("newest account post");
+        expect(rendered.result.current.feed[1].cid).toBe(accountPostCid1);
+      });
+
+      test("feed name only includes limit when set", async () => {
+        rendered.rerender({
+          communityAddresses,
+          sortType,
+          accountComments: { newerThan: Infinity },
+        });
+        await waitFor(() => Object.keys(feedsStore.getState().feedsOptions).length === 1);
+        const [feedName] = Object.keys(feedsStore.getState().feedsOptions);
+        // same name as before the option existed
+        expect(JSON.parse(feedName)).toHaveLength(9);
+
+        rendered.rerender({
+          communityAddresses,
+          sortType,
+          accountComments: { newerThan: Infinity, limit: undefined },
+        });
+        rendered.rerender({
+          communityAddresses,
+          sortType,
+          accountComments: { newerThan: Infinity, limit: 3 },
+        });
+        await waitFor(() => Object.keys(feedsStore.getState().feedsOptions).length === 2);
+        const feedNames = Object.keys(feedsStore.getState().feedsOptions);
+        expect(feedNames).toHaveLength(2);
+        expect(feedNames).toContain(feedName);
+        expect(feedsStore.getState().feedsOptions[feedName].accountComments?.limit).toBe(undefined);
+      });
+
+      test("invalid limit throws", () => {
+        for (const limit of [-1, 1.5, "1"]) {
+          expect(() =>
+            renderHook(() =>
+              useFeed({
+                communities: toCommunities(communityAddresses),
+                accountComments: { newerThan: Infinity, limit: limit as any },
+              }),
+            ),
+          ).toThrow(/accountComments.limit/);
+        }
+      });
+
       test("scroll pages and publish", async () => {
         const postsPerPage = 1;
         const scrollOnePage = async () => {

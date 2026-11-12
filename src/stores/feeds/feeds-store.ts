@@ -226,6 +226,12 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
       `addFeedToStore.addFeedToStore accountComments.newerThan '${accountComments?.newerThan}' invalid`,
     );
     assert(
+      accountComments?.limit === undefined ||
+        accountComments?.limit === null ||
+        (Number.isInteger(accountComments.limit) && accountComments.limit >= 0),
+      `addFeedToStore.addFeedToStore accountComments.limit '${accountComments?.limit}' invalid`,
+    );
+    assert(
       !modQueue || Array.isArray(modQueue),
       `addFeedToStore.addFeedToStore modQueue '${modQueue}' invalid`,
     );

@@ -284,6 +284,41 @@ describe("replies store", () => {
     expect(stringFalseName).toBe(falseName);
   });
 
+  test("feedOptionsToFeedName only includes accountComments.limit when set", () => {
+    const baseFeedOptions = {
+      sortType: "new",
+      commentCid: "limit-name-cid",
+      accountId: mockAccount.id,
+    };
+    const withoutLimitNames = [
+      feedOptionsToFeedName(baseFeedOptions),
+      feedOptionsToFeedName({
+        ...baseFeedOptions,
+        accountComments: { newerThan: Infinity, append: false },
+      }),
+      feedOptionsToFeedName({
+        ...baseFeedOptions,
+        accountComments: { newerThan: Infinity, append: false, limit: undefined },
+      }),
+    ];
+    // same name as before the option existed
+    for (const name of withoutLimitNames) {
+      expect(name).toBe(withoutLimitNames[0]);
+      expect(JSON.parse(name)).toHaveLength(11);
+    }
+
+    const limit1Name = feedOptionsToFeedName({
+      ...baseFeedOptions,
+      accountComments: { newerThan: Infinity, append: false, limit: 1 },
+    });
+    const limit2Name = feedOptionsToFeedName({
+      ...baseFeedOptions,
+      accountComments: { newerThan: Infinity, append: false, limit: 2 },
+    });
+    expect(limit1Name).not.toBe(withoutLimitNames[0]);
+    expect(limit1Name).not.toBe(limit2Name);
+  });
+
   test("feedOptionsToFeedName distinguishes omitted and literal undefined sort types", () => {
     const baseFeedOptions = {
       commentCid: "sort-name-cid",

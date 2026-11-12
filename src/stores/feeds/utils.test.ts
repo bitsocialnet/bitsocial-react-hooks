@@ -1137,6 +1137,116 @@ describe("feeds utils", () => {
       expect(loadedFeeds[feedName]).toEqual([accountPostWithCid]);
     });
 
+    describe("accountComments.limit", () => {
+      const feedName = "feed1";
+      const recentTs = Math.floor(Date.now() / 1000) - 1000;
+      const makeFeedsOptions = (accountComments: any) => ({
+        [feedName]: {
+          communities: toCommunities(["sub1"]),
+          accountId: mockAccountId,
+          accountComments,
+        },
+      });
+      const makeAccountPost = (index: number, timestamp = recentTs + index) => ({
+        index,
+        communityAddress: "sub1",
+        timestamp,
+      });
+      const setAccountComments = (accountComments: any[]) => {
+        (accountsStore as any).getState = () => ({
+          accountsComments: { [mockAccountId]: accountComments },
+          accounts: makeMockAccounts(),
+        });
+      };
+      const networkPost = { cid: "network-cid", communityAddress: "sub1", timestamp: recentTs };
+
+      test("only adds the newest account posts, in the usual order", () => {
+        // sorted by oldest, like the accounts store, with a reply and another community in between
+        setAccountComments([
+          makeAccountPost(0),
+          makeAccountPost(1),
+          { ...makeAccountPost(2), parentCid: "parent-cid", depth: 1 },
+          makeAccountPost(3),
+          { ...makeAccountPost(4), communityAddress: "sub2" },
+        ]);
+
+        const prepended = { [feedName]: [networkPost] };
+        expect(
+          addAccountsComments(makeFeedsOptions({ newerThan: 3600, limit: 2 }), prepended),
+        ).toBe(true);
+        expect(prepended[feedName].map((post: any) => post.index)).toEqual([3, 1, undefined]);
+
+        const appended = { [feedName]: [networkPost] };
+        addAccountsComments(
+          makeFeedsOptions({ newerThan: 3600, append: true, limit: 2 }),
+          appended,
+        );
+        expect(appended[feedName].map((post: any) => post.index)).toEqual([undefined, 1, 3]);
+      });
+
+      test("newest is by timestamp, not by position", () => {
+        setAccountComments([
+          makeAccountPost(0, recentTs + 30),
+          makeAccountPost(1, recentTs + 10),
+          makeAccountPost(2, recentTs + 20),
+        ]);
+        const loadedFeeds = { [feedName]: [] as any[] };
+        addAccountsComments(
+          makeFeedsOptions({ newerThan: 3600, append: true, limit: 2 }),
+          loadedFeeds,
+        );
+        expect(loadedFeeds[feedName].map((post: any) => post.index)).toEqual([0, 2]);
+      });
+
+      test("limit applies after accountComments.newerThan", () => {
+        const now = Math.floor(Date.now() / 1000);
+        setAccountComments([
+          makeAccountPost(0, now - 7200),
+          makeAccountPost(1, now - 100),
+          makeAccountPost(2, now - 7000),
+        ]);
+        const loadedFeeds = { [feedName]: [] as any[] };
+        addAccountsComments(makeFeedsOptions({ newerThan: 3600, limit: 2 }), loadedFeeds);
+        expect(loadedFeeds[feedName].map((post: any) => post.index)).toEqual([1]);
+      });
+
+      test("a newer account post replaces the oldest added one", () => {
+        const feedsOptions = makeFeedsOptions({ newerThan: 3600, append: true, limit: 2 });
+        setAccountComments([makeAccountPost(0), makeAccountPost(1)]);
+        const loadedFeeds = { [feedName]: [networkPost] as any[] };
+        addAccountsComments(feedsOptions, loadedFeeds);
+        expect(loadedFeeds[feedName].map((post: any) => post.index)).toEqual([undefined, 0, 1]);
+
+        setAccountComments([makeAccountPost(0), makeAccountPost(1), makeAccountPost(2)]);
+        expect(addAccountsComments(feedsOptions, loadedFeeds)).toBe(true);
+        expect(loadedFeeds[feedName].map((post: any) => post.index)).toEqual([undefined, 1, 2]);
+      });
+
+      test("an account post already loaded from the community counts and is not added twice", () => {
+        setAccountComments([makeAccountPost(0), { ...makeAccountPost(1), cid: "network-cid" }]);
+        const loadedFeeds = { [feedName]: [networkPost] as any[] };
+        expect(
+          addAccountsComments(makeFeedsOptions({ newerThan: 3600, limit: 1 }), loadedFeeds),
+        ).toBe(false);
+        expect(loadedFeeds[feedName]).toEqual([networkPost]);
+      });
+
+      test("limit 0 adds none, no limit adds all", () => {
+        setAccountComments([makeAccountPost(0), makeAccountPost(1), makeAccountPost(2)]);
+        const none = { [feedName]: [networkPost] as any[] };
+        expect(addAccountsComments(makeFeedsOptions({ newerThan: 3600, limit: 0 }), none)).toBe(
+          false,
+        );
+        expect(none[feedName]).toEqual([networkPost]);
+
+        for (const limit of [undefined, null]) {
+          const all = { [feedName]: [networkPost] as any[] };
+          addAccountsComments(makeFeedsOptions({ newerThan: 3600, limit }), all);
+          expect(all[feedName].map((post: any) => post.index)).toEqual([2, 1, 0, undefined]);
+        }
+      });
+    });
+
     test("drops local pending approval post once the approved network post is loaded", () => {
       const feedName = "feed1";
       const recentTs = Math.floor(Date.now() / 1000) - 100;

@@ -123,7 +123,7 @@ useNotifications(): {notifications: Notification[], markAsRead: Function}
 ```
 useComment({commentCid: string, community?: CommunityIdentifier, initialComment?: Comment, onlyIfCached?: boolean, autoUpdate?: boolean}): Comment & {refresh: Function}
 useCrosspost({crosspost: Crosspost, autoUpdate?: boolean}): Comment & {isCommunityVerified: boolean, refresh: Function}
-useReplies({comment: Comment, onlyIfCached?: boolean, sortType?: string, flat?: boolean, repliesPerPage?: number, filter?: CommentsFilter, accountComments?: {newerThan: number, append?: boolean}}): {replies: Comment[], hasMore: boolean, loadMore: function, reset: function, updatedReplies: Comment[], bufferedReplies: Comment[], sortTypeUnavailable: boolean}
+useReplies({comment: Comment, onlyIfCached?: boolean, sortType?: string, flat?: boolean, repliesPerPage?: number, filter?: CommentsFilter, accountComments?: {newerThan: number, append?: boolean, limit?: number}}): {replies: Comment[], hasMore: boolean, loadMore: function, reset: function, updatedReplies: Comment[], bufferedReplies: Comment[], sortTypeUnavailable: boolean}
 useComments({commentCids: string[], onlyIfCached?: boolean, autoUpdate?: boolean}): {comments: Comment[], refresh: Function}
 useEditedComment({comment: Comment}): {editedComment: Comment | undefined}
 useValidateComment({comment: Comment, validateReplies?: boolean}): {valid: boolean}
@@ -177,7 +177,7 @@ setAuthorAvatarsWhitelistedTokenAddresses(tokenAddresses: string[])
 #### Feeds Hooks
 
 ```
-useFeed({communities?: CommunityIdentifier[], sortType?: string, postsPerPage?: number, filter?: CommentsFilter, newerThan?: number, accountComments?: {newerThan: number, append?: boolean}, modQueue: ['pendingApproval']}): {feed: Comment[], loadMore: function, expandTimeWindow: function, hasMore: boolean, reset: function, updatedFeed: Comment[], bufferedFeed: Comment[], communityKeysWithNewerPosts: string[], communityKeysWithMore: string[], communityKeysWithUnavailableSort: string[]}
+useFeed({communities?: CommunityIdentifier[], sortType?: string, postsPerPage?: number, filter?: CommentsFilter, newerThan?: number, accountComments?: {newerThan: number, append?: boolean, limit?: number}, modQueue: ['pendingApproval']}): {feed: Comment[], loadMore: function, expandTimeWindow: function, hasMore: boolean, reset: function, updatedFeed: Comment[], bufferedFeed: Comment[], communityKeysWithNewerPosts: string[], communityKeysWithMore: string[], communityKeysWithUnavailableSort: string[]}
 useBufferedFeeds({feedsOptions: UseFeedOptions[]}) // preload or buffer feeds in the background, so they load faster when you call `useFeed`
 ```
 
@@ -1230,6 +1230,21 @@ const { feed } = useFeed({
 const { replies } = useReplies({
   comment: post,
   accountComments: { newerThan: Infinity, append: false },
+});
+
+// only add my 3 newest posts, and my 3 newest replies to that comment. limit counts the
+// account comments that match (community or parent comment, accountComments.newerThan),
+// newest first by timestamp, including the ones the feed already loaded from the network
+// (those are never added twice). Omit limit to add them all, a new account comment over
+// the limit replaces the oldest added one. Only the added account comments are limited,
+// never the posts and replies loaded from the network
+const { feed: feedWithLimit } = useFeed({
+  communities: [{ name: communityAddress }],
+  accountComments: { newerThan: Infinity, limit: 3 },
+});
+const { replies: repliesWithLimit } = useReplies({
+  comment: post,
+  accountComments: { newerThan: Infinity, limit: 3 },
 });
 
 // pending local account comments are reconciled with their approved network version

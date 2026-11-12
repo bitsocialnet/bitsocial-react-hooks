@@ -74,7 +74,7 @@ const addDefaultFeedOptions = (feedOptions: any) => {
 
 export const feedOptionsToFeedName = (feedOptions: Partial<RepliesFeedOptions>) => {
   feedOptions = addDefaultFeedOptions(feedOptions);
-  return serializeFeedKey([
+  const feedKey: unknown[] = [
     feedOptions?.accountId,
     feedOptions?.commentCid,
     feedOptions?.postCid,
@@ -86,7 +86,13 @@ export const feedOptionsToFeedName = (feedOptions: Partial<RepliesFeedOptions>) 
     feedOptions?.repliesPerPage,
     feedOptions?.filter?.key,
     feedOptions?.streamPage,
-  ]);
+  ];
+  // options added later are only part of the name when set, feeds without them keep their name
+  const accountCommentsLimit = feedOptions?.accountComments?.limit ?? undefined;
+  if (accountCommentsLimit !== undefined) {
+    feedKey.push(accountCommentsLimit);
+  }
+  return serializeFeedKey(feedKey);
 };
 
 const getFeedsUpdatedAts = (feedsOptions: RepliesFeedsOptions, comments: Comments) => {

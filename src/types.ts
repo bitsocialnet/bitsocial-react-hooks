@@ -832,6 +832,7 @@ export type FeedOptions = {
 export type FeedOptionsAccountComments = {
   newerThan?: number;
   append?: boolean; // default to prepend, set append: true to append instead
+  limit?: number; // only add the newest `limit` account comments, default to no limit
 };
 export type FeedsOptions = { [feedName: string]: FeedOptions };
 export type FeedCommunitiesPostCounts = { [communityAddress: string]: number };

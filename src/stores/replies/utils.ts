@@ -15,6 +15,7 @@ import {
 } from "../../types";
 import { getRepliesPages, getRepliesFirstPageCid } from "../replies-pages";
 import repliesSorter from "../feeds/feed-sorter";
+import { getNewestAccountComments } from "../feeds/utils";
 import accountsStore from "../accounts";
 import { flattenCommentsPages, commentIsValid, removeInvalidComments } from "../../lib/utils";
 import { areEquivalentCommunityAddresses } from "../../lib/community-address";
@@ -321,7 +322,7 @@ export const addAccountsComments = (
       commentDepth,
       flat,
     } = feedsOptions[feedName];
-    const { newerThan, append } = accountCommentsOptions || {};
+    const { newerThan, append, limit } = accountCommentsOptions || {};
     if (!newerThan) {
       continue;
     }
@@ -332,7 +333,7 @@ export const addAccountsComments = (
     const feedUpdatedAt = feedsUpdatedAts?.[feedName];
 
     const accountComments = accountsComments[accountId] || [];
-    const accountReplies = accountComments.filter((reply) => {
+    const matchingAccountReplies = accountComments.filter((reply) => {
       if (shouldHidePurgedAccountReply(reply, hidePurgedAccountReplies, feedUpdatedAt)) {
         return false;
       }
@@ -345,6 +346,9 @@ export const addAccountsComments = (
       }
       return reply.parentCid === commentCid;
     });
+    // older account replies over the limit are treated like replies that no longer match: they
+    // are not added, and removed if a newer account reply took their place
+    const accountReplies = getNewestAccountComments(matchingAccountReplies, limit);
     const validAccountIndices = new Set(accountReplies.map((r) => r.index));
     const accountCidToReply = new Map<string, Comment>();
     for (const r of accountReplies) {

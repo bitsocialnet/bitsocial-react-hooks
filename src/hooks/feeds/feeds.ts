@@ -452,8 +452,9 @@ function useFeedName(
   const filterKey = filter?.key;
   const accountCommentsNewerThan = accountComments?.newerThan;
   const accountCommentsAppend = accountComments?.append;
+  const accountCommentsLimit = accountComments?.limit ?? undefined;
   return useMemo(() => {
-    return serializeFeedKey([
+    const feedKey: unknown[] = [
       accountId,
       sortType,
       uniqueCommunityKeys,
@@ -463,7 +464,12 @@ function useFeedName(
       accountCommentsNewerThan,
       accountCommentsAppend,
       modQueue,
-    ]);
+    ];
+    // options added later are only part of the name when set, feeds without them keep their name
+    if (accountCommentsLimit !== undefined) {
+      feedKey.push(accountCommentsLimit);
+    }
+    return serializeFeedKey(feedKey);
   }, [
     accountId,
     sortType,
@@ -473,6 +479,7 @@ function useFeedName(
     newerThan,
     accountCommentsNewerThan,
     accountCommentsAppend,
+    accountCommentsLimit,
     modQueue?.toString(),
   ]);
 }
