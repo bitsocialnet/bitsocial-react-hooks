@@ -59,7 +59,7 @@ export function validateWorkflow(root) {
       );
     }
     check(
-      !/\.(?:codex|claude)\/skills\//.test(body),
+      !/\.(?:codex|cursor|claude)\/skills\//.test(body),
       `Skill must reference canonical source paths: ${file}`,
     );
   }
