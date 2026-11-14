@@ -37,16 +37,7 @@ yarn-error.log
 .env
 
 # Repo-managed AI tooling
-.cursor/*
-.cursor/.DS_Store
-!.cursor/agents/
-!.cursor/agents/**
-!.cursor/hooks/
-!.cursor/hooks/**
-!.cursor/hooks.json
-!.cursor/skills/
-!.cursor/skills/**
-.cursor/**/.DS_Store
+/.cursor/
 
 .codex/*
 .codex/.DS_Store

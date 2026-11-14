@@ -73,7 +73,7 @@ For an unexpected repository-specific issue, tell the contributor and continue i
 
 ## Skills and delegation
 
-- Shared skills live in `.agents/skills/`; shared role prompts in `.agents/roles/`. The latter is our generator's source format, not native discovery. Commit generated `.claude/skills/` and native `.codex/agents/*.toml`, `.cursor/agents/*.md`, and `.claude/agents/*.md` alongside sources. See [skills-and-tools.md](docs/agent-playbooks/skills-and-tools.md).
+- Shared skills live in `.agents/skills/`; shared role prompts in `.agents/roles/`. The latter is our generator's source format, not native discovery. Commit generated `.claude/skills/` and native `.codex/agents/*.toml` and `.claude/agents/*.md` alongside sources. See [skills-and-tools.md](docs/agent-playbooks/skills-and-tools.md).
 - Leave model and reasoning choices out of committed skills and custom agents in all apps. Runtime invocation, user defaults, and parent inheritance determine selection according to the app; do not invent a `latest` alias.
 - Keep app-specific hook and permission schemas explicit; identical text alone does not prove equivalent runtime behavior.
 - Delegate substantial independent work when it improves speed, context isolation, or review. Small or coupled tasks can stay local. Use built-in workers/explorers where available; the custom reviewer reports evidence without edits.

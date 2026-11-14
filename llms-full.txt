@@ -2220,7 +2220,7 @@ For an unexpected repository-specific issue, tell the contributor and continue i
 
 ## Skills and delegation
 
-- Shared skills live in `.agents/skills/`; shared role prompts in `.agents/roles/`. The latter is our generator's source format, not native discovery. Commit generated `.claude/skills/` and native `.codex/agents/*.toml`, `.cursor/agents/*.md`, and `.claude/agents/*.md` alongside sources. See [skills-and-tools.md](docs/agent-playbooks/skills-and-tools.md).
+- Shared skills live in `.agents/skills/`; shared role prompts in `.agents/roles/`. The latter is our generator's source format, not native discovery. Commit generated `.claude/skills/` and native `.codex/agents/*.toml` and `.claude/agents/*.md` alongside sources. See [skills-and-tools.md](docs/agent-playbooks/skills-and-tools.md).
 - Leave model and reasoning choices out of committed skills and custom agents in all apps. Runtime invocation, user defaults, and parent inheritance determine selection according to the app; do not invent a `latest` alias.
 - Keep app-specific hook and permission schemas explicit; identical text alone does not prove equivalent runtime behavior.
 - Delegate substantial independent work when it improves speed, context isolation, or review. Small or coupled tasks can stay local. Use built-in workers/explorers where available; the custom reviewer reports evidence without edits.
@@ -3636,9 +3636,9 @@ If uncertain, ask the developer before adding an entry.
 - **Date:** 2026-04-08
 - **Observed by:** Codex
 - **Context:** reviewing repo-managed agent manifests under `.codex/`, `.cursor/`, and `.claude/`
-- **What was surprising:** provider/model names are not interchangeable across toolchains in this repo. `composer-2` is valid for Cursor, but not for Claude. Codex agents should use `gpt-5.4`, not `gpt-5.3-codex` or `gpt-5.3-codex-spark`.
+- **What was surprising:** provider/model names are not interchangeable across toolchains in this repo. `composer-2` is valid for Cursor, but not for Claude. At the time, the available Codex model was `gpt-5.4`, and some older aliases were unavailable.
 - **Impact:** agents can silently pick unsupported or poor-performing models and break contributor workflows.
-- **Mitigation:** keep the repo model mapping explicit when editing agent manifests: `.codex` → `gpt-5.4`, `.cursor` → `composer-2`, `.claude` → `sonnet`.
+- **Mitigation:** Leave model fields out of committed agent manifests. Use the app’s runtime or user settings when a task needs a specific model.
 - **Status:** confirmed
 
 ### Browser test screenshots are generated under `test/**/__screenshots__/`
@@ -3732,7 +3732,7 @@ Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/docs/a
 ```markdown
 # Skills and Tools
 
-Shared skills live in `.agents/skills/`. Edit these sources, then run `yarn ai-workflow:sync` to generate `.claude/skills/` for Claude Code. Codex and Cursor discover `.agents/skills/` directly; do not restore the duplicate `.codex/skills/` or `.cursor/skills/` roots.
+Shared skills live in `.agents/skills/`. Edit these sources, then run `yarn ai-workflow:sync` to generate `.claude/skills/` for Claude Code. Codex reads skills directly from `.agents/skills/`.
 
 Shared role prompts live in `.agents/roles/*.md`. This is a repository-specific source format, not a native agent discovery path. `scripts/ai-workflow-files.mjs` converts these sources into the app-specific files below; `yarn ai-workflow:sync` writes them. Commit the generated files alongside their sources so a fresh checkout has the native configuration without running a generator first. After removing a source, remove its obsolete generated outputs explicitly; the validator reports them rather than silently deleting files.
 
@@ -3743,12 +3743,11 @@ Verified against official documentation on 2026-09-12:
 | App | Project instructions | Skills used by this repository | Custom agents used by this repository |
 |---|---|---|---|
 | Codex | `AGENTS.md` | `.agents/skills/<name>/SKILL.md` | Generated `.codex/agents/<name>.toml` |
-| Cursor | `AGENTS.md`; `.cursor/rules/*.mdc` remains available for Cursor-specific conditional rules | `.agents/skills/<name>/SKILL.md` | Generated `.cursor/agents/<name>.md` |
 | Claude Code | `CLAUDE.md` imports `@AGENTS.md` | Generated `.claude/skills/<name>/SKILL.md` | Generated `.claude/agents/<name>.md` |
 
-Sources: [Codex skills](https://learn.chatgpt.com/docs/build-skills), [Codex subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents), [Cursor rules](https://cursor.com/docs/rules), [Cursor skills](https://cursor.com/docs/skills), [Cursor subagents](https://cursor.com/docs/subagents), [Claude memory](https://code.claude.com/docs/en/memory), [Claude skills](https://code.claude.com/docs/en/skills), [Claude subagents](https://code.claude.com/docs/en/sub-agents).
+Sources: [Codex skills](https://learn.chatgpt.com/docs/build-skills), [Codex subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents), [Claude memory](https://code.claude.com/docs/en/memory), [Claude skills](https://code.claude.com/docs/en/skills), [Claude subagents](https://code.claude.com/docs/en/sub-agents).
 
-Do not replace the native agent directories with `.agents/roles` or assume Claude discovers `.agents/skills`. Claude can still read a referenced file there as ordinary project context. Cursor also discovers `.claude/skills` for compatibility; copies remain synchronized, but its published skills guide does not specify deduplication across these roots. Check the installed app's skill catalog rather than promising that duplicate entries cannot appear.
+Do not replace the native agent directories with `.agents/roles` or assume Claude discovers `.agents/skills`. Claude can still read a referenced file there as ordinary project context.
 
 The AI directories use LF line endings through `.gitattributes` so generated text stays identical across platforms. Supporting skill assets are copied as bytes.
 
@@ -3766,9 +3765,9 @@ Keep a scoped `reviewer` role for independent correctness, public API, and subsc
 
 Codex agent files include `name`, `description`, and `developer_instructions`. `.codex/config.toml` caps concurrent children at four using `max_concurrent_threads_per_session`. Shared role metadata contains the name, description, and optional sandbox mode; it deliberately has no model fields.
 
-Leave model and reasoning fields out of committed skills and custom agents in all three apps. This allows runtime invocation choices, user defaults, and parent inheritance according to each app’s documented precedence. Claude family aliases reduce version maintenance but still choose a family; a versioned Cursor model requires future updates. Keep such choices in user/session settings when needed. Inheritance does not promise an automatic choice of the best current model. Do not invent a `latest` alias or add model-catalog research to routine tasks. See [Codex selection](https://learn.chatgpt.com/docs/agent-configuration/subagents), [Claude selection](https://code.claude.com/docs/en/sub-agents#choose-a-model), and [Cursor selection](https://cursor.com/docs/subagents#model-configuration).
+Leave model and reasoning fields out of committed skills and custom agents. This allows runtime invocation choices, user defaults, and parent inheritance according to each app’s documented precedence. Claude family aliases reduce version maintenance but still choose a family. Keep such choices in user/session settings when needed. Inheritance does not promise an automatic choice of the best current model. Do not invent a `latest` alias or add model-catalog research to routine tasks. See [Codex selection](https://learn.chatgpt.com/docs/agent-configuration/subagents) and [Claude selection](https://code.claude.com/docs/en/sub-agents#choose-a-model).
 
-`sandbox-mode: read-only` maps to Codex’s sandbox and Cursor’s `readonly`; Claude’s tool list and the role instructions restrict its review workflow, but Bash access is not an OS-level sandbox.
+`sandbox-mode: read-only` maps to Codex’s sandbox. Claude’s tool list and the role instructions restrict its review workflow, but Bash access is not an OS-level sandbox.
 
 Shared skill frontmatter uses `disable-model-invocation: true` for user-invoked workflows where applicable. Codex's corresponding setting lives in `agents/openai.yaml` as `policy.allow_implicit_invocation: false`; the validator requires both. Invocation metadata supplements explicit authorization rules; a review request never authorizes publication merely because a skill includes publishing steps.
 
@@ -3936,14 +3935,13 @@ The committed hooks only format edited JavaScript/TypeScript files with the inst
 | App | Entry point | Edit event |
 |---|---|---|
 | Codex | `.codex/hooks.json` | `PostToolUse` matching `apply_patch` |
-| Cursor | `.cursor/hooks.json` | `afterFileEdit` |
 | Claude Code | `.claude/settings.json` | `PostToolUse` matching `Edit`, `Write`, or `MultiEdit` |
 
 Each wrapper invokes `scripts/agent-hooks/format.mjs`. The parser handles each app's payload, uses the tool working directory for relative paths, checks final symlinks stay inside the checkout, and ignores failed/deleted/irrelevant edits. It passes paths as arguments with an eight-second timeout and Corepack network access disabled. Missing formatter dependencies are a no-op; formatter errors are reported without blocking an edit. Command launches use the declared `cross-spawn` dependency for platform shims and argument escaping; shell wrappers still require Bash support on Windows.
 
-Validate changes with `yarn ai-workflow:check` and `yarn ai-workflow:test`. A fixture/schema check does not establish that a given app version loads the hooks. Inspect its hook settings after an upgrade; follow the app's project-trust/hook review requirements and reload an existing session when needed. Do not bypass trust settings to make a check pass. Claude uses `settings.json`, not Cursor's hook schema in a `.claude/hooks.json` file.
+Validate changes with `yarn ai-workflow:check` and `yarn ai-workflow:test`. A fixture/schema check does not establish that a given app version loads the hooks. Inspect its hook settings after an upgrade; follow the app's project-trust/hook review requirements and reload an existing session when needed. Do not bypass trust settings to make a check pass. Claude uses `settings.json`. It does not load a standalone `.claude/hooks.json` file.
 
-Native references: [Codex hooks](https://learn.chatgpt.com/docs/hooks), [Cursor hooks](https://cursor.com/docs/hooks), [Claude hooks](https://code.claude.com/docs/en/hooks).
+Native references: [Codex hooks](https://learn.chatgpt.com/docs/hooks), [Claude hooks](https://code.claude.com/docs/en/hooks).
 ```
 
 ---
@@ -3953,6 +3951,28 @@ Native references: [Codex hooks](https://learn.chatgpt.com/docs/hooks), [Cursor 
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/CHANGELOG.md
 
 ```markdown
+## [0.2.3](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.2.2...v0.2.3) (2026-11-12)
+
+
+### Bug Fixes
+
+* **accounts:** keep account comments, votes and the account list consistent ([#169](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/169)) ([6d5279c](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/6d5279c0eecac9e6c46f68176f08db29dd077c12))
+* **actions:** bind publish hook abandon and results to each publication ([#171](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/171)) ([d0d8ca4](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/d0d8ca441ce72d87627c257d25ac4a67f41755d0))
+* **feeds:** fix stuck and stale states in feeds, replies and author comments ([#179](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/179)) ([9b4e846](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/9b4e84678c325c66f11928f5e9e72b530cd3ce0e))
+* **feeds:** honour published pinned placement and preloaded page sorts ([#182](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/182)) ([af31eb5](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/af31eb570175b8803e6f5bd9c07ae3b25a22dff7)), closes [#95](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/95) [#96](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/96) [#97](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/97) [#95](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/95) [#96](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/96) [#95](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/95) [#96](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/96)
+* **hooks:** stop read hooks reporting results of previous inputs ([#175](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/175)) ([30ba3e1](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/30ba3e13ae8bca7c3e2d00bad11cb24ca1563b8f))
+* stop orphaned test-server daemons, report e2e failures and space out mesh WebGL retries ([#181](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/181)) ([4fa6b8d](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/4fa6b8df26fcc92746c63947daf40ed929edb515))
+* **stores:** close update races in the comment, community and page stores ([#173](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/173)) ([6629f8c](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/6629f8ce6cce51cd9773760acef47f5d1260d3bf))
+* **stores:** stop invalid replies, stuck page retries and stale cache databases ([#177](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/177)) ([2f30a8a](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/2f30a8ae1b054803c2ee952773f059e0a4552d40))
+
+
+### Features
+
+* **accounts:** drop deleted communities and add account, vote and reply metadata ([#183](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/183)) ([420611a](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/420611a2f240b227d1115a09d081578c35b1a90c)), closes [#144](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/144) [#138](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/138) [#126](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/126) [#123](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/123) [#144](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/144) [#138](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/138)
+* **feeds:** add accountComments.limit and includeBlockedCids feed options ([#184](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/184)) ([deef572](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/deef5729cfca161b149de2e2dcb086b2692af3bf)), closes [#141](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/141) [#136](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/136) [#136](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/136)
+
+
+
 ## [0.2.2](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.2.1...v0.2.2) (2026-11-07)
 
 

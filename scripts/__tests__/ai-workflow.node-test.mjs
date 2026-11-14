@@ -16,8 +16,6 @@ function fixture(t) {
     ".codex/config.toml",
     ".codex/hooks.json",
     ".codex/hooks",
-    ".cursor/hooks.json",
-    ".cursor/hooks",
     ".claude/settings.json",
     ".claude/hooks",
     "CLAUDE.md",
@@ -44,18 +42,14 @@ test("shared sources generate valid, deterministic harness outputs", (t) => {
   const codexReviewer = before.get(".codex/agents/reviewer.toml");
   assert.match(codexReviewer, /name = ['"]reviewer['"]/);
   assert.doesNotMatch(codexReviewer, /(?:^|\n)model\s*=/);
-  for (const harness of ["claude", "cursor"]) {
-    assert.equal(
-      readFrontmatter(before.get(`.${harness}/agents/reviewer.md`)).metadata.model,
-      undefined,
-    );
-  }
+  assert.equal(readFrontmatter(before.get(`.claude/agents/reviewer.md`)).metadata.model, undefined);
+  assert.equal(fs.existsSync(path.join(root, ".cursor")), false);
 });
 
 test("validation detects a missing agent and obsolete compatibility files", (t) => {
   const root = fixture(t);
   fs.unlinkSync(path.join(root, ".codex/agents/reviewer.toml"));
-  fs.writeFileSync(path.join(root, ".cursor/agents/obsolete.md"), "old role");
+  fs.writeFileSync(path.join(root, ".claude/agents/obsolete.md"), "old role");
   const errors = validateWorkflow(root).errors;
   assert.ok(errors.some((error) => error.includes("reviewer.toml")));
   assert.ok(errors.some((error) => error.includes("Obsolete generated file")));
@@ -110,7 +104,7 @@ test("logical paths use forward slashes and skill assets retain their bytes", (t
 
 test("edit hooks and wrappers reject appended lifecycle commands", (t) => {
   const root = fixture(t);
-  for (const harness of [".codex", ".claude", ".cursor"]) {
+  for (const harness of [".codex", ".claude"]) {
     const configPath = path.join(
       root,
       harness,
@@ -118,8 +112,7 @@ test("edit hooks and wrappers reject appended lifecycle commands", (t) => {
     );
     const original = fs.readFileSync(configPath, "utf8");
     const config = JSON.parse(original);
-    const handler =
-      harness === ".cursor" ? config.hooks.afterFileEdit[0] : config.hooks.PostToolUse[0].hooks[0];
+    const handler = config.hooks.PostToolUse[0].hooks[0];
     handler.command += "; git fetch --prune";
     fs.writeFileSync(configPath, JSON.stringify(config));
     assert.ok(
@@ -142,7 +135,7 @@ test("role sources reject model settings and invalid sandbox values", (t) => {
   const root = fixture(t);
   const file = path.join(root, ".agents/roles/reviewer.md");
   const original = fs.readFileSync(file, "utf8");
-  for (const key of ["model", "model_reasoning_effort", "claude-model", "cursor-model"]) {
+  for (const key of ["model", "model_reasoning_effort", "claude-model"]) {
     fs.writeFileSync(file, original.replace("name: reviewer", `name: reviewer\n${key}: inherit`));
     assert.throws(() => generatedFiles(root), /Unsupported role field/);
   }

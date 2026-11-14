@@ -43,9 +43,9 @@ If uncertain, ask the developer before adding an entry.
 - **Date:** 2026-04-08
 - **Observed by:** Codex
 - **Context:** reviewing repo-managed agent manifests under `.codex/`, `.cursor/`, and `.claude/`
-- **What was surprising:** provider/model names are not interchangeable across toolchains in this repo. `composer-2` is valid for Cursor, but not for Claude. Codex agents should use `gpt-5.4`, not `gpt-5.3-codex` or `gpt-5.3-codex-spark`.
+- **What was surprising:** provider/model names are not interchangeable across toolchains in this repo. `composer-2` is valid for Cursor, but not for Claude. At the time, the available Codex model was `gpt-5.4`, and some older aliases were unavailable.
 - **Impact:** agents can silently pick unsupported or poor-performing models and break contributor workflows.
-- **Mitigation:** keep the repo model mapping explicit when editing agent manifests: `.codex` → `gpt-5.4`, `.cursor` → `composer-2`, `.claude` → `sonnet`.
+- **Mitigation:** Leave model fields out of committed agent manifests. Use the app’s runtime or user settings when a task needs a specific model.
 - **Status:** confirmed
 
 ### Browser test screenshots are generated under `test/**/__screenshots__/`

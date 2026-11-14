@@ -21,7 +21,7 @@ function fixture(t) {
   return { temporary, root, write };
 }
 
-test("normalizes Claude and Cursor edits, including paths with shell metacharacters", () => {
+test("normalizes Claude edits and direct file paths, including paths with shell metacharacters", () => {
   assert.deepEqual(
     editedPaths({
       hook_event_name: "PostToolUse",
@@ -30,10 +30,9 @@ test("normalizes Claude and Cursor edits, including paths with shell metacharact
     }),
     ["/repo/file.ts"],
   );
-  assert.deepEqual(
-    editedPaths({ hook_event_name: "afterFileEdit", file_path: "src/a $(touch sentinel).tsx" }),
-    ["src/a $(touch sentinel).tsx"],
-  );
+  assert.deepEqual(editedPaths({ file_path: "src/a $(touch sentinel).tsx" }), [
+    "src/a $(touch sentinel).tsx",
+  ]);
 });
 
 test("Codex patch fixtures include additions, updates, and move destinations, excluding deletions and diff text", () => {
