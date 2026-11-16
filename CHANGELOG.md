@@ -1,3 +1,13 @@
+## [0.2.4](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.2.3...v0.2.4) (2026-11-16)
+
+
+### Bug Fixes
+
+* **agents:** reject stale Cursor skill links ([cac98ef](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/cac98ef5927b8f400a454856b56ac96bfe05e763))
+* **deps:** upgrade pkc-js to 0.0.148 ([e7c7367](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/e7c736712b8b4e15cac26a01de95887831a14ee5))
+
+
+
 ## [0.2.3](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.2.2...v0.2.3) (2026-11-12)
 
 
