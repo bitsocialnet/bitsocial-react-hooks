@@ -295,7 +295,12 @@ export interface UseFeedOptions extends Options {
   includeBlockedCids?: boolean; // keep the posts whose cid the account blocked (account.blockedCids) in the feed
 }
 export interface UseFeedResult extends Result {
+  // the loaded posts, each kept as it was when first loaded, so the list never changes under the reader
   feed: Comment[];
+  // the same posts in their latest state (reply count, votes, pin, lock), once the community publishes updates
+  updatedFeed: Comment[];
+  // the posts fetched but not loaded yet, they join the feed on loadMore() or reset()
+  bufferedFeed: Comment[];
   hasMore: boolean;
   loadMore(): Promise<void>;
   expandTimeWindow(newerThan?: number): Promise<void>;
