@@ -1,3 +1,12 @@
+## [0.2.6](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.2.5...v0.2.6) (2026-11-17)
+
+
+### Bug Fixes
+
+* **feeds:** add updatedFeed and bufferedFeed to the useFeed result type ([#187](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/187)) ([253487d](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/253487d1f1bd5fdf634e81124f89cbb148322839))
+
+
+
 ## [0.2.5](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.2.4...v0.2.5) (2026-11-17)
 
 

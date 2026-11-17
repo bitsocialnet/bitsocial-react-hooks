@@ -244,6 +244,8 @@ export interface UseFeedOptions extends Options {
 }
 export interface UseFeedResult extends Result {
     feed: Comment[];
+    updatedFeed: Comment[];
+    bufferedFeed: Comment[];
     hasMore: boolean;
     loadMore(): Promise<void>;
     expandTimeWindow(newerThan?: number): Promise<void>;
