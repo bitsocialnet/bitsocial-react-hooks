@@ -1,3 +1,12 @@
+## [0.2.5](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.2.4...v0.2.5) (2026-11-17)
+
+
+### Bug Fixes
+
+* **deps:** upgrade pkc-js to 0.0.151 ([8f8f7f0](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/8f8f7f0b2a5a73d2d8768a920b1193dd05dcd082))
+
+
+
 ## [0.2.4](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.2.3...v0.2.4) (2026-11-16)
 
 
