@@ -1604,6 +1604,50 @@ describe("feeds", () => {
       }
     });
 
+    test("feed keeps a loaded post as first loaded, updatedFeed follows the community's updates", async () => {
+      const simulateUpdateEvent = Community.prototype.simulateUpdateEvent;
+      let community: any;
+      const publishUpdate = (replyCount: number, updatedAt: number) => {
+        community.posts.pages = {
+          hot: {
+            comments: [
+              {
+                cid: "thread",
+                communityAddress: community.address,
+                timestamp: 100,
+                replyCount,
+                updatedAt,
+              },
+            ],
+          },
+        };
+        community.posts.pageCids = {};
+        community.updatedAt = updatedAt;
+        community.updatingState = "succeeded";
+        community.emit("update", community);
+        community.emit("updatingstatechange", "succeeded");
+      };
+      Community.prototype.simulateUpdateEvent = async function () {
+        community = this;
+        publishUpdate(0, 1);
+      };
+
+      try {
+        rendered.rerender({ communityAddresses: ["single thread community"], sortType: "active" });
+        await waitFor(() => rendered.result.current.feed.length === 1);
+        expect(rendered.result.current.feed[0].replyCount).toBe(0);
+        expect(rendered.result.current.updatedFeed[0].replyCount).toBe(0);
+
+        // the thread gets 2 replies and the community publishes them
+        publishUpdate(2, 2);
+        await waitFor(() => rendered.result.current.updatedFeed[0].replyCount === 2);
+        expect(rendered.result.current.updatedFeed[0].replyCount).toBe(2);
+        expect(rendered.result.current.feed[0].replyCount).toBe(0);
+      } finally {
+        Community.prototype.simulateUpdateEvent = simulateUpdateEvent;
+      }
+    });
+
     describe("getPage only has 1 page", () => {
       const getPage = Pages.prototype.getPage;
 
