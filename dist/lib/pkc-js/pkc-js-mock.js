@@ -522,12 +522,21 @@ class Publication extends EventEmitter {
         const challengeMessage = {
             type: "CHALLENGE",
             challengeRequestId: this.challengeRequestId,
-            challenges: [challenge],
+            // keyed by challenge index, like pkc-js
+            challenges: { "0": challenge },
         };
         this.emit("challenge", challengeMessage, this);
     }
-    publishChallengeAnswers(_challengeAnswers) {
+    publishChallengeAnswers(options) {
         return __awaiter(this, void 0, void 0, function* () {
+            const challengeAnswers = options === null || options === void 0 ? void 0 : options.challengeAnswers;
+            // pkc-js rejects an array or an empty record
+            if (!challengeAnswers ||
+                typeof challengeAnswers !== "object" ||
+                Array.isArray(challengeAnswers) ||
+                Object.keys(challengeAnswers).length === 0) {
+                throw Error(`pkc-js-mock publishChallengeAnswers: challengeAnswers must be a non-empty record keyed by challenge index, got '${JSON.stringify(challengeAnswers)}'`);
+            }
             this.publishingState = "publishing-challenge-answer";
             this.emit("publishingstatechange", "publishing-challenge-answer");
             yield simulateLoadingTime();

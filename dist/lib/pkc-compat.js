@@ -156,20 +156,59 @@ export const withProtocolAliases = (account, protocolClient, protocolOptions) =>
     return nextAccount;
 };
 const publishChallengeAnswersCompatMarker = Symbol.for("bitsocial-react-hooks.publishChallengeAnswersCompat");
-export const normalizeChallengeAnswersForPkc = (challengeAnswers) => ({
-    challengeAnswers: Array.isArray(challengeAnswers)
-        ? challengeAnswers
-        : (challengeAnswers === null || challengeAnswers === void 0 ? void 0 : challengeAnswers.challengeAnswers) || [],
-});
-export const withPublishChallengeAnswersCompat = (publication) => {
+const challengeIndexesKey = Symbol.for("bitsocial-react-hooks.challengeIndexes");
+const emptyChallengeAnswersMessage = 'publishChallengeAnswers() needs a non-empty record of answers keyed by challenge index, for example { "0": "answer" }';
+/** The challenge indexes a CHALLENGE message asks to answer, in ascending order. */
+export const getChallengeIndexes = (challenge) => {
+    const challenges = challenge === null || challenge === void 0 ? void 0 : challenge.challenges;
+    if (!challenges || typeof challenges !== "object") {
+        return [];
+    }
+    return Object.keys(challenges).sort((a, b) => Number(a) - Number(b));
+};
+/**
+ * Converts publishChallengeAnswers() input to pkc-js's { challengeAnswers: { [challengeIndex]: answer } }.
+ * A deprecated positional array is mapped onto `challengeIndexes`, the ascending keys of the latest
+ * CHALLENGE, so a caller that still passes an array keeps working. Missing or empty answers throw
+ * instead of becoming an empty record that pkc-js would reject with a schema error.
+ */
+export const normalizeChallengeAnswersForPkc = (challengeAnswers, challengeIndexes = []) => {
+    const answers = challengeAnswers &&
+        typeof challengeAnswers === "object" &&
+        !Array.isArray(challengeAnswers) &&
+        Object.prototype.hasOwnProperty.call(challengeAnswers, "challengeAnswers")
+        ? challengeAnswers.challengeAnswers
+        : challengeAnswers;
+    if (Array.isArray(answers)) {
+        assert(answers.length > 0, emptyChallengeAnswersMessage);
+        assert(challengeIndexes.length > 0, "publishChallengeAnswers() can't map an array of answers before a challenge message is received, pass a record keyed by challenge index");
+        const answersByIndex = {};
+        challengeIndexes.slice(0, answers.length).forEach((challengeIndex, position) => {
+            answersByIndex[challengeIndex] = answers[position];
+        });
+        return { challengeAnswers: answersByIndex };
+    }
+    assert(answers && typeof answers === "object" && Object.keys(answers).length > 0, emptyChallengeAnswersMessage);
+    return { challengeAnswers: answers };
+};
+/**
+ * Lets publication.publishChallengeAnswers() take the hooks' input forms. Call it with every
+ * CHALLENGE the publication receives: the publication is wrapped once, and the challenge indexes
+ * used to map a deprecated array are those of the latest CHALLENGE.
+ */
+export const withPublishChallengeAnswersCompat = (publication, challenge) => {
     const target = publication;
-    if (!target ||
-        typeof target.publishChallengeAnswers !== "function" ||
-        target[publishChallengeAnswersCompatMarker]) {
+    if (!target || typeof target.publishChallengeAnswers !== "function") {
+        return publication;
+    }
+    target[challengeIndexesKey] = getChallengeIndexes(challenge);
+    if (target[publishChallengeAnswersCompatMarker]) {
         return publication;
     }
     const publishChallengeAnswers = target.publishChallengeAnswers.bind(publication);
-    target.publishChallengeAnswers = (challengeAnswers) => publishChallengeAnswers(normalizeChallengeAnswersForPkc(challengeAnswers));
+    target.publishChallengeAnswers = (challengeAnswers) => __awaiter(void 0, void 0, void 0, function* () {
+        return publishChallengeAnswers(normalizeChallengeAnswersForPkc(challengeAnswers, target[challengeIndexesKey]));
+    });
     target[publishChallengeAnswersCompatMarker] = true;
     return publication;
 };

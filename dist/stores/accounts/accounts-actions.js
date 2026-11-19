@@ -1275,7 +1275,7 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
             updatePublishSessionComment(publishSessionId, activeComment);
             activeComment.once("challenge", (challenge) => __awaiter(this, void 0, void 0, function* () {
                 lastChallenge = challenge;
-                publishCommentOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(activeComment));
+                publishCommentOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(activeComment, challenge));
             }));
             activeComment.once("challengeverification", (challengeVerification) => __awaiter(this, void 0, void 0, function* () {
                 var _a;
@@ -1624,7 +1624,7 @@ export const publishVote = (publishVoteOptions, accountName) => __awaiter(void 0
         votePublishSession.publications.add(vote);
         vote.once("challenge", (challenge) => __awaiter(void 0, void 0, void 0, function* () {
             lastChallenge = challenge;
-            publishVoteOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(vote));
+            publishVoteOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(vote, challenge));
         }));
         vote.once("challengeverification", (challengeVerification) => __awaiter(void 0, void 0, void 0, function* () {
             var _a;
@@ -1778,7 +1778,7 @@ export const publishCommentEdit = (publishCommentEditOptions, accountName) => __
         var _a;
         commentEdit.once("challenge", (challenge) => __awaiter(void 0, void 0, void 0, function* () {
             lastChallenge = challenge;
-            publishCommentEditOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(commentEdit));
+            publishCommentEditOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(commentEdit, challenge));
         }));
         commentEdit.once("challengeverification", (challengeVerification) => __awaiter(void 0, void 0, void 0, function* () {
             publishCommentEditOptions.onChallengeVerification(challengeVerification, commentEdit);
@@ -1866,7 +1866,7 @@ export const publishCommentModeration = (publishCommentModerationOptions, accoun
         var _a;
         commentModeration.once("challenge", (challenge) => __awaiter(void 0, void 0, void 0, function* () {
             lastChallenge = challenge;
-            publishCommentModerationOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(commentModeration));
+            publishCommentModerationOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(commentModeration, challenge));
         }));
         commentModeration.once("challengeverification", (challengeVerification) => __awaiter(void 0, void 0, void 0, function* () {
             publishCommentModerationOptions.onChallengeVerification(challengeVerification, commentModeration);
@@ -1990,7 +1990,7 @@ export const publishCommunityEdit = (communityAddress, publishCommunityEditOptio
         var _a;
         communityEdit.once("challenge", (challenge) => __awaiter(void 0, void 0, void 0, function* () {
             lastChallenge = challenge;
-            publishCommunityEditOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(communityEdit));
+            publishCommunityEditOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(communityEdit, challenge));
         }));
         communityEdit.once("challengeverification", (challengeVerification) => __awaiter(void 0, void 0, void 0, function* () {
             publishCommunityEditOptions.onChallengeVerification(challengeVerification, communityEdit);

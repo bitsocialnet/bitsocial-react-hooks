@@ -50,7 +50,7 @@ export function handlePublishVoteError(error, setErrors, onError) {
     setErrors((errors) => [...errors, error]);
     (onError !== null && onError !== void 0 ? onError : noop)(error);
 }
-const publishChallengeAnswersNotReady = (challengeAnswers) => __awaiter(void 0, void 0, void 0, function* () {
+const publishChallengeAnswersNotReady = () => __awaiter(void 0, void 0, void 0, function* () {
     throw Error(`can't call publishChallengeAnswers() before result.challenge is defined (before the challenge message is received)`);
 });
 export function useSubscribe(options) {

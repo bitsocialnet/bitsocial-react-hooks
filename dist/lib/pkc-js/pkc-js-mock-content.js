@@ -1059,10 +1059,11 @@ class Publication extends EventEmitter {
     }
     simulateChallengeEvent() {
         return __awaiter(this, void 0, void 0, function* () {
-            const challenges = [];
+            // keyed by challenge index, like pkc-js
+            const challenges = {};
             const challengeCount = yield getNumberBetween(1, 3, yield getNumberHash(this.challengeRequestId));
-            while (challenges.length < challengeCount) {
-                challenges.push({ type: "image/png", challenge: captchaImageBase64 });
+            for (let challengeIndex = 0; challengeIndex < challengeCount; challengeIndex++) {
+                challenges[String(challengeIndex)] = { type: "image/png", challenge: captchaImageBase64 };
             }
             const challengeMessage = {
                 type: "CHALLENGE",
@@ -1072,7 +1073,7 @@ class Publication extends EventEmitter {
             this.emit("challenge", challengeMessage, this);
         });
     }
-    publishChallengeAnswers(_challengeAnswers) {
+    publishChallengeAnswers(_options) {
         return __awaiter(this, void 0, void 0, function* () {
             yield simulateLoadingTime();
             this.simulateChallengeVerificationEvent();

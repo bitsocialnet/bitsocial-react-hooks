@@ -1,5 +1,6 @@
 import EventEmitter from "events";
 import type { PkcResolveAuthorNameOptions, PkcResolveAuthorNameResult } from "../pkc-types.js";
+import type { ChallengeAnswersByIndex } from "../../types.js";
 export declare const simulateLoadingTime: () => Promise<unknown>;
 export declare const resetPkcJsMock: () => void;
 export declare const debugPkcJsMock: () => void;
@@ -112,8 +113,8 @@ declare class Publication extends EventEmitter {
     publishingState: string | undefined;
     publish(): Promise<void>;
     simulateChallengeEvent(): void;
-    publishChallengeAnswers(_challengeAnswers?: string[] | {
-        challengeAnswers?: string[];
+    publishChallengeAnswers(options: {
+        challengeAnswers: ChallengeAnswersByIndex;
     }): Promise<void>;
     simulateChallengeVerificationEvent(): void;
     stop(): void;
