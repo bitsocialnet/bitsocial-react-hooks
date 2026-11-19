@@ -215,7 +215,7 @@ describe("mock content", () => {
     let onChallengeVerificationCalled = false;
     const onChallenge = (challenge, comment) => {
       console.log("challenge", challenge);
-      comment.publishChallengeAnswers(["some answer..."]);
+      comment.publishChallengeAnswers({ 0: "some answer..." });
     };
     const onChallengeVerification = (...args) => {
       console.log("challengeverification", args);

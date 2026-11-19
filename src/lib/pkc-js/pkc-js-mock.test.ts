@@ -106,7 +106,9 @@ describe("PkcJsMock", () => {
     );
 
     // start publishing state
-    comment.on("challenge", () => comment.publishChallengeAnswers(["4"]));
+    comment.on("challenge", () =>
+      comment.publishChallengeAnswers({ challengeAnswers: { "0": "4" } }),
+    );
     await comment.publish();
     expect(comment.state).toBe("publishing");
 

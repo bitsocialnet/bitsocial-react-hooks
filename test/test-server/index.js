@@ -78,7 +78,10 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
       signer,
       author: { address: signer.address },
     });
-    comment.once("challenge", () => comment.publishChallengeAnswers({ challengeAnswers: ["2"] }));
+    // answers are keyed by challenge index; the community's only challenge is index "0"
+    comment.once("challenge", () =>
+      comment.publishChallengeAnswers({ challengeAnswers: { 0: "2" } }),
+    );
     await comment.publish();
     console.log("test comment published");
     console.log("test server ready");

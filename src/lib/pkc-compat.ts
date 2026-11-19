@@ -1,4 +1,5 @@
 import assert from "./assert";
+import type { Challenge, ChallengeAnswersByIndex, PublishChallengeAnswersInput } from "../types";
 import type {
   PkcResolveAuthorName,
   PkcResolveAuthorNameOptions,
@@ -244,31 +245,88 @@ export const withProtocolAliases = <T extends Record<string, any>>(
   return nextAccount as T;
 };
 
-type ChallengeAnswersInput = string[] | { challengeAnswers?: string[] } | undefined;
+type ChallengeAnswersInput =
+  | PublishChallengeAnswersInput
+  | string[]
+  | { challengeAnswers: string[] }
+  | undefined;
 
 const publishChallengeAnswersCompatMarker = Symbol.for(
   "bitsocial-react-hooks.publishChallengeAnswersCompat",
 );
+const challengeIndexesKey = Symbol.for("bitsocial-react-hooks.challengeIndexes");
 
-export const normalizeChallengeAnswersForPkc = (challengeAnswers: ChallengeAnswersInput) => ({
-  challengeAnswers: Array.isArray(challengeAnswers)
-    ? challengeAnswers
-    : challengeAnswers?.challengeAnswers || [],
-});
+const emptyChallengeAnswersMessage =
+  'publishChallengeAnswers() needs a non-empty record of answers keyed by challenge index, for example { "0": "answer" }';
 
-export const withPublishChallengeAnswersCompat = <T>(publication: T): T => {
+/** The challenge indexes a CHALLENGE message asks to answer, in ascending order. */
+export const getChallengeIndexes = (challenge: Challenge | undefined): string[] => {
+  const challenges = challenge?.challenges;
+  if (!challenges || typeof challenges !== "object") {
+    return [];
+  }
+  return Object.keys(challenges).sort((a, b) => Number(a) - Number(b));
+};
+
+/**
+ * Converts publishChallengeAnswers() input to pkc-js's { challengeAnswers: { [challengeIndex]: answer } }.
+ * A deprecated positional array is mapped onto `challengeIndexes`, the ascending keys of the latest
+ * CHALLENGE, so a caller that still passes an array keeps working. Missing or empty answers throw
+ * instead of becoming an empty record that pkc-js would reject with a schema error.
+ */
+export const normalizeChallengeAnswersForPkc = (
+  challengeAnswers: ChallengeAnswersInput,
+  challengeIndexes: string[] = [],
+): { challengeAnswers: ChallengeAnswersByIndex } => {
+  const answers =
+    challengeAnswers &&
+    typeof challengeAnswers === "object" &&
+    !Array.isArray(challengeAnswers) &&
+    Object.prototype.hasOwnProperty.call(challengeAnswers, "challengeAnswers")
+      ? (challengeAnswers as { challengeAnswers: unknown }).challengeAnswers
+      : challengeAnswers;
+
+  if (Array.isArray(answers)) {
+    assert(answers.length > 0, emptyChallengeAnswersMessage);
+    assert(
+      challengeIndexes.length > 0,
+      "publishChallengeAnswers() can't map an array of answers before a challenge message is received, pass a record keyed by challenge index",
+    );
+    const answersByIndex: ChallengeAnswersByIndex = {};
+    challengeIndexes.slice(0, answers.length).forEach((challengeIndex, position) => {
+      answersByIndex[challengeIndex] = answers[position];
+    });
+    return { challengeAnswers: answersByIndex };
+  }
+
+  assert(
+    answers && typeof answers === "object" && Object.keys(answers).length > 0,
+    emptyChallengeAnswersMessage,
+  );
+  return { challengeAnswers: answers as ChallengeAnswersByIndex };
+};
+
+/**
+ * Lets publication.publishChallengeAnswers() take the hooks' input forms. Call it with every
+ * CHALLENGE the publication receives: the publication is wrapped once, and the challenge indexes
+ * used to map a deprecated array are those of the latest CHALLENGE.
+ */
+export const withPublishChallengeAnswersCompat = <T>(publication: T, challenge: Challenge): T => {
   const target = publication as Record<string | symbol, any> | undefined;
-  if (
-    !target ||
-    typeof target.publishChallengeAnswers !== "function" ||
-    target[publishChallengeAnswersCompatMarker]
-  ) {
+  if (!target || typeof target.publishChallengeAnswers !== "function") {
+    return publication;
+  }
+
+  target[challengeIndexesKey] = getChallengeIndexes(challenge);
+  if (target[publishChallengeAnswersCompatMarker]) {
     return publication;
   }
 
   const publishChallengeAnswers = target.publishChallengeAnswers.bind(publication);
-  target.publishChallengeAnswers = (challengeAnswers?: ChallengeAnswersInput) =>
-    publishChallengeAnswers(normalizeChallengeAnswersForPkc(challengeAnswers));
+  target.publishChallengeAnswers = async (challengeAnswers: ChallengeAnswersInput) =>
+    publishChallengeAnswers(
+      normalizeChallengeAnswersForPkc(challengeAnswers, target[challengeIndexesKey]),
+    );
   target[publishChallengeAnswersCompatMarker] = true;
 
   return publication;

@@ -272,7 +272,7 @@ class Comment extends EventEmitter {
       // emit challenge
       const challengeMessage = {
         type: "CHALLENGE",
-        challenges: [{ type: "text", challenge: "2+2=?" }],
+        challenges: { "0": { type: "text", challenge: "2+2=?" } },
       };
       this.emit("challenge", challengeMessage, this);
     })();
@@ -862,7 +862,8 @@ describe("states", () => {
     });
 
     test("publish comment", async () => {
-      const onChallenge = (challenge: any, comment: Comment) => comment.publishChallengeAnswers();
+      const onChallenge = (challenge: any, comment: Comment) =>
+        comment.publishChallengeAnswers({ "0": "4" });
       const onChallengeVerification = vi.fn();
       const publishCommentOptions = {
         communityAddress: "12D3KooW... states.test",

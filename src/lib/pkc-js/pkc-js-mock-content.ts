@@ -1323,14 +1323,15 @@ class Publication extends EventEmitter {
   }
 
   async simulateChallengeEvent() {
-    const challenges: any = [];
+    // keyed by challenge index, like pkc-js
+    const challenges: any = {};
     const challengeCount = await getNumberBetween(
       1,
       3,
       await getNumberHash(this.challengeRequestId),
     );
-    while (challenges.length < challengeCount) {
-      challenges.push({ type: "image/png", challenge: captchaImageBase64 });
+    for (let challengeIndex = 0; challengeIndex < challengeCount; challengeIndex++) {
+      challenges[String(challengeIndex)] = { type: "image/png", challenge: captchaImageBase64 };
     }
     const challengeMessage = {
       type: "CHALLENGE",
@@ -1340,7 +1341,9 @@ class Publication extends EventEmitter {
     this.emit("challenge", challengeMessage, this);
   }
 
-  async publishChallengeAnswers(_challengeAnswers?: string[] | { challengeAnswers?: string[] }) {
+  async publishChallengeAnswers(_options?: {
+    challengeAnswers: { [challengeIndex: string]: string };
+  }) {
     await simulateLoadingTime();
     this.simulateChallengeVerificationEvent();
   }

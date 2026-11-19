@@ -115,13 +115,13 @@ describe("accounts (pkc-js mock)", () => {
         expect(onChallengeCalled).to.equal(1);
 
         expect(challenge.type).to.equal("CHALLENGE");
-        expect(challenge.challenges[0]).to.deep.equal({ challenge: "2+2=?", type: "text" });
+        expect(challenge.challenges).to.deep.equal({ 0: { challenge: "2+2=?", type: "text" } });
         expect(typeof comment.publishChallengeAnswers).to.equal("function");
       });
 
       it("onChallengeVerification gets called", async () => {
         // publish challenge answer and wait for verification
-        comment.publishChallengeAnswers(["4"]);
+        comment.publishChallengeAnswers({ 0: "4" });
         await waitFor(() => onChallengeVerificationCalled > 0);
         expect(onChallengeVerificationCalled).to.equal(1);
         expect(challengeVerification.type).to.equal("CHALLENGEVERIFICATION");
@@ -173,13 +173,13 @@ describe("accounts (pkc-js mock)", () => {
         expect(onChallengeCalled).to.equal(1);
 
         expect(challenge.type).to.equal("CHALLENGE");
-        expect(challenge.challenges[0]).to.deep.equal({ challenge: "2+2=?", type: "text" });
+        expect(challenge.challenges).to.deep.equal({ 0: { challenge: "2+2=?", type: "text" } });
         expect(typeof vote.publishChallengeAnswers).to.equal("function");
       });
 
       it("onChallengeVerification gets called", async () => {
         // publish challenge answer and wait for verification
-        vote.publishChallengeAnswers(["4"]);
+        vote.publishChallengeAnswers({ 0: "4" });
         await waitFor(() => onChallengeVerificationCalled > 0);
         expect(onChallengeVerificationCalled).to.equal(1);
         expect(challengeVerification.type).to.equal("CHALLENGEVERIFICATION");

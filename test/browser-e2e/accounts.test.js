@@ -340,7 +340,8 @@ for (const pkcOptionsType in pkcOptionsTypes) {
           // wait for challenge
           await waitFor(() => !!challenge);
           expect(challenge.type).to.equal("CHALLENGE");
-          comment.publishChallengeAnswers([""]); // publish wrong challenge answer
+          // publish wrong challenge answer, keyed by the challenge index
+          comment.publishChallengeAnswers({ 0: "" });
           // wait for challenge verification
           await waitFor(() => !!challengeVerification);
           expect(challengeVerification.type).to.equal("CHALLENGEVERIFICATION");
@@ -373,9 +374,11 @@ for (const pkcOptionsType in pkcOptionsTypes) {
           // wait for challenge
           await waitFor(() => !!challenge2);
           expect(challenge2.type).to.equal("CHALLENGE");
-          let challengeAnswer = String(eval(challenge2.challenges[0].challenge));
+          // challenges is a record keyed by challenge index
+          const [[challengeIndex, pendingChallenge]] = Object.entries(challenge2.challenges);
+          let challengeAnswer = String(eval(pendingChallenge.challenge));
           // challengeAnswer = 'wrong answer'
-          comment2.publishChallengeAnswers([challengeAnswer]); // publish correct challenge answer
+          comment2.publishChallengeAnswers({ [challengeIndex]: challengeAnswer }); // publish correct challenge answer
           // wait for challenge verification
           await waitFor(() => !!challengeVerification2);
           expect(challengeVerification2.type).to.equal("CHALLENGEVERIFICATION");
@@ -482,8 +485,12 @@ for (const pkcOptionsType in pkcOptionsTypes) {
 
           await waitFor(() => !!publishChallenge);
           expect(publishChallenge.type).to.equal("CHALLENGE");
-          const publishChallengeAnswer = String(eval(publishChallenge.challenges[0].challenge));
-          publishCommentInstance.publishChallengeAnswers([publishChallengeAnswer]);
+          const [[publishChallengeIndex, publishPendingChallenge]] = Object.entries(
+            publishChallenge.challenges,
+          );
+          publishCommentInstance.publishChallengeAnswers({
+            [publishChallengeIndex]: String(eval(publishPendingChallenge.challenge)),
+          });
           await waitFor(() => publishVerification?.challengeSuccess === true);
 
           await waitFor(() => rendered.result.current.feed.feed.length > 0);
@@ -550,10 +557,12 @@ for (const pkcOptionsType in pkcOptionsTypes) {
             () => mountedModerationChallenge || mountedModerationVerification,
           );
           if (mountedModerationChallenge) {
-            const moderationChallengeAnswer = String(
-              eval(mountedModerationChallenge.challenges[0].challenge),
+            const [[moderationChallengeIndex, moderationPendingChallenge]] = Object.entries(
+              mountedModerationChallenge.challenges,
             );
-            mountedModerationInstance.publishChallengeAnswers([moderationChallengeAnswer]);
+            mountedModerationInstance.publishChallengeAnswers({
+              [moderationChallengeIndex]: String(eval(moderationPendingChallenge.challenge)),
+            });
           }
           await waitForMountedModeration(() => !!mountedModerationVerification);
           expect(mountedModerationVerification.challengeSuccess).to.equal(true);
@@ -605,13 +614,14 @@ for (const pkcOptionsType in pkcOptionsTypes) {
           moderationRendered.unmount();
 
           await waitFor(() => !!unmountedModerationChallenge);
-          const unmountedModerationChallengeAnswer = String(
-            eval(unmountedModerationChallenge.challenges[0].challenge),
-          );
+          const [[unmountedModerationChallengeIndex, unmountedModerationPendingChallenge]] =
+            Object.entries(unmountedModerationChallenge.challenges);
           await act(async () => {
-            await unmountedModerationInstance.publishChallengeAnswers([
-              unmountedModerationChallengeAnswer,
-            ]);
+            await unmountedModerationInstance.publishChallengeAnswers({
+              [unmountedModerationChallengeIndex]: String(
+                eval(unmountedModerationPendingChallenge.challenge),
+              ),
+            });
           });
 
           await waitForObservedComment(
@@ -703,7 +713,7 @@ for (const pkcOptionsType in pkcOptionsTypes) {
 
         // publish community edit
         const onChallenge = (challenge, communityEdit) =>
-          communityEdit.publishChallengeAnswers(["2"]);
+          communityEdit.publishChallengeAnswers({ 0: "2" });
         const onChallengeVerificationCalls = [];
         const onChallengeVerification = (...args) => onChallengeVerificationCalls.push([...args]);
         const editedTitle = `edited title ${Math.random()}`;
@@ -823,7 +833,7 @@ for (const pkcOptionsType in pkcOptionsTypes) {
 
         it(`onChallengeVerification gets called (${pkcOptionsType})`, async () => {
           // publish challenge answer and wait for verification
-          comment.publishChallengeAnswers(["2"]);
+          comment.publishChallengeAnswers({ 0: "2" });
           await waitFor(() => onChallengeVerificationCalled > 0);
           expect(onChallengeVerificationCalled).to.equal(1);
           expect(challengeVerification.type).to.equal("CHALLENGEVERIFICATION");
@@ -859,7 +869,8 @@ for (const pkcOptionsType in pkcOptionsTypes) {
           const onChallenge = (challenge, comment) => {
             console.log("onChallenge");
             console.log(challenge);
-            comment.publishChallengeAnswers(["2"]);
+            // the wrapped form { challengeAnswers } is accepted too
+            comment.publishChallengeAnswers({ challengeAnswers: { 0: "2" } });
           };
           let replyChallengeVerification;
           const onChallengeVerification = (challengeVerification, comment) => {

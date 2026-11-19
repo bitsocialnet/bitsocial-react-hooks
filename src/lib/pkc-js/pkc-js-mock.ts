@@ -1,5 +1,6 @@
 import EventEmitter from "events";
 import type { PkcResolveAuthorNameOptions, PkcResolveAuthorNameResult } from "../pkc-types";
+import type { ChallengeAnswersByIndex } from "../../types";
 
 const loadingTime = 10;
 export const simulateLoadingTime = () => new Promise((r) => setTimeout(r, loadingTime));
@@ -574,12 +575,25 @@ class Publication extends EventEmitter {
     const challengeMessage = {
       type: "CHALLENGE",
       challengeRequestId: this.challengeRequestId,
-      challenges: [challenge],
+      // keyed by challenge index, like pkc-js
+      challenges: { "0": challenge },
     };
     this.emit("challenge", challengeMessage, this);
   }
 
-  async publishChallengeAnswers(_challengeAnswers?: string[] | { challengeAnswers?: string[] }) {
+  async publishChallengeAnswers(options: { challengeAnswers: ChallengeAnswersByIndex }) {
+    const challengeAnswers = options?.challengeAnswers;
+    // pkc-js rejects an array or an empty record
+    if (
+      !challengeAnswers ||
+      typeof challengeAnswers !== "object" ||
+      Array.isArray(challengeAnswers) ||
+      Object.keys(challengeAnswers).length === 0
+    ) {
+      throw Error(
+        `pkc-js-mock publishChallengeAnswers: challengeAnswers must be a non-empty record keyed by challenge index, got '${JSON.stringify(challengeAnswers)}'`,
+      );
+    }
     this.publishingState = "publishing-challenge-answer";
     this.emit("publishingstatechange", "publishing-challenge-answer");
 

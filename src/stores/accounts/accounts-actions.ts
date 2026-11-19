@@ -1739,7 +1739,7 @@ export const publishComment = async (
       lastChallenge = challenge;
       publishCommentOptions.onChallenge(
         challenge,
-        withPublishChallengeAnswersCompat(activeComment),
+        withPublishChallengeAnswersCompat(activeComment, challenge),
       );
     });
     activeComment.once(
@@ -2191,7 +2191,7 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
     votePublishSession.publications.add(vote);
     vote.once("challenge", async (challenge: Challenge) => {
       lastChallenge = challenge;
-      publishVoteOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(vote));
+      publishVoteOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(vote, challenge));
     });
     vote.once("challengeverification", async (challengeVerification: ChallengeVerification) => {
       publishVoteOptions.onChallengeVerification(challengeVerification, vote);
@@ -2402,7 +2402,7 @@ export const publishCommentEdit = async (
       lastChallenge = challenge;
       publishCommentEditOptions.onChallenge(
         challenge,
-        withPublishChallengeAnswersCompat(commentEdit),
+        withPublishChallengeAnswersCompat(commentEdit, challenge),
       );
     });
     commentEdit.once(
@@ -2537,7 +2537,7 @@ export const publishCommentModeration = async (
       lastChallenge = challenge;
       publishCommentModerationOptions.onChallenge(
         challenge,
-        withPublishChallengeAnswersCompat(commentModeration),
+        withPublishChallengeAnswersCompat(commentModeration, challenge),
       );
     });
     commentModeration.once(
@@ -2721,7 +2721,7 @@ export const publishCommunityEdit = async (
       lastChallenge = challenge;
       publishCommunityEditOptions.onChallenge(
         challenge,
-        withPublishChallengeAnswersCompat(communityEdit),
+        withPublishChallengeAnswersCompat(communityEdit, challenge),
       );
     });
     communityEdit.once(
