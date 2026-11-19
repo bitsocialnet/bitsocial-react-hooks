@@ -10,4 +10,4 @@ DISABLE_TELEMETRY=1 yarn modern-web-guidance search "modal dialog keyboard dismi
 DISABLE_TELEMETRY=1 yarn modern-web-guidance retrieve dialog
 ```
 
-Apply the relevant advice to the component under review. Preserve the design and browser support requirements for the Bitsocial React Hooks website. Verify the observable behavior using the [browser verification playbook](../../../docs/agent-playbooks/verification.md).
+Apply the relevant advice to the component under review. Preserve the design and browser support requirements for the Bitsocial React Hooks website. Verify the affected flow in the website preview using the [website development instructions](../../../website/README.md#local-development).
