@@ -353,6 +353,10 @@ useExportCommunity(options?: UseExportCommunityOptions): {
 
 Each `publishComment()`, `publishVote()`, `publishCommentEdit()`, `publishCommentModeration()` or `publishCommunityEdit()` call starts a new result: the previous publication's `challenge`, `challengeVerification`, `publishChallengeAnswers`, `state`, `error` and `errors` are cleared, and `state` becomes `"failed"` if the call rejects before anything is published, for example because the community's challenge settings don't load. When a failed challenge answer makes the publication publish again automatically, its new `challenge` clears the failed `challengeVerification`. If `usePublishComment` or `usePublishVote` publishes again before its previous publication finished, only the newest publication updates the result and `abandonPublish()` abandons the newest one; `usePublishComment` also passes `onChallenge` a third argument that abandons the publication the challenge belongs to, so code that spreads `onChallenge`'s arguments into an array and appends its own value now finds that value at index 3 instead of 2. `usePublishCommentEdit`, `usePublishCommentModeration` and `usePublishCommunityEdit` don't separate overlapping publications: events of an earlier one that is still running can update the new result. `abandonPublish()` resets `state` and the challenge fields and stops the publication if it is still in progress, deleting the pending comment or restoring the previous vote in the account that published it. It leaves a comment alone once its publication succeeded or failed, and a vote once it was verified (use `deleteComment` to remove the comment). While a comment publishes, `index` follows it when deleting an earlier comment of the account shifts it. `exportCommunity()` likewise clears the previous `communityExports` and errors, and only the latest call's result is shown.
 
+Challenges are keyed by challenge index: the position of the challenge in `community.challenges`, as a decimal string. `challenge.challenges` is the record pkc-js sends, unchanged, for example `{"0": {challenge, type, caseInsensitive}, "3": {...}}`. It holds only the challenges still pending, so its keys can be sparse; build the list to show from `Object.entries(challenge.challenges)` sorted by numeric key, and keep each key as that challenge's index. `publishChallengeAnswers(challengeAnswers)`, on the hook result and on the publication passed to `onChallenge`, takes a `ChallengeAnswersByIndex` record with one answer per key of that challenge message, for example `{"0": "4", "3": "blue"}`, or the same record wrapped as `{challengeAnswers: {...}}`. A key the answers leave out fails that challenge with `"No answer."`, and keys the challenge message did not ask for are ignored. Missing or empty answers (`undefined`, `[]`, `{}`) reject with an error instead of being published. An array of answers is deprecated: it is mapped by position onto the ascending keys of the latest challenge message the publication received. Pre-answers passed as `challengeRequest: {challengeAnswers}` in the publish options are forwarded to pkc-js unchanged, so they use the same record, keyed by the index in `community.challenges` and holding only the challenges being pre-answered; omit `challengeRequest` when there are none, because pkc-js rejects an empty record or an array.
+
+**Migrating to 0.3.0.** pkc-js 0.0.152 changed the challenge messages from arrays to records keyed by challenge index, with no compatibility path: a client on 0.3.0 cannot complete challenges with a community on an older pkc-js, and an older client cannot complete them with a community on pkc-js 0.0.152 or later. To migrate, read `challenge.challenges` as a record instead of an array (no more `challenges.length`, `challenges.map` or positional indexes), answer with `publishChallengeAnswers({[challengeIndex]: answer})` with one key per entry (a challenge your interface completes without input, such as an iframe that verifies on its own, answers `""` under its own key), and key any `challengeRequest.challengeAnswers` pre-answers by challenge index. `publishChallengeAnswers()` called without answers now rejects instead of publishing an empty list. Existing array answers keep working through the deprecated positional mapping, which TypeScript marks as deprecated.
+
 Before `publishComment`, `publishCommentEdit`, `publishVote`, `publishCommentModeration`, or `publishCommunityEdit` signs a publication, hooks load the community challenge configuration and apply compatible wordfilters. The current `@bitsocial/wordfilter-challenge` contract uses a JSON array of `{src, dst}` objects in `wordfilter/v1/rules` and an optional JSON array of dot-notation paths in `wordfilter/v1/fieldNames`, both published through `publicOptions`. Every path starts with the publication type and is resolved against the publication being signed, so a path for another type is simply skipped. Without configured paths the defaults apply: `comment.content`, `comment.title`, `comment.author.displayName`, `commentEdit.content`, `commentEdit.reason`, `commentEdit.author.displayName`, and `vote.author.displayName`. Moderator and owner text is opt-in through configured paths (`commentModeration.commentModeration.reason`, `communityEdit.communityEdit.title`, `communityEdit.communityEdit.description`); structural and signing fields are never rewritten by community configuration. Matching is literal and case-insensitive, not regular-expression or Unicode-evasion matching. The transformed values are the values signed, published, and stored as the pending account publication. If composed rule sets do not stabilize within eight passes, publication stops before signing.
 
 #### States Hooks
@@ -725,7 +729,9 @@ if (valid === false) {
 const onChallenge = async (challenge, comment, abandonPublish) => {
   let challengeAnswers
   try {
-    // ask the user to complete the challenges in a modal window
+    // ask the user to complete the challenges in a modal window. challenge.challenges is keyed by
+    // challenge index, e.g. {"0": {challenge, type}, "2": {...}}: answer with the same keys,
+    // e.g. {"0": "4", "2": "blue"}
     challengeAnswers = await getChallengeAnswersFromUser(challenge.challenges)
   }
   catch (e) {
@@ -833,7 +839,8 @@ const {
 } = usePublishComment(publishCommentOptions);
 
 if (challenge) {
-  // display challenge.challenges and call publishChallengeAnswers(challengeAnswers)
+  // display Object.entries(challenge.challenges) sorted by numeric key, then call
+  // publishChallengeAnswers({[challengeIndex]: answer}) with one key per entry
 }
 
 if (challengeVerification) {
@@ -1563,6 +1570,7 @@ If the account's pkc client hosts the community (it is listed in `pkc.communitie
 const onChallenge = async (challenge, communityEdit) => {
   let challengeAnswers
   try {
+    // answers keyed by the keys of challenge.challenges, e.g. {"0": "4"}
     challengeAnswers = await getChallengeAnswersFromUser(challenge.challenges)
   }
   catch (e) {}
@@ -2032,8 +2040,8 @@ await publication.publishComment();
 That awaited call starts the publication flow. It does **not** confirm that the community has accepted the post.
 
 1. A pending local comment becomes available through the result's `index`.
-2. A community may send a `challenge` message. Your interface presents its `challenges` and collects answers.
-3. Call `publishChallengeAnswers(answers)` with an array of strings in challenge order.
+2. A community may send a `challenge` message. Its `challenges` is a record keyed by challenge index (the position in `community.challenges`, as a decimal string) that holds only the challenges still pending, so the keys can be sparse. Your interface presents them in numeric key order and collects answers.
+3. Call `publishChallengeAnswers(answers)` with a record that has one answer per key, for example `{ "0": "4", "2": "blue" }`.
 4. Observe `challengeVerification.challengeSuccess`, errors, and the pending comment's eventual `cid` to show the outcome.
 
 Use `useAccountComment({ commentIndex: index })` to display the pending comment. Check `index !== undefined`, because zero is a valid index. If the person cancels the flow, call `abandonPublish()` to cancel the pending attempt and remove its local pending comment.
@@ -3910,6 +3918,7 @@ Statuses: **Open** means acceptance criteria remain unmet; **In progress** requi
 | 2026-10-27 | V1-01–V1-07 | Recorded the 2026-10-26 assessment and rechecked the listed source contracts at `773f1465`. | All acceptance criteria remain open. No runtime fixes, new compatibility guarantees, version bump, or release were made by this documentation change. |
 | 2026-10-31 | V1-04, V1-07 | 0.1.63 adds explicit gallery attachment types to the existing comment/publishing API and upgrades pkc-js to 0.0.132. Its Node requirement raises the supported floor to 22.19; the manifest, local runtime pin and publishing runtime now match. The explicitly requested 0.1.63 version is retained as an exception to the support-policy minor-bump rule above. | Verified locally on Node 22.23.4: 1,350 unit tests passed (six skipped), including gallery publishing/history, cached reads and real-pkc signing/schema validation; build, lint (warnings only) and Knip passed. Broader core-type and environment-matrix criteria remain open. |
 | 2026-11-04 | V1-03 | 0.2.0 is an intentional behavior boundary: communities stop updating 2 minutes after the last hook using them unmounts (`0a83c75c`, migration in its BREAKING CHANGE note and the [API reference](../reference.md)). Its `useCommunity` loading effect now depends on `onlyIfCached` and `autoUpdate`. | Verified locally: 1,368 unit tests passed (six skipped), type-check, lint (warnings only), Knip and build; 5chan type-check and tests against the local build. No regression test covers a cache-only-to-network transition, and the `useBlock` CID memo is unchanged, so V1-03 stays open. |
+| 2026-11-19 | V1-04 | 0.3.0 is an intentional compatibility boundary: pkc-js 0.0.152 keys challenge messages by challenge index and rejects arrays, with no compatibility path ([#188](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/188)). `challenge.challenges` passes through as that record, and `publishChallengeAnswers` is typed by the exported `ChallengeAnswersByIndex`, `PublishChallengeAnswersInput` and `PublishChallengeAnswers`, with a deprecated array overload; migration in the [API reference](../reference.md). | Verified locally: 1,586 unit tests passed (six skipped), including a consumer compilation check of the new signature; type-check, lint (warnings only), Knip and build; mock, mock-content and real Chromium browser suites, the real one against pkc-js 0.0.152. `Challenge` stays an open type, so broader V1-04 criteria remain open. |
 
 0.1.64 compatibility correction (2026-10-31, V1-04): restored the open `Comment`, `PublishCommentOptions` and `CreateCommentOptions` aliases after 0.1.63 introduced weak-target assignment errors in 5chan. `CommentGalleryItem` and `UsePublishCommentOptions.gallery` remain available. The new consumer-compilation regression reproduces the incompatible scalar, array and publication-input assignments; it passes with the correction, as do the hooks build and 5chan type-check using the corrected declarations. Broader V1-04 criteria remain open.
 
@@ -3952,6 +3961,34 @@ Native references: [Codex hooks](https://learn.chatgpt.com/docs/hooks), [Claude 
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/CHANGELOG.md
 
 ```markdown
+## [0.2.6](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.2.5...v0.2.6) (2026-11-17)
+
+
+### Bug Fixes
+
+* **feeds:** add updatedFeed and bufferedFeed to the useFeed result type ([#187](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/187)) ([253487d](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/253487d1f1bd5fdf634e81124f89cbb148322839))
+
+
+
+## [0.2.5](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.2.4...v0.2.5) (2026-11-17)
+
+
+### Bug Fixes
+
+* **deps:** upgrade pkc-js to 0.0.151 ([8f8f7f0](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/8f8f7f0b2a5a73d2d8768a920b1193dd05dcd082))
+
+
+
+## [0.2.4](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.2.3...v0.2.4) (2026-11-16)
+
+
+### Bug Fixes
+
+* **agents:** reject stale Cursor skill links ([cac98ef](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/cac98ef5927b8f400a454856b56ac96bfe05e763))
+* **deps:** upgrade pkc-js to 0.0.148 ([e7c7367](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/e7c736712b8b4e15cac26a01de95887831a14ee5))
+
+
+
 ## [0.2.3](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.2.2...v0.2.3) (2026-11-12)
 
 
