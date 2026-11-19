@@ -986,9 +986,37 @@ describe("actions", () => {
       rendered.rerender(publishCommentOptions);
       await waitFor(() => rendered.result.current.state === "ready");
       expect(rendered.result.current.challenge).toBeUndefined();
-      await expect(rendered.result.current.publishChallengeAnswers(["4"])).rejects.toThrow(
+      await expect(rendered.result.current.publishChallengeAnswers({ "0": "4" })).rejects.toThrow(
         /can't call publishChallengeAnswers/,
       );
+    });
+
+    test(`publishChallengeAnswers rejects missing or empty answers, then accepts a record`, async () => {
+      const publishCommentOptions = {
+        communityAddress: "12D3KooW... acions.test",
+        parentCid: "Qm... acions.test",
+        content: "empty answers acions.test",
+      };
+      rendered.rerender(publishCommentOptions);
+      await waitFor(() => rendered.result.current.state === "ready");
+      await act(async () => {
+        await rendered.result.current.publishComment();
+      });
+      await waitFor(() => rendered.result.current.challenge);
+
+      const publishChallengeAnswers: any = rendered.result.current.publishChallengeAnswers;
+      for (const emptyAnswers of [undefined, [], {}, { challengeAnswers: {} }]) {
+        await expect(publishChallengeAnswers(emptyAnswers)).rejects.toThrow(
+          /non-empty record of answers keyed by challenge index/,
+        );
+      }
+      expect(rendered.result.current.state).toBe("waiting-challenge-answers");
+
+      act(() => {
+        rendered.result.current.publishChallengeAnswers({ "0": "4" });
+      });
+      await waitFor(() => rendered.result.current.challengeVerification);
+      expect(rendered.result.current.challengeVerification.challengeSuccess).toBe(true);
     });
 
     test(`can publish comment`, async () => {
@@ -1020,14 +1048,14 @@ describe("actions", () => {
       // wait for challenge
       await waitFor(() => rendered.result.current.challenge);
       expect(rendered.result.current.error).toBe(undefined);
-      expect(rendered.result.current.challenge.challenges).toEqual([
-        { challenge: "2+2=?", type: "text" },
-      ]);
+      expect(rendered.result.current.challenge.challenges).toEqual({
+        "0": { challenge: "2+2=?", type: "text" },
+      });
       expect(rendered.result.current.state).toBe("waiting-challenge-answers");
 
       // publish challenge verification
       act(() => {
-        rendered.result.current.publishChallengeAnswers(["4"]);
+        rendered.result.current.publishChallengeAnswers({ "0": "4" });
       });
 
       await waitFor(
@@ -1094,7 +1122,7 @@ describe("actions", () => {
       expect(onChallenge.mock.calls[0][1].gallery).toEqual(gallery);
       expect(onChallenge.mock.calls[0][1].content).toBeUndefined();
       await act(async () => {
-        await rendered.result.current.publishChallengeAnswers(["4"]);
+        await rendered.result.current.publishChallengeAnswers({ "0": "4" });
       });
       await waitFor(() => rendered.result.current.state === "succeeded");
       expect(rendered.result.current.state).toBe("succeeded");
@@ -1107,7 +1135,7 @@ describe("actions", () => {
 
     test("publish comment without onChallengeVerification completes successfully", async () => {
       const onChallenge = vi.fn((challenge: any, comment: any) =>
-        comment.publishChallengeAnswers(),
+        comment.publishChallengeAnswers({ "0": "4" }),
       );
       const publishCommentOptions = {
         communityAddress: "12D3KooW... acions.test",
@@ -1124,7 +1152,7 @@ describe("actions", () => {
 
       await waitFor(() => rendered.result.current.challenge);
       act(() => {
-        rendered.result.current.publishChallengeAnswers(["4"]);
+        rendered.result.current.publishChallengeAnswers({ "0": "4" });
       });
 
       await waitFor(() => rendered.result.current.state === "succeeded");
@@ -1304,7 +1332,8 @@ describe("actions", () => {
       rendered.rerender({
         communityAddress: "12D3KooW... actions.test sequential pending callbacks",
         content: "first sequential comment",
-        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (_challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
       });
       await waitFor(() => rendered.result.current.state === "ready");
       await act(async () => {
@@ -1751,7 +1780,7 @@ describe("actions", () => {
 
       // the first publication succeeds while the hook shows the second one
       await act(async () => {
-        await challenges[0][1].publishChallengeAnswers(["4"]);
+        await challenges[0][1].publishChallengeAnswers({ "0": "4" });
       });
       await new Promise((resolve) => setTimeout(resolve, 200));
       await act(async () => {});
@@ -1804,7 +1833,8 @@ describe("actions", () => {
       rendered.rerender({
         communityAddress: "12D3KooW... actions.test",
         content: "published before abandon",
-        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+        onChallenge: (_challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
       });
       await waitFor(() => rendered.result.current.state === "ready");
       await act(async () => {
@@ -1880,14 +1910,14 @@ describe("actions", () => {
       // wait for challenge
       await waitFor(() => rendered.result.current.challenge);
       expect(rendered.result.current.error).toBe(undefined);
-      expect(rendered.result.current.challenge.challenges).toEqual([
-        { challenge: "2+2=?", type: "text" },
-      ]);
+      expect(rendered.result.current.challenge.challenges).toEqual({
+        "0": { challenge: "2+2=?", type: "text" },
+      });
       expect(rendered.result.current.state).toBe("waiting-challenge-answers");
 
       // publish challenge verification
       act(() => {
-        rendered.result.current.publishChallengeAnswers(["4"]);
+        rendered.result.current.publishChallengeAnswers({ "0": "4" });
       });
 
       await waitFor(
@@ -1996,13 +2026,13 @@ describe("actions", () => {
       // wait for challenge
       await waitFor(() => rendered.result.current.challenge);
       expect(rendered.result.current.error).toBe(undefined);
-      expect(rendered.result.current.challenge.challenges).toEqual([
-        { challenge: "2+2=?", type: "text" },
-      ]);
+      expect(rendered.result.current.challenge.challenges).toEqual({
+        "0": { challenge: "2+2=?", type: "text" },
+      });
 
       // publish challenge verification
       act(() => {
-        rendered.result.current.publishChallengeAnswers(["4"]);
+        rendered.result.current.publishChallengeAnswers({ "0": "4" });
       });
 
       await waitFor(
@@ -2150,13 +2180,13 @@ describe("actions", () => {
       // wait for challenge
       await waitFor(() => rendered.result.current.challenge);
       expect(rendered.result.current.error).toBe(undefined);
-      expect(rendered.result.current.challenge.challenges).toEqual([
-        { challenge: "2+2=?", type: "text" },
-      ]);
+      expect(rendered.result.current.challenge.challenges).toEqual({
+        "0": { challenge: "2+2=?", type: "text" },
+      });
 
       // publish challenge verification
       act(() => {
-        rendered.result.current.publishChallengeAnswers(["4"]);
+        rendered.result.current.publishChallengeAnswers({ "0": "4" });
       });
 
       await waitFor(
@@ -2206,13 +2236,13 @@ describe("actions", () => {
       // wait for challenge
       await waitFor(() => rendered.result.current.challenge);
       expect(rendered.result.current.error).toBe(undefined);
-      expect(rendered.result.current.challenge.challenges).toEqual([
-        { challenge: "2+2=?", type: "text" },
-      ]);
+      expect(rendered.result.current.challenge.challenges).toEqual({
+        "0": { challenge: "2+2=?", type: "text" },
+      });
 
       // publish challenge verification
       act(() => {
-        rendered.result.current.publishChallengeAnswers(["4"]);
+        rendered.result.current.publishChallengeAnswers({ "0": "4" });
       });
 
       await waitFor(
@@ -2358,13 +2388,13 @@ describe("actions", () => {
       // wait for challenge
       await waitFor(() => rendered.result.current.challenge);
       expect(rendered.result.current.error).toBe(undefined);
-      expect(rendered.result.current.challenge.challenges).toEqual([
-        { challenge: "2+2=?", type: "text" },
-      ]);
+      expect(rendered.result.current.challenge.challenges).toEqual({
+        "0": { challenge: "2+2=?", type: "text" },
+      });
 
       // publish challenge verification
       act(() => {
-        rendered.result.current.publishChallengeAnswers(["4"]);
+        rendered.result.current.publishChallengeAnswers({ "0": "4" });
       });
 
       await waitFor(
@@ -2525,7 +2555,7 @@ describe("actions", () => {
           (useHook as any)({
             ...options,
             onChallenge: (_challenge: any, publication: any) =>
-              publication.publishChallengeAnswers(["4"]),
+              publication.publishChallengeAnswers({ "0": "4" }),
           }),
         );
         const waitFor = testUtils.createWaitFor(rendered);
@@ -2567,8 +2597,8 @@ describe("actions", () => {
       "$name drops the previous attempt's failed challengeVerification when a new challenge arrives",
       async ({ useHook, publish, options }) => {
         const publication = { publishChallengeAnswers: async () => {} };
-        const firstChallenge = { type: "CHALLENGE", challenges: [{ type: "text" }] };
-        const retryChallenge = { type: "CHALLENGE", challenges: [{ type: "text" }] };
+        const firstChallenge = { type: "CHALLENGE", challenges: { "0": { type: "text" } } };
+        const retryChallenge = { type: "CHALLENGE", challenges: { "0": { type: "text" } } };
         const originalAction = (useAccountsStore.getState().accountsActions as any)[publish];
         // the store publishes again automatically after a failed challenge verification
         await setStoreAction(publish, async (...args: any[]) => {
@@ -2798,7 +2828,7 @@ describe("actions", () => {
       rendered.rerender(publishVoteOptions);
       await waitFor(() => rendered.result.current.state === "ready");
       expect(rendered.result.current.challenge).toBeUndefined();
-      await expect(rendered.result.current.publishChallengeAnswers(["4"])).rejects.toThrow(
+      await expect(rendered.result.current.publishChallengeAnswers({ "0": "4" })).rejects.toThrow(
         /can't call publishChallengeAnswers/,
       );
     });
@@ -2832,13 +2862,13 @@ describe("actions", () => {
       // wait for challenge
       await waitFor(() => rendered.result.current.challenge);
       expect(rendered.result.current.error).toBe(undefined);
-      expect(rendered.result.current.challenge.challenges).toEqual([
-        { challenge: "2+2=?", type: "text" },
-      ]);
+      expect(rendered.result.current.challenge.challenges).toEqual({
+        "0": { challenge: "2+2=?", type: "text" },
+      });
 
       // publish challenge verification
       act(() => {
-        rendered.result.current.publishChallengeAnswers(["4"]);
+        rendered.result.current.publishChallengeAnswers({ "0": "4" });
       });
 
       await waitFor(
@@ -2948,7 +2978,7 @@ describe("actions", () => {
         await rendered.result.current.publishVote();
       });
       await waitFor(() => rendered.result.current.challenge);
-      act(() => rendered.result.current.publishChallengeAnswers(["4"]));
+      act(() => rendered.result.current.publishChallengeAnswers({ "0": "4" }));
       await waitFor(() => rendered.result.current.state === "succeeded");
       expect(rendered.result.current.error).toBe(undefined);
     });

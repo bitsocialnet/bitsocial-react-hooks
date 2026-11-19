@@ -76,14 +76,14 @@ import type {
   Vote,
   Community,
   CommunityExport,
+  PublishChallengeAnswers,
 } from "../../types";
 
-type PublishChallengeAnswers = (challengeAnswers?: string[]) => Promise<void>;
 type DeferredAbandon = {
   resolve: () => void;
   reject: (error: unknown) => void;
 };
-const publishChallengeAnswersNotReady: PublishChallengeAnswers = async (challengeAnswers) => {
+const publishChallengeAnswersNotReady: PublishChallengeAnswers = async () => {
   throw Error(
     `can't call publishChallengeAnswers() before result.challenge is defined (before the challenge message is received)`,
   );

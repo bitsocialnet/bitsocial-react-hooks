@@ -163,6 +163,7 @@ for (const pkcOptionsType in pkcOptionsTypes) {
       it(`onChallengeVerification gets called (${pkcOptionsType})`, async () => {
         console.log("before publish challenge answers");
         // publish challenge answer and wait for verification
+        // deprecated positional array, mapped onto the keys of the CHALLENGE ({ "0": "2" })
         vote.publishChallengeAnswers(["2"]);
         console.log("after publish challenge answers");
         await waitFor(() => onChallengeVerificationCalled > 0);

@@ -98,7 +98,7 @@ describe("accounts-store", () => {
       await accountsStore.getState().accountsActions.publishComment({
         communityAddress: "sub.eth",
         content: "for-init-err",
-        onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+        onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       });
       await new Promise((r) => setTimeout(r, 150));

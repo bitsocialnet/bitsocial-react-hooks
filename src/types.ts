@@ -483,7 +483,7 @@ export interface UsePublishCommentResult extends Result {
   challengeVerification: ChallengeVerification | undefined;
   publishComment(): Promise<void>;
   abandonPublish(): Promise<void>;
-  publishChallengeAnswers(challengeAnswers?: string[]): Promise<void>;
+  publishChallengeAnswers: PublishChallengeAnswers;
 }
 
 // usePublishVote(options): result
@@ -500,7 +500,7 @@ export interface UsePublishVoteResult extends Result {
   challengeVerification: ChallengeVerification | undefined;
   publishVote(): Promise<void>;
   abandonPublish(): Promise<void>;
-  publishChallengeAnswers(challengeAnswers?: string[]): Promise<void>;
+  publishChallengeAnswers: PublishChallengeAnswers;
 }
 
 // usePublishCommentEdit(options): result
@@ -516,7 +516,7 @@ export interface UsePublishCommentEditResult extends Result {
   challenge: Challenge | undefined;
   challengeVerification: ChallengeVerification | undefined;
   publishCommentEdit(): Promise<void>;
-  publishChallengeAnswers(challengeAnswers?: string[]): Promise<void>;
+  publishChallengeAnswers: PublishChallengeAnswers;
 }
 
 // usePublishCommentModeration(options): result
@@ -532,7 +532,7 @@ export interface UsePublishCommentModerationResult extends Result {
   challenge: Challenge | undefined;
   challengeVerification: ChallengeVerification | undefined;
   publishCommentModeration(): Promise<void>;
-  publishChallengeAnswers(challengeAnswers?: string[]): Promise<void>;
+  publishChallengeAnswers: PublishChallengeAnswers;
 }
 
 // usePublishCommunityEdit(options): result
@@ -549,7 +549,7 @@ export interface UsePublishCommunityEditResult extends Result {
   challenge: Challenge | undefined;
   challengeVerification: ChallengeVerification | undefined;
   publishCommunityEdit(): Promise<void>;
-  publishChallengeAnswers(challengeAnswers?: string[]): Promise<void>;
+  publishChallengeAnswers: PublishChallengeAnswers;
 }
 
 // useCreateCommunity(options): result
@@ -729,8 +729,34 @@ export interface ExportCommunityOptions {
   signal?: AbortSignal;
   [key: string]: unknown;
 }
+/**
+ * A CHALLENGE message. Its `challenges` is a non-empty record keyed by challenge index (the
+ * position in community.challenges, as a decimal string), holding only the challenges still
+ * pending, so the keys can be sparse: { "0": { challenge, type, caseInsensitive }, "3": {...} }.
+ */
 export type Challenge = { [key: string]: any };
 export type ChallengeVerification = { [key: string]: any };
+/**
+ * Challenge answers keyed by challenge index (the position in community.challenges, as a decimal
+ * string), for example { "0": "4", "3": "blue" }. Answer each key of the CHALLENGE's `challenges`.
+ */
+export type ChallengeAnswersByIndex = { [challengeIndex: string]: string };
+/** The answers record, or the same record wrapped as { challengeAnswers }. */
+export type PublishChallengeAnswersInput =
+  | ChallengeAnswersByIndex
+  | { challengeAnswers: ChallengeAnswersByIndex };
+/**
+ * Publishes the answers to the latest CHALLENGE of the publication. Rejects when the answers are
+ * missing or empty.
+ */
+export interface PublishChallengeAnswers {
+  (challengeAnswers: PublishChallengeAnswersInput): Promise<void>;
+  /**
+   * @deprecated Positional answers are mapped onto the ascending challenge indexes of the latest
+   * CHALLENGE. Pass a record keyed by challenge index instead.
+   */
+  (challengeAnswers: string[] | { challengeAnswers: string[] }): Promise<void>;
+}
 export type CreateCommentOptions = { [key: string]: any };
 export type CreateCommunityOptions = { [key: string]: any };
 export type CreateVoteOptions = { [key: string]: any };

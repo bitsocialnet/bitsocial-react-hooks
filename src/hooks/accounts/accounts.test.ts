@@ -472,18 +472,21 @@ describe("accounts", () => {
         const publishCommentEditOptions = {
           communityAddress,
           spoiler: true,
-          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+          onChallenge: (challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => challengeVerificationCount++,
         };
         const publishCommentOptions = {
           communityAddress,
-          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+          onChallenge: (challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => challengeVerificationCount++,
         };
         const publishVoteOptions = {
           communityAddress,
           vote: 1,
-          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+          onChallenge: (challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => challengeVerificationCount++,
         };
         await act(async () => {
@@ -865,7 +868,8 @@ describe("accounts", () => {
       test(`deleteComment(cid) removes succeeded comment and reindexes/mapping remains correct`, async () => {
         const publishCommentOptions = {
           communityAddress,
-          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+          onChallenge: (challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
         };
         let cvCount = 0;
         const opts = {
@@ -906,7 +910,8 @@ describe("accounts", () => {
         let cvCount = 0;
         const publishCommentOptions = {
           communityAddress,
-          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+          onChallenge: (challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => cvCount++,
         };
         await act(async () => {
@@ -1253,13 +1258,13 @@ describe("accounts", () => {
         const challenge = onChallenge.mock.calls[0][0];
         comment = onChallenge.mock.calls[0][1];
         expect(challenge.type).toBe("CHALLENGE");
-        expect(challenge.challenges[0]).toEqual({ challenge: "2+2=?", type: "text" });
+        expect(challenge.challenges).toEqual({ "0": { challenge: "2+2=?", type: "text" } });
         expect(typeof comment.publishChallengeAnswers).toBe("function");
       });
 
       test("onChallengeVerification gets called", async () => {
         // publish challenge answer and wait for verification
-        comment.publishChallengeAnswers(["4"]);
+        comment.publishChallengeAnswers({ "0": "4" });
         await waitFor(() => onChallengeVerification.mock.calls.length === 1);
 
         expect(onChallengeVerification.mock.calls.length).toBe(1);
@@ -1344,13 +1349,13 @@ describe("accounts", () => {
         const challenge = onChallenge.mock.calls[0][0];
         vote = onChallenge.mock.calls[0][1];
         expect(challenge.type).toBe("CHALLENGE");
-        expect(challenge.challenges[0]).toEqual({ challenge: "2+2=?", type: "text" });
+        expect(challenge.challenges).toEqual({ "0": { challenge: "2+2=?", type: "text" } });
         expect(typeof vote.publishChallengeAnswers).toBe("function");
       });
 
       test("onChallengeVerification gets called", async () => {
         // publish challenge answer and wait for verification
-        vote.publishChallengeAnswers(["4"]);
+        vote.publishChallengeAnswers({ "0": "4" });
         await waitFor(() => onChallengeVerification.mock.calls.length === 1);
 
         expect(onChallengeVerification.mock.calls.length).toBe(1);
@@ -1396,13 +1401,13 @@ describe("accounts", () => {
         const challenge = onChallenge.mock.calls[0][0];
         commentEdit = onChallenge.mock.calls[0][1];
         expect(challenge.type).toBe("CHALLENGE");
-        expect(challenge.challenges[0]).toEqual({ challenge: "2+2=?", type: "text" });
+        expect(challenge.challenges).toEqual({ "0": { challenge: "2+2=?", type: "text" } });
         expect(typeof commentEdit.publishChallengeAnswers).toBe("function");
       });
 
       test("onChallengeVerification gets called", async () => {
         // publish challenge answer and wait for verification
-        commentEdit.publishChallengeAnswers(["4"]);
+        commentEdit.publishChallengeAnswers({ "0": "4" });
         await waitFor(() => onChallengeVerification.mock.calls.length === 1);
 
         expect(onChallengeVerification.mock.calls.length).toBe(1);
@@ -1538,13 +1543,13 @@ describe("accounts", () => {
         const challenge = onChallenge.mock.calls[0][0];
         communityEdit = onChallenge.mock.calls[0][1];
         expect(challenge.type).toBe("CHALLENGE");
-        expect(challenge.challenges[0]).toEqual({ challenge: "2+2=?", type: "text" });
+        expect(challenge.challenges).toEqual({ "0": { challenge: "2+2=?", type: "text" } });
         expect(typeof communityEdit.publishChallengeAnswers).toBe("function");
       });
 
       test("onChallengeVerification gets called", async () => {
         // publish challenge answer and wait for verification
-        communityEdit.publishChallengeAnswers(["4"]);
+        communityEdit.publishChallengeAnswers({ "0": "4" });
         await waitFor(() => onChallengeVerification.mock.calls.length === 1);
 
         expect(onChallengeVerification.mock.calls.length).toBe(1);
@@ -1967,8 +1972,8 @@ describe("accounts", () => {
       await waitFor(() => onChallenge.mock.calls.length === 6);
 
       // publish challenge answers for comment 1 and 2
-      onChallenge.mock.calls[0][1].publishChallengeAnswers(["4"]);
-      onChallenge.mock.calls[1][1].publishChallengeAnswers(["4"]);
+      onChallenge.mock.calls[0][1].publishChallengeAnswers({ "0": "4" });
+      onChallenge.mock.calls[1][1].publishChallengeAnswers({ "0": "4" });
 
       // wait for all on challengeverification to be called
       await waitFor(() => onChallengeVerification.mock.calls.length === 2);
@@ -2169,9 +2174,9 @@ describe("accounts", () => {
       );
 
       // answer challenges to get the comments published
-      onChallenge.mock.calls[0][1].publishChallengeAnswers(["4"]);
-      onChallenge.mock.calls[1][1].publishChallengeAnswers(["4"]);
-      onChallenge.mock.calls[2][1].publishChallengeAnswers(["4"]);
+      onChallenge.mock.calls[0][1].publishChallengeAnswers({ "0": "4" });
+      onChallenge.mock.calls[1][1].publishChallengeAnswers({ "0": "4" });
+      onChallenge.mock.calls[2][1].publishChallengeAnswers({ "0": "4" });
 
       await waitFor(() => rendered.result.current.account.karma.upvoteCount >= 9);
       expect(rendered.result.current.account.karma.score).toBe(6);
@@ -2635,7 +2640,7 @@ describe("accounts", () => {
           postCid: "post cid 1",
           communityAddress: "community address 1",
           // @ts-ignore
-          onChallenge: (challenge, comment) => comment.publishChallengeAnswers(),
+          onChallenge: (challenge, comment) => comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -3424,7 +3429,7 @@ describe("accounts", () => {
         // @ts-ignore
         onChallenge: (challenge, comment) => {
           publishedComments.push(comment);
-          comment.publishChallengeAnswers();
+          comment.publishChallengeAnswers({ "0": "4" });
         },
         onChallengeVerification: () => challengeVerificationCount++,
       });
@@ -3489,7 +3494,8 @@ describe("accounts", () => {
         commentCid,
         communityAddress,
         spoiler: true,
-        onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => challengeVerificationCount++,
       };
 
@@ -3658,7 +3664,8 @@ describe("accounts", () => {
         commentCid,
         communityAddress,
         commentModeration: { locked: true },
-        onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => challengeVerificationCount++,
       };
 
@@ -3729,7 +3736,8 @@ describe("accounts", () => {
           commentCid,
           communityAddress,
           commentModeration: { author: { banExpiresAt } },
-          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+          onChallenge: (challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -3795,7 +3803,8 @@ describe("accounts", () => {
           commentCid,
           communityAddress,
           commentModeration: { author: undefined },
-          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+          onChallenge: (challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -3869,7 +3878,8 @@ describe("accounts", () => {
         commentCid,
         communityAddress,
         spoiler: true,
-        onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => challengeVerificationCount++,
       };
 
@@ -3960,7 +3970,8 @@ describe("accounts", () => {
         commentCid,
         communityAddress,
         commentModeration: { locked: true },
-        onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => challengeVerificationCount++,
       };
 
@@ -4050,7 +4061,8 @@ describe("accounts", () => {
         commentCid,
         communityAddress,
         commentModeration: { purged: true },
-        onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => challengeVerificationCount++,
       };
 
@@ -4132,7 +4144,8 @@ describe("accounts", () => {
         commentCid,
         communityAddress,
         commentModeration: { purged: true },
-        onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => challengeVerificationCount++,
       };
 
@@ -4356,7 +4369,7 @@ describe("accounts", () => {
           content: "c",
           parentCid: "p",
           communityAddress: "sub.eth",
-          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });

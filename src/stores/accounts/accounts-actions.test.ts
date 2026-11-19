@@ -328,7 +328,8 @@ describe("accounts-actions", () => {
         communityAddress: "sub.eth",
         title: "A PLEBBIT post",
         content: "plebbit content",
-        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (_challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       });
       await new Promise((resolve) => setTimeout(resolve, 200));
@@ -352,7 +353,7 @@ describe("accounts-actions", () => {
         communityAddress: "sub.eth",
         commentCid: "comment cid",
         content: "edit PLEBBIT",
-        onChallenge: (_challenge: any, edit: any) => edit.publishChallengeAnswers(),
+        onChallenge: (_challenge: any, edit: any) => edit.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       });
 
@@ -386,7 +387,8 @@ describe("accounts-actions", () => {
       await accountsActions.publishComment({
         communityAddress: "remote.eth",
         content: "remote plebbit",
-        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (_challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       });
 
@@ -417,7 +419,8 @@ describe("accounts-actions", () => {
       await accountsActions.publishComment({
         communityAddress: "resolved.eth",
         content: "resolved plebbit",
-        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (_challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       });
 
@@ -452,7 +455,8 @@ describe("accounts-actions", () => {
       await accountsActions.publishComment({
         communityAddress: "flaky.eth",
         content: "flaky plebbit",
-        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (_challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       });
 
@@ -471,7 +475,7 @@ describe("accounts-actions", () => {
         commentCid: "vote cid",
         vote: 1,
         author: { ...account.author, displayName: "plebbit hero" },
-        onChallenge: (_challenge: any, vote: any) => vote.publishChallengeAnswers(),
+        onChallenge: (_challenge: any, vote: any) => vote.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       } as any);
 
@@ -508,7 +512,8 @@ describe("accounts-actions", () => {
         communityAddress: "sub.eth",
         commentCid: "moderated cid",
         commentModeration: { removed: true, reason: "plebbit spam" },
-        onChallenge: (_challenge: any, moderation: any) => moderation.publishChallengeAnswers(),
+        onChallenge: (_challenge: any, moderation: any) =>
+          moderation.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       } as any);
 
@@ -543,7 +548,7 @@ describe("accounts-actions", () => {
       await accountsActions.publishCommunityEdit("sub.eth", {
         title: "plebbit board",
         description: "all about plebbit",
-        onChallenge: (_challenge: any, edit: any) => edit.publishChallengeAnswers(),
+        onChallenge: (_challenge: any, edit: any) => edit.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       } as any);
 
@@ -636,7 +641,8 @@ describe("accounts-actions", () => {
         communityAddress: "sub.eth",
         content: "forbidden",
         author: { ...account.author, displayName: "forbidden fan" },
-        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (_challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       } as any);
 
@@ -672,7 +678,8 @@ describe("accounts-actions", () => {
         communityAddress: "sub.eth",
         title: "forbidden title",
         content: "forbidden content",
-        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (_challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       });
 
@@ -709,7 +716,8 @@ describe("accounts-actions", () => {
       await accountsActions.publishComment({
         communityAddress: "sub.eth",
         content: "a",
-        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (_challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       });
 
@@ -739,7 +747,8 @@ describe("accounts-actions", () => {
       await accountsActions.publishComment({
         communityAddress: "sub.eth",
         content: "forbidden",
-        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (_challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       });
 
@@ -809,7 +818,8 @@ describe("accounts-actions", () => {
       await accountsActions.publishComment({
         communityAddress: "sub.eth",
         content: "forbidden",
-        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (_challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       });
 
@@ -843,7 +853,7 @@ describe("accounts-actions", () => {
         commentCid: "edit cid",
         content: "forbidden content",
         author: { ...account.author, displayName: "forbidden mod" },
-        onChallenge: (_ch: any, e: any) => e.publishChallengeAnswers(),
+        onChallenge: (_ch: any, e: any) => e.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       } as any);
 
@@ -880,7 +890,8 @@ describe("accounts-actions", () => {
         communityAddress: "sub.eth",
         content: "partial author override",
         author: { displayName: "5chan Dev" },
-        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (_challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       });
 
@@ -1018,7 +1029,8 @@ describe("accounts-actions", () => {
         communityAddress: "sub.eth",
         content: "different author address",
         author: { address: "alternate-author.bso" },
-        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (_challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       });
 
@@ -1039,7 +1051,8 @@ describe("accounts-actions", () => {
         communityAddress: "sub.eth",
         content: "next comment",
         ...(author && { author }),
-        onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (_challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       });
     const publishWithStoredAccountComments = async (
@@ -1342,7 +1355,8 @@ describe("accounts-actions", () => {
           {
             communityAddress: "sub.eth",
             content: "delete-account-comment",
-            onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+            onChallenge: (challenge: any, comment: any) =>
+              comment.publishChallengeAnswers({ "0": "4" }),
             onChallengeVerification: () => {},
           },
           "ToDeleteWithComment",
@@ -1408,7 +1422,7 @@ describe("accounts-actions", () => {
         // a verification arriving anyway writes nothing for the deleted account
         await act(async () => {
           await Promise.all(
-            publications.map((publication) => publication.publishChallengeAnswers(["4"])),
+            publications.map((publication) => publication.publishChallengeAnswers({ "0": "4" })),
           );
         });
         await new Promise((resolve) => setTimeout(resolve, 100));
@@ -1621,7 +1635,7 @@ describe("accounts-actions", () => {
       const opts = {
         communityAddress: "sub.eth",
         content: "from named account",
-        onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+        onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       };
 
@@ -1675,7 +1689,8 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "moderated comment",
-          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+          onChallenge: (challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification,
         });
       });
@@ -1773,7 +1788,8 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "pseudonymous comment",
-          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+          onChallenge: (challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -1810,7 +1826,7 @@ describe("accounts-actions", () => {
         communityAddress: "sub.eth",
         commentCid: "comment cid",
         vote: 1,
-        onChallenge: (ch: any, v: any) => v.publishChallengeAnswers(),
+        onChallenge: (ch: any, v: any) => v.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       };
       commentsStore.setState((state: any) => ({
@@ -1872,7 +1888,7 @@ describe("accounts-actions", () => {
         communityAddress: "sub.eth",
         commentCid: "comment cid",
         spoiler: true,
-        onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(),
+        onChallenge: (ch: any, e: any) => e.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       };
 
@@ -1896,7 +1912,7 @@ describe("accounts-actions", () => {
         communityAddress: "sub.eth",
         commentCid: "comment cid",
         commentModeration: { locked: true },
-        onChallenge: (ch: any, m: any) => m.publishChallengeAnswers(),
+        onChallenge: (ch: any, m: any) => m.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       };
 
@@ -1918,7 +1934,7 @@ describe("accounts-actions", () => {
 
       const opts = {
         title: "edited",
-        onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(),
+        onChallenge: (ch: any, e: any) => e.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       };
 
@@ -2188,7 +2204,7 @@ describe("accounts-actions", () => {
           await accountsActions.publishCommunityEdit(communityAddress, {
             title: "edited remotely",
             onChallenge: (_challenge: any, communityEdit: any) =>
-              communityEdit.publishChallengeAnswers(["4"]),
+              communityEdit.publishChallengeAnswers({ "0": "4" }),
             onChallengeVerification,
             onError,
           });
@@ -2749,7 +2765,7 @@ describe("accounts-actions", () => {
           {
             communityAddress: "sub.eth",
             content: "to delete by name",
-            onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+            onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
             onChallengeVerification: () => {},
           },
           "DelCommentAccount",
@@ -2794,7 +2810,7 @@ describe("accounts-actions", () => {
           {
             communityAddress: "sub.eth",
             content: "to delete by cid",
-            onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+            onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
             onChallengeVerification: () => {},
           },
           "DelByCidAccount",
@@ -2834,7 +2850,7 @@ describe("accounts-actions", () => {
           await accountsActions.publishCommunityEdit("remote-sub.eth", {
             address: "other-sub.eth",
             title: "edited",
-            onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(),
+            onChallenge: (ch: any, e: any) => e.publishChallengeAnswers({ "0": "4" }),
             onChallengeVerification,
           });
         });
@@ -2932,6 +2948,60 @@ describe("accounts-actions", () => {
     });
   });
 
+  describe("challenge answers keyed by challenge index", () => {
+    beforeEach(async () => {
+      await testUtils.resetDatabasesAndStores();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    test("publishComment passes the CHALLENGE through and maps a deprecated array onto its keys", async () => {
+      const account = Object.values(accountsStore.getState().accounts)[0];
+      // only the challenges still pending, so the keys are sparse
+      const sparseChallenges = {
+        "1": { challenge: "1+1=?", type: "text/plain" },
+        "3": { challenge: "3+3=?", type: "text/plain" },
+      };
+      const pkcPublishChallengeAnswers = vi.fn();
+      const origCreateComment = account.pkc.createComment.bind(account.pkc);
+      vi.spyOn(account.pkc, "createComment").mockImplementation(async (opts: any) => {
+        const comment = await origCreateComment(opts);
+        comment.simulateChallengeEvent = function () {
+          this.emit("challenge", { type: "CHALLENGE", challenges: sparseChallenges }, this);
+        };
+        const origPublishChallengeAnswers = comment.publishChallengeAnswers.bind(comment);
+        comment.publishChallengeAnswers = async (options: any) => {
+          pkcPublishChallengeAnswers(options);
+          return origPublishChallengeAnswers(options);
+        };
+        return comment;
+      });
+      let receivedChallenge: any;
+      const onChallengeVerification = vi.fn();
+
+      await act(async () => {
+        await accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "sparse challenge",
+          onChallenge: (challenge: any, comment: any) => {
+            receivedChallenge = challenge;
+            return comment.publishChallengeAnswers(["2", "6"]);
+          },
+          onChallengeVerification,
+        });
+      });
+
+      await vi.waitFor(() => expect(onChallengeVerification).toHaveBeenCalled());
+      expect(receivedChallenge.challenges).toBe(sparseChallenges);
+      expect(pkcPublishChallengeAnswers).toHaveBeenCalledWith({
+        challengeAnswers: { "1": "2", "3": "6" },
+      });
+      expect(onChallengeVerification.mock.calls[0][0].challengeSuccess).toBe(true);
+    });
+  });
+
   describe("terminal challenge verification errors stop the auto-retry", () => {
     beforeEach(async () => {
       await testUtils.resetDatabasesAndStores();
@@ -2958,7 +3028,7 @@ describe("accounts-actions", () => {
           return comment;
         });
       const onChallenge = vi.fn((_challenge: any, comment: any) =>
-        comment.publishChallengeAnswers(["4"]),
+        comment.publishChallengeAnswers({ "0": "4" }),
       );
       const onChallengeVerification = vi.fn();
 
@@ -2991,7 +3061,7 @@ describe("accounts-actions", () => {
           return vote;
         });
       const onChallenge = vi.fn((_challenge: any, vote: any) =>
-        vote.publishChallengeAnswers(["4"]),
+        vote.publishChallengeAnswers({ "0": "4" }),
       );
       const onChallengeVerification = vi.fn();
 
@@ -3071,7 +3141,8 @@ describe("accounts-actions", () => {
           content: "republish signed",
           timestamp: 1,
           author: { displayName: "unsigned" },
-          onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+          onChallenge: (_challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
           onBeforeRepublish,
         });
@@ -3129,7 +3200,8 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "first",
-          onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+          onChallenge: (_challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
           onBeforeRepublish: (options: any) => ({ ...options, content: "plebbit retry" }),
         });
@@ -3162,7 +3234,8 @@ describe("accounts-actions", () => {
           await accountsActions.publishComment({
             communityAddress: "sub.eth",
             content: "republish failed",
-            onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+            onChallenge: (_challenge: any, comment: any) =>
+              comment.publishChallengeAnswers({ "0": "4" }),
             onChallengeVerification: () => {},
             onError,
             onPublishingStateChange,
@@ -3201,7 +3274,7 @@ describe("accounts-actions", () => {
           content: "abandoned before verification",
           onChallenge: async (_challenge: any, comment: any) => {
             // the verification is still in flight when the user abandons
-            const answered = comment.publishChallengeAnswers(["4"]);
+            const answered = comment.publishChallengeAnswers({ "0": "4" });
             await accountsActions.deleteComment(0);
             await answered;
           },
@@ -3232,7 +3305,8 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "abandoned while signing",
-          onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+          onChallenge: (_challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
           onError,
           onBeforeRepublish,
@@ -3270,7 +3344,8 @@ describe("accounts-actions", () => {
           content: "republish unchanged",
           timestamp: 1,
           author: { displayName: "unsigned" },
-          onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+          onChallenge: (_challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -3303,7 +3378,7 @@ describe("accounts-actions", () => {
       const opts = {
         communityAddress: "sub.eth",
         content: "retry test",
-        onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(["4"]),
+        onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       };
 
@@ -3334,7 +3409,7 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "retry stale error",
-          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(["4"]),
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
           onError,
         });
@@ -3367,7 +3442,7 @@ describe("accounts-actions", () => {
         communityAddress: "sub.eth",
         commentCid: "cid",
         vote: 1,
-        onChallenge: (ch: any, v: any) => v.publishChallengeAnswers(["4"]),
+        onChallenge: (ch: any, v: any) => v.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       };
 
@@ -3386,7 +3461,7 @@ describe("accounts-actions", () => {
         communityAddress: "sub.eth",
         commentCid: "cid",
         spoiler: true,
-        onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(["4"]),
+        onChallenge: (ch: any, e: any) => e.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       };
 
@@ -3434,7 +3509,7 @@ describe("accounts-actions", () => {
           commentCid: "cid",
           deleted: true,
           onChallenge: (challenge: any, publication: any) =>
-            publication.publishChallengeAnswers(["4"]),
+            publication.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
           onError,
         });
@@ -3479,7 +3554,7 @@ describe("accounts-actions", () => {
           commentCid: "cid",
           deleted: true,
           onChallenge: (challenge: any, publication: any) =>
-            publication.publishChallengeAnswers(["4"]),
+            publication.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification,
         });
       });
@@ -3538,7 +3613,7 @@ describe("accounts-actions", () => {
           commentCid: "cid",
           deleted: true,
           onChallenge: (challenge: any, publication: any) =>
-            publication.publishChallengeAnswers(["4"]),
+            publication.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -3585,7 +3660,7 @@ describe("accounts-actions", () => {
           commentCid: "cid",
           deleted: true,
           onChallenge: (challenge: any, publication: any) =>
-            publication.publishChallengeAnswers(["4"]),
+            publication.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
           onError,
         });
@@ -3605,7 +3680,7 @@ describe("accounts-actions", () => {
         communityAddress: "sub.eth",
         commentCid: "cid",
         commentModeration: { locked: true },
-        onChallenge: (ch: any, m: any) => m.publishChallengeAnswers(["4"]),
+        onChallenge: (ch: any, m: any) => m.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       };
 
@@ -3623,7 +3698,7 @@ describe("accounts-actions", () => {
     test("publishCommunityEdit retries on challenge failure", async () => {
       const opts = {
         title: "edited",
-        onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(["4"]),
+        onChallenge: (ch: any, e: any) => e.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       };
 
@@ -3673,7 +3748,7 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "mixed comment",
-          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(["4"]),
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -3691,7 +3766,7 @@ describe("accounts-actions", () => {
           vote: 1,
           onChallenge: (ch: any, v: any) => {
             remoteVotePublication = v;
-            v.publishChallengeAnswers(["4"]);
+            v.publishChallengeAnswers({ "0": "4" });
           },
           onChallengeVerification: (_verification: any, v: any) => {
             remoteVotePublication = v;
@@ -3707,7 +3782,7 @@ describe("accounts-actions", () => {
           spoiler: true,
           onChallenge: (ch: any, e: any) => {
             remoteCommentEditPublication = e;
-            e.publishChallengeAnswers(["4"]);
+            e.publishChallengeAnswers({ "0": "4" });
           },
           onChallengeVerification: (_verification: any, e: any) => {
             remoteCommentEditPublication = e;
@@ -3723,7 +3798,7 @@ describe("accounts-actions", () => {
           commentModeration: { locked: true },
           onChallenge: (ch: any, m: any) => {
             remoteCommentModerationPublication = m;
-            m.publishChallengeAnswers(["4"]);
+            m.publishChallengeAnswers({ "0": "4" });
           },
           onChallengeVerification: (_verification: any, m: any) => {
             remoteCommentModerationPublication = m;
@@ -3738,7 +3813,7 @@ describe("accounts-actions", () => {
           title: "mixed edit",
           onChallenge: (ch: any, e: any) => {
             remoteCommunityEditPublication = e;
-            e.publishChallengeAnswers(["4"]);
+            e.publishChallengeAnswers({ "0": "4" });
           },
           onChallengeVerification: (_verification: any, e: any) => {
             remoteCommunityEditPublication = e;
@@ -3807,7 +3882,8 @@ describe("accounts-actions", () => {
         communityAddress: "sub.eth",
         content: "pending-before-persistence",
         onPendingComment,
-        onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       });
 
@@ -3840,7 +3916,8 @@ describe("accounts-actions", () => {
       await accountsActions.publishComment({
         communityAddress: "sub.eth",
         content: "earlier comment",
-        onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       });
 
@@ -3868,7 +3945,8 @@ describe("accounts-actions", () => {
         content: "shifted pending comment",
         onPendingComment,
         _onPendingCommentIndex: onPendingCommentIndex,
-        onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       });
       await persistenceStarted;
@@ -3906,7 +3984,8 @@ describe("accounts-actions", () => {
         communityAddress: "sub.eth",
         content,
         onPendingComment,
-        onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+        onChallenge: (challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       });
 
@@ -3948,7 +4027,8 @@ describe("accounts-actions", () => {
           onPendingComment: () => {
             throw callbackError;
           },
-          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+          onChallenge: (challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         }),
       ).resolves.toEqual(
@@ -3977,7 +4057,8 @@ describe("accounts-actions", () => {
           pendingSnapshot = pendingComment;
           pendingComment.content = "mutated callback content";
         },
-        onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+        onChallenge: (challenge: any, comment: any) =>
+          comment.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       });
 
@@ -3999,7 +4080,8 @@ describe("accounts-actions", () => {
           onPendingComment: async () => {
             throw new Error("async pending callback failed");
           },
-          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+          onChallenge: (challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         }),
       ).resolves.toEqual(
@@ -4050,7 +4132,7 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "to delete",
-          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -4093,7 +4175,8 @@ describe("accounts-actions", () => {
           communityAddress: "sub.eth",
           content: "link-delete",
           link: "https://example.com/image.png",
-          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+          onChallenge: (challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -4161,7 +4244,8 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "first-pending",
-          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+          onChallenge: (challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -4171,7 +4255,8 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "second-pending",
-          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+          onChallenge: (challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -4189,7 +4274,8 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "third-pending",
-          onChallenge: (challenge: any, comment: any) => comment.publishChallengeAnswers(),
+          onChallenge: (challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -4275,7 +4361,7 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "no-stop",
-          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -4307,7 +4393,7 @@ describe("accounts-actions", () => {
       const publishPromise = accountsActions.publishComment({
         communityAddress: "sub.eth",
         content: "to-abandon",
-        onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+        onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
       });
 
@@ -4354,7 +4440,7 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "err-test",
-          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -4398,7 +4484,7 @@ describe("accounts-actions", () => {
       const publishPromise = accountsActions.publishComment({
         communityAddress: "sub.eth",
         content: "err-no-state",
-        onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+        onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
         onChallengeVerification: () => {},
         onError,
       });
@@ -4440,7 +4526,7 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "err-cb",
-          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
           onError,
         });
@@ -4456,7 +4542,7 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "state-change",
-          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
           onPublishingStateChange,
         });
@@ -4480,7 +4566,8 @@ describe("accounts-actions", () => {
           communityAddress: "sub.eth",
           commentCid: "cid",
           commentModeration: { removed: true },
-          onChallenge: (challenge: any, moderation: any) => moderation.publishChallengeAnswers(),
+          onChallenge: (challenge: any, moderation: any) =>
+            moderation.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         } as any);
       });
@@ -4503,7 +4590,7 @@ describe("accounts-actions", () => {
           communityAddress: "sub.eth",
           commentCid: "cold-history-cid",
           spoiler: true,
-          onChallenge: (challenge: any, edit: any) => edit.publishChallengeAnswers(),
+          onChallenge: (challenge: any, edit: any) => edit.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         } as any);
       });
@@ -4525,7 +4612,8 @@ describe("accounts-actions", () => {
           communityAddress: "sub.eth",
           commentCid: "cold-history-moderation-cid",
           commentModeration: { removed: true },
-          onChallenge: (challenge: any, moderation: any) => moderation.publishChallengeAnswers(),
+          onChallenge: (challenge: any, moderation: any) =>
+            moderation.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         } as any);
       });
@@ -4547,7 +4635,7 @@ describe("accounts-actions", () => {
           communityAddress: "sub.eth",
           content: "with link",
           link: "https://example.com/image.png",
-          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
           onPublishingStateChange,
         });
@@ -4577,7 +4665,7 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "chain",
-          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -4614,7 +4702,7 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "no-state-pub",
-          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -4649,7 +4737,7 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "no-state",
-          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -4675,7 +4763,7 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "ipfs",
-          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -4699,7 +4787,7 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "fail",
-          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
           onError,
         });
@@ -4767,7 +4855,7 @@ describe("accounts-actions", () => {
             comment.publishingState = "failed";
             comment.emit("error", new Error("challenge signature is invalid"));
             comment.emit("publishingstatechange", "failed");
-            comment.publishChallengeAnswers(["4"]);
+            comment.publishChallengeAnswers({ "0": "4" });
           },
           onChallengeVerification: () => {},
           onError,
@@ -4796,7 +4884,8 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "earlier comment",
-          onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+          onChallenge: (_challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -4836,7 +4925,8 @@ describe("accounts-actions", () => {
           await accountsActions.publishComment({
             communityAddress: "sub.eth",
             content: "later comment",
-            onChallenge: (_challenge: any, comment: any) => comment.publishChallengeAnswers(["4"]),
+            onChallenge: (_challenge: any, comment: any) =>
+              comment.publishChallengeAnswers({ "0": "4" }),
             onChallengeVerification: () => {},
           });
         });
@@ -4874,7 +4964,7 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "cid",
-          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -4888,7 +4978,7 @@ describe("accounts-actions", () => {
         await accountsActions.publishComment({
           communityAddress: "sub.eth",
           content: "for-import",
-          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers(),
+          onChallenge: (ch: any, c: any) => c.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -4926,7 +5016,7 @@ describe("accounts-actions", () => {
           communityAddress: "sub.eth",
           commentCid: "cid",
           spoiler: true,
-          onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(["4"]),
+          onChallenge: (ch: any, e: any) => e.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
           onError,
         });
@@ -4952,7 +5042,7 @@ describe("accounts-actions", () => {
           communityAddress: "sub.eth",
           commentCid: "cid",
           commentModeration: { locked: true },
-          onChallenge: (ch: any, m: any) => m.publishChallengeAnswers(["4"]),
+          onChallenge: (ch: any, m: any) => m.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
           onError,
         });
@@ -4992,7 +5082,8 @@ describe("accounts-actions", () => {
           communityAddress: "sub.eth",
           commentCid: "cid",
           commentModeration: { approved: true },
-          onChallenge: (ch: any, publication: any) => publication.publishChallengeAnswers(["4"]),
+          onChallenge: (ch: any, publication: any) =>
+            publication.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification,
         });
       });
@@ -5027,7 +5118,7 @@ describe("accounts-actions", () => {
       await act(async () => {
         await accountsActions.publishCommunityEdit("remote-sub.eth", {
           title: "edited",
-          onChallenge: (ch: any, e: any) => e.publishChallengeAnswers(["4"]),
+          onChallenge: (ch: any, e: any) => e.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
           onError,
         });
@@ -5096,7 +5187,7 @@ describe("accounts-actions", () => {
           commentCid: "restore cid",
           vote: 1,
           onChallenge: (_challenge: any, publication: any) =>
-            publication.publishChallengeAnswers(["4"]),
+            publication.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -5125,7 +5216,7 @@ describe("accounts-actions", () => {
       const secondStop = vi.spyOn(secondVote, "stop");
 
       await act(async () => {
-        await firstVote.publishChallengeAnswers(["4"]);
+        await firstVote.publishChallengeAnswers({ "0": "4" });
       });
       await new Promise((resolve) => setTimeout(resolve, 200));
 
@@ -5242,7 +5333,7 @@ describe("accounts-actions", () => {
       await vi.waitFor(() => expect(createVote).toHaveBeenCalled());
 
       await act(async () => {
-        await firstVote.publishChallengeAnswers(["4"]);
+        await firstVote.publishChallengeAnswers({ "0": "4" });
       });
       await new Promise((resolve) => setTimeout(resolve, 200));
       release();
@@ -5267,7 +5358,7 @@ describe("accounts-actions", () => {
           commentCid: "verified cid",
           vote: 1,
           onChallenge: (_challenge: any, publication: any) =>
-            publication.publishChallengeAnswers(["4"]),
+            publication.publishChallengeAnswers({ "0": "4" }),
           onChallengeVerification: () => {},
         });
       });
@@ -5340,7 +5431,7 @@ describe("accounts-actions", () => {
           vote,
           onChallenge: (_challenge: any, publication: any) => {
             votes.push(publication);
-            publication.publishChallengeAnswers(["4"]);
+            publication.publishChallengeAnswers({ "0": "4" });
           },
           onChallengeVerification: () => {},
           onError,
@@ -5392,7 +5483,7 @@ describe("accounts-actions", () => {
       expect(getAccountVote("burst rejected cid").vote).toBe(-1);
 
       await act(async () => {
-        await firstVote.publishChallengeAnswers(["4"]);
+        await firstVote.publishChallengeAnswers({ "0": "4" });
       });
       await vi.waitFor(() => expect(getAccountVote("burst rejected cid").vote).toBe(1));
     });
@@ -5508,7 +5599,7 @@ describe("accounts-actions", () => {
       await vi.waitFor(() => expect(createdVotes).toBe(2));
       // the first vote is rejected while the second one is still being created
       await act(async () => {
-        await firstVote.publishChallengeAnswers(["4"]);
+        await firstVote.publishChallengeAnswers({ "0": "4" });
       });
       await new Promise((resolve) => setTimeout(resolve, 100));
       expect(getAccountVote("burst not created cid").vote).toBe(1);

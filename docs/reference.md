@@ -215,6 +215,10 @@ useExportCommunity(options?: UseExportCommunityOptions): {
 
 Each `publishComment()`, `publishVote()`, `publishCommentEdit()`, `publishCommentModeration()` or `publishCommunityEdit()` call starts a new result: the previous publication's `challenge`, `challengeVerification`, `publishChallengeAnswers`, `state`, `error` and `errors` are cleared, and `state` becomes `"failed"` if the call rejects before anything is published, for example because the community's challenge settings don't load. When a failed challenge answer makes the publication publish again automatically, its new `challenge` clears the failed `challengeVerification`. If `usePublishComment` or `usePublishVote` publishes again before its previous publication finished, only the newest publication updates the result and `abandonPublish()` abandons the newest one; `usePublishComment` also passes `onChallenge` a third argument that abandons the publication the challenge belongs to, so code that spreads `onChallenge`'s arguments into an array and appends its own value now finds that value at index 3 instead of 2. `usePublishCommentEdit`, `usePublishCommentModeration` and `usePublishCommunityEdit` don't separate overlapping publications: events of an earlier one that is still running can update the new result. `abandonPublish()` resets `state` and the challenge fields and stops the publication if it is still in progress, deleting the pending comment or restoring the previous vote in the account that published it. It leaves a comment alone once its publication succeeded or failed, and a vote once it was verified (use `deleteComment` to remove the comment). While a comment publishes, `index` follows it when deleting an earlier comment of the account shifts it. `exportCommunity()` likewise clears the previous `communityExports` and errors, and only the latest call's result is shown.
 
+Challenges are keyed by challenge index: the position of the challenge in `community.challenges`, as a decimal string. `challenge.challenges` is the record pkc-js sends, unchanged, for example `{"0": {challenge, type, caseInsensitive}, "3": {...}}`. It holds only the challenges still pending, so its keys can be sparse; build the list to show from `Object.entries(challenge.challenges)` sorted by numeric key, and keep each key as that challenge's index. `publishChallengeAnswers(challengeAnswers)`, on the hook result and on the publication passed to `onChallenge`, takes a `ChallengeAnswersByIndex` record with one answer per key of that challenge message, for example `{"0": "4", "3": "blue"}`, or the same record wrapped as `{challengeAnswers: {...}}`. A key the answers leave out fails that challenge with `"No answer."`, and keys the challenge message did not ask for are ignored. Missing or empty answers (`undefined`, `[]`, `{}`) reject with an error instead of being published. An array of answers is deprecated: it is mapped by position onto the ascending keys of the latest challenge message the publication received. Pre-answers passed as `challengeRequest: {challengeAnswers}` in the publish options are forwarded to pkc-js unchanged, so they use the same record, keyed by the index in `community.challenges` and holding only the challenges being pre-answered; when there are none, leave out `challengeAnswers` (and `challengeRequest` if it carries nothing else, such as `challengeCommentCids`), because pkc-js rejects an empty record or an array.
+
+**Migrating to 0.3.0.** pkc-js 0.0.152 changed the challenge messages from arrays to records keyed by challenge index, with no compatibility path: a client on 0.3.0 cannot complete challenges with a community on an older pkc-js, and an older client cannot complete them with a community on pkc-js 0.0.152 or later. To migrate, read `challenge.challenges` as a record instead of an array (no more `challenges.length`, `challenges.map` or positional indexes), answer with `publishChallengeAnswers({[challengeIndex]: answer})` with one key per entry (a challenge your interface completes without input, such as an iframe that verifies on its own, answers `""` under its own key), and key any `challengeRequest.challengeAnswers` pre-answers by challenge index, leaving out `challengeAnswers` when there are none. `publishChallengeAnswers()` called without answers now rejects instead of publishing an empty list. Existing array answers keep working through the deprecated positional mapping, which TypeScript marks as deprecated.
+
 Before `publishComment`, `publishCommentEdit`, `publishVote`, `publishCommentModeration`, or `publishCommunityEdit` signs a publication, hooks load the community challenge configuration and apply compatible wordfilters. The current `@bitsocial/wordfilter-challenge` contract uses a JSON array of `{src, dst}` objects in `wordfilter/v1/rules` and an optional JSON array of dot-notation paths in `wordfilter/v1/fieldNames`, both published through `publicOptions`. Every path starts with the publication type and is resolved against the publication being signed, so a path for another type is simply skipped. Without configured paths the defaults apply: `comment.content`, `comment.title`, `comment.author.displayName`, `commentEdit.content`, `commentEdit.reason`, `commentEdit.author.displayName`, and `vote.author.displayName`. Moderator and owner text is opt-in through configured paths (`commentModeration.commentModeration.reason`, `communityEdit.communityEdit.title`, `communityEdit.communityEdit.description`); structural and signing fields are never rewritten by community configuration. Matching is literal and case-insensitive, not regular-expression or Unicode-evasion matching. The transformed values are the values signed, published, and stored as the pending account publication. If composed rule sets do not stabilize within eight passes, publication stops before signing.
 
 #### States Hooks
@@ -587,7 +591,9 @@ if (valid === false) {
 const onChallenge = async (challenge, comment, abandonPublish) => {
   let challengeAnswers
   try {
-    // ask the user to complete the challenges in a modal window
+    // ask the user to complete the challenges in a modal window. challenge.challenges is keyed by
+    // challenge index, e.g. {"0": {challenge, type}, "2": {...}}: answer with the same keys,
+    // e.g. {"0": "4", "2": "blue"}
     challengeAnswers = await getChallengeAnswersFromUser(challenge.challenges)
   }
   catch (e) {
@@ -695,7 +701,8 @@ const {
 } = usePublishComment(publishCommentOptions);
 
 if (challenge) {
-  // display challenge.challenges and call publishChallengeAnswers(challengeAnswers)
+  // display Object.entries(challenge.challenges) sorted by numeric key, then call
+  // publishChallengeAnswers({[challengeIndex]: answer}) with one key per entry
 }
 
 if (challengeVerification) {
@@ -1425,6 +1432,7 @@ If the account's pkc client hosts the community (it is listed in `pkc.communitie
 const onChallenge = async (challenge, communityEdit) => {
   let challengeAnswers
   try {
+    // answers keyed by the keys of challenge.challenges, e.g. {"0": "4"}
     challengeAnswers = await getChallengeAnswersFromUser(challenge.challenges)
   }
   catch (e) {}

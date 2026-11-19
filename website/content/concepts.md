@@ -87,8 +87,8 @@ await publication.publishComment();
 That awaited call starts the publication flow. It does **not** confirm that the community has accepted the post.
 
 1. A pending local comment becomes available through the result's `index`.
-2. A community may send a `challenge` message. Your interface presents its `challenges` and collects answers.
-3. Call `publishChallengeAnswers(answers)` with an array of strings in challenge order.
+2. A community may send a `challenge` message. Its `challenges` is a record keyed by challenge index (the position in `community.challenges`, as a decimal string) that holds only the challenges still pending, so the keys can be sparse. Your interface presents them in numeric key order and collects answers.
+3. Call `publishChallengeAnswers(answers)` with a record that has one answer per key, for example `{ "0": "4", "2": "blue" }`.
 4. Observe `challengeVerification.challengeSuccess`, errors, and the pending comment's eventual `cid` to show the outcome.
 
 Use `useAccountComment({ commentIndex: index })` to display the pending comment. Check `index !== undefined`, because zero is a valid index. If the person cancels the flow, call `abandonPublish()` to cancel the pending attempt and remove its local pending comment.
