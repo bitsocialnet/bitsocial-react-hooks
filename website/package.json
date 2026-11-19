@@ -28,6 +28,7 @@
     "@types/three": "0.182.0",
     "agentation": "3.1.2",
     "astro": "7.3.8",
+    "modern-web-guidance": "1.0.0",
     "portless": "0.11.1",
     "react-doctor": "0.9.14",
     "typescript": "6.0.3"
