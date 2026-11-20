@@ -27,7 +27,8 @@ import useCommunitiesStore, {
   getCommunityFirstLoadFailure,
 } from "../stores/communities";
 import useAccountsStore from "../stores/accounts";
-import shallow from "zustand/shallow";
+// the deprecated default export warns on every call outside production
+import { shallow } from "zustand/shallow";
 import { getChainProviders, getPkcCommunityAddresses } from "../lib/pkc-compat";
 import { getCommunityRefKey, getUniqueSortedCommunityRefs } from "../lib/community-ref";
 
