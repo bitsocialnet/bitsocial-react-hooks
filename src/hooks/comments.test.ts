@@ -2159,9 +2159,12 @@ describe("comments", () => {
       loadCommentIpfs(liveComment, 1);
       loadCommentUpdate(liveComment);
       await waitFor(() => rendered.result.current.state === "succeeded");
+      expect(rendered.result.current.state).toBe("succeeded");
 
       failLoad(liveComment);
       await waitFor(() => rendered.result.current.error?.message === "invalid signature");
+      expect(rendered.result.current.error?.message).toBe("invalid signature");
+      expect(commentsStore.getState().loadFailed[commentCid]).toBe(true);
       expect(rendered.result.current.state).toBe("succeeded");
     });
 
@@ -2210,6 +2213,7 @@ describe("comments", () => {
         // the store's load of its CommentIpfs failed, but the account has the comment
         failLoad(updatingComments[0]);
         await waitFor(() => rendered.result.current.error?.message === "invalid signature");
+        expect(rendered.result.current.error?.message).toBe("invalid signature");
         expect(commentsStore.getState().loadFailed[commentCid]).toBe(true);
         expect(rendered.result.current.index).toBe(0);
         expect(rendered.result.current.content).toBe("own published comment");

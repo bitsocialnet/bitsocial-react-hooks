@@ -376,10 +376,14 @@ describe("feeds", () => {
         updatingCommunities.length = 0;
       });
 
-      const waitForSyncState = (communityAddress: string, syncState: string) =>
-        waitFor(
+      const waitForSyncState = async (communityAddress: string, syncState: string) => {
+        await waitFor(
           () => communitiesStore.getState().syncStatuses[communityAddress]?.syncState === syncState,
         );
+        expect(communitiesStore.getState().syncStatuses[communityAddress]?.syncState).toBe(
+          syncState,
+        );
+      };
 
       test("a feed whose communities all failed to load is failed", async () => {
         throwingAddresses.add("community address 1");
@@ -425,6 +429,9 @@ describe("feeds", () => {
         rendered.rerender({ communityAddresses: ["community address 1", "community address 2"] });
         await waitForSyncState("community address 2", "failed");
         await waitFor(() => updatingCommunities.length > 0);
+        expect(updatingCommunities.map((community) => community.address)).toContain(
+          "community address 1",
+        );
         await act(async () => {});
         expect(rendered.result.current.feed).toEqual([]);
         expect(rendered.result.current.state).toBe("fetching-ipns");

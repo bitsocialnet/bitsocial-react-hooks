@@ -341,6 +341,7 @@ describe("communities", () => {
         rendered.rerender("community address");
         await waitFor(() => updatingCommunities.length > 0);
         await waitFor(() => rendered.result.current.syncState === "failed");
+        expect(rendered.result.current.syncState).toBe("failed");
         expect(rendered.result.current.updatingState).toBe("stopped");
         expect(rendered.result.current.state).toBe("failed");
         expect(rendered.result.current.firstLoadFailed).toBe(true);
@@ -351,6 +352,7 @@ describe("communities", () => {
         updatingCommunities[0].updatingState = "fetching-ipns";
         updatingCommunities[0].emit("updatingstatechange", "fetching-ipns");
         await waitFor(() => rendered.result.current.syncState === "loading");
+        expect(rendered.result.current.syncState).toBe("loading");
         expect(rendered.result.current.state).toBe("failed");
         updatingCommunities[0].updatedAt = 1_799_999_000;
         updatingCommunities[0].emit("update", updatingCommunities[0]);
@@ -381,6 +383,7 @@ describe("communities", () => {
 
         updatingCommunities[0].emit("updatingstatechange", "fetching-ipns");
         await waitFor(() => rendered.result.current.syncState === "loading");
+        expect(rendered.result.current.syncState).toBe("loading");
         expect(rendered.result.current.firstLoadFailed).toBe(false);
 
         // an unreachable community: pkc-js retries forever and its errors are retriable
@@ -390,6 +393,7 @@ describe("communities", () => {
         updatingCommunities[0].emit("error", retriableError);
         updatingCommunities[0].emit("updatingstatechange", "waiting-retry");
         await waitFor(() => rendered.result.current.syncState === "retrying");
+        expect(rendered.result.current.syncState).toBe("retrying");
         expect(rendered.result.current.firstLoadFailed).toBe(true);
         // a retriable failure doesn't make the legacy state failed
         expect(rendered.result.current.state).toBe("waiting-retry");
@@ -398,21 +402,25 @@ describe("communities", () => {
         // stays failed while the next attempt runs, instead of flickering with every retry
         updatingCommunities[0].emit("updatingstatechange", "fetching-ipns");
         await waitFor(() => rendered.result.current.syncState === "loading");
+        expect(rendered.result.current.syncState).toBe("loading");
         expect(rendered.result.current.firstLoadFailed).toBe(true);
 
         // a record ends it even before pkc-js reports succeeded, which its RPC client doesn't emit
         updatingCommunities[0].updatedAt = 1_799_999_000;
         updatingCommunities[0].emit("update", updatingCommunities[0]);
         await waitFor(() => rendered.result.current.hasCachedData === true);
+        expect(rendered.result.current.hasCachedData).toBe(true);
         expect(rendered.result.current.firstLoadFailed).toBe(false);
         updatingCommunities[0].emit("updatingstatechange", "succeeded");
         await waitFor(() => rendered.result.current.syncState === "succeeded");
+        expect(rendered.result.current.syncState).toBe("succeeded");
         expect(rendered.result.current.firstLoadFailed).toBe(false);
 
         // a loaded community waiting between polls or retrying has not failed its first load
         updatingCommunities[0].emit("error", retriableError);
         updatingCommunities[0].emit("updatingstatechange", "waiting-retry");
         await waitFor(() => rendered.result.current.syncState === "retrying");
+        expect(rendered.result.current.syncState).toBe("retrying");
         expect(rendered.result.current.firstLoadFailed).toBe(false);
         expect(rendered.result.current.state).toBe("succeeded");
       } finally {

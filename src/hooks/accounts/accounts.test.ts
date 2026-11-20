@@ -1519,6 +1519,7 @@ describe("accounts", () => {
           rendered2.rerender("nonexistent account name");
           rendered2.rerender(accountName);
           await waitFor(() => mockedEnsure.mock.calls.length === 2);
+          expect(mockedEnsure).toHaveBeenCalledTimes(2);
           expect(rendered2.result.current.state).toBe("initializing");
           expect(rendered2.result.current.errors).toEqual([]);
         } finally {
