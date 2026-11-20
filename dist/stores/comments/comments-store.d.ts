@@ -10,6 +10,9 @@ export type CommentsState = {
     openingUpdatesPending: {
         [commentCid: string]: true;
     };
+    loadFailed: {
+        [commentCid: string]: true;
+    };
     addCommentToStore: Function;
     startCommentAutoUpdate: Function;
     stopCommentAutoUpdate: Function;

@@ -1,3 +1,12 @@
+## [0.3.1](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.0...v0.3.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **hooks:** report failed loads in useComment, useFeed and useCommunity ([#192](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/192)) ([124958f](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/124958f2f09d47664d22e1f3e340a6e312c9e08e))
+
+
+
 # [0.3.0](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.2.6...v0.3.0) (2026-11-19)
 
 

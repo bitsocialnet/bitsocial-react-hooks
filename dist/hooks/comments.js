@@ -36,14 +36,22 @@ export function preferFresher(current, candidate) {
         return candidate;
     return getCommentFreshness(candidate) > getCommentFreshness(current) ? candidate : current;
 }
-const getCommentStateAndReplyCount = (comment) => {
+// loadFailed: the store's last load of the comment failed and none succeeded since, see
+// CommentsState.loadFailed
+const getCommentStateAndReplyCount = (comment, loadFailed) => {
     let state = (comment === null || comment === void 0 ? void 0 : comment.updatingState) || "initializing";
     // force 'fetching-ipns' even if could be something else, so the frontend can use
     // the correct loading skeleton
     if (comment === null || comment === void 0 ? void 0 : comment.timestamp) {
         state = "fetching-update-ipns";
     }
-    // force succeeded even if the comment is fecthing a new update
+    // nothing is loading: pkc-js stops a comment whose CommentIpfs failed, and only retries a failed
+    // CommentUpdate at the community's next update
+    if (loadFailed) {
+        state = "failed";
+    }
+    // force succeeded even if the comment is fecthing a new update, or failed to, its CommentUpdate
+    // is still usable
     if (comment === null || comment === void 0 ? void 0 : comment.updatedAt) {
         state = "succeeded";
     }
@@ -52,15 +60,26 @@ const getCommentStateAndReplyCount = (comment) => {
     if ((comment === null || comment === void 0 ? void 0 : comment.replyCount) === undefined &&
         (comment === null || comment === void 0 ? void 0 : comment.timestamp) &&
         (comment === null || comment === void 0 ? void 0 : comment.timestamp) > Date.now() / 1000 - 5 * 60) {
-        state = "succeeded";
+        // its first CommentUpdate isn't on its way when the load failed
+        if (!loadFailed) {
+            state = "succeeded";
+        }
         // set replyCount because some frontend are likely to check if replyCount === undefined to show a loading skeleton
         replyCount = 0;
     }
     return { state, replyCount };
 };
-const getCommentsState = (comments) => comments.every((comment) => getCommentStateAndReplyCount(comment).state === "succeeded")
-    ? "succeeded"
-    : "fetching-ipfs";
+// failed once no comment is still loading and at least one failed
+const getCommentsState = (states) => {
+    if (states.every((state) => state === "succeeded")) {
+        return "succeeded";
+    }
+    if (states.every((state) => state === "succeeded" || state === "failed")) {
+        return "failed";
+    }
+    return "fetching-ipfs";
+};
+const emptyErrors = [];
 let commentAutoUpdateSubscriptionCount = 0;
 let commentsAutoUpdateSubscriptionCount = 0;
 const getCommentCreateCommentData = (commentCid, community, initialComment, ...comments) => {
@@ -118,6 +137,7 @@ export function useComment(options) {
     const repliesPagesComment = useRepliesPagesStore((state) => state.comments[commentCid || ""]);
     const errors = useCommentsStore((state) => state.errors[commentCid || ""]);
     const openingUpdatePending = useCommentsStore((state) => Boolean(state.openingUpdatesPending[commentCid || ""]));
+    const loadFailed = useCommentsStore((state) => Boolean(state.loadFailed[commentCid || ""]));
     // get account comment of the cid if any
     const accountCommentInfo = useAccountsStore((state) => state.commentCidsToAccountsComments[commentCid || ""]);
     const accountComment = useAccountsStore((state) => {
@@ -271,7 +291,10 @@ export function useComment(options) {
             : frozenCommentForCurrentCid || selectedComment;
     comment = addCommentModeration(comment);
     comment = addOptimisticVoteCounts(comment, accountVote);
-    const { state, replyCount } = getCommentStateAndReplyCount(comment);
+    // the account's own comment carries its index, and "failed" with an index means its publication
+    // failed, so a failed load of a comment the account published doesn't make it failed
+    const isAccountComment = typeof (comment === null || comment === void 0 ? void 0 : comment.index) === "number";
+    const { state, replyCount } = getCommentStateAndReplyCount(comment, loadFailed && !isAccountComment);
     if (account && commentCid) {
         log("useComment", {
             commentCid,
@@ -342,6 +365,8 @@ export function useComments(options) {
     const commentsStoreComments = useCommentsStore((state) => commentCids.map((commentCid) => state.comments[commentCid || ""]), shallow);
     const communitiesPagesComments = useCommunitiesPagesStore((state) => commentCids.map((commentCid) => state.comments[commentCid || ""]), shallow);
     const openingUpdatesPending = useCommentsStore((state) => commentCids.map((commentCid) => Boolean(state.openingUpdatesPending[commentCid || ""])), shallow);
+    const loadsFailed = useCommentsStore((state) => commentCids.map((commentCid) => Boolean(state.loadFailed[commentCid || ""])), shallow);
+    const commentsErrors = useCommentsStore((state) => commentCids.map((commentCid) => state.errors[commentCid || ""]), shallow);
     const addCommentToStore = useCommentsStore((state) => state.addCommentToStore);
     const startCommentAutoUpdate = useCommentsStore((state) => state.startCommentAutoUpdate);
     const stopCommentAutoUpdate = useCommentsStore((state) => state.stopCommentAutoUpdate);
@@ -446,8 +471,19 @@ export function useComments(options) {
     const frozenCommentsForCurrentSelection = frozenCommentsKey === commentsKey ? frozenComments : undefined;
     const comments = autoUpdate ? liveComments : frozenCommentsForCurrentSelection || liveComments;
     const normalizedComments = useMemo(() => addOptimisticVoteCountsToComments(addCommentModerationToComments(comments), accountVotes), [comments, accountVotes]);
+    const commentsStates = normalizedComments.map((comment, index) => getCommentStateAndReplyCount(comment, loadsFailed[index]).state);
     // succeed if no comments are undefined
-    const state = getCommentsState(normalizedComments);
+    const state = getCommentsState(commentsStates);
+    // the reasons of a failed result, from the comments that failed, not one with a CommentUpdate
+    // whose later update failed
+    const failedCommentCids = commentCids.filter((_, index) => commentsStates[index] === "failed");
+    const failedCommentCidsKey = JSON.stringify(failedCommentCids);
+    const errors = useMemo(() => {
+        if (state !== "failed") {
+            return emptyErrors;
+        }
+        return [...new Set(failedCommentCids)].flatMap((commentCid) => commentsErrors[commentCids.indexOf(commentCid)] || []);
+    }, [state, commentsKey, failedCommentCidsKey, commentsErrors]);
     const refresh = useCallback(() => __awaiter(this, void 0, void 0, function* () {
         if (!account) {
             throw Error("useComments cannot refresh comments not initialized yet");
@@ -469,9 +505,9 @@ export function useComments(options) {
         comments: normalizedComments,
         state,
         refresh,
-        error: undefined,
-        errors: [],
-    }), [normalizedComments, commentsKey, refresh, state]);
+        error: errors[errors.length - 1],
+        errors,
+    }), [normalizedComments, commentsKey, refresh, state, errors]);
 }
 /**
  * Validate a comment from an untrusted source outside React, e.g. `{ cid, raw: { comment,

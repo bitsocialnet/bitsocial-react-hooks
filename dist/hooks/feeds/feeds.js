@@ -14,11 +14,12 @@ import Logger from "@pkcprotocol/pkc-logger";
 const log = Logger("bitsocial-react-hooks:feeds:hooks");
 import assert from "../../lib/assert.js";
 import useFeedsStore from "../../stores/feeds/index.js";
+import useCommunitiesStore, { getCommunityFirstLoadFailure } from "../../stores/communities/index.js";
 import useAccountsStore from "../../stores/accounts/index.js";
 import { addCommentModerationToComments } from "../../lib/utils/comment-moderation.js";
 import { addOptimisticVoteCountsToComments } from "../../lib/utils/optimistic-vote-counts.js";
 import shallow from "zustand/shallow";
-import { getCommunityRefKeys, getUniqueSortedCommunityRefs, } from "../../lib/community-ref.js";
+import { getCommunityRefKeys, getUniqueSortedCommunityRefs, isCommunityRefBlocked, } from "../../lib/community-ref.js";
 import { serializeFeedKey } from "../../lib/serialize-feed-key.js";
 let feedAutoUpdateSubscriptionCount = 0;
 const emptyErrors = [];
@@ -159,11 +160,34 @@ export function useFeed(options) {
             feedsStore: useFeedsStore.getState(),
         });
     }
-    const state = !hasMore ? "succeeded" : "fetching-ipns";
     // until the feed is first calculated, every community still has more
     let communityKeysWithMore = feedCommunityKeysWithMore || uniqueCommunityKeys;
     if (!normalizedCommunityRefs.length) {
         communityKeysWithMore = [];
+    }
+    // every community of the feed that isn't blocked failed to load a record with a non-retriable
+    // failure, which makes useCommunity().state "failed". A community that is retrying, still loading
+    // or has a record may still add posts.
+    const blockedAddresses = account === null || account === void 0 ? void 0 : account.blockedAddresses;
+    const communitiesFailedToLoad = useCommunitiesStore((state) => {
+        let hasUnblockedCommunity = false;
+        for (const [index, communityKey] of uniqueCommunityKeys.entries()) {
+            const community = state.communities[communityKey];
+            if (isCommunityRefBlocked(blockedAddresses, uniqueCommunityRefs[index], community)) {
+                continue;
+            }
+            const syncStatus = state.syncStatuses[communityKey];
+            if (getCommunityFirstLoadFailure(syncStatus, community) !== "non-retriable") {
+                return false;
+            }
+            hasUnblockedCommunity = true;
+        }
+        return hasUnblockedCommunity;
+    });
+    let state = !hasMore ? "succeeded" : "fetching-ipns";
+    // an empty feed that can't get posts from any of its communities
+    if (hasMore && !(feed === null || feed === void 0 ? void 0 : feed.length) && communitiesFailedToLoad) {
+        state = "failed";
     }
     // apply the account's pending votes like useComment/useComments/useReplies do, so voting from a
     // feed updates the score immediately instead of only once the community publishes the new counts
@@ -190,6 +214,7 @@ export function useFeed(options) {
         normalizedUpdatedFeed,
         feedName,
         hasMore,
+        state,
         errors,
         communityKeysWithNewerPosts,
         communityKeysWithMore,

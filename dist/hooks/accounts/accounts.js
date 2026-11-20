@@ -579,11 +579,29 @@ export function useAccountEdits(options) {
     const ensureAccountEditsLoaded = useAccountsStore((state) => state.accountsActionsInternal.ensureAccountEditsLoaded);
     const accountEdits = useAccountsStore((state) => state.accountsEdits[accountId || ""]);
     const accountEditsLoaded = useAccountsStore((state) => state.accountsEditsLoaded[accountId || ""]);
+    // the edit history of this account failed to load from the database
+    const [loadError, setLoadError] = useState();
+    // another account loads its own edits, and coming back to this one loads them again
+    if (loadError && loadError.accountId !== accountId) {
+        setLoadError(undefined);
+    }
     useEffect(() => {
         if (!accountId || accountEditsLoaded) {
             return;
         }
-        ensureAccountEditsLoaded(accountId).catch((error) => log.error("useAccountEdits ensureAccountEditsLoaded error", { accountId, error }));
+        // a new load replaces the failure of the previous one
+        setLoadError(undefined);
+        // a load the hook moved on from, e.g. of the previous account, doesn't report its failure
+        let isCurrentLoad = true;
+        ensureAccountEditsLoaded(accountId).catch((error) => {
+            log.error("useAccountEdits ensureAccountEditsLoaded error", { accountId, error });
+            if (isCurrentLoad) {
+                setLoadError({ accountId, error: error instanceof Error ? error : Error(String(error)) });
+            }
+        });
+        return () => {
+            isCurrentLoad = false;
+        };
     }, [accountEditsLoaded, accountId, ensureAccountEditsLoaded]);
     const accountEditsArray = useMemo(() => {
         const accountEditsArray = [];
@@ -599,14 +617,23 @@ export function useAccountEdits(options) {
         }
         return accountEditsArray.filter(filter);
     }, [accountEditsArray, filter]);
-    // TODO: add failed / pending states
-    const state = accountId ? (accountEditsLoaded ? "succeeded" : "initializing") : "initializing";
+    // TODO: add the pending and failed publishing states of each edit, see docs/TODO.md
+    const error = accountId && !accountEditsLoaded && (loadError === null || loadError === void 0 ? void 0 : loadError.accountId) === accountId
+        ? loadError.error
+        : undefined;
+    const state = !accountId
+        ? "initializing"
+        : accountEditsLoaded
+            ? "succeeded"
+            : error
+                ? "failed"
+                : "initializing";
     return useMemo(() => ({
         accountEdits: filteredAccountEditsArray,
         state,
-        error: undefined,
-        errors: [],
-    }), [filteredAccountEditsArray, state]);
+        error,
+        errors: error ? [error] : [],
+    }), [filteredAccountEditsArray, state, error]);
 }
 /**
  * Returns the comment edited (if has any edits), as well as the pending, succeeded or failed state of the edit.

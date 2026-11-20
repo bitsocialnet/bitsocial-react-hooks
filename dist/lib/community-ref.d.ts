@@ -18,6 +18,9 @@ export declare const getUniqueSortedCommunityRefs: (communityRefs?: CommunityLoo
 export declare const isCommunityRef: (value: unknown) => value is CommunityLookupRef;
 export declare function assertCommunityRef(value: unknown, label: string): asserts value is CommunityLookupRef;
 export declare const doesAddressMatchCommunityRef: (communityAddress: string | undefined, communityRef: CommunityLookupRef, community?: Community) => boolean;
+export declare const isCommunityRefBlocked: (blockedAddresses: {
+    [address: string]: unknown;
+} | undefined, communityRef: CommunityLookupRef | undefined, community?: Community) => boolean;
 export declare const getMatchingCommunityRefKeys: (communityRefs: CommunityLookupRef[], communityAddress: string | undefined, community?: Community) => string[];
 export {};
 //# sourceMappingURL=community-ref.d.ts.map

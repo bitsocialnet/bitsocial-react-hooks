@@ -16,7 +16,7 @@ import assert from "../lib/assert.js";
 import useInterval from "./utils/use-interval.js";
 import createStore from "zustand";
 import { resolveEnsTxtRecord } from "../lib/chain/index.js";
-import useCommunitiesStore from "../stores/communities/index.js";
+import useCommunitiesStore, { getCommunityFirstLoadFailure } from "../stores/communities/index.js";
 import useAccountsStore from "../stores/accounts/index.js";
 import shallow from "zustand/shallow";
 import { getChainProviders, getPkcCommunityAddresses } from "../lib/pkc-compat.js";
@@ -140,7 +140,14 @@ export function useCommunity(options) {
         ]));
         return Object.assign(Object.assign({}, (storedCommunity || { address: (communityInput === null || communityInput === void 0 ? void 0 : communityInput.name) || (communityInput === null || communityInput === void 0 ? void 0 : communityInput.publicKey) })), summaryValues);
     }, [account === null || account === void 0 ? void 0 : account.pkc, storedCommunity, communityInput, communityEditSummary]);
+    const firstLoadFailure = getCommunityFirstLoadFailure(syncStatus, mergedCommunity);
     let state = (mergedCommunity === null || mergedCommunity === void 0 ? void 0 : mergedCommunity.updatingState) || "initializing";
+    // the first load failed non-retriably: it threw before the community reached the store,
+    // update() rejected, which ends in "stopped", or pkc-js reported failed. Kept through the next
+    // attempts, instead of going back to loading on each one, until a record loads.
+    if (firstLoadFailure === "non-retriable") {
+        state = "failed";
+    }
     // force succeeded even if the community is fecthing a new update
     if (mergedCommunity === null || mergedCommunity === void 0 ? void 0 : mergedCommunity.updatedAt) {
         state = "succeeded";
@@ -152,7 +159,7 @@ export function useCommunity(options) {
         syncState = "loading";
     }
     return useMemo(() => (Object.assign(Object.assign({}, mergedCommunity), { state,
-        syncState, hasCachedData: typeof (mergedCommunity === null || mergedCommunity === void 0 ? void 0 : mergedCommunity.updatedAt) === "number", lastFetchAttemptAt: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastFetchAttemptAt, lastSuccessfulFetchAt: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastSuccessfulFetchAt, lastRetriableError: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastRetriableError, error: errors === null || errors === void 0 ? void 0 : errors[errors.length - 1], errors: errors || [] })), [mergedCommunity, communityKey, errors, syncState, syncStatus]);
+        syncState, hasCachedData: typeof (mergedCommunity === null || mergedCommunity === void 0 ? void 0 : mergedCommunity.updatedAt) === "number", firstLoadFailed: firstLoadFailure !== undefined, lastFetchAttemptAt: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastFetchAttemptAt, lastSuccessfulFetchAt: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastSuccessfulFetchAt, lastRetriableError: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastRetriableError, error: errors === null || errors === void 0 ? void 0 : errors[errors.length - 1], errors: errors || [] })), [mergedCommunity, communityKey, errors, syncState, syncStatus]);
 }
 /**
  * @param community - The community identifier, e.g. {name: 'memes.eth'} or {publicKey: '12D3KooW...'}

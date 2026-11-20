@@ -12,7 +12,7 @@ import accountsStore from "../accounts/index.js";
 import feedSorter from "./feed-sorter.js";
 import { communityPostsCacheExpired, commentIsValid, removeInvalidComments } from "../../lib/utils/index.js";
 import { getCommentCommunityAddress, normalizeCommentCommunityAddress } from "../../lib/pkc-compat.js";
-import { doesAddressMatchCommunityRef, getCommunityRefKeys, getMatchingCommunityRefKeys, } from "../../lib/community-ref.js";
+import { doesAddressMatchCommunityRef, getCommunityRefKeys, getMatchingCommunityRefKeys, isCommunityRefBlocked, } from "../../lib/community-ref.js";
 import Logger from "@pkcprotocol/pkc-logger";
 import { getPostPageSortType, getSortTimeframeSeconds, isBuiltInPostSortType, isPinnedFirstPostSortType, isPostSortTypeUnavailable, resolvePostSortType, } from "../../lib/page-sorts.js";
 const log = Logger("bitsocial-react-hooks:feeds:stores");
@@ -585,10 +585,7 @@ const getFeedPageOptions = (feedOptions) => {
     }
     return { sortType, pageType };
 };
-const isFeedCommunityBlocked = (accounts, accountId, communityRef, community) => {
-    var _a;
-    return Object.keys(((_a = accounts[accountId]) === null || _a === void 0 ? void 0 : _a.blockedAddresses) || {}).some((blockedAddress) => communityRef && doesAddressMatchCommunityRef(blockedAddress, communityRef, community));
-};
+const isFeedCommunityBlocked = (accounts, accountId, communityRef, community) => { var _a; return isCommunityRefBlocked((_a = accounts[accountId]) === null || _a === void 0 ? void 0 : _a.blockedAddresses, communityRef, community); };
 // a community has more pages until it has loaded, its posts cache is fresh and its last page has no next page
 const communityHasMorePages = (community, sortType, pageType, communitiesPages, accountId) => {
     if (!(community === null || community === void 0 ? void 0 : community.updatedAt) || communityPostsCacheExpired(community)) {

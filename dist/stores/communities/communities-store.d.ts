@@ -1,4 +1,4 @@
-import { Communities, CommunitySyncState } from "../../types.js";
+import { Community, Communities, CommunitySyncState } from "../../types.js";
 export declare const COMMUNITY_UPDATE_INTERVAL_MS: number;
 export declare const COMMUNITY_UPDATE_STOP_GRACE_MS: number;
 interface CommunitySyncStatus {
@@ -7,7 +7,10 @@ interface CommunitySyncStatus {
     lastSuccessfulFetchAt?: number;
     lastRetriableError?: Error;
     stoppedUntilUsed?: true;
+    firstLoadFailure?: CommunityFirstLoadFailure;
 }
+type CommunityFirstLoadFailure = "retriable" | "non-retriable";
+export declare const getCommunityFirstLoadFailure: (syncStatus: CommunitySyncStatus | undefined, community: Community | undefined) => CommunityFirstLoadFailure | undefined;
 export declare const isRetriableCommunityLoadError: (error: Error) => boolean;
 export type CommunitiesState = {
     communities: Communities;

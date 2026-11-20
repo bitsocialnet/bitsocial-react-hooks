@@ -99,6 +99,8 @@ export const doesAddressMatchCommunityRef = (communityAddress, communityRef, com
     }
     return false;
 };
+// whether an account's blocked addresses block a community, as feeds leave it out
+export const isCommunityRefBlocked = (blockedAddresses, communityRef, community) => Object.keys(blockedAddresses || {}).some((blockedAddress) => communityRef && doesAddressMatchCommunityRef(blockedAddress, communityRef, community));
 export const getMatchingCommunityRefKeys = (communityRefs, communityAddress, community) => {
     const matchingCommunityKeys = new Set();
     for (const communityRef of communityRefs) {

@@ -95,12 +95,32 @@ const maybeReleaseStoppedLiveComment = (commentCid, comment) => {
     }
     releaseLiveComment(commentCid, comment);
 };
+// returns the same object when nothing changes, so the store doesn't notify for nothing
+const getNextLoadFailed = (loadFailed, commentCid, failed) => {
+    if (Boolean(loadFailed[commentCid]) === failed) {
+        return loadFailed;
+    }
+    const nextLoadFailed = Object.assign({}, loadFailed);
+    if (failed) {
+        nextLoadFailed[commentCid] = true;
+    }
+    else {
+        delete nextLoadFailed[commentCid];
+    }
+    return nextLoadFailed;
+};
 const commentsStore = createStore((setState, getState) => {
     const addCommentError = (commentCid, error) => {
         setState((state) => {
             let commentErrors = state.errors[commentCid] || [];
             commentErrors = [...commentErrors, error];
             return Object.assign(Object.assign({}, state), { errors: Object.assign(Object.assign({}, state.errors), { [commentCid]: commentErrors }) });
+        });
+    };
+    const setLoadFailed = (commentCid) => {
+        setState((state) => {
+            const loadFailed = getNextLoadFailed(state.loadFailed, commentCid, true);
+            return loadFailed === state.loadFailed ? state : { loadFailed };
         });
     };
     const persistComment = (commentCid, nextComment) => __awaiter(void 0, void 0, void 0, function* () {
@@ -207,6 +227,7 @@ const commentsStore = createStore((setState, getState) => {
                 addCommentError(commentCid, updateError);
             }
         }
+        setLoadFailed(commentCid);
         maybeStopCommentAfterOneShotUpdate(commentCid, comment);
         endOpeningUpdate(commentCid);
         return updateError;
@@ -256,6 +277,9 @@ const commentsStore = createStore((setState, getState) => {
         (_b = comment === null || comment === void 0 ? void 0 : comment.on) === null || _b === void 0 ? void 0 : _b.call(comment, "updatingstatechange", (updatingState) => {
             setState((state) => ({
                 comments: Object.assign(Object.assign({}, state.comments), { [commentCid]: Object.assign(Object.assign({}, state.comments[commentCid]), { updatingState }) }),
+                loadFailed: updatingState === "failed" || updatingState === "succeeded"
+                    ? getNextLoadFailed(state.loadFailed, commentCid, updatingState === "failed")
+                    : state.loadFailed,
             }));
             if (updatingState === "succeeded" &&
                 shouldRequestSparseCommentFollowup(commentCid, comment)) {
@@ -444,6 +468,7 @@ const commentsStore = createStore((setState, getState) => {
         comments: {},
         errors: {},
         openingUpdatesPending: {},
+        loadFailed: {},
         addCommentToStore(commentCid, account, commentData) {
             return __awaiter(this, void 0, void 0, function* () {
                 var _a;
@@ -494,6 +519,7 @@ const commentsStore = createStore((setState, getState) => {
                 catch (e) {
                     endOpeningUpdate(commentCid);
                     addCommentError(commentCid, e);
+                    setLoadFailed(commentCid);
                     throw e;
                 }
                 finally {
