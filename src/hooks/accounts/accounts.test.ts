@@ -1488,6 +1488,50 @@ describe("accounts", () => {
         },
       );
 
+      test("useAccountEdits drops a failed lazy load once another load starts", async () => {
+        const store = await import("../../stores/accounts");
+        const accountId = store.default.getState().activeAccountId!;
+        const accountName = store.default.getState().accounts[accountId].name;
+        const internal = store.default.getState().accountsActionsInternal;
+        const previousLoaded = store.default.getState().accountsEditsLoaded[accountId];
+        // the first load rejects, the next ones keep loading
+        const mockedEnsure = vi
+          .fn()
+          .mockRejectedValueOnce(new Error("lazy load failed"))
+          .mockImplementation(() => new Promise(() => {}));
+        store.default.setState({
+          accountsEditsLoaded: {
+            ...store.default.getState().accountsEditsLoaded,
+            [accountId]: false,
+          },
+          accountsActionsInternal: { ...internal, ensureAccountEditsLoaded: mockedEnsure },
+        });
+
+        try {
+          const rendered2 = renderHook<any, any>((name) => useAccountEdits({ accountName: name }), {
+            initialProps: accountName,
+          });
+          const waitFor = testUtils.createWaitFor(rendered2);
+          await waitFor(() => rendered2.result.current.state === "failed");
+          expect(rendered2.result.current.state).toBe("failed");
+
+          // switching to another account and back loads the edits again
+          rendered2.rerender("nonexistent account name");
+          rendered2.rerender(accountName);
+          await waitFor(() => mockedEnsure.mock.calls.length === 2);
+          expect(rendered2.result.current.state).toBe("initializing");
+          expect(rendered2.result.current.errors).toEqual([]);
+        } finally {
+          store.default.setState({
+            accountsActionsInternal: internal,
+            accountsEditsLoaded: {
+              ...store.default.getState().accountsEditsLoaded,
+              [accountId]: previousLoaded,
+            },
+          });
+        }
+      });
+
       test("useAccountEdits with filter", async () => {
         await waitFor(() => rendered.result.current.accountEdits.length === 1);
         const filter = (edit: any) => edit.spoiler === true;

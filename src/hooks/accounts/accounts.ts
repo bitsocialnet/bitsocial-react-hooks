@@ -851,11 +851,17 @@ export function useAccountEdits(options?: UseAccountEditsOptions): UseAccountEdi
 
   // the edit history of this account failed to load from the database
   const [loadError, setLoadError] = useState<{ accountId: string; error: Error }>();
+  // another account loads its own edits, and coming back to this one loads them again
+  if (loadError && loadError.accountId !== accountId) {
+    setLoadError(undefined);
+  }
 
   useEffect(() => {
     if (!accountId || accountEditsLoaded) {
       return;
     }
+    // a new load replaces the failure of the previous one
+    setLoadError(undefined);
     // keyed by account, so a rejection that lands after the account changed doesn't apply
     ensureAccountEditsLoaded(accountId).catch((error: unknown) => {
       log.error("useAccountEdits ensureAccountEditsLoaded error", { accountId, error });
@@ -879,7 +885,7 @@ export function useAccountEdits(options?: UseAccountEditsOptions): UseAccountEdi
     return accountEditsArray.filter(filter);
   }, [accountEditsArray, filter]);
 
-  // TODO: add failed / pending states
+  // TODO: add the pending and failed publishing states of each edit, see docs/TODO.md
 
   const error =
     accountId && !accountEditsLoaded && loadError?.accountId === accountId
