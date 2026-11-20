@@ -428,6 +428,251 @@ describe("communities", () => {
       }
     });
 
+    test("useCommunities communityLoadStatuses reports each community's load outcome like useCommunity", async () => {
+      const communityUpdate = Community.prototype.update;
+      const updatingCommunities: { [address: string]: any } = {};
+      Community.prototype.update = async function (this: any) {
+        updatingCommunities[this.address] = this;
+        if (this.address === "failed community") {
+          // like the pkc-js RPC client when communityUpdateSubscribe fails: failed, stopped, reject
+          this.updatingState = "failed";
+          this.emit("updatingstatechange", "failed");
+          this.updatingState = "stopped";
+          this.emit("updatingstatechange", "stopped");
+          throw Error("communityUpdateSubscribe failed");
+        }
+      };
+      const addresses = [
+        "failed community",
+        "retrying community",
+        "loading community",
+        "loaded community",
+      ];
+      const communities = toCommunities(addresses);
+
+      try {
+        const rendered = renderHook<any, any>(() => ({
+          communities: useCommunities({ communities }),
+          // the same communities read one at a time, to compare with
+          community: communities.map((community: any) => useCommunity({ community })),
+        }));
+        const waitFor = testUtils.createWaitFor(rendered);
+        const statuses = () => rendered.result.current.communities.communityLoadStatuses;
+
+        // every community has a status before it reaches the store, aligned with the input
+        expect(statuses().length).toBe(4);
+        expect(statuses()[0]).toEqual({
+          state: "initializing",
+          syncState: "initializing",
+          hasCachedData: false,
+          firstLoadFailed: false,
+          lastFetchAttemptAt: undefined,
+          lastSuccessfulFetchAt: undefined,
+          lastRetriableError: undefined,
+          error: undefined,
+          errors: [],
+        });
+        await waitFor(() => addresses.every((address) => updatingCommunities[address]));
+        expect(addresses.every((address) => updatingCommunities[address])).toBe(true);
+
+        // retrying after a failed load: firstLoadFailed, but still loading
+        const retriableError = Object.assign(new Error("ipns record not found"), {
+          details: { retriableError: true },
+        });
+        updatingCommunities["retrying community"].emit("error", retriableError);
+        updatingCommunities["retrying community"].emit("updatingstatechange", "waiting-retry");
+        // still loading, nothing failed
+        updatingCommunities["loading community"].emit("updatingstatechange", "fetching-ipns");
+        // loaded a record
+        updatingCommunities["loaded community"].updatedAt = 1_799_999_000;
+        updatingCommunities["loaded community"].emit(
+          "update",
+          updatingCommunities["loaded community"],
+        );
+        updatingCommunities["loaded community"].emit("updatingstatechange", "succeeded");
+
+        await waitFor(
+          () =>
+            statuses()[0].error !== undefined &&
+            statuses()[1].syncState === "retrying" &&
+            statuses()[2].syncState === "loading" &&
+            statuses()[3].syncState === "succeeded",
+        );
+        const [failed, retrying, loading, loaded] = statuses();
+        // no record and failed non-retriably: terminal
+        expect(failed.state).toBe("failed");
+        expect(failed.syncState).toBe("failed");
+        expect(failed.firstLoadFailed).toBe(true);
+        expect(failed.hasCachedData).toBe(false);
+        expect(failed.error?.message).toBe("communityUpdateSubscribe failed");
+        expect(failed.errors.map((error: Error) => error.message)).toEqual([
+          "communityUpdateSubscribe failed",
+        ]);
+        // no record and retrying after a failure
+        expect(retrying.state).toBe("waiting-retry");
+        expect(retrying.syncState).toBe("retrying");
+        expect(retrying.firstLoadFailed).toBe(true);
+        expect(retrying.hasCachedData).toBe(false);
+        expect(retrying.lastRetriableError).toBe(retriableError);
+        expect(retrying.error).toBeUndefined();
+        // still loading with no failure
+        expect(loading.state).toBe("fetching-ipns");
+        expect(loading.syncState).toBe("loading");
+        expect(loading.firstLoadFailed).toBe(false);
+        expect(loading.hasCachedData).toBe(false);
+        expect(loading.error).toBeUndefined();
+        // loaded
+        expect(loaded.state).toBe("succeeded");
+        expect(loaded.syncState).toBe("succeeded");
+        expect(loaded.firstLoadFailed).toBe(false);
+        expect(loaded.hasCachedData).toBe(true);
+
+        // useCommunity reports the same for each community
+        rendered.result.current.community.forEach((community: any, index: number) => {
+          const status = statuses()[index];
+          for (const field of Object.keys(status)) {
+            expect([addresses[index], field, community[field]]).toEqual([
+              addresses[index],
+              field,
+              status[field],
+            ]);
+          }
+        });
+
+        // the existing results are unchanged: every community reached the store, so the aggregate
+        // state is succeeded, although one failed, one is retrying and one is loading
+        const { communities: communityRecords, state } = rendered.result.current.communities;
+        expect(communityRecords.map((community: any) => community?.address)).toEqual(addresses);
+        expect(state).toBe("succeeded");
+        expect(
+          rendered.result.current.communities.errors.map((error: Error) => error.message),
+        ).toEqual(["communityUpdateSubscribe failed"]);
+      } finally {
+        Community.prototype.update = communityUpdate;
+      }
+    });
+
+    test("useCommunities communityLoadStatuses recover when a failed community loads a record", async () => {
+      const communityUpdate = Community.prototype.update;
+      const updatingCommunities: { [address: string]: any } = {};
+      Community.prototype.update = async function (this: any) {
+        updatingCommunities[this.address] = this;
+        if (this.address === "failed community") {
+          this.updatingState = "failed";
+          this.emit("updatingstatechange", "failed");
+          this.updatingState = "stopped";
+          this.emit("updatingstatechange", "stopped");
+          throw Error("communityUpdateSubscribe failed");
+        }
+      };
+
+      try {
+        const rendered = renderHook<any, any>(() =>
+          useCommunities({
+            communities: toCommunities(["failed community", "retrying community"]),
+          }),
+        );
+        const waitFor = testUtils.createWaitFor(rendered);
+        const statuses = () => rendered.result.current.communityLoadStatuses;
+        await waitFor(
+          () =>
+            updatingCommunities["failed community"] && updatingCommunities["retrying community"],
+        );
+        expect(Object.keys(updatingCommunities).sort()).toEqual([
+          "failed community",
+          "retrying community",
+        ]);
+        const retriableError = Object.assign(new Error("ipns record not found"), {
+          details: { retriableError: true },
+        });
+        updatingCommunities["retrying community"].emit("error", retriableError);
+        updatingCommunities["retrying community"].emit("updatingstatechange", "waiting-retry");
+        await waitFor(() => statuses()[0].state === "failed" && statuses()[1].firstLoadFailed);
+        expect(statuses()[0].state).toBe("failed");
+        expect(statuses()[1].firstLoadFailed).toBe(true);
+
+        // the next attempt of the failed community keeps it failed until a record loads
+        updatingCommunities["failed community"].updatingState = "fetching-ipns";
+        updatingCommunities["failed community"].emit("updatingstatechange", "fetching-ipns");
+        await waitFor(() => statuses()[0].syncState === "loading");
+        expect(statuses()[0].syncState).toBe("loading");
+        expect(statuses()[0].state).toBe("failed");
+        expect(statuses()[0].firstLoadFailed).toBe(true);
+
+        for (const address of ["failed community", "retrying community"]) {
+          updatingCommunities[address].updatedAt = 1_799_999_000;
+          updatingCommunities[address].emit("update", updatingCommunities[address]);
+          updatingCommunities[address].emit("updatingstatechange", "succeeded");
+        }
+        await waitFor(() =>
+          statuses().every((status: any) => status.state === "succeeded" && status.hasCachedData),
+        );
+        for (const status of statuses()) {
+          expect(status.state).toBe("succeeded");
+          expect(status.syncState).toBe("succeeded");
+          expect(status.hasCachedData).toBe(true);
+          expect(status.firstLoadFailed).toBe(false);
+          expect(status.lastRetriableError).toBeUndefined();
+          expect(status.error).toBeUndefined();
+        }
+        expect(rendered.result.current.state).toBe("succeeded");
+      } finally {
+        Community.prototype.update = communityUpdate;
+      }
+    });
+
+    test("useCommunities communityLoadStatuses stay aligned with duplicate and missing communities", async () => {
+      const createCommunity = PKC.prototype.createCommunity;
+      PKC.prototype.createCommunity = async function (this: any, options: any) {
+        if (options?.address === "missing community") {
+          throw Error("pkc.createCommunity error");
+        }
+        return createCommunity.call(this, options);
+      };
+
+      try {
+        const rendered = renderHook<any, any>(() =>
+          useCommunities({
+            communities: toCommunities([
+              "community address 1",
+              "missing community",
+              "community address 1",
+            ]),
+          }),
+        );
+        const waitFor = testUtils.createWaitFor(rendered);
+        const statuses = () => rendered.result.current.communityLoadStatuses;
+        expect(statuses().length).toBe(3);
+
+        await waitFor(
+          () =>
+            statuses()[0].hasCachedData &&
+            statuses()[2].hasCachedData &&
+            statuses()[1].error !== undefined,
+        );
+        const { communities, state } = rendered.result.current;
+        expect(communities.map((community: any) => community?.address)).toEqual([
+          "community address 1",
+          undefined,
+          "community address 1",
+        ]);
+        // the community that never reached the store has a status at its own index
+        expect(statuses()[1].state).toBe("failed");
+        expect(statuses()[1].syncState).toBe("failed");
+        expect(statuses()[1].firstLoadFailed).toBe(true);
+        expect(statuses()[1].hasCachedData).toBe(false);
+        expect(statuses()[1].error?.message).toBe("pkc.createCommunity error");
+        // a duplicate reports the same status at both indexes
+        expect(statuses()[0].state).toBe("succeeded");
+        expect(statuses()[0].hasCachedData).toBe(true);
+        expect(statuses()[2]).toEqual(statuses()[0]);
+        // the aggregate state is unchanged, a community missing from the store with errors fails it
+        expect(state).toBe("failed");
+      } finally {
+        PKC.prototype.createCommunity = createCommunity;
+      }
+    });
+
     test("overlays local community edit summary from the active account", async () => {
       vi.spyOn(accountsHooks, "useAccount").mockReturnValue({ id: "acc-1", pkc: {} } as any);
       try {
@@ -631,6 +876,166 @@ describe("communities", () => {
 
       rendered.rerender({ community: { address }, onlyIfCached: true });
       expect(rendered.result.current.syncState).toBe("stopped");
+    });
+
+    test("useCommunities communityLoadStatuses treat onlyIfCached and stopped communities like useCommunity", async () => {
+      const paused = "paused community";
+      const failed = "failed community";
+      const uncached = "uncached community";
+      communityStore.setState((state: any) => ({
+        communities: { ...state.communities, [paused]: { address: paused, updatedAt: 100 } },
+        syncStatuses: {
+          ...state.syncStatuses,
+          // stopped by the store because nothing used it
+          [paused]: { syncState: "stopped", lastSuccessfulFetchAt: 100, stoppedUntilUsed: true },
+          // failed before it reached the store
+          [failed]: { syncState: "failed", firstLoadFailure: "non-retriable" },
+        },
+      }));
+      const communities = toCommunities([paused, failed, uncached]);
+      const rendered = renderHook<any, any>(
+        (onlyIfCached) => ({
+          communities: useCommunities({ communities, onlyIfCached }),
+          community: communities.map((community: any) => useCommunity({ community, onlyIfCached })),
+        }),
+        { initialProps: true },
+      );
+      const statuses = () => rendered.result.current.communities.communityLoadStatuses;
+      const expectSameAsUseCommunity = () =>
+        rendered.result.current.community.forEach((community: any, index: number) => {
+          for (const field of Object.keys(statuses()[index])) {
+            expect([index, field, community[field]]).toEqual([
+              index,
+              field,
+              statuses()[index][field],
+            ]);
+          }
+        });
+
+      // reads the cache only: the paused community stays stopped and nothing is loaded
+      expect(statuses()[0]).toMatchObject({
+        state: "succeeded",
+        syncState: "stopped",
+        hasCachedData: true,
+        firstLoadFailed: false,
+        lastSuccessfulFetchAt: 100,
+      });
+      expect(statuses()[1]).toMatchObject({
+        state: "failed",
+        syncState: "failed",
+        firstLoadFailed: true,
+      });
+      expect(statuses()[2]).toMatchObject({
+        state: "initializing",
+        syncState: "stopped",
+        hasCachedData: false,
+        firstLoadFailed: false,
+      });
+      expectSameAsUseCommunity();
+      await new Promise((r) => setTimeout(r, 20));
+      expect(startSpy).not.toHaveBeenCalled();
+
+      // the hook restarts a community the store paused, so it is loading, not stopped or failed
+      rendered.rerender(false);
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => statuses()[0].syncState === "loading");
+      expect(startSpy).toHaveBeenCalled();
+      expect(statuses()[0]).toMatchObject({
+        state: "succeeded",
+        syncState: "loading",
+        firstLoadFailed: false,
+      });
+      expect(statuses()[1].state).toBe("failed");
+      expect(statuses()[2]).toMatchObject({ state: "initializing", syncState: "initializing" });
+      expectSameAsUseCommunity();
+    });
+
+    test("useCommunities communityLoadStatuses keep their references until a status changes", async () => {
+      const setCommunities = (communities: any, syncStatuses: any) =>
+        act(() => {
+          communityStore.setState((state: any) => ({
+            communities: { ...state.communities, ...communities },
+            syncStatuses: { ...state.syncStatuses, ...syncStatuses },
+          }));
+        });
+      setCommunities(
+        {
+          "community a": { address: "community a", updatedAt: 100, updatingState: "succeeded" },
+          "community b": { address: "community b", updatingState: "fetching-ipns" },
+        },
+        {
+          "community a": { syncState: "succeeded", lastSuccessfulFetchAt: 100 },
+          "community b": { syncState: "loading" },
+        },
+      );
+      let renderCount = 0;
+      const rendered = renderHook<any, any>((communityAddresses) => {
+        renderCount++;
+        return useCommunities({ communities: toCommunities(communityAddresses) });
+      });
+      rendered.rerender(["community a", "community b"]);
+      // the account has loaded once the hook subscribes its communities
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => startSpy.mock.calls.length === 2);
+      expect(startSpy).toHaveBeenCalledTimes(2);
+      const statuses = rendered.result.current.communityLoadStatuses;
+      expect(statuses.map((status: any) => status.syncState)).toEqual(["succeeded", "loading"]);
+
+      // a new array of the same communities
+      rendered.rerender(["community a", "community b"]);
+      expect(rendered.result.current.communityLoadStatuses).toBe(statuses);
+
+      // a change to a community the hook doesn't use doesn't render it
+      let renderCountBefore = renderCount;
+      setCommunities(
+        { "other community": { address: "other community", updatingState: "failed" } },
+        { "other community": { syncState: "failed", firstLoadFailure: "non-retriable" } },
+      );
+      expect(renderCount).toBe(renderCountBefore);
+      expect(rendered.result.current.communityLoadStatuses).toBe(statuses);
+
+      // a change to a community that doesn't change its status, e.g. its clients
+      renderCountBefore = renderCount;
+      setCommunities(
+        {
+          "community a": {
+            ...communityStore.getState().communities["community a"],
+            clients: { ipfsGateways: { "https://gateway": { state: "fetching-ipns" } } },
+          },
+        },
+        {},
+      );
+      expect(renderCount).toBeGreaterThan(renderCountBefore);
+      expect(rendered.result.current.communityLoadStatuses).toBe(statuses);
+
+      // a status change replaces only that community's status
+      const retriableError = Object.assign(new Error("ipns record not found"), {
+        details: { retriableError: true },
+      });
+      setCommunities(
+        {
+          "community b": {
+            ...communityStore.getState().communities["community b"],
+            updatingState: "waiting-retry",
+          },
+        },
+        {
+          "community b": {
+            syncState: "retrying",
+            firstLoadFailure: "retriable",
+            lastRetriableError: retriableError,
+          },
+        },
+      );
+      const nextStatuses = rendered.result.current.communityLoadStatuses;
+      expect(nextStatuses).not.toBe(statuses);
+      expect(nextStatuses[0]).toBe(statuses[0]);
+      expect(nextStatuses[1]).toMatchObject({
+        state: "waiting-retry",
+        syncState: "retrying",
+        firstLoadFailed: true,
+        lastRetriableError: retriableError,
+      });
     });
 
     test("useCommunities keeps its communities updating until it unmounts", async () => {
