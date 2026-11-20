@@ -417,6 +417,7 @@ deleteComment(commentCidOrAccountCommentIndex: string | number, accountName?: st
 
 ```
 setPkcJs(PKC) // swap the underlying protocol client implementation, e.g. for mocks or Electron
+setOnlineStatus(online: boolean | undefined) // report network status where navigator.onLine is missing (React Native, e.g. from NetInfo); undefined goes back to navigator.onLine. Feeds skip a community's expired posts cache while online and show it while offline
 deleteDatabases() // delete all databases, including all caches and accounts data, then reload the app because the stores keep their state in memory
 deleteCaches() // delete the cached comments, cached communities and cached pages only, no accounts data
 createCrosspost(comment: Comment): Crosspost // build the immutable payload accepted by pkc-js
@@ -4003,6 +4004,15 @@ Native references: [Codex hooks](https://learn.chatgpt.com/docs/hooks), [Claude 
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/CHANGELOG.md
 
 ```markdown
+## [0.3.2](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.1...v0.3.2) (2026-11-20)
+
+
+### Features
+
+* **communities:** report each community's load status in useCommunities ([#193](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/193)) ([66b3408](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/66b340860ce75aaf929bcd5151d2bb063271c408))
+
+
+
 ## [0.3.1](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.0...v0.3.1) (2026-11-20)
 
 

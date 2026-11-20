@@ -19,6 +19,7 @@ import {
 } from "./utils";
 import accountsStore from "../accounts";
 import { commentIsValid } from "../../lib/utils";
+import { setOnlineStatus } from "../../lib/online-status";
 
 const mockAccountId = "mock-account-id";
 
@@ -142,6 +143,55 @@ describe("feeds utils", () => {
       const feeds = getFilteredSortedFeeds(feedsOptions, communities, {}, makeMockAccounts());
       expect(feeds.feed1).toEqual([]);
       if (origOnLine) Object.defineProperty(navigator, "onLine", origOnLine);
+    });
+
+    describe("cache-expired community without a navigator.onLine signal", () => {
+      const expiredCommunities = {
+        sub1: {
+          address: "sub1",
+          updatedAt: 1,
+          fetchedAt: 0,
+          posts: {
+            pages: { new: { comments: [{ cid: "c1", communityAddress: "sub1", timestamp: 1 }] } },
+          },
+        },
+      };
+      const feedsOptions = {
+        feed1: { communities: toCommunities(["sub1"]), sortType: "new", accountId: mockAccountId },
+      };
+      const getFeed = () =>
+        getFilteredSortedFeeds(feedsOptions, expiredCommunities, {}, makeMockAccounts()).feed1;
+
+      afterEach(() => {
+        setOnlineStatus(undefined);
+        delete (navigator as any).onLine;
+      });
+
+      // React Native's navigator has no onLine: unknown must not read as offline, or a feed is built
+      // from hour-old cached posts instead of waiting for the fresh community update
+      test("treats a missing navigator.onLine as online and skips the expired cache", () => {
+        Object.defineProperty(navigator, "onLine", { value: undefined, configurable: true });
+        expect(navigator.onLine).toBeUndefined();
+        expect(getFeed()).toEqual([]);
+      });
+
+      test("setOnlineStatus(false) uses the expired cache, as a browser does offline", () => {
+        Object.defineProperty(navigator, "onLine", { value: undefined, configurable: true });
+        setOnlineStatus(false);
+        expect(getFeed()).toContainEqual(expect.objectContaining({ cid: "c1" }));
+      });
+
+      test("setOnlineStatus overrides navigator.onLine, and undefined goes back to it", () => {
+        Object.defineProperty(navigator, "onLine", { value: true, configurable: true });
+        setOnlineStatus(false);
+        expect(getFeed()).toContainEqual(expect.objectContaining({ cid: "c1" }));
+        setOnlineStatus(undefined);
+        expect(getFeed()).toEqual([]);
+        Object.defineProperty(navigator, "onLine", { value: false, configurable: true });
+        expect(getFeed()).toContainEqual(expect.objectContaining({ cid: "c1" }));
+        setOnlineStatus(true);
+        expect(getFeed()).toEqual([]);
+      });
     });
 
     test("skips community that has not loaded yet", () => {
