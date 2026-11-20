@@ -1,4 +1,5 @@
-import { act } from "@testing-library/react";
+import { createElement, startTransition, Suspense, useEffect } from "react";
+import { act, render } from "@testing-library/react";
 import testUtils, { renderHook } from "../lib/test-utils";
 import {
   useCommunity,
@@ -1044,6 +1045,65 @@ describe("communities", () => {
       expect(reorderedStatuses[0]).toBe(nextStatuses[1]);
       expect(reorderedStatuses[1]).toMatchObject({ state: "initializing", hasCachedData: false });
       expect(reorderedStatuses[2]).toBe(nextStatuses[0]);
+    });
+
+    test("useCommunities communityLoadStatuses keep their references after a render React discards", async () => {
+      const setCommunity = (address: string, community: any, syncStatus?: any) =>
+        act(() => {
+          communityStore.setState((state: any) => ({
+            communities: { ...state.communities, [address]: community },
+            syncStatuses: syncStatus
+              ? { ...state.syncStatuses, [address]: syncStatus }
+              : state.syncStatuses,
+          }));
+        });
+      setCommunity(
+        "community a",
+        { address: "community a", updatedAt: 100, updatingState: "succeeded" },
+        { syncState: "succeeded", lastSuccessfulFetchAt: 100 },
+      );
+      setCommunity(
+        "community b",
+        { address: "community b", updatedAt: 200, updatingState: "succeeded" },
+        { syncState: "succeeded", lastSuccessfulFetchAt: 200 },
+      );
+      const committedStatuses: any[] = [];
+      const neverResolves = new Promise(() => {});
+      const TestComponent = ({ address }: { address: string }) => {
+        const { communityLoadStatuses } = useCommunities({ communities: toCommunities([address]) });
+        useEffect(() => {
+          committedStatuses.push(communityLoadStatuses);
+        }, [communityLoadStatuses]);
+        // the render with community b suspends, so React discards it
+        if (address === "community b") {
+          throw neverResolves;
+        }
+        return null;
+      };
+      const element = (address: string) =>
+        createElement(Suspense, { fallback: null }, createElement(TestComponent, { address }));
+      const rendered = render(element("community a"));
+      try {
+        await act(async () => {});
+        const statuses = committedStatuses[committedStatuses.length - 1];
+        expect(statuses[0]).toMatchObject({ syncState: "succeeded", lastSuccessfulFetchAt: 100 });
+
+        // a transition keeps showing community a while the render with community b is suspended
+        await act(async () => {
+          startTransition(() => rendered.rerender(element("community b")));
+        });
+        expect(committedStatuses[committedStatuses.length - 1]).toBe(statuses);
+
+        // a change to community a that leaves its status as it was
+        setCommunity("community a", {
+          ...communityStore.getState().communities["community a"],
+          clients: { ipfsGateways: { "https://gateway": { state: "fetching-ipns" } } },
+        });
+        await act(async () => {});
+        expect(committedStatuses[committedStatuses.length - 1]).toBe(statuses);
+      } finally {
+        rendered.unmount();
+      }
     });
 
     test("useCommunities keeps its communities updating until it unmounts", async () => {

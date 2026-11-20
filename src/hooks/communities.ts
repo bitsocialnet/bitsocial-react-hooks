@@ -470,7 +470,8 @@ export function useCommunities(options?: UseCommunitiesOptions): UseCommunitiesR
   const restartsStoppedCommunities = Boolean(!onlyIfCached && autoUpdate && account);
   // a store change to one of the communities that leaves the statuses as they were, e.g. its
   // clients, a change to one status, or reordered communities keep the previous objects of the
-  // unchanged statuses, found by community key
+  // unchanged statuses, found by community key. The previous statuses are the last committed ones,
+  // a render React discards doesn't replace them.
   const previousCommunityLoadStatuses = useRef({
     communityKeys: [] as string[],
     statuses: emptyCommunityLoadStatuses,
@@ -501,7 +502,9 @@ export function useCommunities(options?: UseCommunitiesOptions): UseCommunitiesR
     onlyIfCached,
     restartsStoppedCommunities,
   ]);
-  previousCommunityLoadStatuses.current = { communityKeys, statuses: communityLoadStatuses };
+  useEffect(() => {
+    previousCommunityLoadStatuses.current = { communityKeys, statuses: communityLoadStatuses };
+  }, [communityKeys, communityLoadStatuses]);
 
   return useMemo(
     () => ({
