@@ -81,7 +81,57 @@ interface CommunitySyncStatus {
   lastRetriableError?: Error;
   // stopped because nothing used it, the next subscriber restarts it
   stoppedUntilUsed?: true;
+  // a load of the community failed while it had no record: "retriable" while pkc-js retries it
+  // after an error, e.g. an unreachable community, which it retries forever between loading and
+  // retrying, so the sync state alone never says the first load failed; "non-retriable" once a
+  // load threw, update() rejected or pkc-js reported failed. Kept through the next attempts, a
+  // later retriable failure doesn't downgrade a non-retriable one, until a record loads.
+  firstLoadFailure?: CommunityFirstLoadFailure;
 }
+
+type CommunityFirstLoadFailure = "retriable" | "non-retriable";
+
+const hasCommunityRecord = (community: Community | undefined) =>
+  typeof community?.updatedAt === "number";
+
+// how the first load of a community without a record failed, if it did; read it with the
+// community, because a record can arrive without a sync state change, e.g. from the pkc-js RPC client
+export const getCommunityFirstLoadFailure = (
+  syncStatus: CommunitySyncStatus | undefined,
+  community: Community | undefined,
+): CommunityFirstLoadFailure | undefined =>
+  hasCommunityRecord(community) ? undefined : syncStatus?.firstLoadFailure;
+
+const getNextFirstLoadFailure = (
+  firstLoadFailure: CommunityFirstLoadFailure | undefined,
+  syncState: CommunitySyncState,
+  hasRecord: boolean,
+): CommunityFirstLoadFailure | undefined => {
+  if (hasRecord || syncState === "succeeded") {
+    return undefined;
+  }
+  if (syncState === "failed") {
+    return "non-retriable";
+  }
+  if (syncState === "retrying" && firstLoadFailure !== "non-retriable") {
+    return "retriable";
+  }
+  return firstLoadFailure;
+};
+
+// a stored record ends a failed first load
+const withCommunityRecordSyncStatus = (
+  syncStatuses: CommunitiesState["syncStatuses"],
+  communityKey: string,
+  community: Community | undefined,
+) => {
+  const syncStatus = syncStatuses[communityKey];
+  if (!syncStatus?.firstLoadFailure || !hasCommunityRecord(community)) {
+    return syncStatuses;
+  }
+  const { firstLoadFailure: _firstLoadFailure, ...nextSyncStatus } = syncStatus;
+  return { ...syncStatuses, [communityKey]: nextSyncStatus };
+};
 
 const omitLastRetriableError = (syncStatus: CommunitySyncStatus): CommunitySyncStatus => {
   const nextSyncStatus = { ...syncStatus };
@@ -115,6 +165,16 @@ const getNextSyncStatuses = (
     ...(shouldRecordAttempt ? { lastFetchAttemptAt: timestamp } : undefined),
     ...(syncState === "succeeded" ? { lastSuccessfulFetchAt: timestamp } : undefined),
   };
+  const firstLoadFailure = getNextFirstLoadFailure(
+    previousStatus?.firstLoadFailure,
+    syncState,
+    hasCommunityRecord(state.communities[communityKey]),
+  );
+  if (firstLoadFailure) {
+    nextStatus.firstLoadFailure = firstLoadFailure;
+  } else {
+    delete nextStatus.firstLoadFailure;
+  }
   return {
     ...state.syncStatuses,
     // a success ends the retries, so their error is no longer current
@@ -167,14 +227,26 @@ const updateCommunity = (communityKey: string, liveCommunity: LiveCommunity) => 
   const { community, communityAddressOrRef } = liveCommunity;
   liveCommunity.updateCall = Promise.resolve()
     .then(() => community.update())
-    .catch((error: unknown) =>
+    .catch((error: unknown) => {
       log.trace("community.update error", {
         communityAddressOrRef,
         communityKey,
         community,
         error,
-      }),
-    );
+      });
+      // the community could not start updating, e.g. the pkc-js RPC client failed to subscribe,
+      // which reports failed and then stopped. A rejection after the store stopped it isn't one.
+      if (liveCommunities[communityKey] !== liveCommunity || !liveCommunity.updateInterval) {
+        return;
+      }
+      updateCommunitySyncStatus(communitiesStore.setState, communityKey, "failed");
+      scheduleCommunityError(
+        communitiesStore.setState,
+        communityKey,
+        error instanceof Error ? error : Error(String(error)),
+      );
+      endOpeningCommunityUpdate(communityKey, liveCommunity);
+    });
 };
 
 const startCommunityUpdatePolling = (communityKey: string, liveCommunity: LiveCommunity) => {
@@ -561,8 +633,13 @@ const communitiesStore = createStore<CommunitiesState>(
           community,
           account,
         });
-        setState((state: any) => ({
+        setState((state: CommunitiesState) => ({
           communities: { ...state.communities, [communityKey]: firstCommunityState },
+          syncStatuses: withCommunityRecordSyncStatus(
+            state.syncStatuses,
+            communityKey,
+            firstCommunityState,
+          ),
         }));
 
         const liveCommunity: LiveCommunity = {
@@ -651,9 +728,14 @@ const communitiesStore = createStore<CommunitiesState>(
           // pkc-js reports the fetch succeeded right after this event, so store the record first:
           // a succeeded sync state must not be shown with the previous record, e.g. a stale one
           // kept while the community was not updating
-          setState((state: any) => ({
+          setState((state: CommunitiesState) => ({
             ...state,
             communities: { ...state.communities, [communityKey]: updatedCommunity },
+            syncStatuses: withCommunityRecordSyncStatus(
+              state.syncStatuses,
+              communityKey,
+              updatedCommunity,
+            ),
           }));
           log("communitiesStore community update", {
             communityAddressOrRef,
@@ -820,8 +902,13 @@ const communitiesStore = createStore<CommunitiesState>(
         refreshedCommunity,
         account,
       });
-      setState((state: any) => ({
+      setState((state: CommunitiesState) => ({
         communities: { ...state.communities, [communityKey]: refreshedCommunity },
+        syncStatuses: withCommunityRecordSyncStatus(
+          state.syncStatuses,
+          communityKey,
+          refreshedCommunity,
+        ),
       }));
 
       communitiesPagesStore.getState().addCommunityPageCommentsToStore(refreshedCommunity);

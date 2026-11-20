@@ -48,6 +48,12 @@ export type CommentsState = {
   // CIDs whose update requested by addCommentToStore has not ended yet. A frozen useComment or
   // useComments waits for it, so a copy cached on an earlier visit is not frozen in place.
   openingUpdatesPending: { [commentCid: string]: true };
+  // CIDs whose last load failed: pkc-js reported "failed" (a non-retriable error, e.g. an invalid
+  // signature), comment.update() rejected, or the store could not create the comment. Kept until a
+  // load succeeds, because the "stopped" that follows when pkc-js or the store stops the failed
+  // comment replaces its updatingState, and pkc-js retries a failed CommentUpdate at the
+  // community's next update.
+  loadFailed: { [commentCid: string]: true };
   addCommentToStore: Function;
   startCommentAutoUpdate: Function;
   stopCommentAutoUpdate: Function;
@@ -124,12 +130,37 @@ const maybeReleaseStoppedLiveComment = (commentCid: string, comment?: Comment) =
   releaseLiveComment(commentCid, comment);
 };
 
+// returns the same object when nothing changes, so the store doesn't notify for nothing
+const getNextLoadFailed = (
+  loadFailed: CommentsState["loadFailed"],
+  commentCid: string,
+  failed: boolean,
+) => {
+  if (Boolean(loadFailed[commentCid]) === failed) {
+    return loadFailed;
+  }
+  const nextLoadFailed = { ...loadFailed };
+  if (failed) {
+    nextLoadFailed[commentCid] = true;
+  } else {
+    delete nextLoadFailed[commentCid];
+  }
+  return nextLoadFailed;
+};
+
 const commentsStore = createStore<CommentsState>((setState: Function, getState: Function) => {
   const addCommentError = (commentCid: string, error: Error) => {
     setState((state: CommentsState) => {
       let commentErrors = state.errors[commentCid] || [];
       commentErrors = [...commentErrors, error];
       return { ...state, errors: { ...state.errors, [commentCid]: commentErrors } };
+    });
+  };
+
+  const setLoadFailed = (commentCid: string) => {
+    setState((state: CommentsState) => {
+      const loadFailed = getNextLoadFailed(state.loadFailed, commentCid, true);
+      return loadFailed === state.loadFailed ? state : { loadFailed };
     });
   };
 
@@ -251,6 +282,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
         addCommentError(commentCid, updateError);
       }
     }
+    setLoadFailed(commentCid);
 
     maybeStopCommentAfterOneShotUpdate(commentCid, comment);
     endOpeningUpdate(commentCid);
@@ -315,6 +347,10 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
           ...state.comments,
           [commentCid]: { ...state.comments[commentCid], updatingState },
         },
+        loadFailed:
+          updatingState === "failed" || updatingState === "succeeded"
+            ? getNextLoadFailed(state.loadFailed, commentCid, updatingState === "failed")
+            : state.loadFailed,
       }));
 
       if (
@@ -554,6 +590,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
     comments: {},
     errors: {},
     openingUpdatesPending: {},
+    loadFailed: {},
 
     async addCommentToStore(commentCid: string, account: Account, commentData?: Comment) {
       const { comments } = getState();
@@ -614,6 +651,7 @@ const commentsStore = createStore<CommentsState>((setState: Function, getState: 
       } catch (e: any) {
         endOpeningUpdate(commentCid);
         addCommentError(commentCid, e);
+        setLoadFailed(commentCid);
         throw e;
       } finally {
         pkcGetCommentPending[pendingKey] = false;

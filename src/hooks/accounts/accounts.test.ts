@@ -1444,31 +1444,144 @@ describe("accounts", () => {
         expect(rendered2.result.current.accountEdits[0].spoiler).toBe(true);
       });
 
-      test("useAccountEdits logs and keeps initializing when lazy load rejects", async () => {
+      test.each([
+        ["an error", new Error("lazy load failed")],
+        ["a non-error", "lazy load failed"],
+      ])(
+        "useAccountEdits reports failed when the lazy load rejects with %s",
+        async (_, rejection) => {
+          const store = await import("../../stores/accounts");
+          const accountId = store.default.getState().activeAccountId!;
+          const internal = store.default.getState().accountsActionsInternal;
+          const previousLoaded = store.default.getState().accountsEditsLoaded[accountId];
+          const mockedEnsure = vi.fn().mockRejectedValueOnce(rejection);
+          store.default.setState({
+            accountsEditsLoaded: {
+              ...store.default.getState().accountsEditsLoaded,
+              [accountId]: false,
+            },
+            accountsActionsInternal: {
+              ...internal,
+              ensureAccountEditsLoaded: mockedEnsure,
+            },
+          });
+
+          try {
+            const rendered2 = renderHook<any, any>(() => useAccountEdits());
+            const waitFor = testUtils.createWaitFor(rendered2);
+            expect(rendered2.result.current.state).toBe("initializing");
+            await waitFor(() => mockedEnsure.mock.calls.length === 1);
+            expect(mockedEnsure).toHaveBeenCalledWith(accountId);
+            await waitFor(() => rendered2.result.current.state === "failed");
+            expect(rendered2.result.current.state).toBe("failed");
+            expect(rendered2.result.current.error?.message).toBe("lazy load failed");
+            expect(rendered2.result.current.errors).toHaveLength(1);
+          } finally {
+            store.default.setState({
+              accountsActionsInternal: internal,
+              accountsEditsLoaded: {
+                ...store.default.getState().accountsEditsLoaded,
+                [accountId]: previousLoaded,
+              },
+            });
+          }
+        },
+      );
+
+      test("useAccountEdits drops a failed lazy load once another load starts", async () => {
         const store = await import("../../stores/accounts");
         const accountId = store.default.getState().activeAccountId!;
+        const accountName = store.default.getState().accounts[accountId].name;
         const internal = store.default.getState().accountsActionsInternal;
         const previousLoaded = store.default.getState().accountsEditsLoaded[accountId];
-        const mockedEnsure = vi.fn().mockRejectedValueOnce(new Error("lazy load failed"));
+        // the first load rejects, the next ones keep loading
+        const mockedEnsure = vi
+          .fn()
+          .mockRejectedValueOnce(new Error("lazy load failed"))
+          .mockImplementation(() => new Promise(() => {}));
         store.default.setState({
           accountsEditsLoaded: {
             ...store.default.getState().accountsEditsLoaded,
             [accountId]: false,
           },
-          accountsActionsInternal: {
-            ...internal,
-            ensureAccountEditsLoaded: mockedEnsure,
-          },
+          accountsActionsInternal: { ...internal, ensureAccountEditsLoaded: mockedEnsure },
         });
 
         try {
-          const rendered2 = renderHook<any, any>(() => useAccountEdits());
+          const rendered2 = renderHook<any, any>((name) => useAccountEdits({ accountName: name }), {
+            initialProps: accountName,
+          });
           const waitFor = testUtils.createWaitFor(rendered2);
+          await waitFor(() => rendered2.result.current.state === "failed");
+          expect(rendered2.result.current.state).toBe("failed");
+
+          // switching to another account and back loads the edits again
+          rendered2.rerender("nonexistent account name");
+          rendered2.rerender(accountName);
+          await waitFor(() => mockedEnsure.mock.calls.length === 2);
+          expect(mockedEnsure).toHaveBeenCalledTimes(2);
           expect(rendered2.result.current.state).toBe("initializing");
-          await waitFor(() => mockedEnsure.mock.calls.length === 1);
-          expect(mockedEnsure).toHaveBeenCalledWith(accountId);
+          expect(rendered2.result.current.errors).toEqual([]);
         } finally {
           store.default.setState({
+            accountsActionsInternal: internal,
+            accountsEditsLoaded: {
+              ...store.default.getState().accountsEditsLoaded,
+              [accountId]: previousLoaded,
+            },
+          });
+        }
+      });
+
+      test("useAccountEdits ignores the rejection of a load it switched away from", async () => {
+        const store = await import("../../stores/accounts");
+        const accountId = store.default.getState().activeAccountId!;
+        const accountName = store.default.getState().accounts[accountId].name;
+        const otherAccountName = "useAccountEdits other account";
+        const otherAccountId = "useAccountEdits-other-account-id";
+        const internal = store.default.getState().accountsActionsInternal;
+        const previousLoaded = store.default.getState().accountsEditsLoaded[accountId];
+        const previousAccountNamesToAccountIds = store.default.getState().accountNamesToAccountIds;
+        let rejectFirstLoad: (error: Error) => void = () => {};
+        const mockedEnsure = vi.fn((loadAccountId: string) =>
+          loadAccountId === accountId
+            ? new Promise<void>((_, reject) => (rejectFirstLoad = reject))
+            : Promise.reject(new Error("other account load failed")),
+        );
+        store.default.setState({
+          accountNamesToAccountIds: {
+            ...previousAccountNamesToAccountIds,
+            [otherAccountName]: otherAccountId,
+          },
+          accountsEditsLoaded: {
+            ...store.default.getState().accountsEditsLoaded,
+            [accountId]: false,
+          },
+          accountsActionsInternal: { ...internal, ensureAccountEditsLoaded: mockedEnsure },
+        });
+
+        try {
+          const rendered2 = renderHook<any, any>((name) => useAccountEdits({ accountName: name }), {
+            initialProps: accountName,
+          });
+          const waitFor = testUtils.createWaitFor(rendered2);
+          await waitFor(() => mockedEnsure.mock.calls.length === 1);
+          expect(mockedEnsure).toHaveBeenCalledWith(accountId);
+
+          rendered2.rerender(otherAccountName);
+          await waitFor(() => rendered2.result.current.state === "failed");
+          expect(rendered2.result.current.state).toBe("failed");
+          expect(rendered2.result.current.error?.message).toBe("other account load failed");
+
+          // the load of the previous account fails after it
+          await act(async () => {
+            rejectFirstLoad(new Error("superseded load failed"));
+          });
+          expect(rendered2.result.current.state).toBe("failed");
+          expect(rendered2.result.current.error?.message).toBe("other account load failed");
+        } finally {
+          store.default.setState({
+            accountNamesToAccountIds: previousAccountNamesToAccountIds,
             accountsActionsInternal: internal,
             accountsEditsLoaded: {
               ...store.default.getState().accountsEditsLoaded,

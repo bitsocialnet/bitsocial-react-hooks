@@ -320,6 +320,114 @@ describe("communities", () => {
       }
     });
 
+    test("state is failed when the first load fails non-retriably, until the community loads", async () => {
+      const communityUpdate = Community.prototype.update;
+      const updatingCommunities: any[] = [];
+      Community.prototype.update = async function (this: any) {
+        updatingCommunities.push(this);
+        // like the pkc-js RPC client when communityUpdateSubscribe fails: failed, stopped, reject
+        this.updatingState = "failed";
+        this.emit("updatingstatechange", "failed");
+        this.updatingState = "stopped";
+        this.emit("updatingstatechange", "stopped");
+        throw Error("communityUpdateSubscribe failed");
+      };
+
+      try {
+        const rendered = renderHook<any, any>((communityAddress) =>
+          useCommunity({ community: toCommunity(communityAddress) }),
+        );
+        const waitFor = testUtils.createWaitFor(rendered);
+        rendered.rerender("community address");
+        await waitFor(() => updatingCommunities.length > 0);
+        await waitFor(() => rendered.result.current.syncState === "failed");
+        expect(rendered.result.current.syncState).toBe("failed");
+        expect(rendered.result.current.updatingState).toBe("stopped");
+        expect(rendered.result.current.state).toBe("failed");
+        expect(rendered.result.current.firstLoadFailed).toBe(true);
+        await waitFor(() => rendered.result.current.error !== undefined);
+        expect(rendered.result.current.error?.message).toBe("communityUpdateSubscribe failed");
+
+        // the next attempt doesn't make it loading again, until it loads the record
+        updatingCommunities[0].updatingState = "fetching-ipns";
+        updatingCommunities[0].emit("updatingstatechange", "fetching-ipns");
+        await waitFor(() => rendered.result.current.syncState === "loading");
+        expect(rendered.result.current.syncState).toBe("loading");
+        expect(rendered.result.current.state).toBe("failed");
+        updatingCommunities[0].updatedAt = 1_799_999_000;
+        updatingCommunities[0].emit("update", updatingCommunities[0]);
+        updatingCommunities[0].emit("updatingstatechange", "succeeded");
+        await waitFor(() => rendered.result.current.state === "succeeded");
+        expect(rendered.result.current.state).toBe("succeeded");
+        expect(rendered.result.current.firstLoadFailed).toBe(false);
+      } finally {
+        Community.prototype.update = communityUpdate;
+      }
+    });
+
+    test("firstLoadFailed reports a first load that keeps failing until the community loads", async () => {
+      const communityUpdate = Community.prototype.update;
+      const updatingCommunities: Community[] = [];
+      Community.prototype.update = async function () {
+        updatingCommunities.push(this);
+      };
+
+      try {
+        const rendered = renderHook<any, any>((communityAddress) =>
+          useCommunity({ community: toCommunity(communityAddress) }),
+        );
+        const waitFor = testUtils.createWaitFor(rendered);
+        rendered.rerender("community address");
+        expect(rendered.result.current.firstLoadFailed).toBe(false);
+        await waitFor(() => updatingCommunities.length > 0);
+
+        updatingCommunities[0].emit("updatingstatechange", "fetching-ipns");
+        await waitFor(() => rendered.result.current.syncState === "loading");
+        expect(rendered.result.current.syncState).toBe("loading");
+        expect(rendered.result.current.firstLoadFailed).toBe(false);
+
+        // an unreachable community: pkc-js retries forever and its errors are retriable
+        const retriableError = Object.assign(new Error("ipns record not found"), {
+          details: { retriableError: true },
+        });
+        updatingCommunities[0].emit("error", retriableError);
+        updatingCommunities[0].emit("updatingstatechange", "waiting-retry");
+        await waitFor(() => rendered.result.current.syncState === "retrying");
+        expect(rendered.result.current.syncState).toBe("retrying");
+        expect(rendered.result.current.firstLoadFailed).toBe(true);
+        // a retriable failure doesn't make the legacy state failed
+        expect(rendered.result.current.state).toBe("waiting-retry");
+        expect(rendered.result.current.errors).toEqual([]);
+
+        // stays failed while the next attempt runs, instead of flickering with every retry
+        updatingCommunities[0].emit("updatingstatechange", "fetching-ipns");
+        await waitFor(() => rendered.result.current.syncState === "loading");
+        expect(rendered.result.current.syncState).toBe("loading");
+        expect(rendered.result.current.firstLoadFailed).toBe(true);
+
+        // a record ends it even before pkc-js reports succeeded, which its RPC client doesn't emit
+        updatingCommunities[0].updatedAt = 1_799_999_000;
+        updatingCommunities[0].emit("update", updatingCommunities[0]);
+        await waitFor(() => rendered.result.current.hasCachedData === true);
+        expect(rendered.result.current.hasCachedData).toBe(true);
+        expect(rendered.result.current.firstLoadFailed).toBe(false);
+        updatingCommunities[0].emit("updatingstatechange", "succeeded");
+        await waitFor(() => rendered.result.current.syncState === "succeeded");
+        expect(rendered.result.current.syncState).toBe("succeeded");
+        expect(rendered.result.current.firstLoadFailed).toBe(false);
+
+        // a loaded community waiting between polls or retrying has not failed its first load
+        updatingCommunities[0].emit("error", retriableError);
+        updatingCommunities[0].emit("updatingstatechange", "waiting-retry");
+        await waitFor(() => rendered.result.current.syncState === "retrying");
+        expect(rendered.result.current.syncState).toBe("retrying");
+        expect(rendered.result.current.firstLoadFailed).toBe(false);
+        expect(rendered.result.current.state).toBe("succeeded");
+      } finally {
+        Community.prototype.update = communityUpdate;
+      }
+    });
+
     test("overlays local community edit summary from the active account", async () => {
       vi.spyOn(accountsHooks, "useAccount").mockReturnValue({ id: "acc-1", pkc: {} } as any);
       try {
@@ -443,6 +551,9 @@ describe("communities", () => {
       expect(rendered.result.current.errors[0].message).toBe("pkc.createCommunity error");
       expect(rendered.result.current.errors.length).toBe(1);
       expect(rendered.result.current.syncState).toBe("failed");
+      // the community never reached the store, but its load ended, so it isn't still initializing
+      expect(rendered.result.current.state).toBe("failed");
+      expect(rendered.result.current.firstLoadFailed).toBe(true);
 
       // restore mock
       PKC.prototype.createCommunity = createCommunity;

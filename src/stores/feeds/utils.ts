@@ -23,6 +23,7 @@ import {
   doesAddressMatchCommunityRef,
   getCommunityRefKeys,
   getMatchingCommunityRefKeys,
+  isCommunityRefBlocked,
 } from "../../lib/community-ref";
 import Logger from "@pkcprotocol/pkc-logger";
 import {
@@ -753,11 +754,7 @@ const isFeedCommunityBlocked = (
   accountId: string,
   communityRef: CommunityLookupRef | undefined,
   community: Community | undefined,
-) =>
-  Object.keys(accounts[accountId]?.blockedAddresses || {}).some(
-    (blockedAddress) =>
-      communityRef && doesAddressMatchCommunityRef(blockedAddress, communityRef, community),
-  );
+) => isCommunityRefBlocked(accounts[accountId]?.blockedAddresses, communityRef, community);
 
 // a community has more pages until it has loaded, its posts cache is fresh and its last page has no next page
 const communityHasMorePages = (

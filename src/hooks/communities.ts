@@ -21,7 +21,7 @@ import {
 import useInterval from "./utils/use-interval";
 import createStore from "zustand";
 import { resolveEnsTxtRecord } from "../lib/chain";
-import useCommunitiesStore from "../stores/communities";
+import useCommunitiesStore, { getCommunityFirstLoadFailure } from "../stores/communities";
 import useAccountsStore from "../stores/accounts";
 import shallow from "zustand/shallow";
 import { getChainProviders, getPkcCommunityAddresses } from "../lib/pkc-compat";
@@ -185,7 +185,14 @@ export function useCommunity(options?: UseCommunityOptions): UseCommunityResult 
     };
   }, [account?.pkc, storedCommunity, communityInput, communityEditSummary]);
 
+  const firstLoadFailure = getCommunityFirstLoadFailure(syncStatus, mergedCommunity);
   let state = mergedCommunity?.updatingState || "initializing";
+  // the first load failed non-retriably: it threw before the community reached the store,
+  // update() rejected, which ends in "stopped", or pkc-js reported failed. Kept through the next
+  // attempts, instead of going back to loading on each one, until a record loads.
+  if (firstLoadFailure === "non-retriable") {
+    state = "failed";
+  }
   // force succeeded even if the community is fecthing a new update
   if (mergedCommunity?.updatedAt) {
     state = "succeeded";
@@ -205,6 +212,7 @@ export function useCommunity(options?: UseCommunityOptions): UseCommunityResult 
       state,
       syncState,
       hasCachedData: typeof mergedCommunity?.updatedAt === "number",
+      firstLoadFailed: firstLoadFailure !== undefined,
       lastFetchAttemptAt: syncStatus?.lastFetchAttemptAt,
       lastSuccessfulFetchAt: syncStatus?.lastSuccessfulFetchAt,
       lastRetriableError: syncStatus?.lastRetriableError,

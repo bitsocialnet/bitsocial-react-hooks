@@ -505,7 +505,9 @@ describe("comments", () => {
       const logSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const rendered = renderHook<any, any>((cids) => useComments({ commentCids: cids }));
       rendered.rerender(["comment cid 998", "comment cid 999"]);
-      await new Promise((r) => setTimeout(r, 100));
+      await testUtils.createWaitFor(rendered)(() => rendered.result.current.state === "failed");
+      expect(rendered.result.current.comments).toEqual([undefined, undefined]);
+      expect(rendered.result.current.state).toBe("failed");
       (PKC.prototype as any).createComment = origCreateComment;
       logSpy.mockRestore();
     });
@@ -983,6 +985,8 @@ describe("comments", () => {
       expect(rendered.result.current.error.message).toBe("pkc.createComment error");
       expect(rendered.result.current.errors[0].message).toBe("pkc.createComment error");
       expect(rendered.result.current.errors.length).toBe(1);
+      // the comment never reached the store, but its load ended, so it isn't still initializing
+      expect(rendered.result.current.state).toBe("failed");
 
       // restore mock
       PKC.prototype.createComment = createComment;
@@ -2011,6 +2015,287 @@ describe("comments", () => {
         rendered.unmount();
       },
     );
+  });
+
+  describe("comment whose load failed", () => {
+    let commentUpdate: typeof Comment.prototype.update;
+    let updatingComments: any[];
+
+    beforeEach(() => {
+      commentUpdate = Comment.prototype.update;
+      updatingComments = [];
+      Comment.prototype.update = async function (this: any) {
+        updatingComments.push(this);
+        this.state = "updating";
+        this.updatingState = "fetching-ipfs";
+        this.emit("updatingstatechange", "fetching-ipfs");
+      };
+    });
+    afterEach(() => {
+      Comment.prototype.update = commentUpdate;
+    });
+
+    // a non-retriable error, e.g. a CommentIpfs or CommentUpdate with an invalid signature
+    const failLoad = (comment: any) =>
+      act(() => {
+        comment.emit("error", Error("invalid signature"));
+        comment.updatingState = "failed";
+        comment.emit("updatingstatechange", "failed");
+      });
+    // a retriable error, e.g. a gateway timeout, retried until it loads
+    const failLoadAttempt = (comment: any) =>
+      act(() => {
+        comment.emit("error", Error("gateway timeout"));
+        comment.updatingState = "waiting-retry";
+        comment.emit("updatingstatechange", "waiting-retry");
+      });
+    const loadCommentIpfs = (comment: any, timestamp: number) =>
+      act(() => {
+        comment.timestamp = timestamp;
+        comment.content = "comment ipfs content";
+        comment.updatingState = "succeeded";
+        comment.emit("update", comment);
+        comment.emit("updatingstatechange", "succeeded");
+      });
+    const loadCommentUpdate = (comment: any) =>
+      act(() => {
+        comment.updatedAt = Math.floor(Date.now() / 1000);
+        comment.replyCount = 0;
+        comment.updatingState = "succeeded";
+        comment.emit("update", comment);
+        comment.emit("updatingstatechange", "succeeded");
+      });
+
+    test("useComment reports failed when the CommentIpfs fails to load, also once the comment stops", async () => {
+      const commentCid = "comment cid failed comment ipfs";
+      const rendered = renderHook<any, any>(() => useComment({ commentCid }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => updatingComments.length > 0);
+      const liveComment = updatingComments[0];
+
+      failLoad(liveComment);
+      await waitFor(() => rendered.result.current.state === "failed");
+      expect(rendered.result.current.state).toBe("failed");
+      expect(rendered.result.current.error?.message).toBe("invalid signature");
+
+      // pkc-js stops a comment whose CommentIpfs failed, which reports "stopped"
+      await act(async () => {
+        await liveComment.stop();
+      });
+      expect(rendered.result.current.updatingState).toBe("stopped");
+      expect(rendered.result.current.state).toBe("failed");
+    });
+
+    test("useComment with autoUpdate false reports failed when the update requested on open fails", async () => {
+      const commentCid = "comment cid failed frozen";
+      const rendered = renderHook<any, any>(() => useComment({ commentCid, autoUpdate: false }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => updatingComments.length > 0);
+      const liveComment = updatingComments[0];
+      const stop = vi.spyOn(liveComment, "stop");
+
+      failLoad(liveComment);
+      // the store stops the failed one-shot update
+      await waitFor(() => stop.mock.calls.length > 0);
+      await act(async () => {});
+      expect(stop).toHaveBeenCalled();
+      expect(rendered.result.current.state).toBe("failed");
+    });
+
+    test("useComment reports failed when the CommentUpdate fails to load, until one loads", async () => {
+      const commentCid = "comment cid failed comment update";
+      const rendered = renderHook<any, any>(() => useComment({ commentCid }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => updatingComments.length > 0);
+      const liveComment = updatingComments[0];
+
+      loadCommentIpfs(liveComment, 1);
+      await waitFor(() => rendered.result.current.state === "fetching-update-ipns");
+      expect(rendered.result.current.state).toBe("fetching-update-ipns");
+
+      failLoad(liveComment);
+      await waitFor(() => rendered.result.current.state === "failed");
+      expect(rendered.result.current.state).toBe("failed");
+      expect(rendered.result.current.content).toBe("comment ipfs content");
+
+      // pkc-js tries again at the community's next update, which doesn't flicker back to loading
+      act(() => {
+        liveComment.updatingState = "fetching-community-ipns";
+        liveComment.emit("updatingstatechange", "fetching-community-ipns");
+      });
+      await act(async () => {});
+      expect(rendered.result.current.state).toBe("failed");
+
+      loadCommentUpdate(liveComment);
+      await waitFor(() => rendered.result.current.state === "succeeded");
+      expect(rendered.result.current.state).toBe("succeeded");
+    });
+
+    test("useComment reports failed for a recent comment whose update failed, instead of succeeded", async () => {
+      const commentCid = "comment cid failed recent comment";
+      const rendered = renderHook<any, any>(() => useComment({ commentCid }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => updatingComments.length > 0);
+      const liveComment = updatingComments[0];
+
+      loadCommentIpfs(liveComment, Math.floor(Date.now() / 1000) - 60);
+      await waitFor(() => rendered.result.current.state === "succeeded");
+      expect(rendered.result.current.state).toBe("succeeded");
+
+      failLoad(liveComment);
+      await waitFor(() => rendered.result.current.state === "failed");
+      expect(rendered.result.current.state).toBe("failed");
+      // no reply count loading skeleton either
+      expect(rendered.result.current.replyCount).toBe(0);
+    });
+
+    test("useComment stays succeeded when an update of a loaded comment fails", async () => {
+      const commentCid = "comment cid failed refresh";
+      const rendered = renderHook<any, any>(() => useComment({ commentCid }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => updatingComments.length > 0);
+      const liveComment = updatingComments[0];
+
+      loadCommentIpfs(liveComment, 1);
+      loadCommentUpdate(liveComment);
+      await waitFor(() => rendered.result.current.state === "succeeded");
+      expect(rendered.result.current.state).toBe("succeeded");
+
+      failLoad(liveComment);
+      await waitFor(() => rendered.result.current.error?.message === "invalid signature");
+      expect(rendered.result.current.error?.message).toBe("invalid signature");
+      expect(commentsStore.getState().loadFailed[commentCid]).toBe(true);
+      expect(rendered.result.current.state).toBe("succeeded");
+    });
+
+    test("useComment keeps loading while retriable failures are retried", async () => {
+      const commentCid = "comment cid retried";
+      const rendered = renderHook<any, any>(() => useComment({ commentCid }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => updatingComments.length > 0);
+      const liveComment = updatingComments[0];
+
+      failLoadAttempt(liveComment);
+      await waitFor(() => rendered.result.current.state === "waiting-retry");
+      expect(rendered.result.current.state).toBe("waiting-retry");
+
+      loadCommentIpfs(liveComment, 1);
+      failLoadAttempt(liveComment);
+      await act(async () => {});
+      expect(rendered.result.current.state).toBe("fetching-update-ipns");
+    });
+
+    test.each([true, false])(
+      "useComment doesn't report a failed load of the account's own published comment, with autoUpdate %s",
+      async (autoUpdate) => {
+        const commentCid = `comment cid own published failed load ${autoUpdate}`;
+        const account = Object.values(accountsStore.getState().accounts)[0];
+        const accountComment = {
+          cid: commentCid,
+          index: 0,
+          timestamp: Math.floor(Date.now() / 1000) - 60 * 60,
+          content: "own published comment",
+          communityAddress: "community address 1",
+        };
+        act(() => {
+          accountsStore.setState((state: any) => ({
+            accountsComments: { ...state.accountsComments, [account.id]: [accountComment] },
+            commentCidsToAccountsComments: {
+              ...state.commentCidsToAccountsComments,
+              [commentCid]: { accountId: account.id, accountCommentIndex: 0 },
+            },
+          }));
+        });
+        const rendered = renderHook<any, any>(() => useComment({ commentCid, autoUpdate }));
+        const waitFor = testUtils.createWaitFor(rendered);
+        await waitFor(() => updatingComments.length > 0);
+
+        // the store's load of its CommentIpfs failed, but the account has the comment
+        failLoad(updatingComments[0]);
+        await waitFor(() => rendered.result.current.error?.message === "invalid signature");
+        expect(rendered.result.current.error?.message).toBe("invalid signature");
+        expect(commentsStore.getState().loadFailed[commentCid]).toBe(true);
+        expect(rendered.result.current.index).toBe(0);
+        expect(rendered.result.current.content).toBe("own published comment");
+        // "failed" with an index means its publication failed
+        expect(rendered.result.current.state).toBe("fetching-update-ipns");
+      },
+    );
+
+    test("useComments reports failed once no comment is loading and one of them failed", async () => {
+      const commentCids = ["comment cid comments loaded", "comment cid comments failed"];
+      const rendered = renderHook<any, any>(() => useComments({ commentCids }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => updatingComments.length >= commentCids.length);
+      const [loadedComment, failedComment] = commentCids.map((commentCid) =>
+        updatingComments.find((comment) => comment.cid === commentCid),
+      );
+
+      failLoad(failedComment);
+      await act(async () => {});
+      // the other comment may still load
+      expect(rendered.result.current.state).toBe("fetching-ipfs");
+
+      // errors stay empty while the result isn't failed
+      expect(rendered.result.current.errors).toEqual([]);
+
+      loadCommentIpfs(loadedComment, 1);
+      loadCommentUpdate(loadedComment);
+      await waitFor(() => rendered.result.current.state === "failed");
+      expect(rendered.result.current.state).toBe("failed");
+      expect(rendered.result.current.comments[0]?.updatedAt).toBeDefined();
+      // the reason of the failed comment
+      expect(rendered.result.current.error?.message).toBe("invalid signature");
+      expect(rendered.result.current.errors.map((error: Error) => error.message)).toEqual([
+        "invalid signature",
+      ]);
+    });
+
+    test("useComments leaves out the errors of a comment that failed a refresh but has a CommentUpdate", async () => {
+      const commentCids = [
+        "comment cid comments errors failed",
+        "comment cid comments errors loaded",
+      ];
+      const rendered = renderHook<any, any>(() => useComments({ commentCids }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => updatingComments.length >= commentCids.length);
+      const [failedComment, loadedComment] = commentCids.map((commentCid) =>
+        updatingComments.find((comment) => comment.cid === commentCid),
+      );
+
+      loadCommentIpfs(loadedComment, 1);
+      loadCommentUpdate(loadedComment);
+      failLoad(failedComment);
+      // a later update of the loaded comment fails, which leaves it succeeded
+      act(() => {
+        loadedComment.emit("error", Error("refresh failed"));
+        loadedComment.updatingState = "failed";
+        loadedComment.emit("updatingstatechange", "failed");
+      });
+      await waitFor(() => rendered.result.current.state === "failed");
+      expect(rendered.result.current.state).toBe("failed");
+      expect(commentsStore.getState().loadFailed[commentCids[1]]).toBe(true);
+      expect(rendered.result.current.comments[1]?.updatedAt).toBeDefined();
+      expect(rendered.result.current.errors.map((error: Error) => error.message)).toEqual([
+        "invalid signature",
+      ]);
+      expect(rendered.result.current.error?.message).toBe("invalid signature");
+    });
+
+    test("useComments reports failed without errors when the failed comment emitted none", async () => {
+      const commentCid = "comment cid comments failed without error";
+      const rendered = renderHook<any, any>(() => useComments({ commentCids: [commentCid] }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => updatingComments.length > 0);
+      act(() => {
+        updatingComments[0].updatingState = "failed";
+        updatingComments[0].emit("updatingstatechange", "failed");
+      });
+      await waitFor(() => rendered.result.current.state === "failed");
+      expect(rendered.result.current.state).toBe("failed");
+      expect(rendered.result.current.error).toBeUndefined();
+      expect(rendered.result.current.errors).toEqual([]);
+    });
   });
 
   describe("getCommentFreshness and preferFresher", () => {

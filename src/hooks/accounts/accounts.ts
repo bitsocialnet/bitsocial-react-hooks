@@ -849,13 +849,30 @@ export function useAccountEdits(options?: UseAccountEditsOptions): UseAccountEdi
     (state) => state.accountsEditsLoaded[accountId || ""],
   );
 
+  // the edit history of this account failed to load from the database
+  const [loadError, setLoadError] = useState<{ accountId: string; error: Error }>();
+  // another account loads its own edits, and coming back to this one loads them again
+  if (loadError && loadError.accountId !== accountId) {
+    setLoadError(undefined);
+  }
+
   useEffect(() => {
     if (!accountId || accountEditsLoaded) {
       return;
     }
-    ensureAccountEditsLoaded(accountId).catch((error: unknown) =>
-      log.error("useAccountEdits ensureAccountEditsLoaded error", { accountId, error }),
-    );
+    // a new load replaces the failure of the previous one
+    setLoadError(undefined);
+    // a load the hook moved on from, e.g. of the previous account, doesn't report its failure
+    let isCurrentLoad = true;
+    ensureAccountEditsLoaded(accountId).catch((error: unknown) => {
+      log.error("useAccountEdits ensureAccountEditsLoaded error", { accountId, error });
+      if (isCurrentLoad) {
+        setLoadError({ accountId, error: error instanceof Error ? error : Error(String(error)) });
+      }
+    });
+    return () => {
+      isCurrentLoad = false;
+    };
   }, [accountEditsLoaded, accountId, ensureAccountEditsLoaded]);
 
   const accountEditsArray = useMemo(() => {
@@ -874,18 +891,28 @@ export function useAccountEdits(options?: UseAccountEditsOptions): UseAccountEdi
     return accountEditsArray.filter(filter);
   }, [accountEditsArray, filter]);
 
-  // TODO: add failed / pending states
+  // TODO: add the pending and failed publishing states of each edit, see docs/TODO.md
 
-  const state = accountId ? (accountEditsLoaded ? "succeeded" : "initializing") : "initializing";
+  const error =
+    accountId && !accountEditsLoaded && loadError?.accountId === accountId
+      ? loadError.error
+      : undefined;
+  const state = !accountId
+    ? "initializing"
+    : accountEditsLoaded
+      ? "succeeded"
+      : error
+        ? "failed"
+        : "initializing";
 
   return useMemo(
     () => ({
       accountEdits: filteredAccountEditsArray,
       state,
-      error: undefined,
-      errors: [],
+      error,
+      errors: error ? [error] : [],
     }),
-    [filteredAccountEditsArray, state],
+    [filteredAccountEditsArray, state, error],
   );
 }
 
