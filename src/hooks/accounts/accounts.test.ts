@@ -1532,6 +1532,64 @@ describe("accounts", () => {
         }
       });
 
+      test("useAccountEdits ignores the rejection of a load it switched away from", async () => {
+        const store = await import("../../stores/accounts");
+        const accountId = store.default.getState().activeAccountId!;
+        const accountName = store.default.getState().accounts[accountId].name;
+        const otherAccountName = "useAccountEdits other account";
+        const otherAccountId = "useAccountEdits-other-account-id";
+        const internal = store.default.getState().accountsActionsInternal;
+        const previousLoaded = store.default.getState().accountsEditsLoaded[accountId];
+        const previousAccountNamesToAccountIds = store.default.getState().accountNamesToAccountIds;
+        let rejectFirstLoad: (error: Error) => void = () => {};
+        const mockedEnsure = vi.fn((loadAccountId: string) =>
+          loadAccountId === accountId
+            ? new Promise<void>((_, reject) => (rejectFirstLoad = reject))
+            : Promise.reject(new Error("other account load failed")),
+        );
+        store.default.setState({
+          accountNamesToAccountIds: {
+            ...previousAccountNamesToAccountIds,
+            [otherAccountName]: otherAccountId,
+          },
+          accountsEditsLoaded: {
+            ...store.default.getState().accountsEditsLoaded,
+            [accountId]: false,
+          },
+          accountsActionsInternal: { ...internal, ensureAccountEditsLoaded: mockedEnsure },
+        });
+
+        try {
+          const rendered2 = renderHook<any, any>((name) => useAccountEdits({ accountName: name }), {
+            initialProps: accountName,
+          });
+          const waitFor = testUtils.createWaitFor(rendered2);
+          await waitFor(() => mockedEnsure.mock.calls.length === 1);
+          expect(mockedEnsure).toHaveBeenCalledWith(accountId);
+
+          rendered2.rerender(otherAccountName);
+          await waitFor(() => rendered2.result.current.state === "failed");
+          expect(rendered2.result.current.state).toBe("failed");
+          expect(rendered2.result.current.error?.message).toBe("other account load failed");
+
+          // the load of the previous account fails after it
+          await act(async () => {
+            rejectFirstLoad(new Error("superseded load failed"));
+          });
+          expect(rendered2.result.current.state).toBe("failed");
+          expect(rendered2.result.current.error?.message).toBe("other account load failed");
+        } finally {
+          store.default.setState({
+            accountNamesToAccountIds: previousAccountNamesToAccountIds,
+            accountsActionsInternal: internal,
+            accountsEditsLoaded: {
+              ...store.default.getState().accountsEditsLoaded,
+              [accountId]: previousLoaded,
+            },
+          });
+        }
+      });
+
       test("useAccountEdits with filter", async () => {
         await waitFor(() => rendered.result.current.accountEdits.length === 1);
         const filter = (edit: any) => edit.spoiler === true;

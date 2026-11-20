@@ -862,11 +862,17 @@ export function useAccountEdits(options?: UseAccountEditsOptions): UseAccountEdi
     }
     // a new load replaces the failure of the previous one
     setLoadError(undefined);
-    // keyed by account, so a rejection that lands after the account changed doesn't apply
+    // a load the hook moved on from, e.g. of the previous account, doesn't report its failure
+    let isCurrentLoad = true;
     ensureAccountEditsLoaded(accountId).catch((error: unknown) => {
       log.error("useAccountEdits ensureAccountEditsLoaded error", { accountId, error });
-      setLoadError({ accountId, error: error instanceof Error ? error : Error(String(error)) });
+      if (isCurrentLoad) {
+        setLoadError({ accountId, error: error instanceof Error ? error : Error(String(error)) });
+      }
     });
+    return () => {
+      isCurrentLoad = false;
+    };
   }, [accountEditsLoaded, accountId, ensureAccountEditsLoaded]);
 
   const accountEditsArray = useMemo(() => {
