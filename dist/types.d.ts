@@ -201,7 +201,11 @@ export interface UseCommunityOptions extends Options {
     /** Keep the community updating while mounted (default true). False loads it once. */
     autoUpdate?: boolean;
 }
-export interface UseCommunityResult extends Result, Community {
+/**
+ * How the loading of a community stands: the fields useCommunity adds to the community, and
+ * useCommunities reports for each community in `communityLoadStatuses`.
+ */
+export interface CommunityLoadStatus extends Result {
     syncState: CommunitySyncState;
     hasCachedData: boolean;
     /**
@@ -214,6 +218,8 @@ export interface UseCommunityResult extends Result, Community {
     /** The transient error behind the current retries, cleared once the community updates. */
     lastRetriableError: Error | undefined;
 }
+export interface UseCommunityResult extends Community, CommunityLoadStatus {
+}
 export interface UseCommunitiesOptions extends Options {
     communities?: CommunityIdentifier[];
     onlyIfCached?: boolean;
@@ -222,6 +228,12 @@ export interface UseCommunitiesOptions extends Options {
 }
 export interface UseCommunitiesResult extends Result {
     communities: (Community | undefined)[];
+    /**
+     * The load status of each requested community, at the same index as in the `communities`
+     * option, reported the same way as by useCommunity. Unlike `communities`, every entry is defined,
+     * also for a community that has not reached the store.
+     */
+    communityLoadStatuses: CommunityLoadStatus[];
 }
 export interface UseCommunityStatsOptions extends Options {
     community?: CommunityIdentifier;

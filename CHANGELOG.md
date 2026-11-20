@@ -1,3 +1,12 @@
+## [0.3.2](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.1...v0.3.2) (2026-11-20)
+
+
+### Features
+
+* **communities:** report each community's load status in useCommunities ([#193](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/193)) ([66b3408](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/66b340860ce75aaf929bcd5151d2bb063271c408))
+
+
+
 ## [0.3.1](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.0...v0.3.1) (2026-11-20)
 
 

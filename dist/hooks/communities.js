@@ -16,13 +16,49 @@ import assert from "../lib/assert.js";
 import useInterval from "./utils/use-interval.js";
 import createStore from "zustand";
 import { resolveEnsTxtRecord } from "../lib/chain/index.js";
-import useCommunitiesStore, { getCommunityFirstLoadFailure } from "../stores/communities/index.js";
+import useCommunitiesStore, { getCommunityFirstLoadFailure, } from "../stores/communities/index.js";
 import useAccountsStore from "../stores/accounts/index.js";
-import shallow from "zustand/shallow";
+// the deprecated default export warns on every call outside production
+import { shallow } from "zustand/shallow";
 import { getChainProviders, getPkcCommunityAddresses } from "../lib/pkc-compat.js";
 import { getCommunityRefKey, getUniqueSortedCommunityRefs } from "../lib/community-ref.js";
 let communityAutoUpdateSubscriptionCount = 0;
 const emptyErrors = [];
+const emptyCommunityLoadStatuses = [];
+// The load status of a community, shared by useCommunity and useCommunities so they can't disagree
+// about the same community. `restartsStoppedCommunity`: the hook keeps the community updating, so it
+// restarts one the store stopped because nothing used it.
+const getCommunityLoadStatus = (community, syncStatus, errors, onlyIfCached, restartsStoppedCommunity) => {
+    const firstLoadFailure = getCommunityFirstLoadFailure(syncStatus, community);
+    let state = (community === null || community === void 0 ? void 0 : community.updatingState) || "initializing";
+    // the first load failed non-retriably: it threw before the community reached the store,
+    // update() rejected, which ends in "stopped", or pkc-js reported failed. Kept through the next
+    // attempts, instead of going back to loading on each one, until a record loads.
+    if (firstLoadFailure === "non-retriable") {
+        state = "failed";
+    }
+    // force succeeded even if the community is fetching a new update
+    if (community === null || community === void 0 ? void 0 : community.updatedAt) {
+        state = "succeeded";
+    }
+    let syncState = (syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.syncState) || (onlyIfCached ? "stopped" : "initializing");
+    // the store stops a community once nothing uses it and the hook's effect restarts it, so the
+    // render before the effect does not report a terminal state for a community about to load
+    if ((syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.stoppedUntilUsed) && restartsStoppedCommunity) {
+        syncState = "loading";
+    }
+    return {
+        state,
+        syncState,
+        hasCachedData: typeof (community === null || community === void 0 ? void 0 : community.updatedAt) === "number",
+        firstLoadFailed: firstLoadFailure !== undefined,
+        lastFetchAttemptAt: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastFetchAttemptAt,
+        lastSuccessfulFetchAt: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastSuccessfulFetchAt,
+        lastRetriableError: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastRetriableError,
+        error: errors === null || errors === void 0 ? void 0 : errors[errors.length - 1],
+        errors: errors || emptyErrors,
+    };
+};
 const parseMaybeJson = (value) => (typeof value === "string" ? JSON.parse(value) : value);
 const tryParseMaybeJson = (value) => {
     try {
@@ -140,26 +176,8 @@ export function useCommunity(options) {
         ]));
         return Object.assign(Object.assign({}, (storedCommunity || { address: (communityInput === null || communityInput === void 0 ? void 0 : communityInput.name) || (communityInput === null || communityInput === void 0 ? void 0 : communityInput.publicKey) })), summaryValues);
     }, [account === null || account === void 0 ? void 0 : account.pkc, storedCommunity, communityInput, communityEditSummary]);
-    const firstLoadFailure = getCommunityFirstLoadFailure(syncStatus, mergedCommunity);
-    let state = (mergedCommunity === null || mergedCommunity === void 0 ? void 0 : mergedCommunity.updatingState) || "initializing";
-    // the first load failed non-retriably: it threw before the community reached the store,
-    // update() rejected, which ends in "stopped", or pkc-js reported failed. Kept through the next
-    // attempts, instead of going back to loading on each one, until a record loads.
-    if (firstLoadFailure === "non-retriable") {
-        state = "failed";
-    }
-    // force succeeded even if the community is fecthing a new update
-    if (mergedCommunity === null || mergedCommunity === void 0 ? void 0 : mergedCommunity.updatedAt) {
-        state = "succeeded";
-    }
-    let syncState = (syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.syncState) || (onlyIfCached ? "stopped" : "initializing");
-    // the store stops a community once nothing uses it and this hook's effect restarts it, so the
-    // render before the effect does not report a terminal state for a community about to load
-    if ((syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.stoppedUntilUsed) && !onlyIfCached && autoUpdate && communityInput && account) {
-        syncState = "loading";
-    }
-    return useMemo(() => (Object.assign(Object.assign({}, mergedCommunity), { state,
-        syncState, hasCachedData: typeof (mergedCommunity === null || mergedCommunity === void 0 ? void 0 : mergedCommunity.updatedAt) === "number", firstLoadFailed: firstLoadFailure !== undefined, lastFetchAttemptAt: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastFetchAttemptAt, lastSuccessfulFetchAt: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastSuccessfulFetchAt, lastRetriableError: syncStatus === null || syncStatus === void 0 ? void 0 : syncStatus.lastRetriableError, error: errors === null || errors === void 0 ? void 0 : errors[errors.length - 1], errors: errors || [] })), [mergedCommunity, communityKey, errors, syncState, syncStatus]);
+    const restartsStoppedCommunity = Boolean(!onlyIfCached && autoUpdate && communityInput && account);
+    return useMemo(() => (Object.assign(Object.assign({}, mergedCommunity), getCommunityLoadStatus(mergedCommunity, syncStatus, errors, onlyIfCached, restartsStoppedCommunity))), [mergedCommunity, communityKey, errors, syncStatus, onlyIfCached, restartsStoppedCommunity]);
 }
 /**
  * @param community - The community identifier, e.g. {name: 'memes.eth'} or {publicKey: '12D3KooW...'}
@@ -262,6 +280,7 @@ export function useCommunities(options) {
     const communityKeys = useMemo(() => normalizedCommunityRefs.map(getCommunityRefKey), [normalizedCommunityRefs]);
     const communities = useCommunitiesStore((state) => communityKeys.map((communityKey) => state.communities[communityKey || ""]), shallow);
     const communitiesErrors = useCommunitiesStore((state) => communityKeys.map((communityKey) => state.errors[communityKey || ""]), shallow);
+    const communitiesSyncStatuses = useCommunitiesStore((state) => communityKeys.map((communityKey) => state.syncStatuses[communityKey || ""]), shallow);
     const addCommunityToStore = useCommunitiesStore((state) => state.addCommunityToStore);
     const startCommunityAutoUpdate = useCommunitiesStore((state) => state.startCommunityAutoUpdate);
     const stopCommunityAutoUpdate = useCommunitiesStore((state) => state.stopCommunityAutoUpdate);
@@ -307,12 +326,44 @@ export function useCommunities(options) {
         : communities.indexOf(undefined) === -1
             ? "succeeded"
             : "fetching-ipns";
+    // derived like useCommunity, which also restarts a community the store stopped
+    const restartsStoppedCommunities = Boolean(!onlyIfCached && autoUpdate && account);
+    // a store change to one of the communities that leaves the statuses as they were, e.g. its
+    // clients, a change to one status, or reordered communities keep the previous objects of the
+    // unchanged statuses, found by community key. The previous statuses are the last committed ones,
+    // a render React discards doesn't replace them.
+    const previousCommunityLoadStatuses = useRef({
+        communityKeys: [],
+        statuses: emptyCommunityLoadStatuses,
+    });
+    const communityLoadStatuses = useMemo(() => {
+        const previous = previousCommunityLoadStatuses.current;
+        const previousStatusesByKey = new Map();
+        previous.communityKeys.forEach((communityKey, index) => previousStatusesByKey.set(communityKey, previous.statuses[index]));
+        const statuses = communities.map((community, index) => {
+            const status = getCommunityLoadStatus(community, communitiesSyncStatuses[index], communitiesErrors[index], onlyIfCached, restartsStoppedCommunities);
+            const previousStatus = previousStatusesByKey.get(communityKeys[index]);
+            return previousStatus && shallow(previousStatus, status) ? previousStatus : status;
+        });
+        return shallow(previous.statuses, statuses) ? previous.statuses : statuses;
+    }, [
+        communityKeys,
+        communities,
+        communitiesSyncStatuses,
+        communitiesErrors,
+        onlyIfCached,
+        restartsStoppedCommunities,
+    ]);
+    useEffect(() => {
+        previousCommunityLoadStatuses.current = { communityKeys, statuses: communityLoadStatuses };
+    }, [communityKeys, communityLoadStatuses]);
     return useMemo(() => ({
         communities,
+        communityLoadStatuses,
         state,
         error: errors[errors.length - 1],
         errors,
-    }), [communities, state, errors, communityKeys.toString()]);
+    }), [communities, communityLoadStatuses, state, errors, communityKeys.toString()]);
 }
 // TODO: pkc.listCommunities() has been removed, rename this and use event communitieschanged instead of polling
 /**
