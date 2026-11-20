@@ -718,6 +718,43 @@ describe("communities store", () => {
       await advance(COMMUNITY_UPDATE_STOP_GRACE_MS);
       expect(stopSpy).not.toHaveBeenCalled();
     });
+
+    test("firstLoadFailed marks a community without a record whose load failed, until it succeeds", async () => {
+      const emitUpdatingState = (updatingState: string) =>
+        act(() => {
+          community.emit("updatingstatechange", updatingState);
+        });
+      const getFirstLoadFailed = () =>
+        communitiesStore.getState().syncStatuses[address]?.firstLoadFailed;
+
+      await start("subscriber");
+      emitUpdatingState("fetching-ipns");
+      expect(getFirstLoadFailed()).toBeUndefined();
+
+      // a retriable failure of the first load, and a non-retriable one
+      emitUpdatingState("waiting-retry");
+      expect(getFirstLoadFailed()).toBe(true);
+      emitUpdatingState("fetching-ipns");
+      emitUpdatingState("failed");
+      expect(getFirstLoadFailed()).toBe(true);
+
+      // kept through the next attempts and while nothing uses the community
+      emitUpdatingState("fetching-ipns");
+      await stop("subscriber");
+      await advance(COMMUNITY_UPDATE_STOP_GRACE_MS);
+      emitUpdatingState("stopped");
+      expect(communitiesStore.getState().syncStatuses[address]?.syncState).toBe("stopped");
+      expect(getFirstLoadFailed()).toBe(true);
+
+      await start("subscriber");
+      await emitFetchedRecord(100, "first record");
+      expect(getFirstLoadFailed()).toBeUndefined();
+
+      // a community with a record is retried, not failing its first load
+      emitUpdatingState("waiting-retry");
+      emitUpdatingState("failed");
+      expect(getFirstLoadFailed()).toBeUndefined();
+    });
   });
 
   test("deleteCommunity stops update polling and listeners for deleted communities", async () => {
@@ -835,6 +872,7 @@ describe("communities store", () => {
     expect(communitiesStore.getState().errors[address]).toHaveLength(1);
     expect(communitiesStore.getState().errors[address][0].message).toBe("create failed");
     expect(communitiesStore.getState().syncStatuses[address]?.syncState).toBe("failed");
+    expect(communitiesStore.getState().syncStatuses[address]?.firstLoadFailed).toBe(true);
     mockAccount.pkc.createCommunity = createOrig;
   });
 

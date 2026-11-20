@@ -81,7 +81,18 @@ interface CommunitySyncStatus {
   lastRetriableError?: Error;
   // stopped because nothing used it, the next subscriber restarts it
   stoppedUntilUsed?: true;
+  // a load of the community failed while it had no record. pkc-js retries an unreachable
+  // community forever, between loading and retrying, so the sync state alone never says the first
+  // load failed. Kept through the next attempts until one succeeds.
+  firstLoadFailed?: true;
 }
+
+// whether a community has no record and failed to load one; read it with the community, because a
+// record can arrive without a succeeded state, e.g. from the pkc-js RPC client
+export const hasCommunityFirstLoadFailed = (
+  syncStatus: CommunitySyncStatus | undefined,
+  community: Community | undefined,
+) => syncStatus?.firstLoadFailed === true && typeof community?.updatedAt !== "number";
 
 const omitLastRetriableError = (syncStatus: CommunitySyncStatus): CommunitySyncStatus => {
   const nextSyncStatus = { ...syncStatus };
@@ -115,6 +126,16 @@ const getNextSyncStatuses = (
     ...(shouldRecordAttempt ? { lastFetchAttemptAt: timestamp } : undefined),
     ...(syncState === "succeeded" ? { lastSuccessfulFetchAt: timestamp } : undefined),
   };
+  const hasRecord = typeof state.communities[communityKey]?.updatedAt === "number";
+  if (
+    !hasRecord &&
+    syncState !== "succeeded" &&
+    (syncState === "failed" || syncState === "retrying" || previousStatus?.firstLoadFailed)
+  ) {
+    nextStatus.firstLoadFailed = true;
+  } else {
+    delete nextStatus.firstLoadFailed;
+  }
   return {
     ...state.syncStatuses,
     // a success ends the retries, so their error is no longer current

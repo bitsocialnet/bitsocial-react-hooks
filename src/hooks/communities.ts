@@ -21,7 +21,7 @@ import {
 import useInterval from "./utils/use-interval";
 import createStore from "zustand";
 import { resolveEnsTxtRecord } from "../lib/chain";
-import useCommunitiesStore from "../stores/communities";
+import useCommunitiesStore, { hasCommunityFirstLoadFailed } from "../stores/communities";
 import useAccountsStore from "../stores/accounts";
 import shallow from "zustand/shallow";
 import { getChainProviders, getPkcCommunityAddresses } from "../lib/pkc-compat";
@@ -186,6 +186,10 @@ export function useCommunity(options?: UseCommunityOptions): UseCommunityResult 
   }, [account?.pkc, storedCommunity, communityInput, communityEditSummary]);
 
   let state = mergedCommunity?.updatingState || "initializing";
+  // a load that threw left no community in the store to report it, only the sync status
+  if (syncStatus?.syncState === "failed") {
+    state = "failed";
+  }
   // force succeeded even if the community is fecthing a new update
   if (mergedCommunity?.updatedAt) {
     state = "succeeded";
@@ -205,6 +209,7 @@ export function useCommunity(options?: UseCommunityOptions): UseCommunityResult 
       state,
       syncState,
       hasCachedData: typeof mergedCommunity?.updatedAt === "number",
+      firstLoadFailed: hasCommunityFirstLoadFailed(syncStatus, mergedCommunity),
       lastFetchAttemptAt: syncStatus?.lastFetchAttemptAt,
       lastSuccessfulFetchAt: syncStatus?.lastSuccessfulFetchAt,
       lastRetriableError: syncStatus?.lastRetriableError,

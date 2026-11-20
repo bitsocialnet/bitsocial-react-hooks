@@ -132,7 +132,7 @@ useValidateComment({comment: Comment, validateReplies?: boolean}): {valid: boole
 #### Communities Hooks
 
 ```
-useCommunity({community: {name?: string, publicKey?: string}, onlyIfCached?: boolean, autoUpdate?: boolean}): Community & {syncState: "initializing" | "loading" | "retrying" | "succeeded" | "failed" | "stopped", hasCachedData: boolean, lastFetchAttemptAt: number | undefined, lastSuccessfulFetchAt: number | undefined, lastRetriableError: Error | undefined}
+useCommunity({community: {name?: string, publicKey?: string}, onlyIfCached?: boolean, autoUpdate?: boolean}): Community & {syncState: "initializing" | "loading" | "retrying" | "succeeded" | "failed" | "stopped", hasCachedData: boolean, firstLoadFailed: boolean, lastFetchAttemptAt: number | undefined, lastSuccessfulFetchAt: number | undefined, lastRetriableError: Error | undefined}
 useCommunities({communities?: CommunityIdentifier[], onlyIfCached?: boolean, autoUpdate?: boolean}): {communities: Communities[]}
 useCommunityStats({community: {name?: string, publicKey?: string}, onlyIfCached?: boolean}): CommunityStats
 useResolvedCommunityAddress({communityAddress: string, cache: boolean}): {resolvedAddress: string | undefined} // use {cache: false} when checking the user's own community address
@@ -150,6 +150,13 @@ timestamps in seconds. Transient failures stay out of `error` and `errors`;
 `lastRetriableError` holds the latest one until the community updates, so a community
 that never loads can show why. A successful fetch only proves that a valid community record was
 reachable; it does not prove that the community operator is currently online.
+
+`firstLoadFailed` is `true` while the community has no record (`hasCachedData` is `false`) and
+a load of it has failed: the load threw, `pkc-js` reported `failed`, or it is retrying after an
+error. `pkc-js` retries an unreachable community forever, so `syncState` alternates between
+`loading` and `retrying` and never settles on `failed`; `firstLoadFailed` stays `true` through
+those retries and becomes `false` once a record loads. `state` is `failed` when the load threw
+before the community reached the store, instead of staying `initializing`.
 
 A community keeps updating while a `useCommunity`, `useCommunities`, `useCommunityStats`,
 `useCommunitiesStates`, `useAccountCommunities`, `useFeed`, or `useBufferedFeeds` that uses it is
@@ -537,6 +544,7 @@ const community = useCommunity({ community: { name: communityAddress, publicKey:
 const {
   syncState,
   hasCachedData,
+  firstLoadFailed,
   lastFetchAttemptAt,
   lastSuccessfulFetchAt,
   lastRetriableError,

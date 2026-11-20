@@ -249,6 +249,11 @@ export interface UseCommunityOptions extends Options {
 export interface UseCommunityResult extends Result, Community {
   syncState: CommunitySyncState;
   hasCachedData: boolean;
+  /**
+   * True while the community has no record and a load of it failed, including an unreachable
+   * community that pkc-js keeps retrying. Stays true through later attempts until one loads it.
+   */
+  firstLoadFailed: boolean;
   lastFetchAttemptAt: number | undefined;
   lastSuccessfulFetchAt: number | undefined;
   /** The transient error behind the current retries, cleared once the community updates. */
