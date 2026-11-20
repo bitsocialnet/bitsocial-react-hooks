@@ -2232,11 +2232,34 @@ describe("comments", () => {
       // the other comment may still load
       expect(rendered.result.current.state).toBe("fetching-ipfs");
 
+      // errors stay empty while the result isn't failed
+      expect(rendered.result.current.errors).toEqual([]);
+
       loadCommentIpfs(loadedComment, 1);
       loadCommentUpdate(loadedComment);
       await waitFor(() => rendered.result.current.state === "failed");
       expect(rendered.result.current.state).toBe("failed");
       expect(rendered.result.current.comments[0]?.updatedAt).toBeDefined();
+      // the reason of the failed comment
+      expect(rendered.result.current.error?.message).toBe("invalid signature");
+      expect(rendered.result.current.errors.map((error: Error) => error.message)).toEqual([
+        "invalid signature",
+      ]);
+    });
+
+    test("useComments reports failed without errors when the failed comment emitted none", async () => {
+      const commentCid = "comment cid comments failed without error";
+      const rendered = renderHook<any, any>(() => useComments({ commentCids: [commentCid] }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => updatingComments.length > 0);
+      act(() => {
+        updatingComments[0].updatingState = "failed";
+        updatingComments[0].emit("updatingstatechange", "failed");
+      });
+      await waitFor(() => rendered.result.current.state === "failed");
+      expect(rendered.result.current.state).toBe("failed");
+      expect(rendered.result.current.error).toBeUndefined();
+      expect(rendered.result.current.errors).toEqual([]);
     });
   });
 

@@ -100,6 +100,8 @@ const getCommentsState = (comments: (Comment | undefined)[], loadFailed: boolean
   return "fetching-ipfs";
 };
 
+const emptyErrors: Error[] = [];
+
 let commentAutoUpdateSubscriptionCount = 0;
 let commentsAutoUpdateSubscriptionCount = 0;
 
@@ -520,6 +522,10 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
     (state: any) => commentCids.map((commentCid) => Boolean(state.loadFailed[commentCid || ""])),
     shallow,
   );
+  const commentsErrors: (Error[] | undefined)[] = useCommentsStore(
+    (state: any) => commentCids.map((commentCid) => state.errors[commentCid || ""]),
+    shallow,
+  );
 
   const addCommentToStore = useCommentsStore((state: any) => state.addCommentToStore);
   const startCommentAutoUpdate = useCommentsStore((state: any) => state.startCommentAutoUpdate);
@@ -655,6 +661,16 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
 
   // succeed if no comments are undefined
   const state = getCommentsState(normalizedComments, loadsFailed);
+  // the reasons of a failed result, from the comments whose load failed
+  const errors = useMemo(() => {
+    if (state !== "failed") {
+      return emptyErrors;
+    }
+    const failedCommentCids = new Set(commentCids.filter((_, index) => loadsFailed[index]));
+    return [...failedCommentCids].flatMap(
+      (commentCid) => commentsErrors[commentCids.indexOf(commentCid)] || [],
+    );
+  }, [state, commentsKey, loadsFailed, commentsErrors]);
 
   const refresh = useCallback(async () => {
     if (!account) {
@@ -696,10 +712,10 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
       comments: normalizedComments,
       state,
       refresh,
-      error: undefined,
-      errors: [],
+      error: errors[errors.length - 1],
+      errors,
     }),
-    [normalizedComments, commentsKey, refresh, state],
+    [normalizedComments, commentsKey, refresh, state, errors],
   );
 }
 
