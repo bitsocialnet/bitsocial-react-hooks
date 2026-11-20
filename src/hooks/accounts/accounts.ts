@@ -849,13 +849,18 @@ export function useAccountEdits(options?: UseAccountEditsOptions): UseAccountEdi
     (state) => state.accountsEditsLoaded[accountId || ""],
   );
 
+  // the edit history of this account failed to load from the database
+  const [loadError, setLoadError] = useState<{ accountId: string; error: Error }>();
+
   useEffect(() => {
     if (!accountId || accountEditsLoaded) {
       return;
     }
-    ensureAccountEditsLoaded(accountId).catch((error: unknown) =>
-      log.error("useAccountEdits ensureAccountEditsLoaded error", { accountId, error }),
-    );
+    // keyed by account, so a rejection that lands after the account changed doesn't apply
+    ensureAccountEditsLoaded(accountId).catch((error: unknown) => {
+      log.error("useAccountEdits ensureAccountEditsLoaded error", { accountId, error });
+      setLoadError({ accountId, error: error instanceof Error ? error : Error(String(error)) });
+    });
   }, [accountEditsLoaded, accountId, ensureAccountEditsLoaded]);
 
   const accountEditsArray = useMemo(() => {
@@ -876,16 +881,26 @@ export function useAccountEdits(options?: UseAccountEditsOptions): UseAccountEdi
 
   // TODO: add failed / pending states
 
-  const state = accountId ? (accountEditsLoaded ? "succeeded" : "initializing") : "initializing";
+  const error =
+    accountId && !accountEditsLoaded && loadError?.accountId === accountId
+      ? loadError.error
+      : undefined;
+  const state = !accountId
+    ? "initializing"
+    : accountEditsLoaded
+      ? "succeeded"
+      : error
+        ? "failed"
+        : "initializing";
 
   return useMemo(
     () => ({
       accountEdits: filteredAccountEditsArray,
       state,
-      error: undefined,
-      errors: [],
+      error,
+      errors: error ? [error] : [],
     }),
-    [filteredAccountEditsArray, state],
+    [filteredAccountEditsArray, state, error],
   );
 }
 

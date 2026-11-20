@@ -1444,39 +1444,49 @@ describe("accounts", () => {
         expect(rendered2.result.current.accountEdits[0].spoiler).toBe(true);
       });
 
-      test("useAccountEdits logs and keeps initializing when lazy load rejects", async () => {
-        const store = await import("../../stores/accounts");
-        const accountId = store.default.getState().activeAccountId!;
-        const internal = store.default.getState().accountsActionsInternal;
-        const previousLoaded = store.default.getState().accountsEditsLoaded[accountId];
-        const mockedEnsure = vi.fn().mockRejectedValueOnce(new Error("lazy load failed"));
-        store.default.setState({
-          accountsEditsLoaded: {
-            ...store.default.getState().accountsEditsLoaded,
-            [accountId]: false,
-          },
-          accountsActionsInternal: {
-            ...internal,
-            ensureAccountEditsLoaded: mockedEnsure,
-          },
-        });
-
-        try {
-          const rendered2 = renderHook<any, any>(() => useAccountEdits());
-          const waitFor = testUtils.createWaitFor(rendered2);
-          expect(rendered2.result.current.state).toBe("initializing");
-          await waitFor(() => mockedEnsure.mock.calls.length === 1);
-          expect(mockedEnsure).toHaveBeenCalledWith(accountId);
-        } finally {
+      test.each([
+        ["an error", new Error("lazy load failed")],
+        ["a non-error", "lazy load failed"],
+      ])(
+        "useAccountEdits reports failed when the lazy load rejects with %s",
+        async (_, rejection) => {
+          const store = await import("../../stores/accounts");
+          const accountId = store.default.getState().activeAccountId!;
+          const internal = store.default.getState().accountsActionsInternal;
+          const previousLoaded = store.default.getState().accountsEditsLoaded[accountId];
+          const mockedEnsure = vi.fn().mockRejectedValueOnce(rejection);
           store.default.setState({
-            accountsActionsInternal: internal,
             accountsEditsLoaded: {
               ...store.default.getState().accountsEditsLoaded,
-              [accountId]: previousLoaded,
+              [accountId]: false,
+            },
+            accountsActionsInternal: {
+              ...internal,
+              ensureAccountEditsLoaded: mockedEnsure,
             },
           });
-        }
-      });
+
+          try {
+            const rendered2 = renderHook<any, any>(() => useAccountEdits());
+            const waitFor = testUtils.createWaitFor(rendered2);
+            expect(rendered2.result.current.state).toBe("initializing");
+            await waitFor(() => mockedEnsure.mock.calls.length === 1);
+            expect(mockedEnsure).toHaveBeenCalledWith(accountId);
+            await waitFor(() => rendered2.result.current.state === "failed");
+            expect(rendered2.result.current.state).toBe("failed");
+            expect(rendered2.result.current.error?.message).toBe("lazy load failed");
+            expect(rendered2.result.current.errors).toHaveLength(1);
+          } finally {
+            store.default.setState({
+              accountsActionsInternal: internal,
+              accountsEditsLoaded: {
+                ...store.default.getState().accountsEditsLoaded,
+                [accountId]: previousLoaded,
+              },
+            });
+          }
+        },
+      );
 
       test("useAccountEdits with filter", async () => {
         await waitFor(() => rendered.result.current.accountEdits.length === 1);
