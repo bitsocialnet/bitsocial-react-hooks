@@ -1036,6 +1036,14 @@ describe("communities", () => {
         firstLoadFailed: true,
         lastRetriableError: retriableError,
       });
+
+      // reordering the communities or adding one keeps each community's status object
+      rendered.rerender(["community b", "new community", "community a"]);
+      const reorderedStatuses = rendered.result.current.communityLoadStatuses;
+      expect(reorderedStatuses.length).toBe(3);
+      expect(reorderedStatuses[0]).toBe(nextStatuses[1]);
+      expect(reorderedStatuses[1]).toMatchObject({ state: "initializing", hasCachedData: false });
+      expect(reorderedStatuses[2]).toBe(nextStatuses[0]);
     });
 
     test("useCommunities keeps its communities updating until it unmounts", async () => {

@@ -469,10 +469,18 @@ export function useCommunities(options?: UseCommunitiesOptions): UseCommunitiesR
   // derived like useCommunity, which also restarts a community the store stopped
   const restartsStoppedCommunities = Boolean(!onlyIfCached && autoUpdate && account);
   // a store change to one of the communities that leaves the statuses as they were, e.g. its
-  // clients, or a change to one status, keeps the previous objects of the unchanged statuses
-  const previousCommunityLoadStatuses = useRef(emptyCommunityLoadStatuses);
+  // clients, a change to one status, or reordered communities keep the previous objects of the
+  // unchanged statuses, found by community key
+  const previousCommunityLoadStatuses = useRef({
+    communityKeys: [] as string[],
+    statuses: emptyCommunityLoadStatuses,
+  });
   const communityLoadStatuses = useMemo(() => {
-    const previousStatuses = previousCommunityLoadStatuses.current;
+    const previous = previousCommunityLoadStatuses.current;
+    const previousStatusesByKey = new Map<string, CommunityLoadStatus>();
+    previous.communityKeys.forEach((communityKey, index) =>
+      previousStatusesByKey.set(communityKey, previous.statuses[index]),
+    );
     const statuses = communities.map((community, index) => {
       const status = getCommunityLoadStatus(
         community,
@@ -481,18 +489,19 @@ export function useCommunities(options?: UseCommunitiesOptions): UseCommunitiesR
         onlyIfCached,
         restartsStoppedCommunities,
       );
-      const previousStatus = previousStatuses[index];
+      const previousStatus = previousStatusesByKey.get(communityKeys[index]);
       return previousStatus && shallow(previousStatus, status) ? previousStatus : status;
     });
-    return shallow(previousStatuses, statuses) ? previousStatuses : statuses;
+    return shallow(previous.statuses, statuses) ? previous.statuses : statuses;
   }, [
+    communityKeys,
     communities,
     communitiesSyncStatuses,
     communitiesErrors,
     onlyIfCached,
     restartsStoppedCommunities,
   ]);
-  previousCommunityLoadStatuses.current = communityLoadStatuses;
+  previousCommunityLoadStatuses.current = { communityKeys, statuses: communityLoadStatuses };
 
   return useMemo(
     () => ({
