@@ -87,10 +87,7 @@ const getCommentStateAndReplyCount = (comment: Comment | undefined, loadFailed: 
 };
 
 // failed once no comment is still loading and at least one failed
-const getCommentsState = (comments: (Comment | undefined)[], loadFailed: boolean[]) => {
-  const states = comments.map(
-    (comment, index) => getCommentStateAndReplyCount(comment, loadFailed[index]).state,
-  );
+const getCommentsState = (states: string[]) => {
   if (states.every((state) => state === "succeeded")) {
     return "succeeded";
   }
@@ -659,18 +656,23 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
     [comments, accountVotes],
   );
 
+  const commentsStates = normalizedComments.map(
+    (comment, index) => getCommentStateAndReplyCount(comment, loadsFailed[index]).state,
+  );
   // succeed if no comments are undefined
-  const state = getCommentsState(normalizedComments, loadsFailed);
-  // the reasons of a failed result, from the comments whose load failed
+  const state = getCommentsState(commentsStates);
+  // the reasons of a failed result, from the comments that failed, not one with a CommentUpdate
+  // whose later update failed
+  const failedCommentCids = commentCids.filter((_, index) => commentsStates[index] === "failed");
+  const failedCommentCidsKey = JSON.stringify(failedCommentCids);
   const errors = useMemo(() => {
     if (state !== "failed") {
       return emptyErrors;
     }
-    const failedCommentCids = new Set(commentCids.filter((_, index) => loadsFailed[index]));
-    return [...failedCommentCids].flatMap(
+    return [...new Set(failedCommentCids)].flatMap(
       (commentCid) => commentsErrors[commentCids.indexOf(commentCid)] || [],
     );
-  }, [state, commentsKey, loadsFailed, commentsErrors]);
+  }, [state, commentsKey, failedCommentCidsKey, commentsErrors]);
 
   const refresh = useCallback(async () => {
     if (!account) {

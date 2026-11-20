@@ -2247,6 +2247,37 @@ describe("comments", () => {
       ]);
     });
 
+    test("useComments leaves out the errors of a comment that failed a refresh but has a CommentUpdate", async () => {
+      const commentCids = [
+        "comment cid comments errors failed",
+        "comment cid comments errors loaded",
+      ];
+      const rendered = renderHook<any, any>(() => useComments({ commentCids }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => updatingComments.length >= commentCids.length);
+      const [failedComment, loadedComment] = commentCids.map((commentCid) =>
+        updatingComments.find((comment) => comment.cid === commentCid),
+      );
+
+      loadCommentIpfs(loadedComment, 1);
+      loadCommentUpdate(loadedComment);
+      failLoad(failedComment);
+      // a later update of the loaded comment fails, which leaves it succeeded
+      act(() => {
+        loadedComment.emit("error", Error("refresh failed"));
+        loadedComment.updatingState = "failed";
+        loadedComment.emit("updatingstatechange", "failed");
+      });
+      await waitFor(() => rendered.result.current.state === "failed");
+      expect(rendered.result.current.state).toBe("failed");
+      expect(commentsStore.getState().loadFailed[commentCids[1]]).toBe(true);
+      expect(rendered.result.current.comments[1]?.updatedAt).toBeDefined();
+      expect(rendered.result.current.errors.map((error: Error) => error.message)).toEqual([
+        "invalid signature",
+      ]);
+      expect(rendered.result.current.error?.message).toBe("invalid signature");
+    });
+
     test("useComments reports failed without errors when the failed comment emitted none", async () => {
       const commentCid = "comment cid comments failed without error";
       const rendered = renderHook<any, any>(() => useComments({ commentCids: [commentCid] }));
