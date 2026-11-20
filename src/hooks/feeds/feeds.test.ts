@@ -305,33 +305,56 @@ describe("feeds", () => {
       let createCommunity: typeof PKC.prototype.createCommunity;
       let communityUpdate: typeof Community.prototype.update;
       let consoleErrorSpy: any;
-      const failingAddresses = new Set<string>();
+      // pkc.createCommunity throws, the load ends without a community
+      const throwingAddresses = new Set<string>();
+      // pkc-js reports a non-retriable error, e.g. a record with an invalid signature
+      const invalidAddresses = new Set<string>();
+      // pkc-js retries an unreachable community forever, with retriable errors
       const unreachableAddresses = new Set<string>();
+      // the first fetch never ends
       const stuckAddresses = new Set<string>();
-      const unreachableCommunities: any[] = [];
-      const retriableError = () =>
-        Object.assign(new Error("ipns record not found"), { details: { retriableError: true } });
+      // loads a record without posts
+      const emptyAddresses = new Set<string>();
+      const updatingCommunities: any[] = [];
 
       beforeEach(() => {
         createCommunity = PKC.prototype.createCommunity;
         communityUpdate = Community.prototype.update;
         consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
         PKC.prototype.createCommunity = async function (options: any) {
-          if (failingAddresses.has(options?.address)) {
+          if (throwingAddresses.has(options?.address)) {
             throw Error(`pkc.createCommunity error ${options.address}`);
           }
           return createCommunity.call(this, options);
         };
         Community.prototype.update = async function (this: any) {
+          updatingCommunities.push(this);
           if (stuckAddresses.has(this.address)) {
             return;
           }
-          if (unreachableAddresses.has(this.address)) {
-            // pkc-js retries an unreachable community forever, with retriable errors
-            unreachableCommunities.push(this);
+          if (invalidAddresses.has(this.address)) {
             this.emit("updatingstatechange", "fetching-ipns");
-            this.emit("error", retriableError());
+            this.emit("error", Error("invalid community signature"));
+            this.emit("updatingstatechange", "failed");
+            return;
+          }
+          if (unreachableAddresses.has(this.address)) {
+            this.emit("updatingstatechange", "fetching-ipns");
+            this.emit(
+              "error",
+              Object.assign(new Error("ipns record not found"), {
+                details: { retriableError: true },
+              }),
+            );
             this.emit("updatingstatechange", "waiting-retry");
+            return;
+          }
+          if (emptyAddresses.has(this.address)) {
+            await simulateLoadingTime();
+            this.updatedAt = Math.floor(Date.now() / 1000);
+            this.posts = { pages: {}, pageCids: {} };
+            this.emit("update", this);
+            this.emit("updatingstatechange", "succeeded");
             return;
           }
           return communityUpdate.call(this);
@@ -341,24 +364,29 @@ describe("feeds", () => {
         PKC.prototype.createCommunity = createCommunity;
         Community.prototype.update = communityUpdate;
         consoleErrorSpy.mockRestore();
-        failingAddresses.clear();
-        unreachableAddresses.clear();
-        stuckAddresses.clear();
-        unreachableCommunities.length = 0;
+        for (const addresses of [
+          throwingAddresses,
+          invalidAddresses,
+          unreachableAddresses,
+          stuckAddresses,
+          emptyAddresses,
+        ]) {
+          addresses.clear();
+        }
+        updatingCommunities.length = 0;
       });
 
-      const waitForFirstLoadFailed = (communityAddress: string) =>
+      const waitForSyncState = (communityAddress: string, syncState: string) =>
         waitFor(
-          () =>
-            communitiesStore.getState().syncStatuses[communityAddress]?.firstLoadFailed === true,
+          () => communitiesStore.getState().syncStatuses[communityAddress]?.syncState === syncState,
         );
 
-      test("a feed whose communities all failed their first load is failed", async () => {
-        failingAddresses.add("community address 1");
-        unreachableAddresses.add("community address 2");
+      test("a feed whose communities all failed to load is failed", async () => {
+        throwingAddresses.add("community address 1");
+        invalidAddresses.add("community address 2");
         rendered.rerender({ communityAddresses: ["community address 1", "community address 2"] });
-        await waitForFirstLoadFailed("community address 1");
-        await waitForFirstLoadFailed("community address 2");
+        await waitForSyncState("community address 1", "failed");
+        await waitForSyncState("community address 2", "failed");
 
         await waitFor(() => rendered.result.current.state === "failed");
         expect(rendered.result.current.state).toBe("failed");
@@ -369,37 +397,73 @@ describe("feeds", () => {
         expect(rendered.result.current.errors).toEqual([]);
       });
 
-      test("a feed is no longer failed once one of its communities loads", async () => {
+      test("a feed whose communities are only retrying is still loading", async () => {
         unreachableAddresses.add("community address 1");
+        rendered.rerender({ communityAddresses: ["community address 1"] });
+        await waitForSyncState("community address 1", "retrying");
+        await act(async () => {});
+        expect(
+          communitiesStore.getState().syncStatuses["community address 1"]?.firstLoadFailure,
+        ).toBe("retriable");
+        expect(rendered.result.current.state).toBe("fetching-ipns");
+      });
+
+      test("a feed with a community that loaded a record without posts is not failed", async () => {
+        emptyAddresses.add("community address 1");
+        throwingAddresses.add("community address 2");
+        rendered.rerender({ communityAddresses: ["community address 1", "community address 2"] });
+        await waitForSyncState("community address 1", "succeeded");
+        await waitForSyncState("community address 2", "failed");
+        await act(async () => {});
+        expect(rendered.result.current.feed).toEqual([]);
+        expect(rendered.result.current.state).not.toBe("failed");
+      });
+
+      test("a feed with a community still loading is not failed", async () => {
+        stuckAddresses.add("community address 1");
+        throwingAddresses.add("community address 2");
+        rendered.rerender({ communityAddresses: ["community address 1", "community address 2"] });
+        await waitForSyncState("community address 2", "failed");
+        await waitFor(() => updatingCommunities.length > 0);
+        await act(async () => {});
+        expect(rendered.result.current.feed).toEqual([]);
+        expect(rendered.result.current.state).toBe("fetching-ipns");
+      });
+
+      test("a feed leaves out blocked communities", async () => {
+        const blockedCommunityAddress = "blocked community address";
+        stuckAddresses.add(blockedCommunityAddress);
+        throwingAddresses.add("community address 2");
+        await act(async () => {
+          await accountsActions.blockAddress(blockedCommunityAddress);
+        });
+        rendered.rerender({ communityAddresses: [blockedCommunityAddress, "community address 2"] });
+        await waitForSyncState("community address 2", "failed");
+        await waitFor(() => rendered.result.current.state === "failed");
+        expect(rendered.result.current.state).toBe("failed");
+      });
+
+      test("a feed is no longer failed once one of its communities loads", async () => {
+        invalidAddresses.add("community address 1");
         rendered.rerender({ communityAddresses: ["community address 1"] });
         await waitFor(() => rendered.result.current.state === "failed");
         expect(rendered.result.current.state).toBe("failed");
 
-        // a later retry loads the record
-        unreachableAddresses.clear();
-        const [community] = unreachableCommunities;
+        // stays failed while pkc-js tries again, with a retriable error this time
+        invalidAddresses.clear();
+        unreachableAddresses.add("community address 1");
+        const [community] = updatingCommunities;
         await act(async () => {
           await community.update();
         });
-        await waitFor(() => rendered.result.current.feed.length > 0);
-        expect(rendered.result.current.feed.length).toBeGreaterThan(0);
-        expect(rendered.result.current.state).not.toBe("failed");
-      });
+        await waitForSyncState("community address 1", "retrying");
+        expect(rendered.result.current.state).toBe("failed");
 
-      test("a feed with a community that still loads or has posts is not failed", async () => {
-        failingAddresses.add("community address 1");
-        stuckAddresses.add("community address 2");
-        rendered.rerender({ communityAddresses: ["community address 1", "community address 2"] });
-        await waitForFirstLoadFailed("community address 1");
-        await waitFor(
-          () => communitiesStore.getState().communities["community address 2"] !== undefined,
-        );
-        await act(async () => {});
-        // community address 2 may still deliver posts
-        expect(rendered.result.current.state).toBe("fetching-ipns");
-
-        // a community with posts keeps the feed going while another one failed
-        rendered.rerender({ communityAddresses: ["community address 1", "community address 3"] });
+        // a later attempt loads the record
+        unreachableAddresses.clear();
+        await act(async () => {
+          await community.update();
+        });
         await waitFor(() => rendered.result.current.feed.length > 0);
         expect(rendered.result.current.feed.length).toBeGreaterThan(0);
         expect(rendered.result.current.state).not.toBe("failed");

@@ -23,6 +23,7 @@ import {
   CommunityLookupRef,
   getCommunityRefKeys,
   getUniqueSortedCommunityRefs,
+  isCommunityRefBlocked,
 } from "../../lib/community-ref";
 import { serializeFeedKey } from "../../lib/serialize-feed-key";
 
@@ -223,22 +224,28 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
   if (!normalizedCommunityRefs.length) {
     communityKeysWithMore = [];
   }
-  // every community that could still add posts has failed to load a record. pkc-js keeps retrying
-  // them, so the first one that loads ends the failure.
-  const communitiesWithMoreFailedToLoad = useCommunitiesStore(
-    (state) =>
-      communityKeysWithMore.length > 0 &&
-      communityKeysWithMore.every(
-        (communityKey) =>
-          getCommunityFirstLoadFailure(
-            state.syncStatuses[communityKey],
-            state.communities[communityKey],
-          ) !== undefined,
-      ),
-  );
+  // every community of the feed that isn't blocked failed to load a record with a non-retriable
+  // failure, which makes useCommunity().state "failed". A community that is retrying, still loading
+  // or has a record may still add posts.
+  const blockedAddresses = account?.blockedAddresses;
+  const communitiesFailedToLoad = useCommunitiesStore((state) => {
+    let hasUnblockedCommunity = false;
+    for (const [index, communityKey] of uniqueCommunityKeys.entries()) {
+      const community = state.communities[communityKey];
+      if (isCommunityRefBlocked(blockedAddresses, uniqueCommunityRefs[index], community)) {
+        continue;
+      }
+      const syncStatus = state.syncStatuses[communityKey];
+      if (getCommunityFirstLoadFailure(syncStatus, community) !== "non-retriable") {
+        return false;
+      }
+      hasUnblockedCommunity = true;
+    }
+    return hasUnblockedCommunity;
+  });
   let state = !hasMore ? "succeeded" : "fetching-ipns";
   // an empty feed that can't get posts from any of its communities
-  if (hasMore && !feed?.length && communitiesWithMoreFailedToLoad) {
+  if (hasMore && !feed?.length && communitiesFailedToLoad) {
     state = "failed";
   }
   // apply the account's pending votes like useComment/useComments/useReplies do, so voting from a

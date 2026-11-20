@@ -149,6 +149,17 @@ export const doesAddressMatchCommunityRef = (
   return false;
 };
 
+// whether an account's blocked addresses block a community, as feeds leave it out
+export const isCommunityRefBlocked = (
+  blockedAddresses: { [address: string]: unknown } | undefined,
+  communityRef: CommunityLookupRef | undefined,
+  community?: Community,
+) =>
+  Object.keys(blockedAddresses || {}).some(
+    (blockedAddress) =>
+      communityRef && doesAddressMatchCommunityRef(blockedAddress, communityRef, community),
+  );
+
 export const getMatchingCommunityRefKeys = (
   communityRefs: CommunityLookupRef[],
   communityAddress: string | undefined,
