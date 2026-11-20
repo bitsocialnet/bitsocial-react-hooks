@@ -2182,6 +2182,42 @@ describe("comments", () => {
       expect(rendered.result.current.state).toBe("fetching-update-ipns");
     });
 
+    test.each([true, false])(
+      "useComment doesn't report a failed load of the account's own published comment, with autoUpdate %s",
+      async (autoUpdate) => {
+        const commentCid = `comment cid own published failed load ${autoUpdate}`;
+        const account = Object.values(accountsStore.getState().accounts)[0];
+        const accountComment = {
+          cid: commentCid,
+          index: 0,
+          timestamp: Math.floor(Date.now() / 1000) - 60 * 60,
+          content: "own published comment",
+          communityAddress: "community address 1",
+        };
+        act(() => {
+          accountsStore.setState((state: any) => ({
+            accountsComments: { ...state.accountsComments, [account.id]: [accountComment] },
+            commentCidsToAccountsComments: {
+              ...state.commentCidsToAccountsComments,
+              [commentCid]: { accountId: account.id, accountCommentIndex: 0 },
+            },
+          }));
+        });
+        const rendered = renderHook<any, any>(() => useComment({ commentCid, autoUpdate }));
+        const waitFor = testUtils.createWaitFor(rendered);
+        await waitFor(() => updatingComments.length > 0);
+
+        // the store's load of its CommentIpfs failed, but the account has the comment
+        failLoad(updatingComments[0]);
+        await waitFor(() => rendered.result.current.error?.message === "invalid signature");
+        expect(commentsStore.getState().loadFailed[commentCid]).toBe(true);
+        expect(rendered.result.current.index).toBe(0);
+        expect(rendered.result.current.content).toBe("own published comment");
+        // "failed" with an index means its publication failed
+        expect(rendered.result.current.state).toBe("fetching-update-ipns");
+      },
+    );
+
     test("useComments reports failed once no comment is loading and one of them failed", async () => {
       const commentCids = ["comment cid comments loaded", "comment cid comments failed"];
       const rendered = renderHook<any, any>(() => useComments({ commentCids }));

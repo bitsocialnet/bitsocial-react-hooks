@@ -399,7 +399,13 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
   comment = addCommentModeration(comment);
   comment = addOptimisticVoteCounts(comment, accountVote);
 
-  const { state, replyCount } = getCommentStateAndReplyCount(comment, loadFailed);
+  // the account's own comment carries its index, and "failed" with an index means its publication
+  // failed, so a failed load of a comment the account published doesn't make it failed
+  const isAccountComment = typeof comment?.index === "number";
+  const { state, replyCount } = getCommentStateAndReplyCount(
+    comment,
+    loadFailed && !isAccountComment,
+  );
 
   if (account && commentCid) {
     log("useComment", {
