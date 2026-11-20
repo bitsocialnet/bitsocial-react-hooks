@@ -129,6 +129,8 @@ useEditedComment({comment: Comment}): {editedComment: Comment | undefined}
 useValidateComment({comment: Comment, validateReplies?: boolean}): {valid: boolean}
 ```
 
+`useComment().state` is `failed` when the comment's last load failed and nothing loaded since: `pkc-js` reported `failed` for a non-retriable error such as an invalid signature, `comment.update()` rejected, or the comment could not be created, for example because `pkc.createComment` threw. It stays `failed` through the `stopped` that follows when the failed comment is stopped, and while `pkc-js` retries a failed CommentUpdate at the community's next update, until a load succeeds. A comment that already has a CommentUpdate (`updatedAt`) stays `succeeded` when a later update fails, and a comment published less than 5 minutes ago is `failed` instead of `succeeded` when its load failed. Retriable errors, such as a gateway timeout, keep the loading state and only add to `errors`. `useComments().state` is `failed` once none of its comments is still loading and at least one failed.
+
 #### Communities Hooks
 
 ```

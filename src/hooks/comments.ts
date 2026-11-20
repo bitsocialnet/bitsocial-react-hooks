@@ -48,14 +48,22 @@ export function preferFresher(
   return getCommentFreshness(candidate) > getCommentFreshness(current) ? candidate : current;
 }
 
-const getCommentStateAndReplyCount = (comment: Comment | undefined) => {
+// loadFailed: the store's last load of the comment failed and none succeeded since, see
+// CommentsState.loadFailed
+const getCommentStateAndReplyCount = (comment: Comment | undefined, loadFailed: boolean) => {
   let state = comment?.updatingState || "initializing";
   // force 'fetching-ipns' even if could be something else, so the frontend can use
   // the correct loading skeleton
   if (comment?.timestamp) {
     state = "fetching-update-ipns";
   }
-  // force succeeded even if the comment is fecthing a new update
+  // nothing is loading: pkc-js stops a comment whose CommentIpfs failed, and only retries a failed
+  // CommentUpdate at the community's next update
+  if (loadFailed) {
+    state = "failed";
+  }
+  // force succeeded even if the comment is fecthing a new update, or failed to, its CommentUpdate
+  // is still usable
   if (comment?.updatedAt) {
     state = "succeeded";
   }
@@ -67,7 +75,10 @@ const getCommentStateAndReplyCount = (comment: Comment | undefined) => {
     comment?.timestamp &&
     comment?.timestamp > Date.now() / 1000 - 5 * 60
   ) {
-    state = "succeeded";
+    // its first CommentUpdate isn't on its way when the load failed
+    if (!loadFailed) {
+      state = "succeeded";
+    }
     // set replyCount because some frontend are likely to check if replyCount === undefined to show a loading skeleton
     replyCount = 0;
   }
@@ -75,10 +86,19 @@ const getCommentStateAndReplyCount = (comment: Comment | undefined) => {
   return { state, replyCount };
 };
 
-const getCommentsState = (comments: (Comment | undefined)[]) =>
-  comments.every((comment) => getCommentStateAndReplyCount(comment).state === "succeeded")
-    ? "succeeded"
-    : "fetching-ipfs";
+// failed once no comment is still loading and at least one failed
+const getCommentsState = (comments: (Comment | undefined)[], loadFailed: boolean[]) => {
+  const states = comments.map(
+    (comment, index) => getCommentStateAndReplyCount(comment, loadFailed[index]).state,
+  );
+  if (states.every((state) => state === "succeeded")) {
+    return "succeeded";
+  }
+  if (states.every((state) => state === "succeeded" || state === "failed")) {
+    return "failed";
+  }
+  return "fetching-ipfs";
+};
 
 let commentAutoUpdateSubscriptionCount = 0;
 let commentsAutoUpdateSubscriptionCount = 0;
@@ -165,6 +185,7 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
   const openingUpdatePending = useCommentsStore((state: any) =>
     Boolean(state.openingUpdatesPending[commentCid || ""]),
   );
+  const loadFailed = useCommentsStore((state: any) => Boolean(state.loadFailed[commentCid || ""]));
 
   // get account comment of the cid if any
   const accountCommentInfo = useAccountsStore(
@@ -378,7 +399,7 @@ export function useComment(options?: UseCommentOptions): UseCommentResult {
   comment = addCommentModeration(comment);
   comment = addOptimisticVoteCounts(comment, accountVote);
 
-  const { state, replyCount } = getCommentStateAndReplyCount(comment);
+  const { state, replyCount } = getCommentStateAndReplyCount(comment, loadFailed);
 
   if (account && commentCid) {
     log("useComment", {
@@ -487,6 +508,10 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
   const openingUpdatesPending: boolean[] = useCommentsStore(
     (state: any) =>
       commentCids.map((commentCid) => Boolean(state.openingUpdatesPending[commentCid || ""])),
+    shallow,
+  );
+  const loadsFailed: boolean[] = useCommentsStore(
+    (state: any) => commentCids.map((commentCid) => Boolean(state.loadFailed[commentCid || ""])),
     shallow,
   );
 
@@ -623,7 +648,7 @@ export function useComments(options?: UseCommentsOptions): UseCommentsResult {
   );
 
   // succeed if no comments are undefined
-  const state = getCommentsState(normalizedComments);
+  const state = getCommentsState(normalizedComments, loadsFailed);
 
   const refresh = useCallback(async () => {
     if (!account) {

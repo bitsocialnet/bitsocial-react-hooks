@@ -443,6 +443,8 @@ describe("comments store", () => {
     expect(commentsStore.getState().errors[commentCid]?.slice(-1)[0]?.message).toBe(
       "live create failed",
     );
+    // no update will come for the cached copy, so its load failed
+    expect(commentsStore.getState().loadFailed[commentCid]).toBe(true);
 
     commentsStore.setState((state: any) => {
       const comments = { ...state.comments };
@@ -550,6 +552,7 @@ describe("comments store", () => {
           "comment update failed",
         ),
       );
+      expect(commentsStore.getState().loadFailed[commentCid]).toBe(true);
       await tlWaitFor(() => expect(legacyComment.stop).toHaveBeenCalledTimes(1));
     } finally {
       mockAccount.pkc.createComment = createCommentOrig;
@@ -734,6 +737,67 @@ describe("comments store", () => {
     expect(commentsStore.getState().comments[commentCid]?.clients?.type?.ETH).toBeDefined();
 
     (utils.default as any).clientsOnStateChange = origClientsOnStateChange;
+  });
+
+  test("loadFailed marks a comment whose load failed, through the stop that follows, until a load succeeds", async () => {
+    const commentCid = "load-failed-cid";
+    const liveComment: any = new EventEmitter();
+    liveComment.cid = commentCid;
+    liveComment.clients = {};
+    liveComment.updatingState = "stopped";
+    liveComment.off = liveComment.off.bind(liveComment);
+    liveComment.removeAllListeners = liveComment.removeAllListeners.bind(liveComment);
+    liveComment.once = liveComment.once.bind(liveComment);
+    liveComment.stop = vi.fn().mockImplementation(() => {
+      liveComment.updatingState = "stopped";
+      liveComment.emit("updatingstatechange", "stopped");
+      return Promise.resolve();
+    });
+    liveComment.update = vi.fn().mockImplementation(() => {
+      liveComment.updatingState = "fetching-ipfs";
+      liveComment.emit("updatingstatechange", "fetching-ipfs");
+      return Promise.resolve();
+    });
+    const createCommentOrig = mockAccount.pkc.createComment;
+    mockAccount.pkc.createComment = vi.fn().mockResolvedValue(liveComment);
+
+    try {
+      await act(async () => {
+        await commentsStore.getState().addCommentToStore(commentCid, mockAccount);
+      });
+      expect(commentsStore.getState().loadFailed[commentCid]).toBeUndefined();
+
+      // pkc-js reports a non-retriable error, e.g. a CommentIpfs with an invalid signature
+      act(() => {
+        liveComment.emit("error", Error("invalid signature"));
+        liveComment.updatingState = "failed";
+        liveComment.emit("updatingstatechange", "failed");
+      });
+      expect(commentsStore.getState().loadFailed[commentCid]).toBe(true);
+
+      // the store stops the failed one-shot update, which replaces its updatingState
+      await tlWaitFor(() => expect(liveComment.stop).toHaveBeenCalledTimes(1));
+      expect(commentsStore.getState().comments[commentCid].updatingState).toBe("stopped");
+      expect(commentsStore.getState().loadFailed[commentCid]).toBe(true);
+
+      // a later load that succeeds ends it
+      await act(async () => {
+        await commentsStore
+          .getState()
+          .startCommentAutoUpdate(commentCid, "subscriber", mockAccount);
+      });
+      expect(commentsStore.getState().loadFailed[commentCid]).toBe(true);
+      act(() => {
+        liveComment.timestamp = 100;
+        liveComment.updatingState = "succeeded";
+        liveComment.emit("update", liveComment);
+        liveComment.emit("updatingstatechange", "succeeded");
+      });
+      expect(commentsStore.getState().loadFailed[commentCid]).toBeUndefined();
+      await commentsStore.getState().stopCommentAutoUpdate(commentCid, "subscriber");
+    } finally {
+      mockAccount.pkc.createComment = createCommentOrig;
+    }
   });
 
   test("addCommentToStore stops one-shot updates when there are no auto-update subscribers", async () => {
