@@ -719,41 +719,115 @@ describe("communities store", () => {
       expect(stopSpy).not.toHaveBeenCalled();
     });
 
-    test("firstLoadFailed marks a community without a record whose load failed, until it succeeds", async () => {
+    test("firstLoadFailure marks a community without a record whose load failed, until a record loads", async () => {
       const emitUpdatingState = (updatingState: string) =>
         act(() => {
           community.emit("updatingstatechange", updatingState);
         });
-      const getFirstLoadFailed = () =>
-        communitiesStore.getState().syncStatuses[address]?.firstLoadFailed;
+      const getFirstLoadFailure = () =>
+        communitiesStore.getState().syncStatuses[address]?.firstLoadFailure;
 
       await start("subscriber");
       emitUpdatingState("fetching-ipns");
-      expect(getFirstLoadFailed()).toBeUndefined();
+      expect(getFirstLoadFailure()).toBeUndefined();
 
-      // a retriable failure of the first load, and a non-retriable one
+      // a retriable failure of the first load, then a non-retriable one
       emitUpdatingState("waiting-retry");
-      expect(getFirstLoadFailed()).toBe(true);
+      expect(getFirstLoadFailure()).toBe("retriable");
       emitUpdatingState("fetching-ipns");
       emitUpdatingState("failed");
-      expect(getFirstLoadFailed()).toBe(true);
+      expect(getFirstLoadFailure()).toBe("non-retriable");
 
-      // kept through the next attempts and while nothing uses the community
+      // kept through the next attempts, a later retriable failure doesn't downgrade it, and kept
+      // while nothing uses the community
       emitUpdatingState("fetching-ipns");
+      emitUpdatingState("waiting-retry");
+      expect(getFirstLoadFailure()).toBe("non-retriable");
       await stop("subscriber");
       await advance(COMMUNITY_UPDATE_STOP_GRACE_MS);
       emitUpdatingState("stopped");
       expect(communitiesStore.getState().syncStatuses[address]?.syncState).toBe("stopped");
-      expect(getFirstLoadFailed()).toBe(true);
+      expect(getFirstLoadFailure()).toBe("non-retriable");
 
+      // a record ends it as soon as it is stored, before pkc-js reports succeeded
       await start("subscriber");
-      await emitFetchedRecord(100, "first record");
-      expect(getFirstLoadFailed()).toBeUndefined();
+      act(() => {
+        community.updatedAt = 100;
+        community.signature = { signature: "first record" };
+        community.emit("update", community);
+      });
+      expect(getFirstLoadFailure()).toBeUndefined();
+      emitUpdatingState("succeeded");
 
       // a community with a record is retried, not failing its first load
       emitUpdatingState("waiting-retry");
       emitUpdatingState("failed");
-      expect(getFirstLoadFailed()).toBeUndefined();
+      expect(getFirstLoadFailure()).toBeUndefined();
+    });
+
+    test("a rejected update() fails the first load", async () => {
+      // like the pkc-js RPC client when communityUpdateSubscribe fails: failed, stopped, then reject
+      updateSpy.mockImplementationOnce(async () => {
+        community.emit("updatingstatechange", "failed");
+        community.emit("updatingstatechange", "stopped");
+        throw Error("communityUpdateSubscribe failed");
+      });
+      await start("subscriber");
+      await advance(0);
+      expect(communitiesStore.getState().syncStatuses[address]).toEqual(
+        expect.objectContaining({ syncState: "failed", firstLoadFailure: "non-retriable" }),
+      );
+      await advance(1000);
+      expect(communitiesStore.getState().errors[address]?.[0]?.message).toBe(
+        "communityUpdateSubscribe failed",
+      );
+    });
+
+    test("a rejected update() records a rejection that isn't an Error", async () => {
+      updateSpy.mockRejectedValueOnce("communityUpdateSubscribe failed");
+      await start("subscriber");
+      await advance(1000);
+      expect(communitiesStore.getState().syncStatuses[address]?.syncState).toBe("failed");
+      expect(communitiesStore.getState().errors[address]?.[0]?.message).toBe(
+        "communityUpdateSubscribe failed",
+      );
+    });
+
+    test("an update() that rejects after the community stopped updating isn't a failure", async () => {
+      let rejectUpdate: (error: Error) => void = () => {};
+      updateSpy.mockImplementationOnce(
+        () => new Promise<void>((_, reject) => (rejectUpdate = reject)),
+      );
+      await start("subscriber");
+      act(() => {
+        community.emit("updatingstatechange", "fetching-ipns");
+      });
+      await act(async () => {
+        await communitiesStore.getState().deleteCommunity(address, mockAccount);
+      });
+      rejectUpdate(Error("update aborted by the stop"));
+      await advance(1000);
+      expect(communitiesStore.getState().syncStatuses[address]).toBeUndefined();
+      expect(communitiesStore.getState().errors[address]).toBeUndefined();
+    });
+
+    test("a stop by the store isn't a failure of the first load", async () => {
+      await start("subscriber");
+      act(() => {
+        community.emit("updatingstatechange", "waiting-retry");
+      });
+      await stop("subscriber");
+      await advance(COMMUNITY_UPDATE_STOP_GRACE_MS);
+      act(() => {
+        community.emit("updatingstatechange", "stopped");
+      });
+      expect(communitiesStore.getState().syncStatuses[address]).toEqual(
+        expect.objectContaining({
+          syncState: "stopped",
+          stoppedUntilUsed: true,
+          firstLoadFailure: "retriable",
+        }),
+      );
     });
   });
 
@@ -872,7 +946,9 @@ describe("communities store", () => {
     expect(communitiesStore.getState().errors[address]).toHaveLength(1);
     expect(communitiesStore.getState().errors[address][0].message).toBe("create failed");
     expect(communitiesStore.getState().syncStatuses[address]?.syncState).toBe("failed");
-    expect(communitiesStore.getState().syncStatuses[address]?.firstLoadFailed).toBe(true);
+    expect(communitiesStore.getState().syncStatuses[address]?.firstLoadFailure).toBe(
+      "non-retriable",
+    );
     mockAccount.pkc.createCommunity = createOrig;
   });
 

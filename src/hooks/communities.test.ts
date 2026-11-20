@@ -320,6 +320,49 @@ describe("communities", () => {
       }
     });
 
+    test("state is failed when the first load fails non-retriably, until the community loads", async () => {
+      const communityUpdate = Community.prototype.update;
+      const updatingCommunities: any[] = [];
+      Community.prototype.update = async function (this: any) {
+        updatingCommunities.push(this);
+        // like the pkc-js RPC client when communityUpdateSubscribe fails: failed, stopped, reject
+        this.updatingState = "failed";
+        this.emit("updatingstatechange", "failed");
+        this.updatingState = "stopped";
+        this.emit("updatingstatechange", "stopped");
+        throw Error("communityUpdateSubscribe failed");
+      };
+
+      try {
+        const rendered = renderHook<any, any>((communityAddress) =>
+          useCommunity({ community: toCommunity(communityAddress) }),
+        );
+        const waitFor = testUtils.createWaitFor(rendered);
+        rendered.rerender("community address");
+        await waitFor(() => updatingCommunities.length > 0);
+        await waitFor(() => rendered.result.current.syncState === "failed");
+        expect(rendered.result.current.updatingState).toBe("stopped");
+        expect(rendered.result.current.state).toBe("failed");
+        expect(rendered.result.current.firstLoadFailed).toBe(true);
+        await waitFor(() => rendered.result.current.error !== undefined);
+        expect(rendered.result.current.error?.message).toBe("communityUpdateSubscribe failed");
+
+        // the next attempt doesn't make it loading again, until it loads the record
+        updatingCommunities[0].updatingState = "fetching-ipns";
+        updatingCommunities[0].emit("updatingstatechange", "fetching-ipns");
+        await waitFor(() => rendered.result.current.syncState === "loading");
+        expect(rendered.result.current.state).toBe("failed");
+        updatingCommunities[0].updatedAt = 1_799_999_000;
+        updatingCommunities[0].emit("update", updatingCommunities[0]);
+        updatingCommunities[0].emit("updatingstatechange", "succeeded");
+        await waitFor(() => rendered.result.current.state === "succeeded");
+        expect(rendered.result.current.state).toBe("succeeded");
+        expect(rendered.result.current.firstLoadFailed).toBe(false);
+      } finally {
+        Community.prototype.update = communityUpdate;
+      }
+    });
+
     test("firstLoadFailed reports a first load that keeps failing until the community loads", async () => {
       const communityUpdate = Community.prototype.update;
       const updatingCommunities: Community[] = [];

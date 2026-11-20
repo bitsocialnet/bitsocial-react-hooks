@@ -14,7 +14,7 @@ import {
   CommentsFilter,
 } from "../../types";
 import useFeedsStore from "../../stores/feeds";
-import useCommunitiesStore, { hasCommunityFirstLoadFailed } from "../../stores/communities";
+import useCommunitiesStore, { getCommunityFirstLoadFailure } from "../../stores/communities";
 import useAccountsStore from "../../stores/accounts";
 import { addCommentModerationToComments } from "../../lib/utils/comment-moderation";
 import { addOptimisticVoteCountsToComments } from "../../lib/utils/optimistic-vote-counts";
@@ -228,11 +228,12 @@ export function useFeed(options?: UseFeedOptions): UseFeedResult {
   const communitiesWithMoreFailedToLoad = useCommunitiesStore(
     (state) =>
       communityKeysWithMore.length > 0 &&
-      communityKeysWithMore.every((communityKey) =>
-        hasCommunityFirstLoadFailed(
-          state.syncStatuses[communityKey],
-          state.communities[communityKey],
-        ),
+      communityKeysWithMore.every(
+        (communityKey) =>
+          getCommunityFirstLoadFailure(
+            state.syncStatuses[communityKey],
+            state.communities[communityKey],
+          ) !== undefined,
       ),
   );
   let state = !hasMore ? "succeeded" : "fetching-ipns";
