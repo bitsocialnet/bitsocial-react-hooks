@@ -19,17 +19,20 @@ export function withGuardActive<T extends (...args: any[]) => void>(
 
 const noop = () => {};
 
+type PublishOnError = (error: Error, publication?: any, info?: PublishErrorInfo) => void;
+
 /** For usePublishComment: when abandoned, catch should no-op. Exported for coverage. */
 export function handlePublishErrorWhenAbandoned(
   activeRequestIdRef: { current: number | undefined },
   requestId: number,
   error: Error,
   setErrors: Dispatch<SetStateAction<Error[]>>,
-  onError?: (e: Error) => void,
+  onError?: PublishOnError,
 ): void {
   if (activeRequestIdRef.current !== requestId) return;
   setErrors((errors) => [...errors, error]);
-  (onError ?? noop)(error);
+  // the publish action rejected, which ends the publish, before or without a publication
+  (onError ?? noop)(error, undefined, { final: true });
 }
 
 /** Clears what the previous publication left in a publish hook's result. */
@@ -41,11 +44,38 @@ const clearPublicationResult = (...setters: Dispatch<SetStateAction<any>>[]) => 
 export function handlePublishVoteError(
   error: Error,
   setErrors: Dispatch<SetStateAction<Error[]>>,
-  onError?: (e: Error) => void,
+  onError?: PublishOnError,
 ): void {
   setErrors((errors) => [...errors, error]);
-  (onError ?? noop)(error);
+  // the publish action rejected, which ends the publish, before or without a publication
+  (onError ?? noop)(error, undefined, { final: true });
 }
+
+/**
+ * Sets a publish hook's state from a publishing state the store reports. pkc-js also reports
+ * "failed" for an error it recovers from, while the publication keeps publishing, so the hook state
+ * only becomes "failed" once the publish is over.
+ */
+const setPublishingStateOfPublication = (
+  setPublishingState: Dispatch<SetStateAction<string | undefined>>,
+  publishingState: string,
+  publication?: any,
+) => {
+  if (publishingState === "failed" && publication?.state === "publishing") return;
+  setPublishingState(publishingState);
+};
+
+/**
+ * A publication whose "failed" state was ignored above and then fails keeps publishingState
+ * "failed", so pkc-js reports no publishingState change: its final error ends the hook state failed.
+ */
+const setFailedStateOnFinalError = (
+  setPublishingState: Dispatch<SetStateAction<string | undefined>>,
+  publication?: any,
+  info?: PublishErrorInfo,
+) => {
+  if (info?.final && publication?.publishingState === "failed") setPublishingState("failed");
+};
 import type {
   UseSubscribeOptions,
   UseSubscribeResult,
@@ -77,6 +107,7 @@ import type {
   Community,
   CommunityExport,
   PublishChallengeAnswers,
+  PublishErrorInfo,
 } from "../../types";
 
 type DeferredAbandon = {
@@ -339,12 +370,13 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
     } = publishCommentOptions;
     const activePublishCommentOptions = {
       ...publishCommentOptions,
-      onError: async (error: Error) => {
+      onError: async (error: Error, comment?: Comment, info?: PublishErrorInfo) => {
         if (abandoned) return;
         if (updatesHookState()) {
           setErrors((errors) => [...errors, error]);
+          setFailedStateOnFinalError(setPublishingState, comment, info);
         }
-        (originalOnError ?? noop)(error);
+        (originalOnError ?? noop)(error, comment, info);
       },
       onChallenge: async (challenge: Challenge, comment: Comment) => {
         if (abandoned) return;
@@ -366,8 +398,10 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
         }
         (originalOnChallengeVerification ?? noop)(challengeVerification, comment);
       },
-      onPublishingStateChange: withGuardActive(updatesHookState, (publishingState: string) =>
-        setPublishingState(publishingState),
+      onPublishingStateChange: withGuardActive(
+        updatesHookState,
+        (publishingState: string, comment?: Comment) =>
+          setPublishingStateOfPublication(setPublishingState, publishingState, comment),
       ),
       // called once the pending comment is stored, and again when a deletion shifts its index
       _onPendingCommentIndex: (
@@ -400,7 +434,7 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
       resolveDeferredAbandon();
       try {
         if (!mountedRef.current && isActive()) {
-          (originalOnError ?? noop)(e);
+          (originalOnError ?? noop)(e, undefined, { final: true });
         } else {
           if (isActive()) {
             setPublishingState("failed");
@@ -486,9 +520,10 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
 
   // define onError if not defined
   const originalOnError = publishVoteOptions.onError;
-  const onError = async (error: Error) => {
+  const onError = async (error: Error, vote?: Vote, info?: PublishErrorInfo) => {
     setErrors((errors) => [...errors, error]);
-    originalOnError?.(error);
+    setFailedStateOnFinalError(setPublishingState, vote, info);
+    originalOnError?.(error, vote, info);
   };
   publishVoteOptions.onError = onError;
 
@@ -514,8 +549,8 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
   publishVoteOptions.onChallengeVerification = onChallengeVerification;
 
   // change state on publishing state change
-  publishVoteOptions.onPublishingStateChange = (publishingState: string) => {
-    setPublishingState(publishingState);
+  publishVoteOptions.onPublishingStateChange = (publishingState: string, vote?: Vote) => {
+    setPublishingStateOfPublication(setPublishingState, publishingState, vote);
   };
 
   const publishVote = async () => {
@@ -539,13 +574,15 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
       onChallengeVerification: (challengeVerification: ChallengeVerification, vote: Vote) => {
         if (isActiveRequest()) onChallengeVerification(challengeVerification, vote);
       },
-      onPublishingStateChange: (publishingState: string) => {
-        if (isActiveRequest()) setPublishingState(publishingState);
+      onPublishingStateChange: (publishingState: string, vote?: Vote) => {
+        if (isActiveRequest()) {
+          setPublishingStateOfPublication(setPublishingState, publishingState, vote);
+        }
       },
       // an earlier or abandoned vote's error still reaches the app's onError, but not the result
-      onError: (error: Error) => {
-        if (isActiveRequest()) onError(error);
-        else originalOnError?.(error);
+      onError: (error: Error, vote?: Vote, info?: PublishErrorInfo) => {
+        if (isActiveRequest()) onError(error, vote, info);
+        else originalOnError?.(error, vote, info);
       },
       _onVotePublishSession: (abandonVote: () => Promise<void>) => {
         if (isActiveRequest()) abandonActiveVoteRef.current = abandonVote;
@@ -558,7 +595,7 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
         setPublishingState("failed");
         handlePublishVoteError(e, setErrors, originalOnError);
       } else {
-        originalOnError?.(e);
+        originalOnError?.(e, undefined, { final: true });
       }
     }
   };
@@ -625,9 +662,10 @@ export function usePublishCommentEdit(
 
   // define onError if not defined
   const originalOnError = publishCommentEditOptions.onError;
-  const onError = async (error: Error) => {
+  const onError = async (error: Error, commentEdit?: CommentEdit, info?: PublishErrorInfo) => {
     setErrors((errors) => [...errors, error]);
-    originalOnError?.(error);
+    setFailedStateOnFinalError(setPublishingState, commentEdit, info);
+    originalOnError?.(error, commentEdit, info);
   };
   publishCommentEditOptions.onError = onError;
 
@@ -655,8 +693,11 @@ export function usePublishCommentEdit(
   publishCommentEditOptions.onChallengeVerification = onChallengeVerification;
 
   // change state on publishing state change
-  publishCommentEditOptions.onPublishingStateChange = (publishingState: string) => {
-    setPublishingState(publishingState);
+  publishCommentEditOptions.onPublishingStateChange = (
+    publishingState: string,
+    commentEdit?: CommentEdit,
+  ) => {
+    setPublishingStateOfPublication(setPublishingState, publishingState, commentEdit);
   };
 
   const publishCommentEdit = async () => {
@@ -675,7 +716,8 @@ export function usePublishCommentEdit(
         setPublishingState("failed");
         setErrors((errors) => [...errors, e]);
       }
-      originalOnError?.(e);
+      // the publish action rejected, which ends the publish, before or without a publication
+      originalOnError?.(e, undefined, { final: true });
     }
   };
 
@@ -729,9 +771,14 @@ export function usePublishCommentModeration(
 
   // define onError if not defined
   const originalOnError = publishCommentModerationOptions.onError;
-  const onError = async (error: Error) => {
+  const onError = async (
+    error: Error,
+    commentModeration?: CommentModeration,
+    info?: PublishErrorInfo,
+  ) => {
     setErrors((errors) => [...errors, error]);
-    originalOnError?.(error);
+    setFailedStateOnFinalError(setPublishingState, commentModeration, info);
+    originalOnError?.(error, commentModeration, info);
   };
   publishCommentModerationOptions.onError = onError;
 
@@ -761,8 +808,11 @@ export function usePublishCommentModeration(
   publishCommentModerationOptions.onChallengeVerification = onChallengeVerification;
 
   // change state on publishing state change
-  publishCommentModerationOptions.onPublishingStateChange = (publishingState: string) => {
-    setPublishingState(publishingState);
+  publishCommentModerationOptions.onPublishingStateChange = (
+    publishingState: string,
+    commentModeration?: CommentModeration,
+  ) => {
+    setPublishingStateOfPublication(setPublishingState, publishingState, commentModeration);
   };
 
   const publishCommentModeration = async () => {
@@ -781,7 +831,8 @@ export function usePublishCommentModeration(
         setPublishingState("failed");
         setErrors((errors) => [...errors, e]);
       }
-      originalOnError?.(e);
+      // the publish action rejected, which ends the publish, before or without a publication
+      originalOnError?.(e, undefined, { final: true });
     }
   };
 
@@ -835,9 +886,10 @@ export function usePublishCommunityEdit(
 
   // define onError if not defined
   const originalOnError = publishCommunityEditOptions.onError;
-  const onError = async (error: Error) => {
+  const onError = async (error: Error, communityEdit?: CommunityEdit, info?: PublishErrorInfo) => {
     setErrors((errors) => [...errors, error]);
-    originalOnError?.(error);
+    setFailedStateOnFinalError(setPublishingState, communityEdit, info);
+    originalOnError?.(error, communityEdit, info);
   };
   publishCommunityEditOptions.onError = onError;
 
@@ -865,8 +917,11 @@ export function usePublishCommunityEdit(
   publishCommunityEditOptions.onChallengeVerification = onChallengeVerification;
 
   // change state on publishing state change
-  publishCommunityEditOptions.onPublishingStateChange = (publishingState: string) => {
-    setPublishingState(publishingState);
+  publishCommunityEditOptions.onPublishingStateChange = (
+    publishingState: string,
+    communityEdit?: CommunityEdit,
+  ) => {
+    setPublishingStateOfPublication(setPublishingState, publishingState, communityEdit);
   };
 
   const publishCommunityEdit = async () => {
@@ -889,7 +944,8 @@ export function usePublishCommunityEdit(
         setPublishingState("failed");
         setErrors((errors) => [...errors, e]);
       }
-      originalOnError?.(e);
+      // the publish action rejected, which ends the publish, before or without a publication
+      originalOnError?.(e, undefined, { final: true });
     }
   };
 
