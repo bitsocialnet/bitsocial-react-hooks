@@ -2863,6 +2863,50 @@ describe("actions", () => {
       },
     );
 
+    test.each(publishHooks.slice(2))(
+      "$name keeps a newer publication's result when an earlier one fails later",
+      async ({ useHook, publish, options }) => {
+        const finalError = Error("no response");
+        const publications: any[] = [];
+        const onChallenge = vi.fn((_challenge: any, publication: any) =>
+          publications.push(publication),
+        );
+        const onError = vi.fn();
+        const { rendered, waitFor } = renderPublishHook(useHook, {
+          ...options,
+          onChallenge,
+          onError,
+        });
+        await waitFor(() => rendered.result.current.state === "ready");
+        // the first publication waits for its challenge answers while the second one starts
+        await act(async () => {
+          await rendered.result.current[publish]();
+        });
+        await waitFor(() => publications.length === 1);
+        await act(async () => {
+          await rendered.result.current[publish]();
+        });
+        await waitFor(() => publications.length === 2);
+
+        // the first one fails, then the second one succeeds
+        await act(async () => {
+          await emitPublishFailure(publications[0], finalError);
+        });
+        await act(async () => {
+          await publications[1].publishChallengeAnswers({ "0": "4" });
+        });
+        await waitFor(() => rendered.result.current.state === "succeeded");
+
+        expect(rendered.result.current.state).toBe("succeeded");
+        expect(rendered.result.current.challengeVerification?.challengeSuccess).toBe(true);
+        expect(rendered.result.current.errors).toEqual([]);
+        // the app still gets the earlier publication's callbacks
+        expect(onChallenge).toHaveBeenCalledTimes(2);
+        expect(onError).toHaveBeenCalledTimes(1);
+        expect(onError).toHaveBeenCalledWith(finalError, publications[0], { final: true });
+      },
+    );
+
     test.each(publishHooks)(
       "$name reports a rejected publish() as final and ends failed",
       async ({ useHook, publish, Publication, options }) => {

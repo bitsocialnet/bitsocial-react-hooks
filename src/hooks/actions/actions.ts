@@ -82,6 +82,64 @@ const setFailedStateOnFinalError = (
   publishFailedRef.current = true;
   setPublishingState("failed");
 };
+type PublishResultSetters = {
+  setErrors: Dispatch<SetStateAction<Error[]>>;
+  setPublishingState: Dispatch<SetStateAction<string | undefined>>;
+  setChallenge: Dispatch<SetStateAction<any>>;
+  setChallengeVerification: Dispatch<SetStateAction<any>>;
+  setPublishChallengeAnswers: Dispatch<SetStateAction<any>>;
+};
+
+/**
+ * The publish options of one usePublishCommentEdit, usePublishCommentModeration or
+ * usePublishCommunityEdit call. Only the latest call writes the hook result, so a late state or
+ * error of an earlier publication that is still running can't replace the newer one's; the app's
+ * callbacks still get the earlier publication's challenge, verification and errors.
+ */
+const getPublishEditCallOptions = (
+  options: { [option: string]: any },
+  isActiveRequest: () => boolean,
+  setters: PublishResultSetters,
+) => {
+  // set by this call's final error, see setPublishingStateOfPublication
+  const publishFailed = { current: false };
+  return {
+    ...options,
+    onChallenge: async (challenge: any, publication: any) => {
+      if (isActiveRequest()) {
+        // cannot set a function directly with setState
+        setters.setPublishChallengeAnswers(() =>
+          publication?.publishChallengeAnswers.bind(publication),
+        );
+        setters.setChallenge(challenge);
+        // an automatic republish's challenge replaces the previous attempt's failed verification
+        setters.setChallengeVerification(undefined);
+      }
+      options.onChallenge?.(challenge, publication);
+    },
+    onChallengeVerification: async (challengeVerification: any, publication: any) => {
+      if (isActiveRequest()) setters.setChallengeVerification(challengeVerification);
+      options.onChallengeVerification?.(challengeVerification, publication);
+    },
+    onPublishingStateChange: (publishingState: string, publication?: any) => {
+      if (isActiveRequest()) {
+        setPublishingStateOfPublication(
+          setters.setPublishingState,
+          publishFailed,
+          publishingState,
+          publication,
+        );
+      }
+    },
+    onError: async (error: Error, publication?: any, info?: PublishErrorInfo) => {
+      if (isActiveRequest()) {
+        setters.setErrors((errors) => [...errors, error]);
+        setFailedStateOnFinalError(setters.setPublishingState, publishFailed, info);
+      }
+      options.onError?.(error, publication, info);
+    },
+  };
+};
 import type {
   UseSubscribeOptions,
   UseSubscribeResult,
@@ -106,9 +164,6 @@ import type {
   Challenge,
   ChallengeVerification,
   Comment,
-  CommentEdit,
-  CommentModeration,
-  CommunityEdit,
   Vote,
   Community,
   CommunityExport,
@@ -681,57 +736,10 @@ export function usePublishCommentEdit(
 
   // the latest publishCommentEdit() call owns the result
   const publishRequestIdRef = useRef(0);
-  // set by a final error, see setPublishingStateOfPublication
-  const publishFailedRef = useRef(false);
-
-  // define onError if not defined
-  const originalOnError = publishCommentEditOptions.onError;
-  const onError = async (error: Error, commentEdit?: CommentEdit, info?: PublishErrorInfo) => {
-    setErrors((errors) => [...errors, error]);
-    setFailedStateOnFinalError(setPublishingState, publishFailedRef, info);
-    originalOnError?.(error, commentEdit, info);
-  };
-  publishCommentEditOptions.onError = onError;
-
-  // define onChallenge if not defined
-  const originalOnChallenge = publishCommentEditOptions.onChallenge;
-  const onChallenge = async (challenge: Challenge, commentEdit: CommentEdit) => {
-    // cannot set a function directly with setState
-    setPublishChallengeAnswers(() => commentEdit?.publishChallengeAnswers.bind(commentEdit));
-    setChallenge(challenge);
-    // an automatic republish's challenge replaces the previous attempt's failed verification
-    setChallengeVerification(undefined);
-    originalOnChallenge?.(challenge, commentEdit);
-  };
-  publishCommentEditOptions.onChallenge = onChallenge;
-
-  // define onChallengeVerification if not defined
-  const originalOnChallengeVerification = publishCommentEditOptions.onChallengeVerification;
-  const onChallengeVerification = async (
-    challengeVerification: ChallengeVerification,
-    commentEdit: CommentEdit,
-  ) => {
-    setChallengeVerification(challengeVerification);
-    originalOnChallengeVerification?.(challengeVerification, commentEdit);
-  };
-  publishCommentEditOptions.onChallengeVerification = onChallengeVerification;
-
-  // change state on publishing state change
-  publishCommentEditOptions.onPublishingStateChange = (
-    publishingState: string,
-    commentEdit?: CommentEdit,
-  ) => {
-    setPublishingStateOfPublication(
-      setPublishingState,
-      publishFailedRef,
-      publishingState,
-      commentEdit,
-    );
-  };
 
   const publishCommentEdit = async () => {
     const requestId = ++publishRequestIdRef.current;
-    publishFailedRef.current = false;
+    const isActiveRequest = () => publishRequestIdRef.current === requestId;
     clearPublicationResult(
       setChallenge,
       setChallengeVerification,
@@ -739,15 +747,22 @@ export function usePublishCommentEdit(
       setPublishingState,
     );
     setErrors([]);
+    const callOptions = getPublishEditCallOptions(publishCommentEditOptions, isActiveRequest, {
+      setErrors,
+      setPublishingState,
+      setChallenge,
+      setChallengeVerification,
+      setPublishChallengeAnswers,
+    });
     try {
-      await accountsActions.publishCommentEdit(publishCommentEditOptions, accountName);
+      await accountsActions.publishCommentEdit(callOptions, accountName);
     } catch (e: any) {
-      if (publishRequestIdRef.current === requestId) {
+      if (isActiveRequest()) {
         setPublishingState("failed");
         setErrors((errors) => [...errors, e]);
       }
       // the publish action rejected, which ends the publish, before or without a publication
-      originalOnError?.(e, undefined, { final: true });
+      publishCommentEditOptions.onError?.(e, undefined, { final: true });
     }
   };
 
@@ -798,63 +813,10 @@ export function usePublishCommentModeration(
 
   // the latest publishCommentModeration() call owns the result
   const publishRequestIdRef = useRef(0);
-  // set by a final error, see setPublishingStateOfPublication
-  const publishFailedRef = useRef(false);
-
-  // define onError if not defined
-  const originalOnError = publishCommentModerationOptions.onError;
-  const onError = async (
-    error: Error,
-    commentModeration?: CommentModeration,
-    info?: PublishErrorInfo,
-  ) => {
-    setErrors((errors) => [...errors, error]);
-    setFailedStateOnFinalError(setPublishingState, publishFailedRef, info);
-    originalOnError?.(error, commentModeration, info);
-  };
-  publishCommentModerationOptions.onError = onError;
-
-  // define onChallenge if not defined
-  const originalOnChallenge = publishCommentModerationOptions.onChallenge;
-  const onChallenge = async (challenge: Challenge, commentModeration: CommentModeration) => {
-    // cannot set a function directly with setState
-    setPublishChallengeAnswers(() =>
-      commentModeration?.publishChallengeAnswers.bind(commentModeration),
-    );
-    setChallenge(challenge);
-    // an automatic republish's challenge replaces the previous attempt's failed verification
-    setChallengeVerification(undefined);
-    originalOnChallenge?.(challenge, commentModeration);
-  };
-  publishCommentModerationOptions.onChallenge = onChallenge;
-
-  // define onChallengeVerification if not defined
-  const originalOnChallengeVerification = publishCommentModerationOptions.onChallengeVerification;
-  const onChallengeVerification = async (
-    challengeVerification: ChallengeVerification,
-    commentModeration: CommentModeration,
-  ) => {
-    setChallengeVerification(challengeVerification);
-    originalOnChallengeVerification?.(challengeVerification, commentModeration);
-  };
-  publishCommentModerationOptions.onChallengeVerification = onChallengeVerification;
-
-  // change state on publishing state change
-  publishCommentModerationOptions.onPublishingStateChange = (
-    publishingState: string,
-    commentModeration?: CommentModeration,
-  ) => {
-    setPublishingStateOfPublication(
-      setPublishingState,
-      publishFailedRef,
-      publishingState,
-      commentModeration,
-    );
-  };
 
   const publishCommentModeration = async () => {
     const requestId = ++publishRequestIdRef.current;
-    publishFailedRef.current = false;
+    const isActiveRequest = () => publishRequestIdRef.current === requestId;
     clearPublicationResult(
       setChallenge,
       setChallengeVerification,
@@ -862,15 +824,26 @@ export function usePublishCommentModeration(
       setPublishingState,
     );
     setErrors([]);
+    const callOptions = getPublishEditCallOptions(
+      publishCommentModerationOptions,
+      isActiveRequest,
+      {
+        setErrors,
+        setPublishingState,
+        setChallenge,
+        setChallengeVerification,
+        setPublishChallengeAnswers,
+      },
+    );
     try {
-      await accountsActions.publishCommentModeration(publishCommentModerationOptions, accountName);
+      await accountsActions.publishCommentModeration(callOptions, accountName);
     } catch (e: any) {
-      if (publishRequestIdRef.current === requestId) {
+      if (isActiveRequest()) {
         setPublishingState("failed");
         setErrors((errors) => [...errors, e]);
       }
       // the publish action rejected, which ends the publish, before or without a publication
-      originalOnError?.(e, undefined, { final: true });
+      publishCommentModerationOptions.onError?.(e, undefined, { final: true });
     }
   };
 
@@ -921,57 +894,10 @@ export function usePublishCommunityEdit(
 
   // the latest publishCommunityEdit() call owns the result
   const publishRequestIdRef = useRef(0);
-  // set by a final error, see setPublishingStateOfPublication
-  const publishFailedRef = useRef(false);
-
-  // define onError if not defined
-  const originalOnError = publishCommunityEditOptions.onError;
-  const onError = async (error: Error, communityEdit?: CommunityEdit, info?: PublishErrorInfo) => {
-    setErrors((errors) => [...errors, error]);
-    setFailedStateOnFinalError(setPublishingState, publishFailedRef, info);
-    originalOnError?.(error, communityEdit, info);
-  };
-  publishCommunityEditOptions.onError = onError;
-
-  // define onChallenge if not defined
-  const originalOnChallenge = publishCommunityEditOptions.onChallenge;
-  const onChallenge = async (challenge: Challenge, communityEdit: CommunityEdit) => {
-    // cannot set a function directly with setState
-    setPublishChallengeAnswers(() => communityEdit?.publishChallengeAnswers.bind(communityEdit));
-    setChallenge(challenge);
-    // an automatic republish's challenge replaces the previous attempt's failed verification
-    setChallengeVerification(undefined);
-    originalOnChallenge?.(challenge, communityEdit);
-  };
-  publishCommunityEditOptions.onChallenge = onChallenge;
-
-  // define onChallengeVerification if not defined
-  const originalOnChallengeVerification = publishCommunityEditOptions.onChallengeVerification;
-  const onChallengeVerification = async (
-    challengeVerification: ChallengeVerification,
-    communityEdit: CommunityEdit,
-  ) => {
-    setChallengeVerification(challengeVerification);
-    originalOnChallengeVerification?.(challengeVerification, communityEdit);
-  };
-  publishCommunityEditOptions.onChallengeVerification = onChallengeVerification;
-
-  // change state on publishing state change
-  publishCommunityEditOptions.onPublishingStateChange = (
-    publishingState: string,
-    communityEdit?: CommunityEdit,
-  ) => {
-    setPublishingStateOfPublication(
-      setPublishingState,
-      publishFailedRef,
-      publishingState,
-      communityEdit,
-    );
-  };
 
   const publishCommunityEdit = async () => {
     const requestId = ++publishRequestIdRef.current;
-    publishFailedRef.current = false;
+    const isActiveRequest = () => publishRequestIdRef.current === requestId;
     clearPublicationResult(
       setChallenge,
       setChallengeVerification,
@@ -979,19 +905,22 @@ export function usePublishCommunityEdit(
       setPublishingState,
     );
     setErrors([]);
+    const callOptions = getPublishEditCallOptions(publishCommunityEditOptions, isActiveRequest, {
+      setErrors,
+      setPublishingState,
+      setChallenge,
+      setChallengeVerification,
+      setPublishChallengeAnswers,
+    });
     try {
-      await accountsActions.publishCommunityEdit(
-        communityAddress,
-        publishCommunityEditOptions,
-        accountName,
-      );
+      await accountsActions.publishCommunityEdit(communityAddress, callOptions, accountName);
     } catch (e: any) {
-      if (publishRequestIdRef.current === requestId) {
+      if (isActiveRequest()) {
         setPublishingState("failed");
         setErrors((errors) => [...errors, e]);
       }
       // the publish action rejected, which ends the publish, before or without a publication
-      originalOnError?.(e, undefined, { final: true });
+      publishCommunityEditOptions.onError?.(e, undefined, { final: true });
     }
   };
 
