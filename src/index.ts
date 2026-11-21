@@ -93,6 +93,7 @@ import {
 
 // utils
 import { setPkcJs, restorePkcJs } from "./lib/pkc-js";
+import { setOnlineStatus } from "./lib/online-status";
 import { deleteDatabases, deleteCaches } from "./lib/debug-utils";
 import { createCrosspost } from "./lib/crosspost";
 import {
@@ -184,6 +185,7 @@ export {
   validateEthWallet,
   // utils
   setPkcJs,
+  setOnlineStatus,
   restorePkcJs,
   deleteDatabases,
   deleteCaches,
@@ -273,6 +275,7 @@ const hooks = {
   validateEthWallet,
   // utils
   setPkcJs,
+  setOnlineStatus,
   restorePkcJs,
   deleteDatabases,
   deleteCaches,

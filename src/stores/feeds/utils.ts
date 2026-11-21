@@ -17,6 +17,7 @@ import { getCommunityPages, getCommunityFirstPageCid } from "../communities-page
 import accountsStore from "../accounts";
 import feedSorter from "./feed-sorter";
 import { communityPostsCacheExpired, commentIsValid, removeInvalidComments } from "../../lib/utils";
+import { isOnline } from "../../lib/online-status";
 import { getCommentCommunityAddress, normalizeCommentCommunityAddress } from "../../lib/pkc-compat";
 import {
   CommunityLookupRef,
@@ -176,7 +177,7 @@ export const getFilteredSortedFeeds = (
       }
 
       // if cache is expired and has internet access, don't use, wait for next community update
-      if (communityPostsCacheExpired(community) && window.navigator.onLine) {
+      if (communityPostsCacheExpired(community) && isOnline()) {
         continue;
       }
 

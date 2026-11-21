@@ -289,6 +289,7 @@ deleteComment(commentCidOrAccountCommentIndex: string | number, accountName?: st
 
 ```
 setPkcJs(PKC) // swap the underlying protocol client implementation, e.g. for mocks or Electron
+setOnlineStatus(online: boolean | undefined) // report network status where navigator.onLine is missing (React Native, e.g. from NetInfo); undefined goes back to navigator.onLine. Feeds skip a community's expired posts cache while online and may use it while offline; a change recomputes feeds
 deleteDatabases() // delete all databases, including all caches and accounts data, then reload the app because the stores keep their state in memory
 deleteCaches() // delete the cached comments, cached communities and cached pages only, no accounts data
 createCrosspost(comment: Comment): Crosspost // build the immutable payload accepted by pkc-js
