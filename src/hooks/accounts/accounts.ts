@@ -386,10 +386,11 @@ const useTimeoutAt = (time: number | undefined, onTime: () => void) => {
 
 const getAccountCommentsStates = (accountComments: AccountComment[]) => {
   // Without a cid, the account comment is still a local pending publish. It failed once its
-  // publication stopped with `publishingState === "failed"` or after a publish error. pkc-js also
-  // emits errors it recovers from, while the publication keeps publishing, so a recorded error
-  // alone does not make it failed. A final error that pkc-js left publishing, like a rejected
-  // publish(), is recorded with state "stopped".
+  // publication stopped with `publishingState === "failed"`, or stopped without succeeding after a
+  // publish error. pkc-js also emits errors it recovers from, while the publication keeps
+  // publishing, so a recorded error alone does not make it failed. A final error that pkc-js left
+  // publishing, like a rejected publish(), is recorded with state "stopped". A succeeded comment
+  // has no cid only until its cid is saved.
   const now = Math.round(Date.now() / 1000);
   const expiryTime = now - pendingExpirySeconds;
 
@@ -403,11 +404,12 @@ const getAccountCommentsStates = (accountComments: AccountComment[]) => {
         publishingState?: string;
         state?: string;
       };
+      const hasPublishError =
+        ac.error != null || (Array.isArray(ac.errors) && ac.errors.length > 0);
       const resolvedPublishFailed =
         ac.state === "stopped" &&
         (ac.publishingState === "failed" ||
-          ac.error != null ||
-          (Array.isArray(ac.errors) && ac.errors.length > 0));
+          (hasPublishError && ac.publishingState !== "succeeded"));
 
       if (resolvedPublishFailed) {
         state = "failed";

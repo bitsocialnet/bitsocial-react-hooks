@@ -1831,6 +1831,37 @@ describe("accounts", () => {
       expect(renderedPending.result.current.state).toBe("pending");
     });
 
+    test("useAccountComment keeps pending a comment that succeeded after an error pkc-js recovered from", async () => {
+      const state = accountsStore.getState() as any;
+      const accountId = state.activeAccountId || Object.keys(state.accounts)[0];
+      const existing = state.accountsComments?.[accountId] || [];
+      const succeededIndex = existing.length;
+      accountsStore.setState((s: any) => ({
+        ...s,
+        accountsComments: {
+          ...s.accountsComments,
+          [accountId]: [
+            ...(s.accountsComments?.[accountId] || []),
+            {
+              timestamp: Math.floor(Date.now() / 1000),
+              communityAddress: "test.eth",
+              content: "verified, cid not saved yet",
+              index: succeededIndex,
+              // the verification arrived, the row with its cid is still being saved
+              state: "stopped",
+              publishingState: "succeeded",
+              error: Error("could not decrypt the challenge"),
+              errors: [Error("could not decrypt the challenge")],
+            },
+          ],
+        },
+      }));
+      const rendered = renderHook(() => useAccountComment({ commentIndex: succeededIndex }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => rendered.result.current.error !== undefined);
+      expect(rendered.result.current.state).toBe("pending");
+    });
+
     test("useAccountComment keeps pending when publishingState is failed but publication state is not stopped", async () => {
       const state = accountsStore.getState() as any;
       const accountId = state.activeAccountId || Object.keys(state.accounts)[0];
