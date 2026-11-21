@@ -378,6 +378,16 @@ useExportCommunity(options?: UseExportCommunityOptions): {
 
 Each `publishComment()`, `publishVote()`, `publishCommentEdit()`, `publishCommentModeration()` or `publishCommunityEdit()` call starts a new result: the previous publication's `challenge`, `challengeVerification`, `publishChallengeAnswers`, `state`, `error` and `errors` are cleared, and `state` becomes `"failed"` if the call rejects before anything is published, for example because the community's challenge settings don't load. When a failed challenge answer makes the publication publish again automatically, its new `challenge` clears the failed `challengeVerification`. If `usePublishComment` or `usePublishVote` publishes again before its previous publication finished, only the newest publication updates the result and `abandonPublish()` abandons the newest one; `usePublishComment` also passes `onChallenge` a third argument that abandons the publication the challenge belongs to, so code that spreads `onChallenge`'s arguments into an array and appends its own value now finds that value at index 3 instead of 2. `usePublishCommentEdit`, `usePublishCommentModeration` and `usePublishCommunityEdit` don't separate overlapping publications: events of an earlier one that is still running can update the new result. `abandonPublish()` resets `state` and the challenge fields and stops the publication if it is still in progress, deleting the pending comment or restoring the previous vote in the account that published it. It leaves a comment alone once its publication succeeded or failed, and a vote once it was verified (use `deleteComment` to remove the comment). While a comment publishes, `index` follows it when deleting an earlier comment of the account shifts it. `exportCommunity()` likewise clears the previous `communityExports` and errors, and only the latest call's result is shown.
 
+**Final and recoverable publish errors.** The publish hooks and the store's `accountsActions.publish*` actions call `onError(error, publication, info)`, where `info` is a `PublishErrorInfo`, `{final: boolean}`. `final` is `true` when the error ended the publish: pkc-js stopped the publication with it (for example the community never answered, every pubsub provider failed, or the RPC server failed the publish), `publish()` rejected (for example signing or the RPC publish call failed), or a hook's publish action rejected, for example while loading the community's challenge settings, in which case `publication` is `undefined` (the store actions reject instead of calling `onError` then). `final` is `false` for an error pkc-js recovers from, for example a challenge it could not decrypt or parse, or over RPC a challenge answer the server could not publish: the publication keeps publishing and can still get a challenge and succeed. Run terminal side effects, such as counting a failed post, forgetting a kept password, deleting a temporary account or showing a "failed" alert, only for a final error. A recoverable error is still added to the hook's `error` and `errors`, and to a pending account comment's `error` and `errors`, but leaves the comment `pending`, keeps a pending comment edit, moderation or community edit, and does not change the hook's `state`: pkc-js reports `publishingState` `"failed"` for it too, and the hook keeps its previous `state` until the publication ends. Each error is reported once, also when pkc-js both emits it and rejects `publish()` with it. `onError(error)` and `onError(error, publication)` keep working. In TypeScript, the second and third parameters are declared optional so the publish options stay assignable to `Options`; annotate `info` as `PublishErrorInfo` or read `info?.final`.
+
+```jsx
+const onError = (error, publication, info) => {
+  if (!info.final) return console.warn("pkc-js recovered from", error); // still publishing
+  alert(`Publishing failed: ${error.message}`);
+};
+const { publishComment, state, error } = usePublishComment({ ...publishCommentOptions, onError });
+```
+
 Challenges are keyed by challenge index: the position of the challenge in `community.challenges`, as a decimal string. `challenge.challenges` is the record pkc-js sends, unchanged, for example `{"0": {challenge, type, caseInsensitive}, "3": {...}}`. It holds only the challenges still pending, so its keys can be sparse; build the list to show from `Object.entries(challenge.challenges)` sorted by numeric key, and keep each key as that challenge's index. `publishChallengeAnswers(challengeAnswers)`, on the hook result and on the publication passed to `onChallenge`, takes a `ChallengeAnswersByIndex` record with one answer per key of that challenge message, for example `{"0": "4", "3": "blue"}`, or the same record wrapped as `{challengeAnswers: {...}}`. A key the answers leave out fails that challenge with `"No answer."`, and keys the challenge message did not ask for are ignored. Missing or empty answers (`undefined`, `[]`, `{}`) reject with an error instead of being published. An array of answers is deprecated: it is mapped by position onto the ascending keys of the latest challenge message the publication received. Pre-answers passed as `challengeRequest: {challengeAnswers}` in the publish options are forwarded to pkc-js unchanged, so they use the same record, keyed by the index in `community.challenges` and holding only the challenges being pre-answered; when there are none, leave out `challengeAnswers` (and `challengeRequest` if it carries nothing else, such as `challengeCommentCids`), because pkc-js rejects an empty record or an array.
 
 **Migrating to 0.3.0.** pkc-js 0.0.152 changed the challenge messages from arrays to records keyed by challenge index, with no compatibility path: a client on 0.3.0 cannot complete challenges with a community on an older pkc-js, and an older client cannot complete them with a community on pkc-js 0.0.152 or later. To migrate, read `challenge.challenges` as a record instead of an array (no more `challenges.length`, `challenges.map` or positional indexes), answer with `publishChallengeAnswers({[challengeIndex]: answer})` with one key per entry (a challenge your interface completes without input, such as an iframe that verifies on its own, answers `""` under its own key), and key any `challengeRequest.challengeAnswers` pre-answers by challenge index, leaving out `challengeAnswers` when there are none. `publishChallengeAnswers()` called without answers now rejects instead of publishing an empty list. Existing array answers keep working through the deprecated positional mapping, which TypeScript marks as deprecated.
@@ -796,7 +806,11 @@ const onChallengeVerification = (challengeVerification, comment) => {
   }
 }
 
-const onError = (error, comment) => console.error(error)
+// info.final is false for an error pkc-js recovers from: the comment keeps publishing
+const onError = (error, comment, info) => {
+  console.error(error)
+  if (info.final) alert(`Publishing failed: ${error.message}`)
+}
 
 const onPendingComment = (accountCommentIndex, pendingComment) => {
   // render or navigate to the pending comment immediately, before local persistence finishes
@@ -1353,7 +1367,7 @@ for (const accountComment of accountComments) {
   // it is recommended to show a label in the UI if accountComment.state is 'pending' or 'failed'
   console.log("comment", accountComment.index, "is status", accountComment.state);
 }
-// `state` becomes `failed` as soon as a pending local publish records terminal failure (`publishingState === "failed"` and `state === "stopped"`) or a publish error, instead of waiting for the 20-minute fallback.
+// `state` becomes `failed` as soon as a pending local publish records terminal failure (`publishingState === "failed"` and `state === "stopped"`) or a final publish error, instead of waiting for the 20-minute fallback. An error pkc-js recovers from is in the comment's `error` and `errors` but leaves it `pending` (see "Final and recoverable publish errors" under Actions Hooks).
 // local account comments returned by useAccountComment and useAccountComments include the account author's address and shortAddress when an older cached account comment is missing author identity fields.
 // comments published in a pseudonymous community (comment.pseudonymityMode is set) keep their community-assigned author instead, because the account identity was never published.
 // a pending reply published without `postCid` gets it from its parent when the parent is already loaded (the parent's `postCid`, or the parent's `cid` when the parent is a post), so it can link to its thread before it has a cid; it stays undefined when the parent isn't loaded. This is local metadata: the published reply contains only the `postCid` passed to `publishComment`.
@@ -4004,6 +4018,15 @@ Native references: [Codex hooks](https://learn.chatgpt.com/docs/hooks), [Claude 
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/CHANGELOG.md
 
 ```markdown
+## [0.3.3](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.2...v0.3.3) (2026-11-21)
+
+
+### Bug Fixes
+
+* **deps:** upgrade pkc-js to 0.0.154 and prepare 0.3.3 ([#195](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/195)) ([1071165](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/107116519a9f3bdacc568132651e9a769cb0c42b)), closes [#573](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/573) [#534](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/534) [#564](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/564)
+
+
+
 ## [0.3.2](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.1...v0.3.2) (2026-11-20)
 
 
