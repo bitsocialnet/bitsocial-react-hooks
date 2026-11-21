@@ -15,6 +15,7 @@ import {
   setPkcJs,
   useAccountVote,
   useAccountComments,
+  useAccountComment,
   exportAccount,
 } from "../..";
 import {
@@ -54,7 +55,7 @@ describe("actions", () => {
       const err = new Error("vote failed");
       handlePublishVoteError(err, setErrors, onError);
       expect(setErrors).toHaveBeenCalledWith(expect.any(Function));
-      expect(onError).toHaveBeenCalledWith(err);
+      expect(onError).toHaveBeenCalledWith(err, undefined, { final: true });
     });
 
     test("handlePublishVoteError when onError is undefined still sets errors", () => {
@@ -79,7 +80,7 @@ describe("actions", () => {
       const err = new Error("test");
       handlePublishErrorWhenAbandoned(ref, 1, err, setErrors, onError);
       expect(setErrors).toHaveBeenCalledWith(expect.any(Function));
-      expect(onError).toHaveBeenCalledWith(err);
+      expect(onError).toHaveBeenCalledWith(err, undefined, { final: true });
     });
   });
 
@@ -1614,7 +1615,7 @@ describe("actions", () => {
       });
       await waitFor(() => rendered.result.current.errors.length >= 1);
       expect(rendered.result.current.errors.length).toBe(1);
-      expect(onError).toHaveBeenCalledWith(expect.any(Error));
+      expect(onError).toHaveBeenCalledWith(expect.any(Error), undefined, { final: true });
       expect(onError).toHaveBeenCalledTimes(1);
       await expect(rendered.result.current.abandonPublish()).resolves.toBeUndefined();
 
@@ -1948,38 +1949,170 @@ describe("actions", () => {
         this.emit("error", Error("emit error"));
         throw Error("publish error");
       };
+      try {
+        const onError = vi.fn();
+        const publishCommentOptions = {
+          communityAddress: "12D3KooW... acions.test",
+          parentCid: "Qm... acions.test",
+          content: "some content acions.test",
+          onError,
+        };
+        rendered.rerender(publishCommentOptions);
 
-      const onError = vi.fn();
-      const publishCommentOptions = {
-        communityAddress: "12D3KooW... acions.test",
-        parentCid: "Qm... acions.test",
-        content: "some content acions.test",
-        onError,
+        // wait for ready
+        await waitFor(() => rendered.result.current.state === "ready");
+        expect(rendered.result.current.state).toBe("ready");
+        expect(rendered.result.current.error).toBe(undefined);
+
+        // publish
+        await act(async () => {
+          await rendered.result.current.publishComment();
+        });
+
+        // wait for error
+        await waitFor(() => rendered.result.current.errors.length === 2);
+        expect(rendered.result.current.errors.length).toBe(2);
+        expect(rendered.result.current.error.message).toBe("publish error");
+        expect(rendered.result.current.errors[0].message).toBe("emit error");
+        expect(rendered.result.current.errors[1].message).toBe("publish error");
+
+        // check callbacks: the emitted error did not stop the publication, the rejection ended it
+        expect(onError).toHaveBeenCalledTimes(2);
+        expect(onError.mock.calls[0][0].message).toBe("emit error");
+        expect(onError.mock.calls[0][2]).toEqual({ final: false });
+        expect(onError.mock.calls[1][0].message).toBe("publish error");
+        expect(onError.mock.calls[1][2]).toEqual({ final: true });
+      } finally {
+        // restore mock
+        Comment.prototype.publish = commentPublish;
+      }
+    });
+
+    test(`ends failed when pkc-js fails a publication the community never answered`, async () => {
+      // since pkc-js 0.0.154 a publication that gets no response ends with an error instead of
+      // stopping silently: the teardown emits the stopped state, then the error is emitted with
+      // publishingState already "failed", then the publishingState change
+      const noResponseCode =
+        "ERR_PUBSUB_DID_NOT_RECEIVE_RESPONSE_AFTER_PUBLISHING_CHALLENGE_REQUEST";
+      const commentPublish = Comment.prototype.publish;
+      Comment.prototype.publish = async function () {
+        this.state = "publishing";
+        this.publishingState = "waiting-challenge";
+        this.emit("statechange", "publishing");
+        this.emit("publishingstatechange", "waiting-challenge");
+        setTimeout(() => {
+          this.state = "stopped";
+          this.emit("statechange", "stopped");
+          this.publishingState = "failed";
+          this.emit("error", Object.assign(Error("no response"), { code: noResponseCode }));
+          this.emit("publishingstatechange", "failed");
+        }, 20);
       };
-      rendered.rerender(publishCommentOptions);
+      try {
+        const onError = vi.fn();
+        rendered.rerender({
+          communityAddress: "12D3KooW... acions.test",
+          parentCid: "Qm... acions.test",
+          content: "no response acions.test",
+          onError,
+        });
+        await waitFor(() => rendered.result.current.state === "ready");
+        await act(async () => {
+          await rendered.result.current.publishComment();
+        });
 
-      // wait for ready
-      await waitFor(() => rendered.result.current.state === "ready");
-      expect(rendered.result.current.state).toBe("ready");
-      expect(rendered.result.current.error).toBe(undefined);
+        await waitFor(() => rendered.result.current.state === "failed");
+        expect(rendered.result.current.state).toBe("failed");
+        expect(rendered.result.current.error?.code).toBe(noResponseCode);
+        expect(rendered.result.current.errors.length).toBe(1);
+        expect(onError).toHaveBeenCalledTimes(1);
 
-      // publish
-      await act(async () => {
-        await rendered.result.current.publishComment();
-      });
+        const index = rendered.result.current.index;
+        expect(typeof index).toBe("number");
+        const { accountsComments, activeAccountId } = useAccountsStore.getState();
+        const accountComment = accountsComments[activeAccountId!][index];
+        expect(accountComment.state).toBe("stopped");
+        expect(accountComment.publishingState).toBe("failed");
 
-      // wait for error
-      await waitFor(() => rendered.result.current.errors.length === 1);
-      expect(rendered.result.current.errors.length).toBe(1);
-      expect(rendered.result.current.error.message).toBe("emit error");
-      expect(rendered.result.current.errors[0].message).toBe("emit error");
+        // failed at once, not pending until the pending comment expires
+        const renderedWithComments = renderHook(() => useAccountComments());
+        const waitForComments = testUtils.createWaitFor(renderedWithComments);
+        await waitForComments(
+          () => renderedWithComments.result.current.accountComments?.[index]?.state === "failed",
+        );
+        expect(renderedWithComments.result.current.accountComments[index].state).toBe("failed");
+      } finally {
+        Comment.prototype.publish = commentPublish;
+      }
+    });
 
-      // check callbacks
-      expect(onError).toHaveBeenCalledTimes(1);
-      expect(onError.mock.calls[0][0].message).toBe("emit error");
+    test(`keeps the account comment pending after an error pkc-js recovers from`, async () => {
+      const recoverableError = Error("could not decrypt the challenge");
+      const publications: any[] = [];
+      const simulateChallengeEvent = Comment.prototype.simulateChallengeEvent;
+      const spy = vi
+        .spyOn(Comment.prototype, "simulateChallengeEvent")
+        .mockImplementation(function (this: any) {
+          publications.push(this);
+          this.simulateRecoverableErrorEvent(recoverableError);
+          simulateChallengeEvent.call(this);
+        });
+      try {
+        const onChallenge = vi.fn();
+        rendered.rerender({
+          communityAddress: "12D3KooW... acions.test",
+          content: "recovered error acions.test",
+          // the challenge is not answered, so the publication keeps publishing
+          onChallenge,
+        });
+        await waitFor(() => rendered.result.current.state === "ready");
+        await act(async () => {
+          await rendered.result.current.publishComment();
+        });
+        await waitFor(() => rendered.result.current.challenge);
+        expect(onChallenge).toHaveBeenCalledTimes(1);
+        const index = rendered.result.current.index;
+        expect(typeof index).toBe("number");
 
-      // restore mock
-      Comment.prototype.publish = commentPublish;
+        const renderedAccountComment = renderHook(() => ({
+          accountComments: useAccountComments(),
+          accountComment: useAccountComment({ commentIndex: index }),
+        }));
+        const waitForAccountComment = testUtils.createWaitFor(renderedAccountComment);
+        await waitForAccountComment(
+          () => renderedAccountComment.result.current.accountComment.error,
+        );
+        expect(renderedAccountComment.result.current.accountComment.error).toBe(recoverableError);
+        expect(renderedAccountComment.result.current.accountComment.state).toBe("pending");
+        expect(
+          renderedAccountComment.result.current.accountComments.accountComments[index].state,
+        ).toBe("pending");
+
+        // the publication then fails, in pkc-js order
+        const finalError = Error("no response");
+        await act(async () => {
+          const [comment] = publications;
+          comment.state = "stopped";
+          comment.emit("statechange", "stopped");
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          comment.publishingState = "failed";
+          comment.emit("error", finalError);
+          comment.emit("publishingstatechange", "failed");
+        });
+        await waitForAccountComment(
+          () => renderedAccountComment.result.current.accountComment.state === "failed",
+        );
+        expect(renderedAccountComment.result.current.accountComment.state).toBe("failed");
+        expect(renderedAccountComment.result.current.accountComment.errors).toEqual([
+          recoverableError,
+          finalError,
+        ]);
+        expect(
+          renderedAccountComment.result.current.accountComments.accountComments[index].state,
+        ).toBe("failed");
+      } finally {
+        spy.mockRestore();
+      }
     });
   });
 
@@ -2124,7 +2257,7 @@ describe("actions", () => {
       });
 
       expect(rendered.result.current.errors.length).toBe(1);
-      expect(onError).toHaveBeenCalledWith(expect.any(Error));
+      expect(onError).toHaveBeenCalledWith(expect.any(Error), undefined, { final: true });
       expect(onError).toHaveBeenCalledTimes(1);
 
       useAccountsStore.setState((state: any) => ({
@@ -2333,7 +2466,7 @@ describe("actions", () => {
       });
 
       expect(rendered.result.current.errors.length).toBe(1);
-      expect(onError).toHaveBeenCalledWith(expect.any(Error));
+      expect(onError).toHaveBeenCalledWith(expect.any(Error), undefined, { final: true });
       expect(onError).toHaveBeenCalledTimes(1);
 
       useAccountsStore.setState((state: any) => ({
@@ -2483,7 +2616,7 @@ describe("actions", () => {
       });
 
       expect(rendered.result.current.errors.length).toBe(1);
-      expect(onError).toHaveBeenCalledWith(expect.any(Error));
+      expect(onError).toHaveBeenCalledWith(expect.any(Error), undefined, { final: true });
       expect(onError).toHaveBeenCalledTimes(1);
 
       useAccountsStore.setState((state: any) => ({
@@ -2516,24 +2649,28 @@ describe("actions", () => {
         name: "usePublishComment",
         useHook: usePublishComment,
         publish: "publishComment",
+        Publication: Comment,
         options: { communityAddress, content: "republished content" },
       },
       {
         name: "usePublishVote",
         useHook: usePublishVote,
         publish: "publishVote",
+        Publication: Vote,
         options: { communityAddress, commentCid: "Qm... republished vote", vote: 1 },
       },
       {
         name: "usePublishCommentEdit",
         useHook: usePublishCommentEdit,
         publish: "publishCommentEdit",
+        Publication: CommentEdit,
         options: { communityAddress, commentCid: "Qm... acions.test", spoiler: true },
       },
       {
         name: "usePublishCommentModeration",
         useHook: usePublishCommentModeration,
         publish: "publishCommentModeration",
+        Publication: CommentModeration,
         options: {
           communityAddress,
           commentCid: "Qm... acions.test",
@@ -2544,18 +2681,316 @@ describe("actions", () => {
         name: "usePublishCommunityEdit",
         useHook: usePublishCommunityEdit,
         publish: "publishCommunityEdit",
+        Publication: CommunityEdit,
         options: { communityAddress, title: "new title" },
       },
     ];
 
+    // like pkc-js for a failure that ends the publish, e.g. no response: the publication stops,
+    // the teardown is awaited, then the error is emitted with publishingState "failed", then the
+    // publishingState change
+    const emitPublishFailure = async (publication: any, error: Error) => {
+      publication.state = "stopped";
+      publication.emit("statechange", "stopped");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const previousPublishingState = publication.publishingState;
+      publication.publishingState = "failed";
+      publication.emit("error", error);
+      // only a change is reported
+      if (previousPublishingState !== "failed") {
+        publication.emit("publishingstatechange", "failed");
+      }
+    };
+    // renders a publish hook and records every state it rendered
+    const renderPublishHook = (useHook: any, options: any) => {
+      const states: string[] = [];
+      const rendered = renderHook<any, any>(() => {
+        const result = useHook(options);
+        states.push(result.state);
+        return result;
+      });
+      return { rendered, states, waitFor: testUtils.createWaitFor(rendered) };
+    };
+
+    test.each(publishHooks)(
+      "$name reports an error pkc-js recovers from as not final and does not end failed",
+      async ({ useHook, publish, Publication, options }) => {
+        const recoverableError = Object.assign(Error("could not decrypt the challenge"), {
+          code: "ERR_PUBLICATION_FAILED_TO_DECRYPT_CHALLENGE",
+        });
+        const simulateChallengeEvent = Publication.prototype.simulateChallengeEvent;
+        const publications: any[] = [];
+        // a challenge it cannot decrypt arrives first, then one it can
+        const spy = vi
+          .spyOn(Publication.prototype, "simulateChallengeEvent")
+          .mockImplementation(function (this: any) {
+            publications.push(this);
+            this.simulateRecoverableErrorEvent(recoverableError);
+            setTimeout(() => simulateChallengeEvent.call(this), 50);
+          });
+        try {
+          const onError = vi.fn();
+          const { rendered, states, waitFor } = renderPublishHook(useHook, {
+            ...options,
+            onChallenge: (_challenge: any, publication: any) =>
+              publication.publishChallengeAnswers({ "0": "4" }),
+            onError,
+          });
+          await waitFor(() => rendered.result.current.state === "ready");
+          await act(async () => {
+            await rendered.result.current[publish]();
+          });
+          await waitFor(() => rendered.result.current.errors.length === 1);
+          // the publication is still publishing
+          expect(rendered.result.current.state).not.toBe("failed");
+          await waitFor(() => rendered.result.current.state === "succeeded");
+
+          expect(rendered.result.current.state).toBe("succeeded");
+          expect(states).not.toContain("failed");
+          // still exposed
+          expect(rendered.result.current.error).toBe(recoverableError);
+          expect(rendered.result.current.errors).toEqual([recoverableError]);
+          expect(onError).toHaveBeenCalledTimes(1);
+          expect(onError).toHaveBeenCalledWith(recoverableError, publications[0], {
+            final: false,
+          });
+        } finally {
+          spy.mockRestore();
+        }
+      },
+    );
+
+    test.each(publishHooks)(
+      "$name reports an error that ended the publication as final and ends failed",
+      async ({ useHook, publish, Publication, options }) => {
+        const finalError = Object.assign(Error("no response"), {
+          code: "ERR_PUBSUB_DID_NOT_RECEIVE_RESPONSE_AFTER_PUBLISHING_CHALLENGE_REQUEST",
+        });
+        const publications: any[] = [];
+        const spy = vi
+          .spyOn(Publication.prototype, "simulateChallengeEvent")
+          .mockImplementation(function (this: any) {
+            publications.push(this);
+            emitPublishFailure(this, finalError);
+          });
+        try {
+          const onError = vi.fn();
+          const { rendered, waitFor } = renderPublishHook(useHook, { ...options, onError });
+          await waitFor(() => rendered.result.current.state === "ready");
+          await act(async () => {
+            await rendered.result.current[publish]();
+          });
+          await waitFor(() => rendered.result.current.state === "failed");
+
+          expect(rendered.result.current.state).toBe("failed");
+          expect(rendered.result.current.error).toBe(finalError);
+          expect(onError).toHaveBeenCalledTimes(1);
+          expect(onError).toHaveBeenCalledWith(finalError, publications[0], { final: true });
+        } finally {
+          spy.mockRestore();
+        }
+      },
+    );
+
+    test.each(publishHooks)(
+      "$name ends failed when a publication whose failed state pkc-js recovered from then fails",
+      async ({ useHook, publish, Publication, options }) => {
+        const recoverableError = Error("could not decrypt the challenge");
+        const finalError = Error("no response");
+        const spy = vi
+          .spyOn(Publication.prototype, "simulateChallengeEvent")
+          .mockImplementation(function (this: any) {
+            this.simulateRecoverableErrorEvent(recoverableError);
+            // the failure keeps publishingState "failed", so pkc-js reports no publishingState change
+            setTimeout(() => emitPublishFailure(this, finalError), 20);
+          });
+        try {
+          const onError = vi.fn();
+          const { rendered, waitFor } = renderPublishHook(useHook, { ...options, onError });
+          await waitFor(() => rendered.result.current.state === "ready");
+          await act(async () => {
+            await rendered.result.current[publish]();
+          });
+          await waitFor(() => rendered.result.current.errors.length === 2);
+          await waitFor(() => rendered.result.current.state === "failed");
+
+          expect(rendered.result.current.state).toBe("failed");
+          expect(rendered.result.current.error).toBe(finalError);
+          expect(onError.mock.calls.map(([error, , info]) => [error, info])).toEqual([
+            [recoverableError, { final: false }],
+            [finalError, { final: true }],
+          ]);
+        } finally {
+          spy.mockRestore();
+        }
+      },
+    );
+
+    test.each(publishHooks)(
+      "$name ends failed when the community fails to load before publish() rejects",
+      async ({ useHook, publish, Publication, options }) => {
+        // like pkc-js: the community's failure is reported as publishingState "failed" while
+        // publishing, then the publication stops and publish() rejects
+        const communityError = Error("community failed to load");
+        const spy = vi
+          .spyOn(Publication.prototype, "publish")
+          .mockImplementation(async function (this: any) {
+            this.state = "publishing";
+            this.emit("statechange", "publishing");
+            this.publishingState = "failed";
+            this.emit("publishingstatechange", "failed");
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            this.state = "stopped";
+            this.emit("statechange", "stopped");
+            throw communityError;
+          });
+        try {
+          const onError = vi.fn();
+          const { rendered, waitFor } = renderPublishHook(useHook, { ...options, onError });
+          await waitFor(() => rendered.result.current.state === "ready");
+          await act(async () => {
+            await rendered.result.current[publish]();
+          });
+          await waitFor(() => rendered.result.current.state === "failed");
+
+          expect(rendered.result.current.state).toBe("failed");
+          expect(rendered.result.current.error).toBe(communityError);
+          expect(onError).toHaveBeenCalledTimes(1);
+          expect(onError.mock.calls[0][2]).toEqual({ final: true });
+        } finally {
+          spy.mockRestore();
+        }
+      },
+    );
+
+    test.each(publishHooks.slice(2))(
+      "$name keeps a newer publication's result when an earlier one fails later",
+      async ({ useHook, publish, options }) => {
+        const finalError = Error("no response");
+        const publications: any[] = [];
+        const onChallenge = vi.fn((_challenge: any, publication: any) =>
+          publications.push(publication),
+        );
+        const onError = vi.fn();
+        const { rendered, waitFor } = renderPublishHook(useHook, {
+          ...options,
+          onChallenge,
+          onError,
+        });
+        await waitFor(() => rendered.result.current.state === "ready");
+        // the first publication waits for its challenge answers while the second one starts
+        await act(async () => {
+          await rendered.result.current[publish]();
+        });
+        await waitFor(() => publications.length === 1);
+        await act(async () => {
+          await rendered.result.current[publish]();
+        });
+        await waitFor(() => publications.length === 2);
+
+        // the first one fails, then the second one succeeds
+        await act(async () => {
+          await emitPublishFailure(publications[0], finalError);
+        });
+        await act(async () => {
+          await publications[1].publishChallengeAnswers({ "0": "4" });
+        });
+        await waitFor(() => rendered.result.current.state === "succeeded");
+
+        expect(rendered.result.current.state).toBe("succeeded");
+        expect(rendered.result.current.challengeVerification?.challengeSuccess).toBe(true);
+        expect(rendered.result.current.errors).toEqual([]);
+        // the app still gets the earlier publication's callbacks
+        expect(onChallenge).toHaveBeenCalledTimes(2);
+        expect(onError).toHaveBeenCalledTimes(1);
+        expect(onError).toHaveBeenCalledWith(finalError, publications[0], { final: true });
+      },
+    );
+
+    test.each(publishHooks)(
+      "$name reports a rejected publish() as final and ends failed",
+      async ({ useHook, publish, Publication, options }) => {
+        // e.g. signing or the RPC publish call failed: pkc-js leaves state "publishing" and emits no error
+        const preflightError = Error("signing failed");
+        const publications: any[] = [];
+        const spy = vi
+          .spyOn(Publication.prototype, "publish")
+          .mockImplementation(function (this: any) {
+            publications.push(this);
+            return this.simulatePreflightPublishError(preflightError);
+          });
+        try {
+          const onError = vi.fn();
+          const { rendered, waitFor } = renderPublishHook(useHook, { ...options, onError });
+          await waitFor(() => rendered.result.current.state === "ready");
+          await act(async () => {
+            await rendered.result.current[publish]();
+          });
+          await waitFor(() => rendered.result.current.errors.length === 1);
+          await waitFor(() => rendered.result.current.state === "failed");
+
+          // the publish is over, although pkc-js reported no "failed" publishing state
+          expect(rendered.result.current.state).toBe("failed");
+          expect(rendered.result.current.error).toBe(preflightError);
+          expect(onError).toHaveBeenCalledTimes(1);
+          expect(onError).toHaveBeenCalledWith(preflightError, publications[0], { final: true });
+        } finally {
+          spy.mockRestore();
+        }
+      },
+    );
+
+    test.each(publishHooks)(
+      "$name stays failed when pkc-js reports a publishing state after the error that ended the publish",
+      async ({ useHook, publish, Publication, options }) => {
+        // over RPC, pkc-js ends the publish with the server's publishingState, emitting the error
+        // first and then the publishingState change, e.g. "stopped" when signing failed there
+        const serverError = Object.assign(Error("signing failed on the RPC server"), {
+          details: { publishThrowError: true, newState: "stopped", newPublishingState: "stopped" },
+        });
+        const spy = vi
+          .spyOn(Publication.prototype, "publish")
+          .mockImplementation(async function (this: any) {
+            this.state = "publishing";
+            this.emit("statechange", "publishing");
+            this.publishingState = "fetching-community-ipns";
+            this.emit("publishingstatechange", "fetching-community-ipns");
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            this.state = "stopped";
+            this.emit("statechange", "stopped");
+            this.publishingState = "stopped";
+            this.emit("error", serverError);
+            this.emit("publishingstatechange", "stopped");
+          });
+        try {
+          const onError = vi.fn();
+          const { rendered, states, waitFor } = renderPublishHook(useHook, { ...options, onError });
+          await waitFor(() => rendered.result.current.state === "ready");
+          await act(async () => {
+            await rendered.result.current[publish]();
+          });
+          await waitFor(() => rendered.result.current.errors.length === 1);
+          await new Promise((resolve) => setTimeout(resolve, 50));
+
+          expect(onError.mock.calls[0][2]).toEqual({ final: true });
+          expect(states).toContain("failed");
+          expect(rendered.result.current.state).toBe("failed");
+        } finally {
+          spy.mockRestore();
+        }
+      },
+    );
+
     test.each(publishHooks)(
       "$name reports a rejected publish as failed without the previous publication's result",
       async ({ useHook, publish, options }) => {
+        const onError = vi.fn();
         const rendered = renderHook<any, any>(() =>
           (useHook as any)({
             ...options,
             onChallenge: (_challenge: any, publication: any) =>
               publication.publishChallengeAnswers({ "0": "4" }),
+            onError,
           }),
         );
         const waitFor = testUtils.createWaitFor(rendered);
@@ -2581,6 +3016,11 @@ describe("actions", () => {
         expect(rendered.result.current.error?.message).toBe("store rejected the publication");
         expect(rendered.result.current.challenge).toBe(undefined);
         expect(rendered.result.current.challengeVerification).toBe(undefined);
+        // no publication was created
+        expect(onError).toHaveBeenCalledTimes(1);
+        expect(onError).toHaveBeenCalledWith(rendered.result.current.error, undefined, {
+          final: true,
+        });
 
         // a successful retry does not keep the failed attempt's error
         await act(async () => {

@@ -25,6 +25,7 @@ import {
   Communities,
   AccountComment,
   AccountVote,
+  PublishErrorInfo,
 } from "../../types";
 import * as accountsActionsInternal from "./accounts-actions-internal";
 import {
@@ -605,6 +606,51 @@ export const hasTerminalChallengeVerificationError = (challengeVerification: any
     !challengeVerification?.challengeSuccess &&
     (hasChallengeErrors || Boolean(challengeVerification?.reason))
   );
+};
+
+// pkc-js stops a publication and sets its publishingState to "failed" before emitting the error that
+// ends its publish, and over RPC an error the server ended its publish with ends it too, the test
+// pkc-js makes itself (see its _handleIncomingErrorFromRpc). Its other errors did not end the
+// publish: ones it recovers from while the publication keeps publishing, e.g. a challenge it cannot
+// decrypt, or a pubsub unsubscribe that failed while a stopped publication was torn down
+const isPublishEndingError = (publication: any, error: any) =>
+  publication?.state === "stopped" &&
+  (publication.publishingState === "failed" ||
+    Boolean(error?.details?.publishThrowError) ||
+    error?.details?.newState === "stopped");
+
+/**
+ * Reports the errors of one publication to a publish action's onError with whether each ended the
+ * publish, and runs onPublishEnd before reporting the one that did. Only the first error that ends
+ * it is final, none after its challenge verification decided it, and an error pkc-js both emits and
+ * rejects publish() with (when every pubsub provider threw or the community's challenge exchange is
+ * disabled) is reported once. A rejected publish() ends the publish, although pkc-js leaves the
+ * state "publishing" when it rejects before a challenge exchange exists (signing, the RPC call).
+ */
+const createPublicationErrorReporter = (
+  publication: any,
+  onError: ((error: unknown, publication: any, info: PublishErrorInfo) => void) | undefined,
+  onPublishEnd: () => Promise<void> | void,
+) => {
+  let publishEnded = false;
+  let lastReportedError: unknown;
+  const report = async (error: unknown, endsPublish: boolean) => {
+    if (error === lastReportedError) return;
+    lastReportedError = error;
+    const final = endsPublish && !publishEnded;
+    if (final) {
+      publishEnded = true;
+      await onPublishEnd();
+    }
+    onError?.(error, publication, { final });
+  };
+  return {
+    reportErrorEvent: (error: unknown) => report(error, isPublishEndingError(publication, error)),
+    reportPublishRejection: (error: unknown) => report(error, true),
+    onChallengeVerification: () => {
+      publishEnded = true;
+    },
+  };
 };
 
 export const addStoredAccountEditToState = (
@@ -1641,7 +1687,7 @@ export const publishComment = async (
       }
     });
   };
-  const recordPublishCommentError = (rawError: unknown, activeComment: any) => {
+  const recordPublishCommentError = (rawError: unknown, activeComment: any, final: boolean) => {
     const error = normalizePublishError(rawError);
     if (lastReportedPublishError === error) {
       return error;
@@ -1658,7 +1704,11 @@ export const publishComment = async (
           previousErrors[previousErrors.length - 1] === error
             ? previousErrors
             : [...previousErrors, error];
-        ac[currentIndex] = { ...acc, errors, error };
+        // a final error ends the account comment failed, also when pkc-js left the publication
+        // publishing, as it does when publish() rejects in pre-flight
+        ac[currentIndex] = final
+          ? { ...acc, errors, error, state: "stopped", publishingState: "failed" }
+          : { ...acc, errors, error };
       }),
     );
     return error;
@@ -1666,16 +1716,16 @@ export const publishComment = async (
   const reportActivePublishCommentError = (
     rawError: unknown,
     activeComment: any,
-    publicationStopped: boolean,
+    final: boolean,
   ) => {
     if (!getActiveSessionForComment(activeComment)) return;
-    const error = recordPublishCommentError(rawError, activeComment);
-    // pkc-js also emits errors it recovers from, e.g. a challenge with an invalid signature, and
-    // keeps processing the exchange, so only an error that stopped the publication ends the session
-    if (publicationStopped) {
+    const error = recordPublishCommentError(rawError, activeComment, final);
+    // only an error that ended the publish ends the session: pkc-js keeps processing the exchange
+    // after an error it recovers from
+    if (final) {
       queueCleanupFailedPublishSession(activeComment);
     }
-    publishCommentOptions.onError?.(error, activeComment);
+    publishCommentOptions.onError?.(error, activeComment, { final });
   };
   // the options onBeforeRepublish returns go through the same pipeline as the first publish; resolves
   // to false when the publish was abandoned while onBeforeRepublish ran
@@ -1726,7 +1776,7 @@ export const publishComment = async (
         ac[session.currentIndex] = { ...acc, state: "stopped", publishingState: "failed" };
       }),
     );
-    publishCommentOptions.onPublishingStateChange?.("failed");
+    publishCommentOptions.onPublishingStateChange?.("failed", failedComment);
     reportActivePublishCommentError(error, failedComment, true);
   };
   async function publishAndRetryFailedChallengeVerification() {
@@ -1882,44 +1932,39 @@ export const publishComment = async (
     );
 
     activeComment.on("error", (error: Error) => {
-      reportActivePublishCommentError(error, activeComment, activeComment.state === "stopped");
+      // an error after the verdict is not reported: the verdict ends or detaches the session
+      reportActivePublishCommentError(
+        error,
+        activeComment,
+        isPublishEndingError(activeComment, error),
+      );
     });
+    // the session ends with the publication's final error, its rejected publish() or its verdict,
+    // not with a stopped and failed state: pkc-js stops a publication before emitting the error that
+    // ends it, awaiting its teardown in between, and stops it before publish() rejects when the
+    // community fails to load, so ending the session here dropped that error
     activeComment.on("statechange", (state: string) => {
       const session = getActiveSessionForComment(activeComment);
       if (!session) return;
       const currentIndex = session.currentIndex;
-      let hasTerminalFailedState = false;
       accountsStore.setState(({ accountsComments }) =>
         maybeUpdateAccountComment(accountsComments, account.id, currentIndex, (ac, acc) => {
-          const nextAccountComment = { ...acc, state };
-          ac[currentIndex] = nextAccountComment;
-          hasTerminalFailedState =
-            nextAccountComment.state === "stopped" &&
-            nextAccountComment.publishingState === "failed";
+          ac[currentIndex] = { ...acc, state };
         }),
       );
-      if (hasTerminalFailedState) {
-        queueCleanupFailedPublishSession(activeComment);
-      }
     });
     activeComment.on("publishingstatechange", async (publishingState: string) => {
       const session = getActiveSessionForComment(activeComment);
       if (!session) return;
       const currentIndex = session.currentIndex;
-      let hasTerminalFailedState = false;
       accountsStore.setState(({ accountsComments }) =>
         maybeUpdateAccountComment(accountsComments, account.id, currentIndex, (ac, acc) => {
-          const nextAccountComment = { ...acc, publishingState };
-          ac[currentIndex] = nextAccountComment;
-          hasTerminalFailedState =
-            nextAccountComment.state === "stopped" &&
-            nextAccountComment.publishingState === "failed";
+          ac[currentIndex] = { ...acc, publishingState };
         }),
       );
-      if (hasTerminalFailedState) {
-        queueCleanupFailedPublishSession(activeComment);
-      }
-      publishCommentOptions.onPublishingStateChange?.(publishingState);
+      // the hooks read the publication's state: pkc-js also reports "failed" for an error it
+      // recovers from, while the publication keeps publishing
+      publishCommentOptions.onPublishingStateChange?.(publishingState, activeComment);
     });
 
     // set clients on account comment so the frontend can display it, dont persist in db because a reload cancels publishing
@@ -2189,11 +2234,18 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
   const publishAndRetryFailedChallengeVerification = async () => {
     const activeVote = vote;
     votePublishSession.publications.add(vote);
+    // only an error that ended the publish fails the vote
+    const errorReporter = createPublicationErrorReporter(
+      activeVote,
+      publishVoteOptions.onError,
+      () => endVotePublication(activeVote, false),
+    );
     vote.once("challenge", async (challenge: Challenge) => {
       lastChallenge = challenge;
       publishVoteOptions.onChallenge(challenge, withPublishChallengeAnswersCompat(vote, challenge));
     });
     vote.once("challengeverification", async (challengeVerification: ChallengeVerification) => {
+      errorReporter.onChallengeVerification();
       publishVoteOptions.onChallengeVerification(challengeVerification, vote);
       // same terminal short-circuit as publishComment/publishCommentEdit: never retry a rejection
       if (
@@ -2210,7 +2262,7 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
           // no retry was published, so the failed vote ends the burst like a rejected one
           votePublishSession.failed = true;
           await endVotePublishSessionIfSettled();
-          publishVoteOptions.onError?.(error, activeVote);
+          publishVoteOptions.onError?.(error, activeVote, { final: true });
           return;
         }
         if (!isVotePublishSessionActive()) return;
@@ -2220,17 +2272,10 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
         await endVotePublication(activeVote, challengeVerification.challengeSuccess);
       }
     });
-    vote.on("error", async (error: Error) => {
-      // pkc-js also emits errors it recovers from, e.g. a challenge with an invalid signature, and
-      // stops the publication before emitting the ones that end it
-      if (activeVote.state === "stopped") {
-        await endVotePublication(activeVote, false);
-      }
-      publishVoteOptions.onError?.(error, vote);
-    });
+    vote.on("error", errorReporter.reportErrorEvent);
     // TODO: add publishingState to account votes
     vote.on("publishingstatechange", (publishingState: string) =>
-      publishVoteOptions.onPublishingStateChange?.(publishingState),
+      publishVoteOptions.onPublishingStateChange?.(publishingState, activeVote),
     );
     listeners.push(vote);
     try {
@@ -2238,8 +2283,7 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
       // if it fails before, like failing to resolve ENS, we can emit the error
       await vote.publish();
     } catch (error) {
-      await endVotePublication(activeVote, false);
-      publishVoteOptions.onError?.(error, vote);
+      await errorReporter.reportPublishRejection(error);
     }
   };
 
@@ -2398,6 +2442,13 @@ export const publishCommentEdit = async (
   });
 
   const publishAndRetryFailedChallengeVerification = async () => {
+    const activeCommentEdit = commentEdit;
+    // only an error that ended the publish rolls back the edit
+    const errorReporter = createPublicationErrorReporter(
+      activeCommentEdit,
+      publishCommentEditOptions.onError,
+      rollbackStoredCommentEdit,
+    );
     commentEdit.once("challenge", async (challenge: Challenge) => {
       lastChallenge = challenge;
       publishCommentEditOptions.onChallenge(
@@ -2408,6 +2459,7 @@ export const publishCommentEdit = async (
     commentEdit.once(
       "challengeverification",
       async (challengeVerification: ChallengeVerification) => {
+        errorReporter.onChallengeVerification();
         publishCommentEditOptions.onChallengeVerification(challengeVerification, commentEdit);
         if (challengeVerification.challengeSuccess) {
           challengeSucceeded = true;
@@ -2432,13 +2484,10 @@ export const publishCommentEdit = async (
         }
       },
     );
-    commentEdit.on("error", async (error: Error) => {
-      await rollbackStoredCommentEdit();
-      publishCommentEditOptions.onError?.(error, commentEdit);
-    });
+    commentEdit.on("error", errorReporter.reportErrorEvent);
     // TODO: add publishingState to account edits
     commentEdit.on("publishingstatechange", (publishingState: string) =>
-      publishCommentEditOptions.onPublishingStateChange?.(publishingState),
+      publishCommentEditOptions.onPublishingStateChange?.(publishingState, activeCommentEdit),
     );
     listeners.push(commentEdit);
     try {
@@ -2446,8 +2495,7 @@ export const publishCommentEdit = async (
       // if it fails before, like failing to resolve ENS, we can emit the error
       await commentEdit.publish();
     } catch (error) {
-      await rollbackStoredCommentEdit();
-      publishCommentEditOptions.onError?.(error, commentEdit);
+      await errorReporter.reportPublishRejection(error);
     }
   };
 
@@ -2533,6 +2581,13 @@ export const publishCommentModeration = async (
   };
 
   const publishAndRetryFailedChallengeVerification = async () => {
+    const activeCommentModeration = commentModeration;
+    // only an error that ended the publish rolls back the moderation
+    const errorReporter = createPublicationErrorReporter(
+      activeCommentModeration,
+      publishCommentModerationOptions.onError,
+      rollbackStoredCommentModeration,
+    );
     commentModeration.once("challenge", async (challenge: Challenge) => {
       lastChallenge = challenge;
       publishCommentModerationOptions.onChallenge(
@@ -2543,6 +2598,7 @@ export const publishCommentModeration = async (
     commentModeration.once(
       "challengeverification",
       async (challengeVerification: ChallengeVerification) => {
+        errorReporter.onChallengeVerification();
         publishCommentModerationOptions.onChallengeVerification(
           challengeVerification,
           commentModeration,
@@ -2570,13 +2626,13 @@ export const publishCommentModeration = async (
         }
       },
     );
-    commentModeration.on("error", async (error: Error) => {
-      await rollbackStoredCommentModeration();
-      publishCommentModerationOptions.onError?.(error, commentModeration);
-    });
+    commentModeration.on("error", errorReporter.reportErrorEvent);
     // TODO: add publishingState to account edits
     commentModeration.on("publishingstatechange", (publishingState: string) =>
-      publishCommentModerationOptions.onPublishingStateChange?.(publishingState),
+      publishCommentModerationOptions.onPublishingStateChange?.(
+        publishingState,
+        activeCommentModeration,
+      ),
     );
     listeners.push(commentModeration);
     try {
@@ -2584,8 +2640,7 @@ export const publishCommentModeration = async (
       // if it fails before, like failing to resolve ENS, we can emit the error
       await commentModeration.publish();
     } catch (error) {
-      await rollbackStoredCommentModeration();
-      publishCommentModerationOptions.onError?.(error, commentModeration);
+      await errorReporter.reportPublishRejection(error);
     }
   };
 
@@ -2717,6 +2772,13 @@ export const publishCommunityEdit = async (
   );
   let lastChallenge: Challenge | undefined;
   const publishAndRetryFailedChallengeVerification = async () => {
+    const activeCommunityEdit = communityEdit;
+    // only an error that ended the publish rolls back the edit
+    const errorReporter = createPublicationErrorReporter(
+      activeCommunityEdit,
+      publishCommunityEditOptions.onError,
+      rollbackStoredCommunityEdit,
+    );
     communityEdit.once("challenge", async (challenge: Challenge) => {
       lastChallenge = challenge;
       publishCommunityEditOptions.onChallenge(
@@ -2727,6 +2789,7 @@ export const publishCommunityEdit = async (
     communityEdit.once(
       "challengeverification",
       async (challengeVerification: ChallengeVerification) => {
+        errorReporter.onChallengeVerification();
         publishCommunityEditOptions.onChallengeVerification(challengeVerification, communityEdit);
         if (challengeVerification.challengeSuccess) {
           challengeSucceeded = true;
@@ -2751,13 +2814,10 @@ export const publishCommunityEdit = async (
         }
       },
     );
-    communityEdit.on("error", async (error: Error) => {
-      await rollbackStoredCommunityEdit();
-      publishCommunityEditOptions.onError?.(error, communityEdit);
-    });
+    communityEdit.on("error", errorReporter.reportErrorEvent);
     // TODO: add publishingState to account edits
     communityEdit.on("publishingstatechange", (publishingState: string) =>
-      publishCommunityEditOptions.onPublishingStateChange?.(publishingState),
+      publishCommunityEditOptions.onPublishingStateChange?.(publishingState, activeCommunityEdit),
     );
     listeners.push(communityEdit);
     try {
@@ -2765,8 +2825,7 @@ export const publishCommunityEdit = async (
       // if it fails before, like failing to resolve ENS, we can emit the error
       await communityEdit.publish();
     } catch (error) {
-      await rollbackStoredCommunityEdit();
-      publishCommunityEditOptions.onError?.(error, communityEdit);
+      await errorReporter.reportPublishRejection(error);
     }
   };
 

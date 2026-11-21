@@ -547,6 +547,8 @@ Object.defineProperty(Community.prototype, "roles", { enumerable: true });
 
 let challengeRequestCount = 0;
 let challengeAnswerCount = 0;
+// kept outside the instances so the hooks never copy it into stored or cloned publications
+const publishCalledPublications = new WeakSet<object>();
 
 class Publication extends EventEmitter {
   timestamp: number | undefined;
@@ -558,6 +560,20 @@ class Publication extends EventEmitter {
   publishingState: string | undefined;
 
   async publish() {
+    // like pkc-js 0.0.154, an instance runs one challenge exchange: publishing again needs a new
+    // instance (the mock has no pre-flight that could reject before anything is sent)
+    if (publishCalledPublications.has(this)) {
+      throw Object.assign(
+        Error(
+          "pkc-js-mock publish() was already called on this publication instance, create a new instance to publish again",
+        ),
+        {
+          code: "ERR_PUBLICATION_PUBLISH_ALREADY_CALLED",
+          details: { state: this.state, publishingState: this.publishingState },
+        },
+      );
+    }
+    publishCalledPublications.add(this);
     this.state = "publishing";
     this.publishingState = "publishing-challenge-request";
     this.emit("statechange", "publishing");
@@ -621,6 +637,24 @@ class Publication extends EventEmitter {
 
     this.publishingState = "succeeded";
     this.emit("publishingstatechange", "succeeded");
+  }
+
+  // like pkc-js 0.0.154 for an error it recovers from, e.g. a challenge it cannot decrypt:
+  // publishingState becomes "failed" but state stays "publishing" and the exchange goes on
+  simulateRecoverableErrorEvent(error: Error) {
+    this.publishingState = "failed";
+    this.emit("error", error);
+    this.emit("publishingstatechange", "failed");
+  }
+
+  // like a pkc-js publish() that rejects before a challenge exchange exists (signing, the signature
+  // hook, the RPC publish call, no pubsub provider): state stays "publishing", no error event is
+  // emitted and nothing is published. Call it in place of publish()
+  async simulatePreflightPublishError(error: Error) {
+    this.state = "publishing";
+    this.emit("statechange", "publishing");
+    await simulateLoadingTime();
+    throw error;
   }
 
   stop() {

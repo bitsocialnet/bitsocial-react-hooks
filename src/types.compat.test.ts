@@ -65,3 +65,36 @@ test("publishChallengeAnswers takes answers keyed by challenge index and require
   `;
   expect(compileConsumer("challenge-consumer.ts", consumer)).toEqual([]);
 });
+
+test("publish onError keeps one- and two-argument callbacks and takes the final flag", () => {
+  const consumer = `
+    import type {
+      Comment,
+      Options,
+      PublishErrorInfo,
+      UsePublishCommentOptions,
+      UsePublishCommunityEditOptions,
+      UsePublishVoteOptions,
+    } from "./types";
+    const errorOnly: UsePublishCommentOptions = { onError: (error: Error) => {} };
+    const withPublication: UsePublishVoteOptions = {
+      onError: (error: Error, vote?: Comment) => {},
+    };
+    const inferred: UsePublishCommentOptions = {
+      onError: (error, comment, info) => {
+        const final: boolean | undefined = info?.final;
+      },
+    };
+    const annotated: UsePublishCommunityEditOptions = {
+      onError: (error: Error, communityEdit: Comment | undefined, info: PublishErrorInfo) => {
+        const final: boolean = info.final;
+      },
+    };
+    // the publish options stay assignable to the options every hook takes
+    const options: Options = annotated;
+    const info: PublishErrorInfo = { final: false };
+    // @ts-expect-error final is a boolean
+    const wrongInfo: PublishErrorInfo = { final: "yes" };
+  `;
+  expect(compileConsumer("publish-error-consumer.ts", consumer)).toEqual([]);
+});
