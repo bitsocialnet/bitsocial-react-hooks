@@ -1949,38 +1949,43 @@ describe("actions", () => {
         this.emit("error", Error("emit error"));
         throw Error("publish error");
       };
+      try {
+        const onError = vi.fn();
+        const publishCommentOptions = {
+          communityAddress: "12D3KooW... acions.test",
+          parentCid: "Qm... acions.test",
+          content: "some content acions.test",
+          onError,
+        };
+        rendered.rerender(publishCommentOptions);
 
-      const onError = vi.fn();
-      const publishCommentOptions = {
-        communityAddress: "12D3KooW... acions.test",
-        parentCid: "Qm... acions.test",
-        content: "some content acions.test",
-        onError,
-      };
-      rendered.rerender(publishCommentOptions);
+        // wait for ready
+        await waitFor(() => rendered.result.current.state === "ready");
+        expect(rendered.result.current.state).toBe("ready");
+        expect(rendered.result.current.error).toBe(undefined);
 
-      // wait for ready
-      await waitFor(() => rendered.result.current.state === "ready");
-      expect(rendered.result.current.state).toBe("ready");
-      expect(rendered.result.current.error).toBe(undefined);
+        // publish
+        await act(async () => {
+          await rendered.result.current.publishComment();
+        });
 
-      // publish
-      await act(async () => {
-        await rendered.result.current.publishComment();
-      });
+        // wait for error
+        await waitFor(() => rendered.result.current.errors.length === 2);
+        expect(rendered.result.current.errors.length).toBe(2);
+        expect(rendered.result.current.error.message).toBe("publish error");
+        expect(rendered.result.current.errors[0].message).toBe("emit error");
+        expect(rendered.result.current.errors[1].message).toBe("publish error");
 
-      // wait for error
-      await waitFor(() => rendered.result.current.errors.length === 1);
-      expect(rendered.result.current.errors.length).toBe(1);
-      expect(rendered.result.current.error.message).toBe("emit error");
-      expect(rendered.result.current.errors[0].message).toBe("emit error");
-
-      // check callbacks
-      expect(onError).toHaveBeenCalledTimes(1);
-      expect(onError.mock.calls[0][0].message).toBe("emit error");
-
-      // restore mock
-      Comment.prototype.publish = commentPublish;
+        // check callbacks: the emitted error did not stop the publication, the rejection ended it
+        expect(onError).toHaveBeenCalledTimes(2);
+        expect(onError.mock.calls[0][0].message).toBe("emit error");
+        expect(onError.mock.calls[0][2]).toEqual({ final: false });
+        expect(onError.mock.calls[1][0].message).toBe("publish error");
+        expect(onError.mock.calls[1][2]).toEqual({ final: true });
+      } finally {
+        // restore mock
+        Comment.prototype.publish = commentPublish;
+      }
     });
 
     test(`ends failed when pkc-js fails a publication the community never answered`, async () => {
@@ -2083,13 +2088,16 @@ describe("actions", () => {
           renderedAccountComment.result.current.accountComments.accountComments[index].state,
         ).toBe("pending");
 
-        // the publication then fails
+        // the publication then fails, in pkc-js order
         const finalError = Error("no response");
         await act(async () => {
           const [comment] = publications;
           comment.state = "stopped";
           comment.emit("statechange", "stopped");
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          comment.publishingState = "failed";
           comment.emit("error", finalError);
+          comment.emit("publishingstatechange", "failed");
         });
         await waitForAccountComment(
           () => renderedAccountComment.result.current.accountComment.state === "failed",
@@ -2679,13 +2687,19 @@ describe("actions", () => {
     ];
 
     // like pkc-js for a failure that ends the publish, e.g. no response: the publication stops,
-    // then the error is emitted with publishingState "failed", then the publishingState change
-    const emitPublishFailure = (publication: any, error: Error) => {
+    // the teardown is awaited, then the error is emitted with publishingState "failed", then the
+    // publishingState change
+    const emitPublishFailure = async (publication: any, error: Error) => {
       publication.state = "stopped";
       publication.emit("statechange", "stopped");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const previousPublishingState = publication.publishingState;
       publication.publishingState = "failed";
       publication.emit("error", error);
-      publication.emit("publishingstatechange", "failed");
+      // only a change is reported
+      if (previousPublishingState !== "failed") {
+        publication.emit("publishingstatechange", "failed");
+      }
     };
     // renders a publish hook and records every state it rendered
     const renderPublishHook = (useHook: any, options: any) => {
@@ -2788,11 +2802,7 @@ describe("actions", () => {
           .mockImplementation(function (this: any) {
             this.simulateRecoverableErrorEvent(recoverableError);
             // the failure keeps publishingState "failed", so pkc-js reports no publishingState change
-            setTimeout(() => {
-              this.state = "stopped";
-              this.emit("statechange", "stopped");
-              this.emit("error", finalError);
-            }, 20);
+            setTimeout(() => emitPublishFailure(this, finalError), 20);
           });
         try {
           const onError = vi.fn();
@@ -2810,6 +2820,43 @@ describe("actions", () => {
             [recoverableError, { final: false }],
             [finalError, { final: true }],
           ]);
+        } finally {
+          spy.mockRestore();
+        }
+      },
+    );
+
+    test.each(publishHooks)(
+      "$name ends failed when the community fails to load before publish() rejects",
+      async ({ useHook, publish, Publication, options }) => {
+        // like pkc-js: the community's failure is reported as publishingState "failed" while
+        // publishing, then the publication stops and publish() rejects
+        const communityError = Error("community failed to load");
+        const spy = vi
+          .spyOn(Publication.prototype, "publish")
+          .mockImplementation(async function (this: any) {
+            this.state = "publishing";
+            this.emit("statechange", "publishing");
+            this.publishingState = "failed";
+            this.emit("publishingstatechange", "failed");
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            this.state = "stopped";
+            this.emit("statechange", "stopped");
+            throw communityError;
+          });
+        try {
+          const onError = vi.fn();
+          const { rendered, waitFor } = renderPublishHook(useHook, { ...options, onError });
+          await waitFor(() => rendered.result.current.state === "ready");
+          await act(async () => {
+            await rendered.result.current[publish]();
+          });
+          await waitFor(() => rendered.result.current.state === "failed");
+
+          expect(rendered.result.current.state).toBe("failed");
+          expect(rendered.result.current.error).toBe(communityError);
+          expect(onError).toHaveBeenCalledTimes(1);
+          expect(onError.mock.calls[0][2]).toEqual({ final: true });
         } finally {
           spy.mockRestore();
         }

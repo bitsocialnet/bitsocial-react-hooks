@@ -466,7 +466,9 @@ export interface CommentGalleryItem {
  * The third argument of a publish `onError`, from the publish hooks and the `accountsActions.publish*`
  * actions. `final` is true when the error ended the publish: pkc-js stopped the publication with it, or
  * `publish()` or the publish action rejected. It is false for an error pkc-js recovers from, e.g. a
- * challenge it could not decrypt: the publication keeps publishing and can still succeed.
+ * challenge it could not decrypt, after which the publication keeps publishing and can still succeed,
+ * for an error a stopped publication emits while it is torn down, and for an error emitted after the
+ * challenge verification, which decided the outcome. At most one error per publication is final.
  */
 export interface PublishErrorInfo {
   final: boolean;
