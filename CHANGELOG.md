@@ -1,3 +1,12 @@
+## [0.3.3](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.2...v0.3.3) (2026-11-21)
+
+
+### Bug Fixes
+
+* **deps:** upgrade pkc-js to 0.0.154 and prepare 0.3.3 ([#195](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/195)) ([1071165](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/107116519a9f3bdacc568132651e9a769cb0c42b)), closes [#573](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/573) [#534](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/534) [#564](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/564)
+
+
+
 ## [0.3.2](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.1...v0.3.2) (2026-11-20)
 
 
