@@ -179,6 +179,38 @@ describe("PkcJsMock", () => {
     expect(retry.state).toBe("publishing");
   });
 
+  test("Publication.simulateRecoverableErrorEvent() keeps the publication publishing, like pkc-js", async () => {
+    const pkc = await PkcJsMock();
+    const vote = await pkc.createVote({ commentCid: "cid", vote: 1 });
+    const events: string[] = [];
+    vote.on("error", () => events.push(`error ${vote.state} ${vote.publishingState}`));
+    vote.on("publishingstatechange", (publishingState: string) =>
+      events.push(`publishingstatechange ${publishingState}`),
+    );
+    const challenge = new Promise((resolve) => vote.once("challenge", resolve));
+    await vote.publish();
+    events.length = 0;
+
+    vote.simulateRecoverableErrorEvent(Error("could not decrypt the challenge"));
+    expect(events).toEqual(["error publishing failed", "publishingstatechange failed"]);
+    expect(vote.state).toBe("publishing");
+    // the exchange goes on
+    await challenge;
+  });
+
+  test("Publication.simulatePreflightPublishError() rejects without an error event and leaves the publication publishing", async () => {
+    const pkc = await PkcJsMock();
+    const commentEdit = await pkc.createCommentEdit({ commentCid: "cid", content: "edit" });
+    const onError = vi.fn();
+    commentEdit.on("error", onError);
+
+    await expect(
+      commentEdit.simulatePreflightPublishError(Error("signing failed")),
+    ).rejects.toThrow("signing failed");
+    expect(commentEdit.state).toBe("publishing");
+    expect(onError).not.toHaveBeenCalled();
+  });
+
   test("Community create/edit preserves intentional falsy values", async () => {
     const pkc = await PkcJsMock();
     const community = await pkc.createCommunity({
