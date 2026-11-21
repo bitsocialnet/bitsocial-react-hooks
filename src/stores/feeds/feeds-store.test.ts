@@ -8,6 +8,7 @@ import EventEmitter from "events";
 import accountsStore from "../accounts";
 import { setPkcJs } from "../..";
 import PkcJsMock from "../../lib/pkc-js/pkc-js-mock";
+import { setOnlineStatus } from "../../lib/online-status";
 
 const communityGetPageCommentCount = 100;
 
@@ -463,6 +464,51 @@ describe("feeds store", () => {
         [communityAddresses[0]]: sub,
       },
     }));
+  });
+
+  // a React Native app that starts offline computes its first feed before NetInfo reports, while
+  // the unknown status reads as online, and gets no community update to recompute it afterwards
+  test("setOnlineStatus(false) recomputes a feed that skipped an expired cache", async () => {
+    const communityAddress = "online status expired cache community";
+    const feedName = JSON.stringify([mockAccount?.id, "new", [communityAddress]]);
+    communitiesStore.setState((state: any) => ({
+      communities: {
+        ...state.communities,
+        [communityAddress]: {
+          address: communityAddress,
+          updatedAt: 1,
+          fetchedAt: 0,
+          posts: {
+            pages: {
+              new: { comments: [{ cid: "offline cid", communityAddress, timestamp: 1 }] },
+            },
+          },
+        },
+      },
+    }));
+    Object.defineProperty(navigator, "onLine", { value: undefined, configurable: true });
+    try {
+      act(() => {
+        rendered.result.current.addFeedToStore(
+          feedName,
+          toCommunities([communityAddress]),
+          [communityAddress],
+          "new",
+          mockAccount,
+        );
+      });
+      await waitFor(() => rendered.result.current.feedsHaveMore[feedName] !== undefined);
+      expect(rendered.result.current.loadedFeeds[feedName]).toEqual([]);
+
+      setOnlineStatus(false);
+      await waitFor(() => rendered.result.current.loadedFeeds[feedName]?.length > 0);
+      expect(rendered.result.current.loadedFeeds[feedName]).toContainEqual(
+        expect.objectContaining({ cid: "offline cid" }),
+      );
+    } finally {
+      setOnlineStatus(undefined);
+      delete (navigator as any).onLine;
+    }
   });
 
   test("a feed holds its communities and fetches pages only while it has subscribers", async () => {
