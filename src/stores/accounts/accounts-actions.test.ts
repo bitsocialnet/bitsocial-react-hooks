@@ -4850,10 +4850,10 @@ describe("accounts-actions", () => {
           communityAddress: "sub.eth",
           content: "verified after a recovered error",
           onChallenge: (_challenge: any, comment: any) => {
-            // e.g. a challenge message with an invalid signature: pkc-js emits an error without
-            // stopping the publication and keeps waiting for a valid challenge
+            // e.g. over RPC, a challenge answer the server could not publish: pkc-js emits an error
+            // without stopping the publication, which can still be answered
             comment.publishingState = "failed";
-            comment.emit("error", new Error("challenge signature is invalid"));
+            comment.emit("error", new Error("challenge answer could not be published"));
             comment.emit("publishingstatechange", "failed");
             comment.publishChallengeAnswers({ "0": "4" });
           },
@@ -5520,8 +5520,8 @@ describe("accounts-actions", () => {
       mockCreateVote((vote) => {
         const publishChallengeAnswers = vote.publishChallengeAnswers.bind(vote);
         vote.publishChallengeAnswers = async (...args: any[]) => {
-          // e.g. a challenge message with an invalid signature, pkc-js keeps waiting for a valid one
-          vote.emit("error", new Error("invalid challenge signature"));
+          // e.g. over RPC, a challenge answer the server could not publish: the publication goes on
+          vote.emit("error", new Error("challenge answer could not be published"));
           return publishChallengeAnswers(...args);
         };
       });

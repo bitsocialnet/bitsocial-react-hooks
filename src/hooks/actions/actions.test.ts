@@ -1981,6 +1981,64 @@ describe("actions", () => {
       // restore mock
       Comment.prototype.publish = commentPublish;
     });
+
+    test(`ends failed when pkc-js fails a publication the community never answered`, async () => {
+      // since pkc-js 0.0.154 a publication that gets no response ends with an error instead of
+      // stopping silently: the teardown emits the stopped state, then the error is emitted with
+      // publishingState already "failed", then the publishingState change
+      const noResponseCode =
+        "ERR_PUBSUB_DID_NOT_RECEIVE_RESPONSE_AFTER_PUBLISHING_CHALLENGE_REQUEST";
+      const commentPublish = Comment.prototype.publish;
+      Comment.prototype.publish = async function () {
+        this.state = "publishing";
+        this.publishingState = "waiting-challenge";
+        this.emit("statechange", "publishing");
+        this.emit("publishingstatechange", "waiting-challenge");
+        setTimeout(() => {
+          this.state = "stopped";
+          this.emit("statechange", "stopped");
+          this.publishingState = "failed";
+          this.emit("error", Object.assign(Error("no response"), { code: noResponseCode }));
+          this.emit("publishingstatechange", "failed");
+        }, 20);
+      };
+      try {
+        const onError = vi.fn();
+        rendered.rerender({
+          communityAddress: "12D3KooW... acions.test",
+          parentCid: "Qm... acions.test",
+          content: "no response acions.test",
+          onError,
+        });
+        await waitFor(() => rendered.result.current.state === "ready");
+        await act(async () => {
+          await rendered.result.current.publishComment();
+        });
+
+        await waitFor(() => rendered.result.current.state === "failed");
+        expect(rendered.result.current.state).toBe("failed");
+        expect(rendered.result.current.error?.code).toBe(noResponseCode);
+        expect(rendered.result.current.errors.length).toBe(1);
+        expect(onError).toHaveBeenCalledTimes(1);
+
+        const index = rendered.result.current.index;
+        expect(typeof index).toBe("number");
+        const { accountsComments, activeAccountId } = useAccountsStore.getState();
+        const accountComment = accountsComments[activeAccountId!][index];
+        expect(accountComment.state).toBe("stopped");
+        expect(accountComment.publishingState).toBe("failed");
+
+        // failed at once, not pending until the pending comment expires
+        const renderedWithComments = renderHook(() => useAccountComments());
+        const waitForComments = testUtils.createWaitFor(renderedWithComments);
+        await waitForComments(
+          () => renderedWithComments.result.current.accountComments?.[index]?.state === "failed",
+        );
+        expect(renderedWithComments.result.current.accountComments[index].state).toBe("failed");
+      } finally {
+        Comment.prototype.publish = commentPublish;
+      }
+    });
   });
 
   // retry usePublish because publishing state is flaky
