@@ -572,6 +572,24 @@ class Publication extends EventEmitter {
         this.publishingState = "succeeded";
         this.emit("publishingstatechange", "succeeded");
     }
+    // like pkc-js 0.0.154 for an error it recovers from, e.g. a challenge it cannot decrypt:
+    // publishingState becomes "failed" but state stays "publishing" and the exchange goes on
+    simulateRecoverableErrorEvent(error) {
+        this.publishingState = "failed";
+        this.emit("error", error);
+        this.emit("publishingstatechange", "failed");
+    }
+    // like a pkc-js publish() that rejects before a challenge exchange exists (signing, the signature
+    // hook, the RPC publish call, no pubsub provider): state stays "publishing", no error event is
+    // emitted and nothing is published. Call it in place of publish()
+    simulatePreflightPublishError(error) {
+        return __awaiter(this, void 0, void 0, function* () {
+            this.state = "publishing";
+            this.emit("statechange", "publishing");
+            yield simulateLoadingTime();
+            throw error;
+        });
+    }
     stop() {
         if (this.state === "publishing" || this.publishingState !== "stopped") {
             this.state = "stopped";

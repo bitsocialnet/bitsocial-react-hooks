@@ -117,6 +117,8 @@ declare class Publication extends EventEmitter {
         challengeAnswers: ChallengeAnswersByIndex;
     }): Promise<void>;
     simulateChallengeVerificationEvent(): void;
+    simulateRecoverableErrorEvent(error: Error): void;
+    simulatePreflightPublishError(error: Error): Promise<void>;
     stop(): void;
 }
 export declare class Comment extends Publication {

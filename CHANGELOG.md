@@ -1,3 +1,17 @@
+## [0.3.4](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.3...v0.3.4) (2026-11-21)
+
+
+### Bug Fixes
+
+* **actions:** tell publish onError whether the error is final, and prepare 0.3.4 ([#197](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/197)) ([8076c21](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/8076c21dc76a5e8b8633a9fc44f8ea2bf8ddbb9d))
+
+
+### Features
+
+* **website:** add Vercel Web Analytics to hooks.bitsocial.net ([#196](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/196)) ([74e3b05](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/74e3b058ac4ef7520766fdf7ead80327e7124ec3))
+
+
+
 ## [0.3.3](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.2...v0.3.3) (2026-11-21)
 
 

@@ -329,7 +329,24 @@ export interface CommentGalleryItem {
     alt?: string;
     [key: string]: unknown;
 }
+/**
+ * The third argument of a publish `onError`, from the publish hooks and the `accountsActions.publish*`
+ * actions. `final` is true when the error ended the publish: pkc-js stopped the publication with it, or
+ * `publish()` or the publish action rejected. It is false for an error pkc-js recovers from, e.g. a
+ * challenge it could not decrypt, after which the publication keeps publishing and can still succeed,
+ * for an error a stopped publication emits while it is torn down, and for an error emitted after the
+ * challenge verification, which decided the outcome. At most one error per publication is final.
+ */
+export interface PublishErrorInfo {
+    final: boolean;
+}
 export interface UsePublishCommentOptions extends Options {
+    /**
+     * Called with each publish error, the publication it came from (undefined when the publish failed
+     * before one was created) and whether the error ended the publish. The publish hooks always pass all
+     * three; the extra arguments are optional only to keep these options assignable to `Options`.
+     */
+    onError?(error: Error, comment?: Comment, info?: PublishErrorInfo): void;
     /** Requires the community to enable maxPostGalleryItems or maxReplyGalleryItems. */
     gallery?: CommentGalleryItem[];
     /** Called immediately with the provisional comment, then again if persistence shifts its index. */
@@ -360,6 +377,8 @@ export interface UsePublishCommentResult extends Result {
     publishChallengeAnswers: PublishChallengeAnswers;
 }
 export interface UsePublishVoteOptions extends Options {
+    /** Called like `UsePublishCommentOptions.onError`. */
+    onError?(error: Error, vote?: Vote, info?: PublishErrorInfo): void;
     onChallenge?(challenge: Challenge, comment?: Comment): Promise<void>;
     onChallengeVerification?(challengeVerification: ChallengeVerification, comment?: Comment): Promise<void>;
     [publishOption: string]: any;
@@ -372,6 +391,8 @@ export interface UsePublishVoteResult extends Result {
     publishChallengeAnswers: PublishChallengeAnswers;
 }
 export interface UsePublishCommentEditOptions extends Options {
+    /** Called like `UsePublishCommentOptions.onError`. */
+    onError?(error: Error, commentEdit?: CommentEdit, info?: PublishErrorInfo): void;
     onChallenge?(challenge: Challenge, comment?: Comment): Promise<void>;
     onChallengeVerification?(challengeVerification: ChallengeVerification, comment?: Comment): Promise<void>;
     [publishOption: string]: any;
@@ -383,6 +404,8 @@ export interface UsePublishCommentEditResult extends Result {
     publishChallengeAnswers: PublishChallengeAnswers;
 }
 export interface UsePublishCommentModerationOptions extends Options {
+    /** Called like `UsePublishCommentOptions.onError`. */
+    onError?(error: Error, commentModeration?: CommentModeration, info?: PublishErrorInfo): void;
     onChallenge?(challenge: Challenge, comment?: Comment): Promise<void>;
     onChallengeVerification?(challengeVerification: ChallengeVerification, comment?: Comment): Promise<void>;
     [publishOption: string]: any;
@@ -395,6 +418,8 @@ export interface UsePublishCommentModerationResult extends Result {
 }
 export interface UsePublishCommunityEditOptions extends Options {
     communityAddress?: string;
+    /** Called like `UsePublishCommentOptions.onError`. */
+    onError?(error: Error, communityEdit?: CommunityEdit, info?: PublishErrorInfo): void;
     onChallenge?(challenge: Challenge, comment?: Comment): Promise<void>;
     onChallengeVerification?(challengeVerification: ChallengeVerification, comment?: Comment): Promise<void>;
     [publishOption: string]: any;
