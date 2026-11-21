@@ -1670,8 +1670,8 @@ export const publishComment = async (
   ) => {
     if (!getActiveSessionForComment(activeComment)) return;
     const error = recordPublishCommentError(rawError, activeComment);
-    // pkc-js also emits errors it recovers from, e.g. a challenge with an invalid signature, and
-    // keeps processing the exchange, so only an error that stopped the publication ends the session
+    // pkc-js also emits errors it recovers from, e.g. a challenge it cannot decrypt, and keeps
+    // processing the exchange, so only an error that stopped the publication ends the session
     if (publicationStopped) {
       queueCleanupFailedPublishSession(activeComment);
     }
@@ -2221,8 +2221,8 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
       }
     });
     vote.on("error", async (error: Error) => {
-      // pkc-js also emits errors it recovers from, e.g. a challenge with an invalid signature, and
-      // stops the publication before emitting the ones that end it
+      // pkc-js also emits errors it recovers from, e.g. a challenge it cannot decrypt, and stops
+      // the publication before emitting the ones that end it
       if (activeVote.state === "stopped") {
         await endVotePublication(activeVote, false);
       }
