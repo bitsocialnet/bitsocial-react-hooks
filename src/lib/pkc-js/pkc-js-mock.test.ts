@@ -159,6 +159,26 @@ describe("PkcJsMock", () => {
     expect(onPublishingstatechange.mock.calls.some((c) => c[0] === "stopped")).toBe(true);
   });
 
+  test("Publication.publish() rejects a second call on the same instance, like pkc-js", async () => {
+    const pkc = await PkcJsMock();
+    const comment = await pkc.createComment({
+      content: "content",
+      communityAddress: "community address",
+    });
+    await comment.publish();
+    comment.stop();
+
+    await expect(comment.publish()).rejects.toMatchObject({
+      code: "ERR_PUBLICATION_PUBLISH_ALREADY_CALLED",
+    });
+    expect(comment.state).toBe("stopped");
+
+    // a new instance publishes, also one created from a copy of the spent one
+    const retry = await pkc.createComment({ ...comment });
+    await retry.publish();
+    expect(retry.state).toBe("publishing");
+  });
+
   test("Community create/edit preserves intentional falsy values", async () => {
     const pkc = await PkcJsMock();
     const community = await pkc.createCommunity({

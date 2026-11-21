@@ -547,6 +547,8 @@ Object.defineProperty(Community.prototype, "roles", { enumerable: true });
 
 let challengeRequestCount = 0;
 let challengeAnswerCount = 0;
+// kept outside the instances so the hooks never copy it into stored or cloned publications
+const publishCalledPublications = new WeakSet<object>();
 
 class Publication extends EventEmitter {
   timestamp: number | undefined;
@@ -558,6 +560,20 @@ class Publication extends EventEmitter {
   publishingState: string | undefined;
 
   async publish() {
+    // like pkc-js 0.0.154, an instance runs one challenge exchange: publishing again needs a new
+    // instance (the mock has no pre-flight that could reject before anything is sent)
+    if (publishCalledPublications.has(this)) {
+      throw Object.assign(
+        Error(
+          "pkc-js-mock publish() was already called on this publication instance, create a new instance to publish again",
+        ),
+        {
+          code: "ERR_PUBLICATION_PUBLISH_ALREADY_CALLED",
+          details: { state: this.state, publishingState: this.publishingState },
+        },
+      );
+    }
+    publishCalledPublications.add(this);
     this.state = "publishing";
     this.publishingState = "publishing-challenge-request";
     this.emit("statechange", "publishing");
