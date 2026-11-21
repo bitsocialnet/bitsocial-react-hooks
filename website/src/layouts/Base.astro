@@ -8,6 +8,7 @@ import { packageVersion, repoUrl } from '../lib/docs';
 interface Props { title?: string; description?: string; docs?: boolean; }
 const { title = 'Build your corner of the internet', description = 'React hooks for a social network anyone can build on. Start with a feed, create your own interface, and connect to Bitsocial.', docs = false } = Astro.props;
 const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site) : undefined;
+const isVercel = import.meta.env.PROD && process.env.VERCEL === '1';
 ---
 <!doctype html>
 <html lang="en" data-theme="dark">
@@ -28,6 +29,12 @@ const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site) : undefin
     <script is:inline>
       try { document.documentElement.dataset.theme = localStorage.getItem('hooks-theme') === 'light' ? 'light' : 'dark'; } catch {}
     </script>
+    {isVercel && <>
+      <script is:inline>
+        window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+      </script>
+      <script is:inline defer src="/_vercel/insights/script.js"></script>
+    </>}
   </head>
   <body class:list={[{ 'docs-page': docs }]}>
     <a class="skip-link" href="#main">Skip to content</a>
