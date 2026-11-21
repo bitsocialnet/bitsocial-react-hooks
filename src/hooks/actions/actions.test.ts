@@ -2864,7 +2864,7 @@ describe("actions", () => {
     );
 
     test.each(publishHooks)(
-      "$name reports a rejected publish() as final",
+      "$name reports a rejected publish() as final and ends failed",
       async ({ useHook, publish, Publication, options }) => {
         // e.g. signing or the RPC publish call failed: pkc-js leaves state "publishing" and emits no error
         const preflightError = Error("signing failed");
@@ -2883,10 +2883,54 @@ describe("actions", () => {
             await rendered.result.current[publish]();
           });
           await waitFor(() => rendered.result.current.errors.length === 1);
+          await waitFor(() => rendered.result.current.state === "failed");
 
+          // the publish is over, although pkc-js reported no "failed" publishing state
+          expect(rendered.result.current.state).toBe("failed");
           expect(rendered.result.current.error).toBe(preflightError);
           expect(onError).toHaveBeenCalledTimes(1);
           expect(onError).toHaveBeenCalledWith(preflightError, publications[0], { final: true });
+        } finally {
+          spy.mockRestore();
+        }
+      },
+    );
+
+    test.each(publishHooks)(
+      "$name stays failed when pkc-js reports a publishing state after the error that ended the publish",
+      async ({ useHook, publish, Publication, options }) => {
+        // over RPC, pkc-js ends the publish with the server's publishingState, emitting the error
+        // first and then the publishingState change, e.g. "stopped" when signing failed there
+        const serverError = Object.assign(Error("signing failed on the RPC server"), {
+          details: { publishThrowError: true, newState: "stopped", newPublishingState: "stopped" },
+        });
+        const spy = vi
+          .spyOn(Publication.prototype, "publish")
+          .mockImplementation(async function (this: any) {
+            this.state = "publishing";
+            this.emit("statechange", "publishing");
+            this.publishingState = "fetching-community-ipns";
+            this.emit("publishingstatechange", "fetching-community-ipns");
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            this.state = "stopped";
+            this.emit("statechange", "stopped");
+            this.publishingState = "stopped";
+            this.emit("error", serverError);
+            this.emit("publishingstatechange", "stopped");
+          });
+        try {
+          const onError = vi.fn();
+          const { rendered, states, waitFor } = renderPublishHook(useHook, { ...options, onError });
+          await waitFor(() => rendered.result.current.state === "ready");
+          await act(async () => {
+            await rendered.result.current[publish]();
+          });
+          await waitFor(() => rendered.result.current.errors.length === 1);
+          await new Promise((resolve) => setTimeout(resolve, 50));
+
+          expect(onError.mock.calls[0][2]).toEqual({ final: true });
+          expect(states).toContain("failed");
+          expect(rendered.result.current.state).toBe("failed");
         } finally {
           spy.mockRestore();
         }

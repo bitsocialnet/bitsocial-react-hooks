@@ -54,27 +54,33 @@ export function handlePublishVoteError(
 /**
  * Sets a publish hook's state from a publishing state the store reports. pkc-js also reports
  * "failed" for an error it recovers from, while the publication keeps publishing, so the hook state
- * only becomes "failed" once the publish is over.
+ * only becomes "failed" once the publish is over. Once the publish failed, a publishing state pkc-js
+ * reports after the error that ended it, e.g. an RPC server's "stopped", does not replace "failed".
  */
 const setPublishingStateOfPublication = (
   setPublishingState: Dispatch<SetStateAction<string | undefined>>,
+  publishFailedRef: { current: boolean },
   publishingState: string,
   publication?: any,
 ) => {
+  if (publishFailedRef.current) return;
   if (publishingState === "failed" && publication?.state === "publishing") return;
   setPublishingState(publishingState);
 };
 
 /**
- * A publication whose "failed" state was ignored above and then fails keeps publishingState
- * "failed", so pkc-js reports no publishingState change: its final error ends the hook state failed.
+ * A final error ends the hook state failed, whatever publishing state pkc-js reported last: an
+ * earlier "failed" that was ignored above, an RPC server's state, or none when publish() rejected
+ * before a challenge exchange existed.
  */
 const setFailedStateOnFinalError = (
   setPublishingState: Dispatch<SetStateAction<string | undefined>>,
-  publication?: any,
+  publishFailedRef: { current: boolean },
   info?: PublishErrorInfo,
 ) => {
-  if (info?.final && publication?.publishingState === "failed") setPublishingState("failed");
+  if (!info?.final) return;
+  publishFailedRef.current = true;
+  setPublishingState("failed");
 };
 import type {
   UseSubscribeOptions,
@@ -299,6 +305,8 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
   const [challengeVerification, setChallengeVerification] = useState<ChallengeVerification>();
   const [publishChallengeAnswers, setPublishChallengeAnswers] = useState<PublishChallengeAnswers>();
   const publishRequestIdRef = useRef(0);
+  // set by a final error of the latest publication, see setPublishingStateOfPublication
+  const publishFailedRef = useRef(false);
   // the latest publication, until it is abandoned or the store rejects it. Only its events write the
   // hook state, and abandonPublish() abandons it.
   const activePublishRequestIdRef = useRef<number | undefined>(undefined);
@@ -328,6 +336,7 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
     activePublishRequestIdRef.current = requestId;
     const isActive = () => activePublishRequestIdRef.current === requestId;
     const updatesHookState = () => mountedRef.current && isActive();
+    publishFailedRef.current = false;
     if (mountedRef.current) {
       resetPublishState();
       setErrors([]);
@@ -374,7 +383,7 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
         if (abandoned) return;
         if (updatesHookState()) {
           setErrors((errors) => [...errors, error]);
-          setFailedStateOnFinalError(setPublishingState, comment, info);
+          setFailedStateOnFinalError(setPublishingState, publishFailedRef, info);
         }
         (originalOnError ?? noop)(error, comment, info);
       },
@@ -401,7 +410,12 @@ export function usePublishComment(options?: UsePublishCommentOptions): UsePublis
       onPublishingStateChange: withGuardActive(
         updatesHookState,
         (publishingState: string, comment?: Comment) =>
-          setPublishingStateOfPublication(setPublishingState, publishingState, comment),
+          setPublishingStateOfPublication(
+            setPublishingState,
+            publishFailedRef,
+            publishingState,
+            comment,
+          ),
       ),
       // called once the pending comment is stored, and again when a deletion shifts its index
       _onPendingCommentIndex: (
@@ -508,6 +522,8 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
   // the stopped publication's late events (like the "stopped" publishing state) neither overwrite
   // the cleared hook state nor leak into the next publication
   const publishVoteRequestIdRef = useRef(0);
+  // set by a final error of the latest vote, see setPublishingStateOfPublication
+  const publishFailedRef = useRef(false);
   const activePublishVoteRequestIdRef = useRef<number | undefined>(undefined);
   // given by the store as publishVote() starts, it abandons the vote in the account that publishes it
   const abandonActiveVoteRef = useRef<() => Promise<void>>(undefined);
@@ -522,7 +538,7 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
   const originalOnError = publishVoteOptions.onError;
   const onError = async (error: Error, vote?: Vote, info?: PublishErrorInfo) => {
     setErrors((errors) => [...errors, error]);
-    setFailedStateOnFinalError(setPublishingState, vote, info);
+    setFailedStateOnFinalError(setPublishingState, publishFailedRef, info);
     originalOnError?.(error, vote, info);
   };
   publishVoteOptions.onError = onError;
@@ -550,12 +566,13 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
 
   // change state on publishing state change
   publishVoteOptions.onPublishingStateChange = (publishingState: string, vote?: Vote) => {
-    setPublishingStateOfPublication(setPublishingState, publishingState, vote);
+    setPublishingStateOfPublication(setPublishingState, publishFailedRef, publishingState, vote);
   };
 
   const publishVote = async () => {
     const requestId = publishVoteRequestIdRef.current + 1;
     publishVoteRequestIdRef.current = requestId;
+    publishFailedRef.current = false;
     activePublishVoteRequestIdRef.current = requestId;
     abandonActiveVoteRef.current = undefined;
     const isActiveRequest = () => activePublishVoteRequestIdRef.current === requestId;
@@ -576,7 +593,12 @@ export function usePublishVote(options?: UsePublishVoteOptions): UsePublishVoteR
       },
       onPublishingStateChange: (publishingState: string, vote?: Vote) => {
         if (isActiveRequest()) {
-          setPublishingStateOfPublication(setPublishingState, publishingState, vote);
+          setPublishingStateOfPublication(
+            setPublishingState,
+            publishFailedRef,
+            publishingState,
+            vote,
+          );
         }
       },
       // an earlier or abandoned vote's error still reaches the app's onError, but not the result
@@ -659,12 +681,14 @@ export function usePublishCommentEdit(
 
   // the latest publishCommentEdit() call owns the result
   const publishRequestIdRef = useRef(0);
+  // set by a final error, see setPublishingStateOfPublication
+  const publishFailedRef = useRef(false);
 
   // define onError if not defined
   const originalOnError = publishCommentEditOptions.onError;
   const onError = async (error: Error, commentEdit?: CommentEdit, info?: PublishErrorInfo) => {
     setErrors((errors) => [...errors, error]);
-    setFailedStateOnFinalError(setPublishingState, commentEdit, info);
+    setFailedStateOnFinalError(setPublishingState, publishFailedRef, info);
     originalOnError?.(error, commentEdit, info);
   };
   publishCommentEditOptions.onError = onError;
@@ -697,11 +721,17 @@ export function usePublishCommentEdit(
     publishingState: string,
     commentEdit?: CommentEdit,
   ) => {
-    setPublishingStateOfPublication(setPublishingState, publishingState, commentEdit);
+    setPublishingStateOfPublication(
+      setPublishingState,
+      publishFailedRef,
+      publishingState,
+      commentEdit,
+    );
   };
 
   const publishCommentEdit = async () => {
     const requestId = ++publishRequestIdRef.current;
+    publishFailedRef.current = false;
     clearPublicationResult(
       setChallenge,
       setChallengeVerification,
@@ -768,6 +798,8 @@ export function usePublishCommentModeration(
 
   // the latest publishCommentModeration() call owns the result
   const publishRequestIdRef = useRef(0);
+  // set by a final error, see setPublishingStateOfPublication
+  const publishFailedRef = useRef(false);
 
   // define onError if not defined
   const originalOnError = publishCommentModerationOptions.onError;
@@ -777,7 +809,7 @@ export function usePublishCommentModeration(
     info?: PublishErrorInfo,
   ) => {
     setErrors((errors) => [...errors, error]);
-    setFailedStateOnFinalError(setPublishingState, commentModeration, info);
+    setFailedStateOnFinalError(setPublishingState, publishFailedRef, info);
     originalOnError?.(error, commentModeration, info);
   };
   publishCommentModerationOptions.onError = onError;
@@ -812,11 +844,17 @@ export function usePublishCommentModeration(
     publishingState: string,
     commentModeration?: CommentModeration,
   ) => {
-    setPublishingStateOfPublication(setPublishingState, publishingState, commentModeration);
+    setPublishingStateOfPublication(
+      setPublishingState,
+      publishFailedRef,
+      publishingState,
+      commentModeration,
+    );
   };
 
   const publishCommentModeration = async () => {
     const requestId = ++publishRequestIdRef.current;
+    publishFailedRef.current = false;
     clearPublicationResult(
       setChallenge,
       setChallengeVerification,
@@ -883,12 +921,14 @@ export function usePublishCommunityEdit(
 
   // the latest publishCommunityEdit() call owns the result
   const publishRequestIdRef = useRef(0);
+  // set by a final error, see setPublishingStateOfPublication
+  const publishFailedRef = useRef(false);
 
   // define onError if not defined
   const originalOnError = publishCommunityEditOptions.onError;
   const onError = async (error: Error, communityEdit?: CommunityEdit, info?: PublishErrorInfo) => {
     setErrors((errors) => [...errors, error]);
-    setFailedStateOnFinalError(setPublishingState, communityEdit, info);
+    setFailedStateOnFinalError(setPublishingState, publishFailedRef, info);
     originalOnError?.(error, communityEdit, info);
   };
   publishCommunityEditOptions.onError = onError;
@@ -921,11 +961,17 @@ export function usePublishCommunityEdit(
     publishingState: string,
     communityEdit?: CommunityEdit,
   ) => {
-    setPublishingStateOfPublication(setPublishingState, publishingState, communityEdit);
+    setPublishingStateOfPublication(
+      setPublishingState,
+      publishFailedRef,
+      publishingState,
+      communityEdit,
+    );
   };
 
   const publishCommunityEdit = async () => {
     const requestId = ++publishRequestIdRef.current;
+    publishFailedRef.current = false;
     clearPublicationResult(
       setChallenge,
       setChallengeVerification,
