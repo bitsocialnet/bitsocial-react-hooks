@@ -1784,6 +1784,8 @@ describe("accounts", () => {
               communityAddress: "test.eth",
               content: "failed",
               index: failedIndex,
+              // a publish error that ended the publication, e.g. a rejected publish()
+              state: "stopped",
               error: Error("publish failed"),
               errors: [Error("publish failed")],
             },
@@ -1796,6 +1798,37 @@ describe("accounts", () => {
       expect(renderedErr.result.current.error?.message).toBe("publish failed");
       expect(renderedErr.result.current.errors).toHaveLength(1);
       expect(renderedErr.result.current.state).toBe("failed");
+    });
+
+    test("useAccountComment keeps pending with an error pkc-js recovered from while publishing", async () => {
+      const state = accountsStore.getState() as any;
+      const accountId = state.activeAccountId || Object.keys(state.accounts)[0];
+      const existing = state.accountsComments?.[accountId] || [];
+      const pendingIndex = existing.length;
+      accountsStore.setState((s: any) => ({
+        ...s,
+        accountsComments: {
+          ...s.accountsComments,
+          [accountId]: [
+            ...(s.accountsComments?.[accountId] || []),
+            {
+              timestamp: Math.floor(Date.now() / 1000),
+              communityAddress: "test.eth",
+              content: "still publishing",
+              index: pendingIndex,
+              state: "publishing",
+              publishingState: "failed",
+              error: Error("could not decrypt the challenge"),
+              errors: [Error("could not decrypt the challenge")],
+            },
+          ],
+        },
+      }));
+      const renderedPending = renderHook(() => useAccountComment({ commentIndex: pendingIndex }));
+      const waitForPending = testUtils.createWaitFor(renderedPending);
+      await waitForPending(() => renderedPending.result.current.error !== undefined);
+      expect(renderedPending.result.current.error?.message).toBe("could not decrypt the challenge");
+      expect(renderedPending.result.current.state).toBe("pending");
     });
 
     test("useAccountComment keeps pending when publishingState is failed but publication state is not stopped", async () => {
