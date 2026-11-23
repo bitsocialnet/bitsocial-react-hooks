@@ -1155,6 +1155,22 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
         return persistedIndex;
     });
     let createdAccountComment;
+    // a reload cancels publishing, so the publication's states stay out of the database except a
+    // failed end: without it, the reloaded row has no state and counts as pending until it expires
+    const saveFailedAccountComment = (index) => {
+        var _a;
+        if (!((_a = accountsStore.getState().accountsComments[account.id]) === null || _a === void 0 ? void 0 : _a[index])) {
+            return;
+        }
+        const failedAccountComment = addShortAddressesToAccountComment(sanitizeStoredAccountComment(Object.assign(Object.assign({}, createdAccountComment), { state: "stopped", publishingState: "failed" })));
+        accountsDatabase
+            .addAccountComment(account.id, failedAccountComment, index)
+            .catch((error) => log.error("accountsActions.publishComment save failed account comment error", {
+            accountId: account.id,
+            accountCommentIndex: index,
+            error,
+        }));
+    };
     const reportOnPendingCommentError = (error, pendingCommentIndex) => {
         log.error("accountsActions.publishComment onPendingComment callback error", {
             accountId: account.id,
@@ -1258,6 +1274,9 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
             ac[currentIndex] = final
                 ? Object.assign(Object.assign({}, acc), { errors, error, state: "stopped", publishingState: "failed" }) : Object.assign(Object.assign({}, acc), { errors, error });
         }));
+        if (final) {
+            saveFailedAccountComment(currentIndex);
+        }
         return error;
     };
     const reportActivePublishCommentError = (rawError, activeComment, final) => {
@@ -1369,6 +1388,10 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
                     if (!session || isPublishSessionAbandoned(publishSessionId))
                         return;
                     const hasCid = !!((_a = challengeVerification === null || challengeVerification === void 0 ? void 0 : challengeVerification.commentUpdate) === null || _a === void 0 ? void 0 : _a.cid);
+                    // a rejection ends the publish failed, e.g. the community's challenge exchange timed out
+                    if (!hasCid && !(challengeVerification === null || challengeVerification === void 0 ? void 0 : challengeVerification.challengeSuccess)) {
+                        saveFailedAccountComment(session.currentIndex);
+                    }
                     // once the publication's last state events ran, they and any later ones are ignored; with a
                     // cid the session stays registered until the cid is saved, so a deleteComment meanwhile still
                     // shifts or abandons its row

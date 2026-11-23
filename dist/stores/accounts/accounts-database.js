@@ -516,6 +516,9 @@ const addAccountCommentUnqueued = (accountId, comment, accountCommentIndex) => _
 });
 const addAccountComment = (accountId, comment, accountCommentIndex) => queueAccountCommentsMutation(accountId, () => addAccountCommentUnqueued(accountId, comment, accountCommentIndex));
 const getAccountComments = (accountId) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    // read after the comment writes already called, like a failed publish saved without awaiting
+    yield ((_a = accountCommentsMutations[accountId]) === null || _a === void 0 ? void 0 : _a.catch(() => { }));
     const accountCommentsDatabase = getAccountCommentsDatabase(accountId);
     yield ensureAccountCommentsDatabaseLayout(accountId);
     const length = (yield accountCommentsDatabase.getItem("length")) || 0;

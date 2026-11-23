@@ -1,14 +1,23 @@
+## [0.3.5](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.4...v0.3.5) (2026-11-23)
+
+
+### Bug Fixes
+
+* **accounts:** keep a failed comment failed after a reload, and prepare 0.3.5 ([#198](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/198)) ([35add4c](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/35add4cdc64761562c8af514be17a773c492c591))
+
+
+### Features
+
+* **website:** add Vercel Web Analytics to hooks.bitsocial.net ([#196](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/196)) ([74e3b05](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/74e3b058ac4ef7520766fdf7ead80327e7124ec3))
+
+
+
 ## [0.3.4](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.3...v0.3.4) (2026-11-21)
 
 
 ### Bug Fixes
 
 * **actions:** tell publish onError whether the error is final, and prepare 0.3.4 ([#197](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/197)) ([8076c21](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/8076c21dc76a5e8b8633a9fc44f8ea2bf8ddbb9d))
-
-
-### Features
-
-* **website:** add Vercel Web Analytics to hooks.bitsocial.net ([#196](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/196)) ([74e3b05](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/74e3b058ac4ef7520766fdf7ead80327e7124ec3))
 
 
 
