@@ -674,6 +674,8 @@ const addAccountComment = (
   );
 
 const getAccountComments = async (accountId: string) => {
+  // read after the comment writes already called, like a failed publish saved without awaiting
+  await accountCommentsMutations[accountId]?.catch(() => {});
   const accountCommentsDatabase = getAccountCommentsDatabase(accountId);
   await ensureAccountCommentsDatabaseLayout(accountId);
   const length = (await accountCommentsDatabase.getItem("length")) || 0;
