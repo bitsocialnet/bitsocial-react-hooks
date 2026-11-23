@@ -1596,6 +1596,29 @@ export const publishComment = async (
     return persistedIndex;
   };
   let createdAccountComment!: AccountComment;
+  // a reload cancels publishing, so the publication's states stay out of the database except a
+  // failed end: without it, the reloaded row has no state and counts as pending until it expires
+  const saveFailedAccountComment = (index: number) => {
+    if (!accountsStore.getState().accountsComments[account.id]?.[index]) {
+      return;
+    }
+    const failedAccountComment = addShortAddressesToAccountComment(
+      sanitizeStoredAccountComment({
+        ...createdAccountComment,
+        state: "stopped",
+        publishingState: "failed",
+      } as AccountComment),
+    ) as AccountComment;
+    accountsDatabase
+      .addAccountComment(account.id, failedAccountComment, index)
+      .catch((error: unknown) =>
+        log.error("accountsActions.publishComment save failed account comment error", {
+          accountId: account.id,
+          accountCommentIndex: index,
+          error,
+        }),
+      );
+  };
   const reportOnPendingCommentError = (error: unknown, pendingCommentIndex: number) => {
     log.error("accountsActions.publishComment onPendingComment callback error", {
       accountId: account.id,
@@ -1711,6 +1734,9 @@ export const publishComment = async (
           : { ...acc, errors, error };
       }),
     );
+    if (final) {
+      saveFailedAccountComment(currentIndex);
+    }
     return error;
   };
   const reportActivePublishCommentError = (
@@ -1841,6 +1867,10 @@ export const publishComment = async (
           const session = getPublishSession(publishSessionId);
           if (!session || isPublishSessionAbandoned(publishSessionId)) return;
           const hasCid = !!challengeVerification?.commentUpdate?.cid;
+          // a rejection ends the publish failed, e.g. the community's challenge exchange timed out
+          if (!hasCid && !challengeVerification?.challengeSuccess) {
+            saveFailedAccountComment(session.currentIndex);
+          }
           // once the publication's last state events ran, they and any later ones are ignored; with a
           // cid the session stays registered until the cid is saved, so a deleteComment meanwhile still
           // shifts or abandons its row

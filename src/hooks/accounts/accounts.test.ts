@@ -1314,6 +1314,99 @@ describe("accounts", () => {
       });
     });
 
+    describe("failed comment after a reload", () => {
+      beforeEach(async () => {
+        await testUtils.resetDatabasesAndStores();
+      });
+      afterAll(async () => {
+        await testUtils.resetDatabasesAndStores();
+      });
+
+      // changes each created comment before it is published
+      const mockCreateComment = (change: (comment: any) => void) => {
+        const { accounts, activeAccountId } = accountsStore.getState();
+        const pkc = accounts[activeAccountId!].pkc;
+        const createComment = pkc.createComment.bind(pkc);
+        return vi.spyOn(pkc, "createComment").mockImplementation(async (options: any) => {
+          const comment = await createComment(options);
+          change(comment);
+          return comment;
+        });
+      };
+
+      const expectFailedAfterReload = async () => {
+        const rendered = renderHook<any, any>(() => useAccountComment({ commentIndex: 0 }));
+        const waitFor = testUtils.createWaitFor(rendered);
+        await waitFor(() => rendered.result.current.state === "failed");
+        expect(rendered.result.current.state).toBe("failed");
+        rendered.unmount();
+
+        // a reload cancels publishing and reads the comment from the database
+        await testUtils.resetStores();
+        const reloaded = renderHook<any, any>(() => useAccountComment({ commentIndex: 0 }));
+        const waitForReloaded = testUtils.createWaitFor(reloaded);
+        await waitForReloaded(() => reloaded.result.current.content === "failed content");
+        expect(reloaded.result.current.content).toBe("failed content");
+        expect(reloaded.result.current.timestamp).toBeGreaterThan(
+          Math.round(Date.now() / 1000) - 60,
+        );
+        expect(reloaded.result.current.state).toBe("failed");
+      };
+
+      test("a comment the community rejected stays failed", async () => {
+        const createComment = mockCreateComment((comment) => {
+          // like pkc-js for a challenge exchange the community ended, e.g. after its challenge
+          // exchange ttl: the states are set, then the verification and the state events are emitted
+          comment.simulateChallengeVerificationEvent = function () {
+            this.state = "stopped";
+            this.publishingState = "failed";
+            this.emit("challengeverification", {
+              type: "CHALLENGEVERIFICATION",
+              challengeSuccess: false,
+              reason:
+                "The community did not receive a challenge answer within the challenge exchange ttl",
+            });
+            this.emit("statechange", "stopped");
+            this.emit("publishingstatechange", "failed");
+          };
+        });
+        try {
+          await act(async () => {
+            await accountsActions.publishComment({
+              communityAddress: "12D3KooW...",
+              content: "failed content",
+              onChallenge: (_challenge: any, comment: any) =>
+                comment.publishChallengeAnswers({ "0": "4" }),
+              onChallengeVerification: () => {},
+            });
+          });
+          await expectFailedAfterReload();
+        } finally {
+          createComment.mockRestore();
+        }
+      });
+
+      test("a comment whose publish ended with an error stays failed", async () => {
+        const createComment = mockCreateComment((comment) => {
+          vi.spyOn(comment, "publish").mockRejectedValue(new Error("publish failed"));
+        });
+        try {
+          await act(async () => {
+            await accountsActions.publishComment({
+              communityAddress: "12D3KooW...",
+              content: "failed content",
+              onChallenge: () => {},
+              onChallengeVerification: () => {},
+              onError: () => {},
+            });
+          });
+          await expectFailedAfterReload();
+        } finally {
+          createComment.mockRestore();
+        }
+      });
+    });
+
     describe(`create vote`, () => {
       beforeAll(async () => {
         await render();
