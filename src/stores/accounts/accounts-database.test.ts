@@ -1572,6 +1572,23 @@ describe("accounts-database", () => {
         "appended",
       ]);
     });
+
+    test("getAccountComments reads after the comment writes called before it", async () => {
+      const acc = makeAccount({ id: "read-after-write-acc", name: "ReadAfterWrite" });
+      await accountsDatabase.addAccount(acc);
+      const comment = { content: "pending", communityAddress: "s", timestamp: 1 } as any;
+      await accountsDatabase.addAccountComment(acc.id, comment);
+
+      // like a failed publish: the row is saved failed without awaiting, then the store reloads
+      const write = accountsDatabase.addAccountComment(
+        acc.id,
+        { ...comment, state: "stopped", publishingState: "failed" },
+        0,
+      );
+      const comments = await accountsDatabase.getAccountComments(acc.id);
+      await write;
+      expect(comments[0].publishingState).toBe("failed");
+    });
   });
 
   describe("account comments replies", () => {
