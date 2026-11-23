@@ -145,6 +145,8 @@ describe("accounts", () => {
 
     test("useAccount and useAccounts expose createdAt, which survives a reload", async () => {
       const before = Math.floor(Date.now() / 1000);
+      // generate the default account after `before`: the previous test's reset generated one earlier
+      await testUtils.resetDatabasesAndStores();
       const render = () =>
         renderHook<any, any>(() => {
           const account = useAccount();
