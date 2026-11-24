@@ -6,6 +6,8 @@ import {
   useAccounts,
   useAccountComment,
   useAccountComments,
+  useIsAccountComment,
+  isAccountComment,
   useAccountVotes,
   useAccountVote,
   useAccountEdits,
@@ -4481,6 +4483,167 @@ describe("accounts", () => {
       expect(Object.keys(rendered.result.current.editedComment.succeededEdits).length).toBe(1);
       expect(Object.keys(rendered.result.current.editedComment.pendingEdits).length).toBe(0);
       expect(Object.keys(rendered.result.current.editedComment.failedEdits).length).toBe(0);
+    });
+  });
+
+  describe("useIsAccountComment", () => {
+    // test vectors from pkc-js docs/protocol/pseudonymity-author-tag.md
+    const authorSigner = {
+      type: "ed25519",
+      privateKey: "ZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoM",
+      publicKey: "C7w0aldmfDgBIL2cf9flHSxf3+o3zS9b9AWyxr9vLXg",
+    };
+    const taggedCid = "QmYHzA8euDgUpNy3fh7JRwpPwt6jCgF35YTutYkyGGyr8f";
+    // an aliased comment on a pseudonymous board: signed by the alias, tagged by the community
+    const taggedComment = {
+      cid: taggedCid,
+      signature: { publicKey: "alias public key" },
+      raw: {
+        commentUpdate: {
+          cid: taggedCid,
+          pseudonymityAuthorTag: "nBUe3DGZKQ8fBcP6YGnpRQ",
+          signature: { publicKey: "ebVWLo/mVPlAeLES6KmLp5AfhTrmlb7X4OORC60ElmQ" },
+        },
+      },
+    };
+    const setActiveAccountSigner = (signer: any) =>
+      act(() => {
+        accountsStore.setState(({ accounts, activeAccountId }: any) => ({
+          accounts: {
+            ...accounts,
+            [activeAccountId]: { ...accounts[activeAccountId], signer },
+          },
+        }));
+      });
+
+    beforeEach(async () => {
+      await testUtils.resetDatabasesAndStores();
+    });
+    afterEach(async () => {
+      await testUtils.resetDatabasesAndStores();
+    });
+
+    test("recognizes a comment the community tagged for the account's key", async () => {
+      const rendered = renderHook<any, any>((comment?: any) => ({
+        account: useAccount(),
+        isAccountComment: useIsAccountComment({ comment }),
+      }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => rendered.result.current.account?.name);
+
+      rendered.rerender(taggedComment);
+      expect(rendered.result.current.isAccountComment).toBe(false);
+      expect(isAccountComment(taggedComment)).toBe(false);
+
+      // another device holding the same key recognizes the comment without its local history
+      setActiveAccountSigner(authorSigner);
+      await waitFor(() => rendered.result.current.isAccountComment === true);
+      expect(rendered.result.current.isAccountComment).toBe(true);
+      expect(isAccountComment(taggedComment)).toBe(true);
+
+      const otherComment = {
+        ...taggedComment,
+        cid: "other cid",
+        raw: {
+          commentUpdate: { ...taggedComment.raw.commentUpdate, cid: "other cid" },
+        },
+      };
+      rendered.rerender(otherComment);
+      expect(rendered.result.current.isAccountComment).toBe(false);
+      expect(isAccountComment(otherComment)).toBe(false);
+
+      // a comment signed by the account's key, e.g. on a board without pseudonymity
+      const signedComment = { cid: "signed cid", signature: { publicKey: authorSigner.publicKey } };
+      rendered.rerender(signedComment);
+      expect(rendered.result.current.isAccountComment).toBe(true);
+      expect(isAccountComment(signedComment)).toBe(true);
+      expect(isAccountComment(undefined)).toBe(false);
+    });
+
+    test("recognizes comments in the account's local history and follows accountName", async () => {
+      const rendered = renderHook<any, any>((options?: any) => ({
+        account: useAccount(),
+        isAccountComment: useIsAccountComment(options),
+      }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => rendered.result.current.account?.name);
+      const accountId = rendered.result.current.account.id;
+      const localComment = { cid: "local comment cid" };
+
+      rendered.rerender({ comment: localComment });
+      expect(rendered.result.current.isAccountComment).toBe(false);
+
+      act(() => {
+        accountsStore.setState(({ commentCidsToAccountsComments }: any) => ({
+          commentCidsToAccountsComments: {
+            ...commentCidsToAccountsComments,
+            [localComment.cid]: { accountId, accountCommentIndex: 0 },
+          },
+        }));
+      });
+      await waitFor(() => rendered.result.current.isAccountComment === true);
+      expect(rendered.result.current.isAccountComment).toBe(true);
+      expect(isAccountComment(localComment)).toBe(true);
+
+      // an account name that doesn't exist has no comments
+      rendered.rerender({ comment: localComment, accountName: "no such account" });
+      expect(rendered.result.current.isAccountComment).toBe(false);
+      expect(isAccountComment(localComment, { accountName: "no such account" })).toBe(false);
+    });
+
+    test("recognizes the account's pending comment before it has a cid", async () => {
+      const rendered = renderHook<any, any>((comment?: any) => ({
+        account: useAccount(),
+        isAccountComment: useIsAccountComment({ comment }),
+      }));
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => rendered.result.current.account?.name);
+      const accountId = rendered.result.current.account.id;
+      const pendingComment = { index: 0, accountId, content: "pending" };
+
+      rendered.rerender(pendingComment);
+      expect(rendered.result.current.isAccountComment).toBe(false);
+
+      act(() => {
+        accountsStore.setState(({ accountsComments }: any) => ({
+          accountsComments: { ...accountsComments, [accountId]: [pendingComment] },
+        }));
+      });
+      await waitFor(() => rendered.result.current.isAccountComment === true);
+      expect(isAccountComment(pendingComment)).toBe(true);
+      // another account's pending comment at the same index isn't this account's
+      expect(isAccountComment({ ...pendingComment, accountId: "other account id" })).toBe(false);
+    });
+
+    test("tells accounts holding the same cid apart", async () => {
+      const rendered = renderHook<any, any>(() => useAccount());
+      const waitFor = testUtils.createWaitFor(rendered);
+      await waitFor(() => rendered.result.current?.name);
+      const activeAccountId = rendered.result.current.id;
+      const otherAccountId = "other account id";
+      const sharedComment = { cid: "shared comment cid" };
+
+      // only another account holds the cid
+      act(() => {
+        accountsStore.setState(({ commentCidsToAccountsComments }: any) => ({
+          commentCidsToAccountsComments: {
+            ...commentCidsToAccountsComments,
+            [sharedComment.cid]: { accountId: otherAccountId, accountCommentIndex: 0 },
+          },
+        }));
+      });
+      expect(isAccountComment(sharedComment)).toBe(false);
+
+      // both hold it and the mapping names the other account, e.g. an imported backup
+      act(() => {
+        accountsStore.setState(({ accountsComments }: any) => ({
+          accountsComments: {
+            ...accountsComments,
+            [activeAccountId]: [{ ...sharedComment, index: 0, accountId: activeAccountId }],
+          },
+        }));
+      });
+      expect(isAccountComment(sharedComment)).toBe(true);
     });
   });
 
