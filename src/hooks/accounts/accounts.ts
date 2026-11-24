@@ -93,6 +93,11 @@ const applyEditedCommentProperty = (comment: any, propertyName: string, value: a
   } else {
     comment.author.community.banExpiresAt = value.banExpiresAt;
   }
+
+  // pkc-js marks the comment a ban was published on with authorBanExpiresAt, and keeps the mark after an unban
+  if (typeof value?.banExpiresAt === "number" && value.banExpiresAt > 0) {
+    comment.authorBanExpiresAt = value.banExpiresAt;
+  }
 };
 
 /**

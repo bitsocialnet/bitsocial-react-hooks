@@ -4025,6 +4025,9 @@ describe("accounts", () => {
       expect(
         rendered.result.current.editedComment.editedComment.author?.community?.banExpiresAt,
       ).toBe(banExpiresAt);
+      expect(rendered.result.current.editedComment.editedComment.authorBanExpiresAt).toBe(
+        banExpiresAt,
+      );
 
       const updatedComment = { ...commentsStore.getState().comments[commentCid] };
       updatedComment.author = {
@@ -4064,6 +4067,7 @@ describe("accounts", () => {
         ...staleBannedComment.author,
         community: { ...staleBannedComment.author?.community, banExpiresAt },
       };
+      staleBannedComment.authorBanExpiresAt = banExpiresAt;
       staleBannedComment.updatedAt = commentModerationTimestamp + 1;
       commentsStore.setState(({ comments }) => ({
         comments: { ...comments, [commentCid]: staleBannedComment },
@@ -4098,6 +4102,10 @@ describe("accounts", () => {
       expect(
         rendered.result.current.editedComment.editedComment.author?.community?.banExpiresAt,
       ).toBeUndefined();
+      // the post keeps its ban label after an unban, as pkc-js keeps authorBanExpiresAt
+      expect(rendered.result.current.editedComment.editedComment.authorBanExpiresAt).toBe(
+        banExpiresAt,
+      );
 
       const refreshedUnbannedComment = { ...staleBannedComment };
       refreshedUnbannedComment.commentModeration = {
