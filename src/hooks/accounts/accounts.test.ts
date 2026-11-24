@@ -4132,6 +4132,66 @@ describe("accounts", () => {
       ).toBeUndefined();
     });
 
+    test("comment moderation author banExpiresAt 0 removes the post's ban mark and keeps the author's ban", async () => {
+      const commentCid = rendered.result.current.accountComments[0].cid;
+      const communityAddress = rendered.result.current.accountComments[0].communityAddress;
+      const commentModerationTimestamp = Math.ceil(Date.now() / 1000);
+      const banExpiresAt = commentModerationTimestamp + 60 * 60;
+
+      rendered.rerender(commentCid);
+      await waitFor(
+        () =>
+          rendered.result.current.comment?.cid &&
+          rendered.result.current.comment.index === undefined,
+      );
+
+      const markedComment = { ...commentsStore.getState().comments[commentCid] };
+      markedComment.author = {
+        ...markedComment.author,
+        community: { ...markedComment.author?.community, banExpiresAt },
+      };
+      markedComment.authorBanExpiresAt = banExpiresAt;
+      markedComment.updatedAt = commentModerationTimestamp - 1;
+      commentsStore.setState(({ comments }) => ({
+        comments: { ...comments, [commentCid]: markedComment },
+      }));
+
+      await act(async () => {
+        await accountsActions.publishCommentModeration({
+          timestamp: commentModerationTimestamp,
+          commentCid,
+          communityAddress,
+          commentModeration: { author: { banExpiresAt: 0 } },
+          onChallenge: (challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
+          onChallengeVerification: () => {},
+        });
+      });
+
+      await waitFor(() => rendered.result.current.editedComment.editedComment);
+      expect(rendered.result.current.editedComment.state).toBe("pending");
+      expect(
+        rendered.result.current.editedComment.editedComment.authorBanExpiresAt,
+      ).toBeUndefined();
+      expect(
+        rendered.result.current.editedComment.editedComment.author?.community?.banExpiresAt,
+      ).toBe(banExpiresAt);
+
+      const unmarkedComment = { ...markedComment, updatedAt: commentModerationTimestamp + 1 };
+      delete unmarkedComment.authorBanExpiresAt;
+      commentsStore.setState(({ comments }) => ({
+        comments: { ...comments, [commentCid]: unmarkedComment },
+      }));
+
+      await waitFor(() => rendered.result.current.editedComment.state === "succeeded");
+      expect(
+        rendered.result.current.editedComment.succeededEdits[COMMENT_MODERATION_AUTHOR_SUMMARY_KEY],
+      ).toEqual({ banExpiresAt: 0 });
+      expect(
+        rendered.result.current.editedComment.editedComment.author?.community?.banExpiresAt,
+      ).toBe(banExpiresAt);
+    });
+
     test("edited comment failed", async () => {
       const commentCid = rendered.result.current.accountComments[0].cid;
       expect(commentCid).not.toBe(undefined);
