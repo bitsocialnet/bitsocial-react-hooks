@@ -293,9 +293,12 @@ deleteDatabases() // delete all databases, including all caches and accounts dat
 deleteCaches() // delete the cached comments, cached communities and cached pages only, no accounts data
 createCrosspost(comment: Comment): Crosspost // build the immutable payload accepted by pkc-js
 validateComment(comment: Comment, options?: {validateReplies?: boolean, community?: Community}): Promise<{valid: true} | {valid: false, reason: string}> // validate a comment from an untrusted source outside React
+validateEthWallet(wallet: Wallet, authorPublicKey: string): Promise<void> // resolves only for a valid BSIP-22 proof, throws otherwise
+
+// from '@bitsocial/bitsocial-react-hooks/author-wallet-proof', a separate entry point so the curve code
+// (about 55 KB) loads only in apps or views that import it
 verifyAuthorWallet(wallet: Wallet, authorPublicKey: string, options?: {nowSeconds?: number}): {outcome: "valid"} | {outcome: "unknown"} | {outcome: "invalid", reason: string} // BSIP-22 check of an author.wallets entry; authorPublicKey is the key address (12D3KooW...) of the record's signing key, never author.address
 getWalletMessageToSign(authorPublicKey: string, walletAddress: string, timestamp: number): string // the exact BSIP-22 message a wallet signs to prove it belongs to the author
-validateEthWallet(wallet: Wallet, authorPublicKey: string): Promise<void> // resolves only for a valid BSIP-22 proof, throws otherwise
 getAvailablePostSortTypes(community: Community): string[]
 getAvailableReplySortTypes(comment: Comment): string[]
 getPreloadedPostSortTypes(community: Community): string[] // every sort preloaded in community.posts.pages, in the record's key order (not guaranteed to be the community's configured order)

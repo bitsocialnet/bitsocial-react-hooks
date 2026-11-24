@@ -12,7 +12,6 @@ import {
   useAccountEdits,
   useEditedComment,
   useAccountCommunities,
-  getWalletMessageToSign,
   UseAccountCommentsOptions,
   useComment,
   useNotifications,
@@ -35,6 +34,7 @@ import PkcJsMock, {
 import accountsStore from "../../stores/accounts";
 import communitiesStore from "../../stores/communities";
 import chain from "../../lib/chain";
+import { getWalletMessageToSign } from "../../lib/chain/author-wallet-proof";
 
 const toCommunity = (communityAddress?: string) =>
   communityAddress ? ({ address: communityAddress } as any) : undefined;

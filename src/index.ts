@@ -90,7 +90,6 @@ import {
   getEthPrivateKeyFromPkcPrivateKey,
   validateEthWallet,
 } from "./lib/chain";
-import { verifyAuthorWallet, getWalletMessageToSign } from "./lib/chain/author-wallet-proof";
 
 // utils
 import { setPkcJs, restorePkcJs } from "./lib/pkc-js";
@@ -183,8 +182,6 @@ export {
   getEthWalletFromPkcPrivateKey,
   getEthPrivateKeyFromPkcPrivateKey,
   validateEthWallet,
-  verifyAuthorWallet,
-  getWalletMessageToSign,
   // utils
   setPkcJs,
   restorePkcJs,
@@ -274,8 +271,6 @@ const hooks = {
   getEthWalletFromPkcPrivateKey,
   getEthPrivateKeyFromPkcPrivateKey,
   validateEthWallet,
-  verifyAuthorWallet,
-  getWalletMessageToSign,
   // utils
   setPkcJs,
   restorePkcJs,

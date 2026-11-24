@@ -4,9 +4,9 @@ import {
   getEthWalletFromPkcPrivateKey,
   getEthPrivateKeyFromPkcPrivateKey,
   validateEthWallet,
-  verifyAuthorWallet,
-  getWalletMessageToSign,
 } from "../..";
+// published as @bitsocial/bitsocial-react-hooks/author-wallet-proof
+import { verifyAuthorWallet, getWalletMessageToSign } from "./author-wallet-proof";
 // BSIP-22 test vectors, copied from bitsocialnet/BSIPs assets/bsip-22/wallet-proof-vectors.json (CC0)
 import vectors from "./fixtures/bsip-22-wallet-proof-vectors.json";
 

@@ -8,8 +8,9 @@ import { getPkcAddressFromPublicKey } from "../pkc-address";
 // Author wallet proofs as specified by BSIP-22 (https://github.com/bitsocialnet/BSIPs/blob/master/BSIPS/bsip-22.md).
 // The same rules as pkc-js src/signer/author-wallet-proof.ts, which communities apply on acceptance.
 // Verification is one hash and one public key recovery, so it is synchronous and needs no network.
-// The hooks import this module dynamically so the curves stay out of an app's startup bundle; keep
-// its top level free of calls so a bundler can drop it when an app doesn't use it.
+// Published as its own entry point, @bitsocial/bitsocial-react-hooks/author-wallet-proof, and imported
+// dynamically inside the hooks: a static import from the package root would put the curves (about
+// 55 KB) in every app's startup bundle, since the hooks load this module when accounts load.
 
 export type AuthorWalletOutcome =
   | { outcome: "valid" }

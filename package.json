@@ -27,6 +27,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./author-wallet-proof": {
+      "types": "./dist/lib/chain/author-wallet-proof.d.ts",
+      "default": "./dist/lib/chain/author-wallet-proof.js"
+    },
     "./dist/*": "./dist/*",
     "./package.json": "./package.json"
   },

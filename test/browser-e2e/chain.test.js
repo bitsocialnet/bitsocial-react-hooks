@@ -2,9 +2,12 @@ import {
   getEthWalletFromPkcPrivateKey,
   getEthPrivateKeyFromPkcPrivateKey,
   validateEthWallet,
+} from "../../dist";
+// published as @bitsocial/bitsocial-react-hooks/author-wallet-proof
+import {
   verifyAuthorWallet,
   getWalletMessageToSign,
-} from "../../dist";
+} from "../../dist/lib/chain/author-wallet-proof.js";
 
 // a real account key and its key address, as pkc-js derives it
 const pkcPrivateKey = "Q2dsIzBWgHZuof0Aq1KhtMhmW2z5gM8NYY0NL+daBcI";
