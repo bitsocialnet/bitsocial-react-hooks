@@ -2872,79 +2872,29 @@ describe("accounts-actions", () => {
       }
     });
 
-    test("setAccount with author.address change updates only the eth wallet when using pkc signer", async () => {
+    test("setAccount keeps the eth wallet proof when author.address changes", async () => {
       await act(async () => {
         await accountsActions.createAccount();
       });
 
       const account = Object.values(accountsStore.getState().accounts)[0];
-      const ethAddr = account.author.wallets?.eth?.address;
-      if (!ethAddr) {
-        return;
-      }
-
-      const chainMod = await import("../../lib/chain");
-      vi.spyOn(chainMod, "getEthWalletFromPkcPrivateKey").mockResolvedValue({
-        address: ethAddr,
-        timestamp: 1,
-        signature: {},
-      } as any);
-
-      const updatedAccount = {
-        ...account,
-        author: {
-          ...account.author,
-          address: "0xDifferentAddress",
-          wallets: {
-            ...account.author.wallets,
-            eth: { ...account.author.wallets?.eth, address: ethAddr },
-          },
-        },
+      // BSIP-22 proofs bind the signer's key address, so a new author.address (e.g. a name) doesn't
+      // invalidate them and setAccount must not re-sign or replace the wallet
+      const ethWallet = {
+        address: "0x5050A4F4b3f9338C3472dcC01A87C76A144b3c9c",
+        timestamp: 1790000000,
+        signature: { signature: "0xsigned", type: "eip191" },
       };
-
       await act(async () => {
-        await accountsActions.setAccount(updatedAccount);
+        await accountsActions.setAccount({
+          ...account,
+          author: { ...account.author, address: "name.bso", wallets: { eth: ethWallet } },
+        });
       });
 
       const stored = accountsStore.getState().accounts[account.id];
-      expect(stored?.author?.wallets?.eth).toBeDefined();
-      expect(stored?.author?.wallets?.sol).toBeUndefined();
-      vi.restoreAllMocks();
-    });
-
-    test("setAccount with author.address change skips eth wallet update when address mismatch", async () => {
-      await act(async () => {
-        await accountsActions.createAccount();
-      });
-
-      const account = Object.values(accountsStore.getState().accounts)[0];
-      if (!account.author.wallets?.eth) {
-        return;
-      }
-
-      const chainMod = await import("../../lib/chain");
-      vi.spyOn(chainMod, "getEthWalletFromPkcPrivateKey").mockResolvedValue({
-        address: "0xOtherEth",
-        timestamp: 1,
-        signature: {},
-      } as any);
-
-      const updatedAccount = {
-        ...account,
-        author: {
-          ...account.author,
-          address: "0xDifferentAddress",
-          wallets: account.author.wallets,
-        },
-      };
-
-      await act(async () => {
-        await accountsActions.setAccount(updatedAccount);
-      });
-
-      const stored = accountsStore.getState().accounts[account.id];
-      expect(stored?.author?.wallets?.eth?.address).toBe(account.author.wallets?.eth?.address);
-      vi.restoreAllMocks();
+      expect(stored?.author?.address).toBe("name.bso");
+      expect(stored?.author?.wallets?.eth).toEqual(ethWallet);
     });
   });
 

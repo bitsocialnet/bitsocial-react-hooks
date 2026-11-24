@@ -103,12 +103,51 @@ const migrate = async () => {
   await Promise.all(promises);
 };
 
+// BSIP-22 replaced the wallet proof format, and communities on pkc-js 0.0.155+ reject a publication
+// carrying an invalid wallet proof. Whenever the account's eth wallet has an invalid proof, replace
+// it with the wallet derived from the account's own key, freshly signed. That re-signs the built-in
+// wallet, and logs the account out of an external wallet (e.g. 5chan Pass) signed in the old
+// format, the same as the app's own logout: the user signs again to get it back. A valid entry, or
+// one of a signature type this check doesn't implement, is kept. This runs on every load rather
+// than as a one-time migration, so a failed attempt (offline, or the proof code failing to load)
+// is retried next time.
+const repairEthWallet = async (account: any): Promise<boolean> => {
+  const ethWallet = account.author?.wallets?.eth;
+  const privateKey = account.signer?.privateKey;
+  // the pkc-js mock signer has no usable key
+  if (!ethWallet || typeof privateKey !== "string" || privateKey === "private key") {
+    return false;
+  }
+  try {
+    const { getKeyAddressFromPkcPrivateKey, verifyAuthorWallet } =
+      await import("../../lib/chain/author-wallet-proof");
+    const authorPublicKey = getKeyAddressFromPkcPrivateKey(privateKey);
+    if (verifyAuthorWallet(ethWallet, authorPublicKey).outcome !== "invalid") {
+      return false;
+    }
+    const builtInWallet = await chain.getEthWalletFromPkcPrivateKey(privateKey);
+    if (!builtInWallet) {
+      return false;
+    }
+    account.author.wallets = { ...account.author.wallets, eth: builtInWallet };
+    return true;
+  } catch (error) {
+    // a malformed key or a failed load mustn't stop accounts from loading
+    log.error("repairEthWallet failed, retrying on the next load", {
+      accountId: account.id,
+      error,
+    });
+    return false;
+  }
+};
+
 const getAccountsFromStoredAccounts = async (storedAccounts: Accounts) => {
   const accounts: Accounts = {};
   for (const [accountId, storedAccount] of Object.entries(storedAccounts)) {
     const storedVersion = storedAccount.version || 1;
     const migratedAccount = await migrateAccount(storedAccount);
-    if (storedVersion !== migratedAccount.version) {
+    const repairedWallet = await repairEthWallet(migratedAccount);
+    if (storedVersion !== migratedAccount.version || repairedWallet) {
       await accountsDatabase.setItem(accountId, migratedAccount);
     }
     accounts[accountId] = normalizeAccountProtocolConfig(

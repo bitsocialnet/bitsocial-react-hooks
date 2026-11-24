@@ -293,6 +293,9 @@ deleteDatabases() // delete all databases, including all caches and accounts dat
 deleteCaches() // delete the cached comments, cached communities and cached pages only, no accounts data
 createCrosspost(comment: Comment): Crosspost // build the immutable payload accepted by pkc-js
 validateComment(comment: Comment, options?: {validateReplies?: boolean, community?: Community}): Promise<{valid: true} | {valid: false, reason: string}> // validate a comment from an untrusted source outside React
+verifyAuthorWallet(wallet: Wallet, authorPublicKey: string, options?: {nowSeconds?: number}): {outcome: "valid"} | {outcome: "unknown"} | {outcome: "invalid", reason: string} // BSIP-22 check of an author.wallets entry; authorPublicKey is the key address (12D3KooW...) of the record's signing key, never author.address
+getWalletMessageToSign(authorPublicKey: string, walletAddress: string, timestamp: number): string // the exact BSIP-22 message a wallet signs to prove it belongs to the author
+validateEthWallet(wallet: Wallet, authorPublicKey: string): Promise<void> // resolves only for a valid BSIP-22 proof, throws otherwise
 getAvailablePostSortTypes(community: Community): string[]
 getAvailableReplySortTypes(comment: Comment): string[]
 getPreloadedPostSortTypes(community: Community): string[] // every sort preloaded in community.posts.pages, in the record's key order (not guaranteed to be the community's configured order)
@@ -1137,7 +1140,12 @@ console.log(error);
 import {useAccount, setAccount, useResolvedAuthorAddress} from '@bitsocial/bitsocial-react-hooks'
 const account = useAccount() // or useAccount({ accountName: 'Account KoXpxTwfnjA5' }) to use an account by name
 
-// `account.author.wallets` only auto-generates an `eth` wallet by default.
+// `account.author.wallets` only auto-generates an `eth` wallet by default, derived from the account's
+// key, with a BSIP-22 proof over the key address (account.signer.address), so it stays valid when
+// author.address changes to a name. Whenever an account loads or is saved with an eth wallet whose
+// proof is invalid (e.g. signed before BSIP-22), it is replaced by the built-in wallet, freshly
+// signed, so publishing keeps working; a wallet the user signed elsewhere (e.g. 5chan Pass) has to be
+// signed again to get it back. Validate a wallet with validateEthWallet before saving it.
 // `account.chainProviders` is the canonical chain config for wallets, NFT lookups, and other chain reads.
 // Defaults use multiple explicit Ethereum RPCs for `.eth` / `.bso` author-name resolution.
 // Web defaults run a browser libp2p client and use multiple HTTP routers to discover peers.
