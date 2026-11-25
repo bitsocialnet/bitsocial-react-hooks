@@ -53,7 +53,7 @@ import {
   pickPreferredEquivalentCommunityAddress,
 } from "../../lib/community-address";
 import { addCommentModeration } from "../../lib/utils/comment-moderation";
-import { isCommentBySigner } from "../../lib/pseudonymity-author-tag";
+import { isCommentBySigner, useAuthorTagCheckStore } from "../../lib/author-tag-check";
 import useInterval from "../utils/use-interval";
 import PkcJs from "../../lib/pkc-js";
 
@@ -747,6 +747,9 @@ const isInAccountComments = (
  *
  * The signature and the tag are read, not verified: pass comments loaded through the hooks or
  * pkc-js, which verify them, or a comment from another source only after validateComment.
+ *
+ * The tag check loads the first time a comment needs it. Until then a comment recognized only by
+ * its tag returns false; useIsAccountComment rerenders once it has loaded.
  */
 export function isAccountComment(
   comment: Comment | undefined,
@@ -780,7 +783,12 @@ export function useIsAccountComment(options?: UseIsAccountCommentOptions): boole
   const inAccountComments = useAccountsStore((state) =>
     isInAccountComments(state, accountId, comment),
   );
-  const bySigner = useMemo(() => isCommentBySigner(comment, signer), [comment, signer]);
+  const authorTagCheckLoaded = useAuthorTagCheckStore((state) => state.loaded);
+  const bySigner = useMemo(
+    () => isCommentBySigner(comment, signer),
+    // a tagged comment reads as not the account's until the author tag check loads
+    [comment, signer, authorTagCheckLoaded],
+  );
   return inAccountComments || bySigner;
 }
 
