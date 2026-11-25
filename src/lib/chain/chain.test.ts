@@ -1,9 +1,14 @@
-import { getNftImageUrl, validateEthWalletViem, getWalletMessageToSign } from ".";
+import { ethers } from "ethers";
+import { getNftImageUrl } from ".";
 import {
   getEthWalletFromPkcPrivateKey,
   getEthPrivateKeyFromPkcPrivateKey,
   validateEthWallet,
 } from "../..";
+// published as @bitsocial/bitsocial-react-hooks/author-wallet-proof
+import { verifyAuthorWallet, getWalletMessageToSign } from "./author-wallet-proof";
+// BSIP-22 test vectors, copied from bitsocialnet/BSIPs assets/bsip-22/wallet-proof-vectors.json (CC0)
+import vectors from "./fixtures/bsip-22-wallet-proof-vectors.json";
 
 const avatarNft1 = {
   chainTicker: "eth",
@@ -34,9 +39,10 @@ const chainProviders = {
   },
 };
 
-const pkcPrivateKey = "mV8GRU5TGScen7UYZOuNQQ1CKe2G46DCc60moM1yLF4";
-const authorAddress = "authoraddress.eth";
-const walletTimestamp = 1740000000;
+// a real account key and its key address, as pkc-js derives it
+const pkcPrivateKey = "Q2dsIzBWgHZuof0Aq1KhtMhmW2z5gM8NYY0NL+daBcI";
+const authorPublicKey = "12D3KooWNzFJQ7CCcSCZNg7925WWHMzqVS4qe663PfQ3uBNCHZQb";
+const walletTimestamp = 1759958639;
 
 describe("chain", () => {
   describe("nft", () => {
@@ -54,94 +60,92 @@ describe("chain", () => {
     });
   });
 
+  describe("BSIP-22 wallet proofs", () => {
+    test("getWalletMessageToSign builds the exact proof message", () => {
+      expect(
+        getWalletMessageToSign(vectors.authorKey.address, vectors.walletAddress, vectors.timestamp),
+      ).toBe(vectors.proofMessage);
+      // the runtime author.address or a name is never the signed author
+      expect(() =>
+        getWalletMessageToSign("authoraddress.eth", vectors.walletAddress, vectors.timestamp),
+      ).toThrow("is not a key address");
+    });
+
+    test("signing the proof message as hooks does reproduces the vector signature", async () => {
+      const signature = await new ethers.Wallet(`0x${vectors.walletPrivateKeyHex}`).signMessage(
+        getWalletMessageToSign(vectors.authorKey.address, vectors.walletAddress, vectors.timestamp),
+      );
+      expect(signature).toBe(vectors.validSignature);
+    });
+
+    test.each(vectors.cases)("vector: $name", (vectorCase: any) => {
+      const key = vectorCase.authorKey === "other" ? vectors.otherKey : vectors.authorKey;
+      const result = verifyAuthorWallet(vectorCase.entry, key.address, {
+        nowSeconds: vectorCase.verifierTime,
+      });
+      expect(result.outcome).toBe(vectorCase.outcome);
+    });
+  });
+
   describe("eth wallet", () => {
-    let wallet, privateKey;
+    let wallet: any, privateKey: any;
     beforeAll(async () => {
       privateKey = await getEthPrivateKeyFromPkcPrivateKey(pkcPrivateKey);
       const dateNow = Date.now;
       Date.now = () => walletTimestamp * 1000;
-      wallet = await getEthWalletFromPkcPrivateKey(pkcPrivateKey, authorAddress);
+      // the second argument used to be author.address and is ignored: the proof binds the key address
+      wallet = await getEthWalletFromPkcPrivateKey(pkcPrivateKey, "authoraddress.eth");
       Date.now = dateNow;
     });
 
-    test("getWalletMessageToSign", () => {
-      const string = getWalletMessageToSign(authorAddress, walletTimestamp);
-      const json = JSON.parse(string);
-      expect(json.domainSeparator).toBe("pkc-author-wallet");
-      expect(json.authorAddress).toBe(authorAddress);
-      expect(json.authorAddress).not.toBe(undefined);
-      expect(json.timestamp).toBe(walletTimestamp);
-      expect(json.timestamp).not.toBe(undefined);
-      expect(string).toBe(JSON.stringify(json));
-    });
-
-    test("getEthWalletFromPkcPrivateKey", async () => {
+    test("getEthWalletFromPkcPrivateKey signs a BSIP-22 proof over the key address", () => {
       expect(wallet.timestamp).toBe(walletTimestamp);
-      expect(wallet.address).toBe("0x37BC48124fDf985DC3983E2e8414606D4a996ED7");
+      expect(wallet.address).toBe("0x9097084f571AF3BFcc64E4dcA33FB3223071E4aB");
       expect(wallet.privateKey).toBe(undefined);
-      expect(privateKey).toBe("0x995f06454e5319271e9fb51864eb8d410d4229ed86e3a0c273ad26a0cd722c5e");
+      expect(privateKey).toBe("0x43676c23305680766ea1fd00ab52a1b4c8665b6cf980cf0d618d0d2fe75a05c2");
       expect(wallet.signature.type).toBe("eip191");
-      expect(wallet.signature.signature).toBe(
-        "0xd1a3c404b8143421026957982a47aa490b69bce1fcfcd96e5715cfcd6139196f2b616958a5a2febc1ee9601daeca4786c68bac583757818ef60786f0604d2d5b1b",
-      );
+      expect(
+        verifyAuthorWallet(wallet, authorPublicKey, { nowSeconds: walletTimestamp }).outcome,
+      ).toBe("valid");
     });
 
-    test("validateEthWallet", async () => {
-      // good signature
-      await validateEthWallet(wallet, authorAddress);
+    test("validateEthWallet resolves only for a valid proof", async () => {
+      await validateEthWallet(wallet, authorPublicKey);
 
-      // make sure viem also works
-      await validateEthWalletViem(wallet, authorAddress);
-
-      // bad signatures
       await expect(
-        validateEthWallet({ ...wallet, timestamp: wallet.timestamp + 1 }, authorAddress),
-      ).rejects.toThrow("wallet address does not equal signature address");
-      await expect(validateEthWallet(wallet, "invalidauthoraddress.eth")).rejects.toThrow(
-        "wallet address does not equal signature address",
+        validateEthWallet({ ...wallet, timestamp: wallet.timestamp + 1 }, authorPublicKey),
+      ).rejects.toThrow(
+        "validateEthWallet invalid wallet: signature does not recover the wallet address",
       );
-      await expect(
-        validateEthWallet({ ...wallet, timestamp: undefined }, authorAddress),
-      ).rejects.toThrow(`validateEthWallet invalid wallet.timestamp 'undefined' not a number`);
-      await expect(
-        validateEthWallet({ ...wallet, signature: undefined }, authorAddress),
-      ).rejects.toThrow(`validateEthWallet invalid wallet.signature 'undefined'`);
-      await expect(
-        validateEthWallet({ ...wallet, signature: { type: "eip191" } }, authorAddress),
-      ).rejects.toThrow(`validateEthWallet invalid wallet.signature.signature 'undefined'`);
-      await expect(validateEthWallet({ ...wallet, signature: {} }, authorAddress)).rejects.toThrow(
-        `validateEthWallet invalid wallet.signature.signature 'undefined'`,
+      await expect(validateEthWallet(wallet, vectors.otherKey.address)).rejects.toThrow(
+        "signature does not recover the wallet address",
       );
-      await expect(
-        validateEthWallet({ ...wallet, address: undefined }, authorAddress),
-      ).rejects.toThrow(`validateEthWallet invalid wallet.address 'undefined'`);
       await expect(
         validateEthWallet(
           { ...wallet, address: "0x0000000000000000000000000000000000000000" },
-          authorAddress,
+          authorPublicKey,
         ),
-      ).rejects.toThrow("wallet address does not equal signature address");
+      ).rejects.toThrow("signature does not recover the wallet address");
+      await expect(
+        validateEthWallet({ ...wallet, timestamp: undefined }, authorPublicKey),
+      ).rejects.toThrow("timestamp is not an integer");
+      await expect(
+        validateEthWallet({ ...wallet, signature: undefined }, authorPublicKey),
+      ).rejects.toThrow("signature is not an object");
+      await expect(
+        validateEthWallet(
+          { ...wallet, signature: { ...wallet.signature, type: "sol" } },
+          authorPublicKey,
+        ),
+      ).rejects.toThrow("validateEthWallet unknown wallet.signature.type 'sol'");
+      await expect(validateEthWallet(wallet, "authoraddress.eth")).rejects.toThrow(
+        "is not a key address",
+      );
     });
 
-    test("validateEthWallet fixture wallet", async () => {
-      const authorAddress = "authoraddress.eth";
-      const wallet = {
-        address: "0x37BC48124fDf985DC3983E2e8414606D4a996ED7",
-        timestamp: 1740000000,
-        signature: {
-          signature:
-            "0xd1a3c404b8143421026957982a47aa490b69bce1fcfcd96e5715cfcd6139196f2b616958a5a2febc1ee9601daeca4786c68bac583757818ef60786f0604d2d5b1b",
-          type: "eip191",
-        },
-      };
-      await validateEthWallet(wallet, authorAddress);
-      await validateEthWalletViem(wallet, authorAddress);
-    });
-
-    test("fixture wallet 2", async () => {
-      const pkcPrivateKey = "Q2dsIzBWgHZuof0Aq1KhtMhmW2z5gM8NYY0NL+daBcI";
-      const authorAddress = "12D3KooWNzFJQ7CCcSCZNg7925WWHMzqVS4qe663PfQ3uBNCHZQb";
-      const wallet = {
+    test("a proof in the pre-BSIP-22 format is invalid", async () => {
+      // signed by hooks before BSIP-22, over {"domainSeparator":"pkc-author-wallet","authorAddress":...}
+      const oldWallet = {
         address: "0x9097084f571AF3BFcc64E4dcA33FB3223071E4aB",
         timestamp: 1759958639,
         signature: {
@@ -150,18 +154,13 @@ describe("chain", () => {
           type: "eip191",
         },
       };
-
-      const dateNow = Date.now;
-      Date.now = () => wallet.timestamp * 1000;
-      const generatedWallet = await getEthWalletFromPkcPrivateKey(pkcPrivateKey, authorAddress);
-      Date.now = dateNow;
-
-      expect(wallet.address).toBe(generatedWallet.address);
-      expect(wallet.timestamp).toBe(generatedWallet.timestamp);
-      expect(wallet.signature.signature).toBe(generatedWallet.signature.signature);
-
-      await validateEthWallet(wallet, authorAddress);
-      await validateEthWalletViem(wallet, authorAddress);
+      expect(verifyAuthorWallet(oldWallet, authorPublicKey)).toEqual({
+        outcome: "invalid",
+        reason: "signature does not recover the wallet address",
+      });
+      await expect(validateEthWallet(oldWallet, authorPublicKey)).rejects.toThrow(
+        "signature does not recover the wallet address",
+      );
     });
   });
 });

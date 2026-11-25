@@ -14,7 +14,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.3.5",
+  "version": "0.4.0",
   "packageManager": "yarn@4.13.0",
   "files": [
     "CHANGELOG.md",
@@ -26,6 +26,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./author-wallet-proof": {
+      "types": "./dist/lib/chain/author-wallet-proof.d.ts",
+      "default": "./dist/lib/chain/author-wallet-proof.js"
     },
     "./dist/*": "./dist/*",
     "./package.json": "./package.json"
@@ -76,7 +80,6 @@
     "typestub-ipfs-only-hash": "4.0.0",
     "uint8arrays": "3.1.1",
     "uuid": "14.0.3",
-    "viem": "2.55.8",
     "zustand": "4.5.7"
   },
   "peerDependencies": {

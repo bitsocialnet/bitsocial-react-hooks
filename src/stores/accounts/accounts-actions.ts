@@ -6,7 +6,6 @@ import accountsDatabase from "./accounts-database";
 import accountGenerator from "./account-generator";
 import Logger from "@pkcprotocol/pkc-logger";
 import validator from "../../lib/validator";
-import chain from "../../lib/chain";
 import assert from "../../lib/assert";
 const log = Logger("bitsocial-react-hooks:accounts:stores");
 import {
@@ -851,21 +850,7 @@ export const setAccount = async (account: Account) => {
   if (account.author.address !== accounts[account.id].author.address) {
     const communities = getAccountCommunities(account, communitiesStore.getState().communities);
     account = { ...account, communities };
-
-    // wallet.signature changes if author.address changes
-    if (account.author.wallets?.eth) {
-      const pkcSignerWalletWithNewAuthorAddress = await chain.getEthWalletFromPkcPrivateKey(
-        account.signer.privateKey,
-        account.author.address,
-      );
-      // wallet is using pkc signer, redo signature with new author.address
-      if (account.author.wallets.eth.address === pkcSignerWalletWithNewAuthorAddress?.address) {
-        account.author.wallets = {
-          ...account.author.wallets,
-          eth: pkcSignerWalletWithNewAuthorAddress,
-        };
-      }
-    }
+    // wallet proofs bind the signer's key address (BSIP-22), not author.address, so they stay valid
   }
 
   // use this function to serialize and update all databases

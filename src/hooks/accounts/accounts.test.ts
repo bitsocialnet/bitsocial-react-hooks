@@ -1,4 +1,5 @@
 import { act } from "@testing-library/react";
+import { ethers } from "ethers";
 import testUtils, { renderHook } from "../../lib/test-utils";
 import { AccountComment, AccountVote } from "../../types";
 import {
@@ -35,6 +36,7 @@ import PkcJsMock, {
 import accountsStore from "../../stores/accounts";
 import communitiesStore from "../../stores/communities";
 import chain from "../../lib/chain";
+import { getWalletMessageToSign } from "../../lib/chain/author-wallet-proof";
 
 const toCommunity = (communityAddress?: string) =>
   communityAddress ? ({ address: communityAddress } as any) : undefined;
@@ -4027,6 +4029,9 @@ describe("accounts", () => {
       expect(
         rendered.result.current.editedComment.editedComment.author?.community?.banExpiresAt,
       ).toBe(banExpiresAt);
+      expect(rendered.result.current.editedComment.editedComment.authorBanExpiresAt).toBe(
+        banExpiresAt,
+      );
 
       const updatedComment = { ...commentsStore.getState().comments[commentCid] };
       updatedComment.author = {
@@ -4066,6 +4071,7 @@ describe("accounts", () => {
         ...staleBannedComment.author,
         community: { ...staleBannedComment.author?.community, banExpiresAt },
       };
+      staleBannedComment.authorBanExpiresAt = banExpiresAt;
       staleBannedComment.updatedAt = commentModerationTimestamp + 1;
       commentsStore.setState(({ comments }) => ({
         comments: { ...comments, [commentCid]: staleBannedComment },
@@ -4100,6 +4106,10 @@ describe("accounts", () => {
       expect(
         rendered.result.current.editedComment.editedComment.author?.community?.banExpiresAt,
       ).toBeUndefined();
+      // the post keeps its ban label after an unban, as pkc-js keeps authorBanExpiresAt
+      expect(rendered.result.current.editedComment.editedComment.authorBanExpiresAt).toBe(
+        banExpiresAt,
+      );
 
       const refreshedUnbannedComment = { ...staleBannedComment };
       refreshedUnbannedComment.commentModeration = {
@@ -4124,6 +4134,66 @@ describe("accounts", () => {
       expect(
         rendered.result.current.editedComment.editedComment.author?.community?.banExpiresAt,
       ).toBeUndefined();
+    });
+
+    test("comment moderation author banExpiresAt 0 removes the post's ban mark and keeps the author's ban", async () => {
+      const commentCid = rendered.result.current.accountComments[0].cid;
+      const communityAddress = rendered.result.current.accountComments[0].communityAddress;
+      const commentModerationTimestamp = Math.ceil(Date.now() / 1000);
+      const banExpiresAt = commentModerationTimestamp + 60 * 60;
+
+      rendered.rerender(commentCid);
+      await waitFor(
+        () =>
+          rendered.result.current.comment?.cid &&
+          rendered.result.current.comment.index === undefined,
+      );
+
+      const markedComment = { ...commentsStore.getState().comments[commentCid] };
+      markedComment.author = {
+        ...markedComment.author,
+        community: { ...markedComment.author?.community, banExpiresAt },
+      };
+      markedComment.authorBanExpiresAt = banExpiresAt;
+      markedComment.updatedAt = commentModerationTimestamp - 1;
+      commentsStore.setState(({ comments }) => ({
+        comments: { ...comments, [commentCid]: markedComment },
+      }));
+
+      await act(async () => {
+        await accountsActions.publishCommentModeration({
+          timestamp: commentModerationTimestamp,
+          commentCid,
+          communityAddress,
+          commentModeration: { author: { banExpiresAt: 0 } },
+          onChallenge: (challenge: any, comment: any) =>
+            comment.publishChallengeAnswers({ "0": "4" }),
+          onChallengeVerification: () => {},
+        });
+      });
+
+      await waitFor(() => rendered.result.current.editedComment.editedComment);
+      expect(rendered.result.current.editedComment.state).toBe("pending");
+      expect(
+        rendered.result.current.editedComment.editedComment.authorBanExpiresAt,
+      ).toBeUndefined();
+      expect(
+        rendered.result.current.editedComment.editedComment.author?.community?.banExpiresAt,
+      ).toBe(banExpiresAt);
+
+      const unmarkedComment = { ...markedComment, updatedAt: commentModerationTimestamp + 1 };
+      delete unmarkedComment.authorBanExpiresAt;
+      commentsStore.setState(({ comments }) => ({
+        comments: { ...comments, [commentCid]: unmarkedComment },
+      }));
+
+      await waitFor(() => rendered.result.current.editedComment.state === "succeeded");
+      expect(
+        rendered.result.current.editedComment.succeededEdits[COMMENT_MODERATION_AUTHOR_SUMMARY_KEY],
+      ).toEqual({ banExpiresAt: 0 });
+      expect(
+        rendered.result.current.editedComment.editedComment.author?.community?.banExpiresAt,
+      ).toBe(banExpiresAt);
     });
 
     test("edited comment failed", async () => {
@@ -4871,10 +4941,10 @@ describe("accounts", () => {
       expect(typeof author.wallets.eth.signature.signature).toBe("string");
       expect(author.wallets.eth.signature.type).toBe("eip191");
       expect(author.wallets.sol).toBeUndefined();
-      await chain.validateEthWallet(author.wallets.eth, author.address);
+      await chain.validateEthWallet(author.wallets.eth, rendered.result.current.signer.address);
     });
 
-    test("changing author address changes wallet signature", async () => {
+    test("changing author address keeps the wallet proof", async () => {
       // on first render, the account is undefined because it's not yet loaded from database
       const rendered = renderHook(() => useAccount());
       const waitFor = testUtils.createWaitFor(rendered);
@@ -4890,9 +4960,9 @@ describe("accounts", () => {
       expect(typeof previousWallets.eth.signature.signature).toBe("string");
       expect(previousWallets.eth.signature.type).toBe("eip191");
       expect(previousWallets.sol).toBeUndefined();
-      await chain.validateEthWallet(previousWallets.eth, rendered.result.current.author.address);
+      await chain.validateEthWallet(previousWallets.eth, rendered.result.current.signer.address);
 
-      // change author address, wallets should update
+      // change author address to a name: the BSIP-22 proof binds the key address, so the wallet stays
       await act(async () => {
         const author = { ...rendered.result.current.author, address: "authoraddress.eth" };
         const account = { ...rendered.result.current, author };
@@ -4902,14 +4972,9 @@ describe("accounts", () => {
       await waitFor(() => rendered.result.current.author.address === "authoraddress.eth");
       expect(rendered.result.current.author.address).toBe("authoraddress.eth");
       const wallets = rendered.result.current.author.wallets;
-      expect(wallets.eth.address).toBe("0x37BC48124fDf985DC3983E2e8414606D4a996ED7");
-      expect(typeof wallets.eth.timestamp).toBe("number");
-      expect(wallets.eth.timestamp).toBeGreaterThanOrEqual(previousWallets.eth.timestamp);
-      expect(typeof wallets.eth.signature.signature).toBe("string");
-      expect(wallets.eth.signature.signature).not.toBe(previousWallets.eth.signature.signature);
-      expect(wallets.eth.signature.type).toBe("eip191");
+      expect(wallets.eth).toEqual(previousWallets.eth);
       expect(wallets.sol).toBeUndefined();
-      await chain.validateEthWallet(wallets.eth, rendered.result.current.author.address);
+      await chain.validateEthWallet(wallets.eth, rendered.result.current.signer.address);
 
       // change author display name, wallets should not update
       const previousEthSignature = wallets.eth.signature.signature;
@@ -4926,14 +4991,28 @@ describe("accounts", () => {
       );
     });
 
-    test("changing author address keeps a non-signer eth wallet untouched", async () => {
+    test("changing author address keeps a valid non-signer eth wallet untouched", async () => {
       const rendered = renderHook(() => useAccount());
       const waitFor = testUtils.createWaitFor(rendered);
 
       await waitFor(() => rendered.result.current.author.address);
+      // a wallet the user signed elsewhere (e.g. 5chan Pass), with a BSIP-22 proof over the key address
+      const walletKey = "0x0202020202020202020202020202020202020202020202020202020202020202";
+      const walletAddress = new ethers.Wallet(walletKey).address;
+      const timestamp = Math.floor(Date.now() / 1000);
       const customWallet = {
-        ...rendered.result.current.author.wallets.eth,
-        address: "0x0000000000000000000000000000000000000001",
+        address: walletAddress,
+        timestamp,
+        signature: {
+          signature: await new ethers.Wallet(walletKey).signMessage(
+            getWalletMessageToSign(
+              rendered.result.current.signer.address,
+              walletAddress,
+              timestamp,
+            ),
+          ),
+          type: "eip191",
+        },
       };
 
       await act(async () => {
@@ -4950,10 +5029,34 @@ describe("accounts", () => {
       });
 
       await waitFor(() => rendered.result.current.author.address === "custom-author.eth");
-      expect(rendered.result.current.author.wallets.eth.address).toBe(customWallet.address);
-      expect(rendered.result.current.author.wallets.eth.signature.signature).toBe(
-        customWallet.signature.signature,
-      );
+      expect(rendered.result.current.author.wallets.eth).toEqual(customWallet);
+    });
+
+    test("an eth wallet with an invalid proof is replaced by the built-in one when saved", async () => {
+      const rendered = renderHook(() => useAccount());
+      const waitFor = testUtils.createWaitFor(rendered);
+
+      await waitFor(() => rendered.result.current.author.address);
+      const builtInAddress = rendered.result.current.author.wallets.eth.address;
+      // e.g. a 5chan Pass login signed in the pre-BSIP-22 format
+      const invalidWallet = {
+        ...rendered.result.current.author.wallets.eth,
+        address: "0x0000000000000000000000000000000000000001",
+      };
+
+      await act(async () => {
+        const author = {
+          ...rendered.result.current.author,
+          displayName: "Pass user",
+          wallets: { ...rendered.result.current.author.wallets, eth: invalidWallet },
+        };
+        await accountsActions.setAccount({ ...rendered.result.current, author });
+      });
+
+      await waitFor(() => rendered.result.current.author.displayName === "Pass user");
+      const wallet = rendered.result.current.author.wallets.eth;
+      expect(wallet.address).toBe(builtInAddress);
+      await chain.validateEthWallet(wallet, rendered.result.current.signer.address);
     });
   });
 });

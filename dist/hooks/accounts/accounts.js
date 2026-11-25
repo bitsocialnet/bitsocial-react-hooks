@@ -36,6 +36,11 @@ const getCommentEditPropertyValue = (comment, propertyName) => {
         ? { banExpiresAt: comment.author.community.banExpiresAt }
         : undefined;
 };
+// A commentModeration.author.banExpiresAt of 0 only removes the ban mark (authorBanExpiresAt) from the comment it
+// is published on (pkc-js 0.0.158+), so it is applied once that comment has no mark
+const isCommentEditPropertyApplied = (comment, propertyName, value) => propertyName === COMMENT_MODERATION_AUTHOR_SUMMARY_KEY && (value === null || value === void 0 ? void 0 : value.banExpiresAt) === 0
+    ? (comment === null || comment === void 0 ? void 0 : comment.authorBanExpiresAt) === undefined
+    : isEqual(getCommentEditPropertyValue(comment, propertyName), value);
 const applyEditedCommentProperty = (comment, propertyName, value) => {
     if (propertyName !== COMMENT_MODERATION_AUTHOR_SUMMARY_KEY) {
         comment[propertyName] = value;
@@ -48,6 +53,11 @@ const applyEditedCommentProperty = (comment, propertyName, value) => {
     else {
         comment.commentModeration.author = value;
     }
+    // 0 removes this comment's ban mark and leaves the author's ban as it is
+    if ((value === null || value === void 0 ? void 0 : value.banExpiresAt) === 0) {
+        delete comment.authorBanExpiresAt;
+        return;
+    }
     comment.author = comment.author ? Object.assign({}, comment.author) : {};
     comment.author.community = comment.author.community ? Object.assign({}, comment.author.community) : {};
     if ((value === null || value === void 0 ? void 0 : value.banExpiresAt) === undefined) {
@@ -55,6 +65,10 @@ const applyEditedCommentProperty = (comment, propertyName, value) => {
     }
     else {
         comment.author.community.banExpiresAt = value.banExpiresAt;
+    }
+    // pkc-js marks the comment a ban was published on with authorBanExpiresAt, and keeps the mark after an unban
+    if (typeof (value === null || value === void 0 ? void 0 : value.banExpiresAt) === "number" && value.banExpiresAt > 0) {
+        comment.authorBanExpiresAt = value.banExpiresAt;
     }
 };
 /**
@@ -701,7 +715,7 @@ export function useEditedComment(options) {
             // Without a newer update we can only treat recent edits as pending. Older edits that never
             // produced any update are effectively stale and should stop shadowing the live comment.
             if (!(comment === null || comment === void 0 ? void 0 : comment.updatedAt)) {
-                if (isEqual(getCommentEditPropertyValue(comment, propertyName), propertyNameEdit.value)) {
+                if (isCommentEditPropertyApplied(comment, propertyName, propertyNameEdit.value)) {
                     setPropertyNameEditState("succeeded");
                 }
                 else if (propertyNameEdit.timestamp > now - expiryTime) {
@@ -723,7 +737,7 @@ export function useEditedComment(options) {
             // has been received after the edit was published so we can evaluate
             else {
                 // comment has propertyNameEdit, propertyNameEdit succeeded
-                if (isEqual(getCommentEditPropertyValue(comment, propertyName), propertyNameEdit.value)) {
+                if (isCommentEditPropertyApplied(comment, propertyName, propertyNameEdit.value)) {
                     setPropertyNameEditState("succeeded");
                     continue;
                 }

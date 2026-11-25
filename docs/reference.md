@@ -295,6 +295,12 @@ deleteCaches() // delete the cached comments, cached communities and cached page
 createCrosspost(comment: Comment): Crosspost // build the immutable payload accepted by pkc-js
 isAccountComment(comment: Comment, options?: {accountName?: string}): boolean // useIsAccountComment outside React, e.g. to check every reply of a thread
 validateComment(comment: Comment, options?: {validateReplies?: boolean, community?: Community}): Promise<{valid: true} | {valid: false, reason: string}> // validate a comment from an untrusted source outside React
+validateEthWallet(wallet: Wallet, authorPublicKey: string): Promise<void> // resolves only for a valid BSIP-22 proof, throws otherwise
+
+// from '@bitsocial/bitsocial-react-hooks/author-wallet-proof', a separate entry point so the curve code
+// (about 55 KB) loads only in apps or views that import it
+verifyAuthorWallet(wallet: Wallet, authorPublicKey: string, options?: {nowSeconds?: number}): {outcome: "valid"} | {outcome: "unknown"} | {outcome: "invalid", reason: string} // BSIP-22 check of an author.wallets entry; authorPublicKey is the key address (12D3KooW...) of the record's signing key, never author.address, and a valid outcome counts only if the record's own signature also verifies under that key
+getWalletMessageToSign(authorPublicKey: string, walletAddress: string, timestamp: number): string // the exact BSIP-22 message a wallet signs to prove it belongs to the author
 getAvailablePostSortTypes(community: Community): string[]
 getAvailableReplySortTypes(comment: Comment): string[]
 getPreloadedPostSortTypes(community: Community): string[] // every sort preloaded in community.posts.pages, in the record's key order (not guaranteed to be the community's configured order)
@@ -1157,7 +1163,15 @@ console.log(error);
 import {useAccount, setAccount, useResolvedAuthorAddress} from '@bitsocial/bitsocial-react-hooks'
 const account = useAccount() // or useAccount({ accountName: 'Account KoXpxTwfnjA5' }) to use an account by name
 
-// `account.author.wallets` only auto-generates an `eth` wallet by default.
+// `account.author.wallets` only auto-generates an `eth` wallet by default, derived from the account's
+// key, with a BSIP-22 proof over the key address (account.signer.address), so it stays valid when
+// author.address changes to a name. When accounts load, including the reload setAccount does after
+// saving, an eth wallet whose proof is invalid (e.g. signed before BSIP-22) is replaced by the
+// built-in wallet, freshly signed, so publishing keeps working; a wallet the user signed elsewhere
+// (e.g. 5chan Pass) has to be signed again to get it back. A proof dated ahead of the device's clock
+// is kept. The repair is best effort: if it fails (a malformed key, or the proof code failing to
+// load), the wallet stays as it is and publishing can fail until a later load repairs it.
+// Validate a wallet with validateEthWallet before saving it.
 // `account.chainProviders` is the canonical chain config for wallets, NFT lookups, and other chain reads.
 // Defaults use multiple explicit Ethereum RPCs for `.eth` / `.bso` author-name resolution.
 // Web defaults run a browser libp2p client and use multiple HTTP routers to discover peers.
@@ -1225,6 +1239,8 @@ if (state === 'resolving' && nameResolver) {
   console.log('Matching chain provider URLs', chainProvider?.urls)
 }
 ```
+
+**Migrating to 0.4.0.** Communities on pkc-js 0.0.155 or later reject a publication carrying an `author.wallets` proof that doesn't follow [BSIP-22](https://github.com/bitsocialnet/BSIPs/blob/master/BSIPS/bsip-22.md), and 0.4.0 signs and checks proofs that way. `validateEthWallet(wallet, authorPublicKey)` now takes the key address of the account's signing key (`account.signer.address`, `12D3KooW...`) instead of `author.address`, and rejects a proof in the old format. To sign an external wallet in, have it sign `getWalletMessageToSign(account.signer.address, walletAddress, timestamp)`, imported from `@bitsocial/bitsocial-react-hooks/author-wallet-proof`. When accounts load, an `eth` wallet whose proof is invalid is replaced by the built-in wallet, so a user signed in to an external wallet in the old format is signed out of it and signs again.
 
 #### Delete account
 
@@ -1640,6 +1656,8 @@ console.log(editedComment.state); // 'unedited' | 'succeeded' | 'pending' | 'fai
 ```
 
 Moderation fields are mirrored on both the top-level keys like `comment.removed` and the nested `comment.commentModeration.removed` shape.
+
+A pending or succeeded ban, `commentModeration.author.banExpiresAt`, shows on the edited comment as the author's ban, `author.community.banExpiresAt`, and as the mark pkc-js 0.0.158+ puts on the comment a ban was published on, `authorBanExpiresAt`. A ban of `0` removes that comment's `authorBanExpiresAt` and leaves the author's ban as it is.
 
 #### List all comment and community edits the account has performed
 

@@ -433,6 +433,12 @@ deleteCaches() // delete the cached comments, cached communities and cached page
 createCrosspost(comment: Comment): Crosspost // build the immutable payload accepted by pkc-js
 isAccountComment(comment: Comment, options?: {accountName?: string}): boolean // useIsAccountComment outside React, e.g. to check every reply of a thread
 validateComment(comment: Comment, options?: {validateReplies?: boolean, community?: Community}): Promise<{valid: true} | {valid: false, reason: string}> // validate a comment from an untrusted source outside React
+validateEthWallet(wallet: Wallet, authorPublicKey: string): Promise<void> // resolves only for a valid BSIP-22 proof, throws otherwise
+
+// from '@bitsocial/bitsocial-react-hooks/author-wallet-proof', a separate entry point so the curve code
+// (about 55 KB) loads only in apps or views that import it
+verifyAuthorWallet(wallet: Wallet, authorPublicKey: string, options?: {nowSeconds?: number}): {outcome: "valid"} | {outcome: "unknown"} | {outcome: "invalid", reason: string} // BSIP-22 check of an author.wallets entry; authorPublicKey is the key address (12D3KooW...) of the record's signing key, never author.address, and a valid outcome counts only if the record's own signature also verifies under that key
+getWalletMessageToSign(authorPublicKey: string, walletAddress: string, timestamp: number): string // the exact BSIP-22 message a wallet signs to prove it belongs to the author
 getAvailablePostSortTypes(community: Community): string[]
 getAvailableReplySortTypes(comment: Comment): string[]
 getPreloadedPostSortTypes(community: Community): string[] // every sort preloaded in community.posts.pages, in the record's key order (not guaranteed to be the community's configured order)
@@ -1295,7 +1301,15 @@ console.log(error);
 import {useAccount, setAccount, useResolvedAuthorAddress} from '@bitsocial/bitsocial-react-hooks'
 const account = useAccount() // or useAccount({ accountName: 'Account KoXpxTwfnjA5' }) to use an account by name
 
-// `account.author.wallets` only auto-generates an `eth` wallet by default.
+// `account.author.wallets` only auto-generates an `eth` wallet by default, derived from the account's
+// key, with a BSIP-22 proof over the key address (account.signer.address), so it stays valid when
+// author.address changes to a name. When accounts load, including the reload setAccount does after
+// saving, an eth wallet whose proof is invalid (e.g. signed before BSIP-22) is replaced by the
+// built-in wallet, freshly signed, so publishing keeps working; a wallet the user signed elsewhere
+// (e.g. 5chan Pass) has to be signed again to get it back. A proof dated ahead of the device's clock
+// is kept. The repair is best effort: if it fails (a malformed key, or the proof code failing to
+// load), the wallet stays as it is and publishing can fail until a later load repairs it.
+// Validate a wallet with validateEthWallet before saving it.
 // `account.chainProviders` is the canonical chain config for wallets, NFT lookups, and other chain reads.
 // Defaults use multiple explicit Ethereum RPCs for `.eth` / `.bso` author-name resolution.
 // Web defaults run a browser libp2p client and use multiple HTTP routers to discover peers.
@@ -1363,6 +1377,8 @@ if (state === 'resolving' && nameResolver) {
   console.log('Matching chain provider URLs', chainProvider?.urls)
 }
 ```
+
+**Migrating to 0.4.0.** Communities on pkc-js 0.0.155 or later reject a publication carrying an `author.wallets` proof that doesn't follow [BSIP-22](https://github.com/bitsocialnet/BSIPs/blob/master/BSIPS/bsip-22.md), and 0.4.0 signs and checks proofs that way. `validateEthWallet(wallet, authorPublicKey)` now takes the key address of the account's signing key (`account.signer.address`, `12D3KooW...`) instead of `author.address`, and rejects a proof in the old format. To sign an external wallet in, have it sign `getWalletMessageToSign(account.signer.address, walletAddress, timestamp)`, imported from `@bitsocial/bitsocial-react-hooks/author-wallet-proof`. When accounts load, an `eth` wallet whose proof is invalid is replaced by the built-in wallet, so a user signed in to an external wallet in the old format is signed out of it and signs again.
 
 #### Delete account
 
@@ -1778,6 +1794,8 @@ console.log(editedComment.state); // 'unedited' | 'succeeded' | 'pending' | 'fai
 ```
 
 Moderation fields are mirrored on both the top-level keys like `comment.removed` and the nested `comment.commentModeration.removed` shape.
+
+A pending or succeeded ban, `commentModeration.author.banExpiresAt`, shows on the edited comment as the author's ban, `author.community.banExpiresAt`, and as the mark pkc-js 0.0.158+ puts on the comment a ban was published on, `authorBanExpiresAt`. A ban of `0` removes that comment's `authorBanExpiresAt` and leaves the author's ban as it is.
 
 #### List all comment and community edits the account has performed
 
@@ -3998,6 +4016,8 @@ Statuses: **Open** means acceptance criteria remain unmet; **In progress** requi
 | 2026-11-21 | V1-06 | 0.3.3 is a compatible dependency update ([#195](https://github.com/bitsocialnet/bitsocial-react-hooks/pull/195)). pkc-js 0.0.154 lets a publication instance run one challenge exchange: a second `publish()` on it rejects with `ERR_PUBLICATION_PUBLISH_ALREADY_CALLED`. A publication the community never answers, an unusable success verification and a publish the RPC server failed now end `stopped` and `failed` with an error, where pkc-js used to stop silently, stay `publishing` or report `succeeded`. The publish actions already create a new publication for every publish and automatic republish, so only code comments changed. The mock now rejects a second `publish()` like pkc-js, and a `usePublishComment` test pins that a publication the community never answers ends the hook and the account comment `failed` at once. | Verified locally at `89497aa4`: 1,622 unit tests passed (six skipped), including the no-response test, which fails with pkc-js 0.0.152's silent stop. Type-check, lint (warnings only), Knip, format check and build passed. The mock (15 passed, one skipped), mock-content (6) and real (55) browser suites passed in Chromium, and the real suite also passed in Firefox, against pkc-js 0.0.154 through Kubo RPC, gateway and pubsub, and PKC RPC. They used locally installed Playwright Chromium 1254 and Firefox 1509 builds, not the pinned 1194 and 1495, and later commits change only this row, the generated `llms*.txt` and the version. The action signatures in V1-06 are unchanged, so V1-06 stays open. |
 | 2026-11-21 | V1-06 | 0.3.4 is a compatible fix with a small additive API ([#197](https://github.com/bitsocialnet/bitsocial-react-hooks/pull/197)): the publish hooks and the `accountsActions.publish*` actions call `onError(error, publication, {final})` with the exported `PublishErrorInfo`, so an app can tell an error that ended the publish from one pkc-js 0.0.154 recovers from while the publication keeps publishing. A recoverable error no longer fails a pending account comment, rolls back a stored comment edit, moderation or community edit, or sets the hook `state` to `failed`, and every final error now ends the hook `state` `failed`, also when `publish()` rejected before pkc-js reported a publishing state. `usePublishCommentEdit`, `usePublishCommentModeration` and `usePublishCommunityEdit` update their result only from their latest call, so an earlier edit's late failure no longer leaves a newer one `failed`. `publishVote` and the edit actions pass `onError` the publication that failed, an error pkc-js both emits and rejects `publish()` with is reported once, and a comment's final error that follows an earlier `failed` state or a community load failure is no longer dropped. The [API reference](../reference.md) states which errors are final. | Verified locally at `775a189d`: 1,701 unit tests passed (six skipped), including store and hook tests for all five publication types that replay pkc-js 0.0.154's event orders through the extended mock, and a consumer compilation check of the `onError` signatures. Type-check, lint (warnings only), Knip, format check and build passed. The mock (15 passed, one skipped), mock-content (6) and real (55) browser suites passed in Chromium, and the real suite also passed in Firefox, against pkc-js 0.0.154, in the locally installed Playwright Chromium 1254 and Firefox 1509 builds; the commit after it changes only this row and the generated `llms*.txt`. No live network run produced a recoverable pkc-js error. The publish actions' error reporting is now documented, but the other action contracts in V1-06 are unchanged, so V1-06 stays open. |
 | 2026-11-23 | V1-06 | 0.3.5 is a compatible fix with no API change: a comment whose publish failed, by a final error or by a challenge verification that rejected it, stays `failed` in `useAccountComment` and `useAccountComments` after a reload, where it showed `pending` until 20 minutes after its timestamp. `publishComment` recorded the failed `state` and `publishingState` only in the accounts store; it now also saves them to the comment's database row, while its errors stay in memory only, and `getAccountComments` reads after the account's comment writes already called, so a store reload right after the failure reads the saved row. | Verified locally at the PR head: 1,704 unit tests passed (six skipped), including two hook tests that reload the stores from the database after a rejected challenge verification and after a rejected `publish()`, and that report `pending` without the fix, and a database test of a read called while that write is queued. Type-check, Knip, build and lint (warnings only, none on changed lines) passed. In 5chan, with the fixed file on 0.3.4, a reply to a test board whose challenge was left unanswered failed after the community's 10-minute challenge exchange ttl and stayed `failed` after a reload, with that state in its stored row. In CI at `efd7d901`, the mock and mock-content browser suites passed in Chromium and the real suite in Chromium and Firefox. The action contracts in V1-06 are unchanged, so V1-06 stays open. |
+| 2026-11-24 | V1-06 | 0.3.6 is a compatible fix with no API change ([#200](https://github.com/bitsocialnet/bitsocial-react-hooks/pull/200)): `useEditedComment` applies a moderator's pending or succeeded ban to `authorBanExpiresAt`, the mark pkc-js 0.0.158 puts on the comment a ban was published on, as well as to `author.community.banExpiresAt`, and keeps the mark after an unban. A ban of `0` removes the mark, leaves the author's ban as it is, and counts as applied once the comment has no mark. The [API reference](../reference.md) states this. The package stays on pkc-js 0.0.154: 0.0.155 rejects wallet proofs that do not follow BSIP-22, and the default `author.wallets.eth` does not yet sign one ([#186](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/186)). | Verified locally at `0aadd20f`: 1,705 unit tests passed (six skipped), including hook tests for a pending ban, an unban that keeps the mark and a `0` that removes it. Type-check, lint (warnings only), Knip and build passed. The browser suites ran only in CI for the PR. The action contracts in V1-06 are unchanged, so V1-06 stays open. |
+| 2026-11-25 | V1-05 | 0.4.0 is an intentional compatibility boundary ([#202](https://github.com/bitsocialnet/bitsocial-react-hooks/pull/202), closes [#186](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/186)): wallet proofs follow BSIP-22, which communities on pkc-js 0.0.155 or later enforce. `validateEthWallet` takes the key address of the signing key instead of `author.address` and rejects a proof in the old format. The built-in `eth` wallet is signed over the key address, and when accounts load an `eth` wallet with an invalid proof is replaced by the built-in one, which signs the account out of an external wallet signed in the old format. `verifyAuthorWallet` and `getWalletMessageToSign` ship as the intentional subpath `@bitsocial/bitsocial-react-hooks/author-wallet-proof`, kept out of the root so their curve code (about 55 KB) stays out of apps' startup bundles. `viem` is no longer a dependency. Migration in the [API reference](../reference.md). The package stays on pkc-js 0.0.154. | Verified locally at `09189239`, the PR merged with 0.3.6: 1,743 unit tests passed (six skipped), including the 26 BSIP-22 vectors and account repair tests for an older-version account, a failed save, and a save, wallet or signer that lands while the repair signs. Type-check, lint (warnings only), Knip and build passed. The mock, mock-content and real browser suites passed in CI for `60dc19ef` merged with 0.3.6, the real one in Chromium and Firefox; later commits change no code. In 5chan against a local build of the PR, a local board on pkc-js 0.0.159 accepted a post with the built-in wallet and a 5chan Pass login and post, and startup bytes stayed within budget. The root export surface is otherwise unchanged, so V1-05 stays open. |
 
 0.1.64 compatibility correction (2026-10-31, V1-04): restored the open `Comment`, `PublishCommentOptions` and `CreateCommentOptions` aliases after 0.1.63 introduced weak-target assignment errors in 5chan. `CommentGalleryItem` and `UsePublishCommentOptions.gallery` remain available. The new consumer-compilation regression reproduces the incompatible scalar, array and publication-input assignments; it passes with the correction, as do the hooks build and 5chan type-check using the corrected declarations. Broader V1-04 criteria remain open.
 
@@ -4040,6 +4060,15 @@ Native references: [Codex hooks](https://learn.chatgpt.com/docs/hooks), [Claude 
 Source: https://github.com/bitsocialnet/bitsocial-react-hooks/blob/master/CHANGELOG.md
 
 ```markdown
+## [0.3.6](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.5...v0.3.6) (2026-11-24)
+
+
+### Features
+
+* **accounts:** show a pending ban on the post it was published from, and prepare 0.3.6 ([#200](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/200)) ([1d5225c](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/1d5225c03e690324400b1b20974bdc95ec8abc5d))
+
+
+
 ## [0.3.5](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.4...v0.3.5) (2026-11-23)
 
 
