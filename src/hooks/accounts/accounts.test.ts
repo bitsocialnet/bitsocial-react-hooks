@@ -1,4 +1,5 @@
 import { act } from "@testing-library/react";
+import { ethers } from "ethers";
 import testUtils, { renderHook } from "../../lib/test-utils";
 import { AccountComment, AccountVote } from "../../types";
 import {
@@ -33,6 +34,7 @@ import PkcJsMock, {
 import accountsStore from "../../stores/accounts";
 import communitiesStore from "../../stores/communities";
 import chain from "../../lib/chain";
+import { getWalletMessageToSign } from "../../lib/chain/author-wallet-proof";
 
 const toCommunity = (communityAddress?: string) =>
   communityAddress ? ({ address: communityAddress } as any) : undefined;
@@ -4776,10 +4778,10 @@ describe("accounts", () => {
       expect(typeof author.wallets.eth.signature.signature).toBe("string");
       expect(author.wallets.eth.signature.type).toBe("eip191");
       expect(author.wallets.sol).toBeUndefined();
-      await chain.validateEthWallet(author.wallets.eth, author.address);
+      await chain.validateEthWallet(author.wallets.eth, rendered.result.current.signer.address);
     });
 
-    test("changing author address changes wallet signature", async () => {
+    test("changing author address keeps the wallet proof", async () => {
       // on first render, the account is undefined because it's not yet loaded from database
       const rendered = renderHook(() => useAccount());
       const waitFor = testUtils.createWaitFor(rendered);
@@ -4795,9 +4797,9 @@ describe("accounts", () => {
       expect(typeof previousWallets.eth.signature.signature).toBe("string");
       expect(previousWallets.eth.signature.type).toBe("eip191");
       expect(previousWallets.sol).toBeUndefined();
-      await chain.validateEthWallet(previousWallets.eth, rendered.result.current.author.address);
+      await chain.validateEthWallet(previousWallets.eth, rendered.result.current.signer.address);
 
-      // change author address, wallets should update
+      // change author address to a name: the BSIP-22 proof binds the key address, so the wallet stays
       await act(async () => {
         const author = { ...rendered.result.current.author, address: "authoraddress.eth" };
         const account = { ...rendered.result.current, author };
@@ -4807,14 +4809,9 @@ describe("accounts", () => {
       await waitFor(() => rendered.result.current.author.address === "authoraddress.eth");
       expect(rendered.result.current.author.address).toBe("authoraddress.eth");
       const wallets = rendered.result.current.author.wallets;
-      expect(wallets.eth.address).toBe("0x37BC48124fDf985DC3983E2e8414606D4a996ED7");
-      expect(typeof wallets.eth.timestamp).toBe("number");
-      expect(wallets.eth.timestamp).toBeGreaterThanOrEqual(previousWallets.eth.timestamp);
-      expect(typeof wallets.eth.signature.signature).toBe("string");
-      expect(wallets.eth.signature.signature).not.toBe(previousWallets.eth.signature.signature);
-      expect(wallets.eth.signature.type).toBe("eip191");
+      expect(wallets.eth).toEqual(previousWallets.eth);
       expect(wallets.sol).toBeUndefined();
-      await chain.validateEthWallet(wallets.eth, rendered.result.current.author.address);
+      await chain.validateEthWallet(wallets.eth, rendered.result.current.signer.address);
 
       // change author display name, wallets should not update
       const previousEthSignature = wallets.eth.signature.signature;
@@ -4831,14 +4828,28 @@ describe("accounts", () => {
       );
     });
 
-    test("changing author address keeps a non-signer eth wallet untouched", async () => {
+    test("changing author address keeps a valid non-signer eth wallet untouched", async () => {
       const rendered = renderHook(() => useAccount());
       const waitFor = testUtils.createWaitFor(rendered);
 
       await waitFor(() => rendered.result.current.author.address);
+      // a wallet the user signed elsewhere (e.g. 5chan Pass), with a BSIP-22 proof over the key address
+      const walletKey = "0x0202020202020202020202020202020202020202020202020202020202020202";
+      const walletAddress = new ethers.Wallet(walletKey).address;
+      const timestamp = Math.floor(Date.now() / 1000);
       const customWallet = {
-        ...rendered.result.current.author.wallets.eth,
-        address: "0x0000000000000000000000000000000000000001",
+        address: walletAddress,
+        timestamp,
+        signature: {
+          signature: await new ethers.Wallet(walletKey).signMessage(
+            getWalletMessageToSign(
+              rendered.result.current.signer.address,
+              walletAddress,
+              timestamp,
+            ),
+          ),
+          type: "eip191",
+        },
       };
 
       await act(async () => {
@@ -4855,10 +4866,34 @@ describe("accounts", () => {
       });
 
       await waitFor(() => rendered.result.current.author.address === "custom-author.eth");
-      expect(rendered.result.current.author.wallets.eth.address).toBe(customWallet.address);
-      expect(rendered.result.current.author.wallets.eth.signature.signature).toBe(
-        customWallet.signature.signature,
-      );
+      expect(rendered.result.current.author.wallets.eth).toEqual(customWallet);
+    });
+
+    test("an eth wallet with an invalid proof is replaced by the built-in one when saved", async () => {
+      const rendered = renderHook(() => useAccount());
+      const waitFor = testUtils.createWaitFor(rendered);
+
+      await waitFor(() => rendered.result.current.author.address);
+      const builtInAddress = rendered.result.current.author.wallets.eth.address;
+      // e.g. a 5chan Pass login signed in the pre-BSIP-22 format
+      const invalidWallet = {
+        ...rendered.result.current.author.wallets.eth,
+        address: "0x0000000000000000000000000000000000000001",
+      };
+
+      await act(async () => {
+        const author = {
+          ...rendered.result.current.author,
+          displayName: "Pass user",
+          wallets: { ...rendered.result.current.author.wallets, eth: invalidWallet },
+        };
+        await accountsActions.setAccount({ ...rendered.result.current, author });
+      });
+
+      await waitFor(() => rendered.result.current.author.displayName === "Pass user");
+      const wallet = rendered.result.current.author.wallets.eth;
+      expect(wallet.address).toBe(builtInAddress);
+      await chain.validateEthWallet(wallet, rendered.result.current.signer.address);
     });
   });
 });

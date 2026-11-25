@@ -11,6 +11,9 @@ const loadEthers = async () => {
   return ethers;
 };
 
+// The BSIP-22 proof code (noble curves) loads on demand for the same reason.
+const loadAuthorWalletProof = () => import("./author-wallet-proof");
+
 // Account setup needs ethers (the author's eth wallet) and bso-resolver (the PKC client's name
 // resolvers) as soon as pkc-js loads. Starting both downloads when the accounts store initializes
 // loads them alongside pkc-js instead of one after another, without blocking the app's first render.
@@ -189,34 +192,40 @@ const nftAbi = [
   },
 ];
 
-export const getWalletMessageToSign = (authorAddress: string, timestamp: number) => {
-  // use plain JSON so the user can read what he's signing
-  // property names must always be in this order for signature to match so don't use JSON.stringify
-  return `{"domainSeparator":"pkc-author-wallet","authorAddress":"${authorAddress}","timestamp":${timestamp}}`;
+const decodePkcPrivateKey = (privateKeyBase64: string) => {
+  const privateKeyBytes = Uint8Array.from(atob(privateKeyBase64), (c) => c.charCodeAt(0));
+  if (privateKeyBytes.length !== 32) {
+    throw Error("failed getting eth address from private key not 32 bytes");
+  }
+  return privateKeyBytes;
 };
 
+/**
+ * The author wallet derived from the author's PKC private key, with a BSIP-22 proof. The proof
+ * binds the key address of that private key, so it stays valid when author.address changes to a
+ * name. The second argument is ignored: it used to be author.address, which BSIP-22 forbids.
+ */
 export const getEthWalletFromPkcPrivateKey = async (
   privateKeyBase64: string,
-  authorAddress: string,
+  _authorAddress?: string,
 ) => {
   // ignore private key used in pkc-js signer mock so tests run faster, also make sure nobody uses it
   if (privateKeyBase64 === "private key") {
     return;
   }
 
-  const privateKeyBytes = Uint8Array.from(atob(privateKeyBase64), (c) => c.charCodeAt(0));
-  if (privateKeyBytes.length !== 32) {
-    throw Error("failed getting eth address from private key not 32 bytes");
-  }
+  const privateKeyBytes = decodePkcPrivateKey(privateKeyBase64);
+  const { getKeyAddressFromPkcPrivateKey, getWalletMessageToSign } = await loadAuthorWalletProof();
+  const authorPublicKey = getKeyAddressFromPkcPrivateKey(privateKeyBase64);
   await loadEthers();
   const publicKeyHex = ethers.utils.computePublicKey(privateKeyBytes, false);
   const privateKeyHex = ethers.utils.hexlify(privateKeyBytes);
   const ethAddress = ethers.utils.computeAddress(publicKeyHex);
 
-  // generate signature
+  // ethers signs as a wallet does: EIP-191 personal message, low s, v of 27 or 28
   const timestamp = Math.floor(Date.now() / 1000);
   const signature = await new ethers.Wallet(privateKeyHex).signMessage(
-    getWalletMessageToSign(authorAddress, timestamp),
+    getWalletMessageToSign(authorPublicKey, ethAddress, timestamp),
   );
 
   return { address: ethAddress, timestamp, signature: { signature, type: "eip191" } };
@@ -224,95 +233,32 @@ export const getEthWalletFromPkcPrivateKey = async (
 
 export const getEthPrivateKeyFromPkcPrivateKey = async (
   privateKeyBase64: string,
-  authorAddress: string,
+  authorAddress?: string,
 ) => {
   // ignore private key used in pkc-js signer mock so tests run faster, also make sure nobody uses it
   if (privateKeyBase64 === "private key") {
     return;
   }
 
-  const privateKeyBytes = Uint8Array.from(atob(privateKeyBase64), (c) => c.charCodeAt(0));
-  if (privateKeyBytes.length !== 32) {
-    throw Error("failed getting eth address from private key not 32 bytes");
-  }
+  const privateKeyBytes = decodePkcPrivateKey(privateKeyBase64);
   await loadEthers();
   const privateKeyHex = ethers.utils.hexlify(privateKeyBytes);
   return privateKeyHex;
 };
 
-export const validateEthWallet = async (wallet: Wallet, authorAddress: string) => {
-  assert(
-    wallet && typeof wallet === "object",
-    `validateEthWallet invalid wallet argument '${wallet}'`,
-  );
-  assert(wallet?.address, `validateEthWallet invalid wallet.address '${wallet?.address}'`);
-  assert(
-    typeof wallet?.timestamp === "number",
-    `validateEthWallet invalid wallet.timestamp '${wallet?.timestamp}' not a number`,
-  );
-  assert(wallet?.signature, `validateEthWallet invalid wallet.signature '${wallet?.signature}'`);
-  assert(
-    wallet?.signature?.signature,
-    `validateEthWallet invalid wallet.signature.signature '${wallet?.signature?.signature}'`,
-  );
-  assert(
-    wallet.signature.type === "eip191",
-    `validateEthWallet invalid wallet.signature.type '${wallet?.signature?.type}'`,
-  );
-  assert(
-    authorAddress && typeof authorAddress === "string",
-    `validateEthWallet invalid authorAddress '${authorAddress}'`,
-  );
-  assert(
-    wallet?.timestamp <= Date.now() / 1000,
-    `validateEthWallet invalid wallet.timestamp '${wallet?.timestamp}' greater than current Date.now() / 1000`,
-  );
-  await loadEthers();
-  const signatureAddress = ethers.utils.verifyMessage(
-    getWalletMessageToSign(authorAddress, wallet.timestamp),
-    wallet.signature.signature,
-  );
-  if (wallet.address.toLowerCase() !== signatureAddress.toLowerCase()) {
-    throw Error("wallet address does not equal signature address");
+/**
+ * Resolve when `wallet` is a valid BSIP-22 proof for the author key address `authorPublicKey`
+ * (12D3KooW..., never author.address), throw otherwise, including for a signature type this check
+ * doesn't implement. Use verifyAuthorWallet to tell invalid and unknown entries apart.
+ */
+export const validateEthWallet = async (wallet: Wallet, authorPublicKey: string) => {
+  const { verifyAuthorWallet } = await loadAuthorWalletProof();
+  const result = verifyAuthorWallet(wallet, authorPublicKey);
+  if (result.outcome === "unknown") {
+    throw Error(`validateEthWallet unknown wallet.signature.type '${wallet?.signature?.type}'`);
   }
-};
-
-export const validateEthWalletViem = async (wallet: Wallet, authorAddress: string) => {
-  // sanity checks
-  assert(
-    wallet && typeof wallet === "object",
-    `validateEthWallet invalid wallet argument '${wallet}'`,
-  );
-  assert(wallet?.address, `validateEthWallet invalid wallet.address '${wallet?.address}'`);
-  assert(
-    typeof wallet?.timestamp === "number",
-    `validateEthWallet invalid wallet.timestamp '${wallet?.timestamp}' not a number`,
-  );
-  assert(wallet?.signature, `validateEthWallet invalid wallet.signature '${wallet?.signature}'`);
-  assert(
-    wallet?.signature?.signature,
-    `validateEthWallet invalid wallet.signature.signature '${wallet?.signature?.signature}'`,
-  );
-  assert(
-    wallet.signature.type === "eip191",
-    `validateEthWallet invalid wallet.signature.type '${wallet?.signature?.type}'`,
-  );
-  assert(
-    authorAddress && typeof authorAddress === "string",
-    `validateEthWallet invalid authorAddress '${authorAddress}'`,
-  );
-  assert(
-    wallet?.timestamp <= Date.now() / 1000,
-    `validateEthWallet invalid wallet.timestamp '${wallet?.timestamp}' greater than current Date.now() / 1000`,
-  );
-  const { verifyMessage } = await import("viem");
-  const valid = await verifyMessage({
-    address: wallet.address,
-    message: getWalletMessageToSign(authorAddress, wallet.timestamp),
-    signature: wallet.signature.signature,
-  });
-  if (!valid) {
-    throw Error("wallet address does not equal signature address");
+  if (result.outcome === "invalid") {
+    throw Error(`validateEthWallet invalid wallet: ${result.reason}`);
   }
 };
 
@@ -324,5 +270,4 @@ export default {
   getEthWalletFromPkcPrivateKey,
   getEthPrivateKeyFromPkcPrivateKey,
   validateEthWallet,
-  validateEthWalletViem,
 };
