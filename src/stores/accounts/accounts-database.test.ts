@@ -298,25 +298,32 @@ describe("accounts-database", () => {
       await waitForStoredEthWallet("save-fails", reloaded["save-fails"].author.wallets.eth);
     });
 
-    test("saves the repair onto a save of the account that lands while it signs", async () => {
-      await storeAccount("raced", {
-        author: { address: signer.address, wallets: { eth: oldBuiltInWallet } },
-      });
-      const getEthWalletFromPkcPrivateKey = chain.getEthWalletFromPkcPrivateKey;
-      vi.spyOn(chain, "getEthWalletFromPkcPrivateKey").mockImplementationOnce(async (...args) => {
-        await accountsDatabase.addAccount(
-          makeCurrentAccount("raced", {
-            author: { address: signer.address, wallets: { eth: oldBuiltInWallet } },
-            subscriptions: ["newer"],
-          }) as any,
-        );
-        return getEthWalletFromPkcPrivateKey(...args);
-      });
-      const accounts = await accountsDatabase.getAccounts(["raced"]);
-      await waitForStoredEthWallet("raced", accounts["raced"].author.wallets.eth);
-      const stored = await accountsDatabase.accountsDatabase.getItem<any>("raced");
-      expect(stored.subscriptions).toEqual(["newer"]);
-    });
+    test.each([
+      ["the current version", accountsDatabase.accountVersion],
+      ["an older version, which loading migrates", 5],
+    ])(
+      "saves the repair onto a save of the account that lands while it signs, for %s",
+      async (_, version) => {
+        await storeAccount("raced", {
+          version,
+          author: { address: signer.address, wallets: { eth: oldBuiltInWallet } },
+        });
+        const getEthWalletFromPkcPrivateKey = chain.getEthWalletFromPkcPrivateKey;
+        vi.spyOn(chain, "getEthWalletFromPkcPrivateKey").mockImplementationOnce(async (...args) => {
+          await accountsDatabase.addAccount(
+            makeCurrentAccount("raced", {
+              author: { address: signer.address, wallets: { eth: oldBuiltInWallet } },
+              subscriptions: ["newer"],
+            }) as any,
+          );
+          return getEthWalletFromPkcPrivateKey(...args);
+        });
+        const accounts = await accountsDatabase.getAccounts(["raced"]);
+        await waitForStoredEthWallet("raced", accounts["raced"].author.wallets.eth);
+        const stored = await accountsDatabase.accountsDatabase.getItem<any>("raced");
+        expect(stored.subscriptions).toEqual(["newer"]);
+      },
+    );
 
     test("doesn't save the repair over a wallet saved while it signs", async () => {
       await storeAccount("replaced", {

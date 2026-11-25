@@ -175,11 +175,12 @@ const getAccountsFromStoredAccounts = async (storedAccounts: Accounts) => {
   for (const [accountId, storedAccount] of Object.entries(storedAccounts)) {
     const storedVersion = storedAccount.version || 1;
     const migratedAccount = await migrateAccount(storedAccount);
-    const ethWallet = migratedAccount.author?.wallets?.eth;
-    const repairedWallet = await repairEthWallet(migratedAccount);
+    // saved before the repair, so the whole-record write doesn't wait on its signing
     if (storedVersion !== migratedAccount.version) {
       await accountsDatabase.setItem(accountId, migratedAccount);
-    } else if (repairedWallet) {
+    }
+    const ethWallet = migratedAccount.author?.wallets?.eth;
+    if (await repairEthWallet(migratedAccount)) {
       saveRepairedEthWallet(accountId, ethWallet, migratedAccount.author.wallets.eth);
     }
     accounts[accountId] = normalizeAccountProtocolConfig(
