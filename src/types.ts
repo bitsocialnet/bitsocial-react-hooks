@@ -68,6 +68,11 @@ export interface UseAccountCommentOptions extends Options {
 }
 export interface UseAccountCommentResult extends Result, AccountComment {}
 
+// useIsAccountComment(options): boolean
+export interface UseIsAccountCommentOptions extends Options {
+  comment?: Comment;
+}
+
 // useAccountVotes(options): result
 export interface UseAccountVotesOptions extends Options {
   filter?: AccountPublicationsFilter;

@@ -247,6 +247,7 @@ AI contributor guidance starts in [AGENTS.md](../AGENTS.md). Edit shared skills 
 ```
 useAccount(): Account | undefined
 useAccountComment({commentIndex?: number, commentCid?: string}): Comment // get one own comment by index or cid
+useIsAccountComment({comment: Comment, accountName?: string}): boolean // whether the account published a loaded comment, including on pseudonymous boards and from another device, e.g. to show "(You)"
 useAccountComments({filter?: AccountPublicationsFilter, commentCid?: string, commentIndices?: number[], communityAddress?: string, parentCid?: string, newerThan?: number, page?: number, pageSize?: number, sortType?: "new" | "old"}): {accountComments: Comment[]} // export or display list of own comments
 useAccountVotes({filter?: AccountPublicationsFilter, vote?: number, commentCid?: string, communityAddress?: string, newerThan?: number, page?: number, pageSize?: number, sortType?: "new" | "old"}): {accountVotes: Vote[]}  // export or display list of own votes
 useAccountVote({commentCid: string}): Vote // know if you already voted on some comment
@@ -430,6 +431,7 @@ setPkcJs(PKC) // swap the underlying protocol client implementation, e.g. for mo
 deleteDatabases() // delete all databases, including all caches and accounts data, then reload the app because the stores keep their state in memory
 deleteCaches() // delete the cached comments, cached communities and cached pages only, no accounts data
 createCrosspost(comment: Comment): Crosspost // build the immutable payload accepted by pkc-js
+isAccountComment(comment: Comment, options?: {accountName?: string}): boolean // useIsAccountComment outside React, e.g. to check every reply of a thread
 validateComment(comment: Comment, options?: {validateReplies?: boolean, community?: Community}): Promise<{valid: true} | {valid: false, reason: string}> // validate a comment from an untrusted source outside React
 validateEthWallet(wallet: Wallet, authorPublicKey: string): Promise<void> // resolves only for a valid BSIP-22 proof, throws otherwise
 
@@ -504,6 +506,24 @@ const results = await Promise.all(
   untrustedComments.map((comment) => validateComment(comment, { community })),
 );
 const validComments = untrustedComments.filter((_, index) => results[index].valid);
+```
+
+`useIsAccountComment` and `isAccountComment` tell whether the account published a loaded comment.
+A comment counts as the account's when it is in the account's local history (pending comments
+included), when it is signed by the account's key, or when the community that aliased it on a
+pseudonymous board tagged it as the account's in `raw.commentUpdate.pseudonymityAuthorTag` (pkc-js
+`docs/protocol/pseudonymity-author-tag.md`). The last two need only the account key, so a second
+device with the same account recognizes posts published from the first one. Nothing is stored:
+the check runs on each loaded comment, deriving one key per account and community, so a post
+recognized this way doesn't appear in `useAccountComments` or `useNotifications`. The signature and
+the tag are read, not verified: pass comments loaded through the hooks, or check a comment from
+another source with `validateComment` first. A board can tag any post on itself as the account's,
+so a malicious board can produce a false "(You)" on that board only. Anyone holding the account's
+private key can recognize all of its tagged posts, so treat an exported account like a password.
+
+```js
+const isYou = useIsAccountComment({ comment: quotedReply });
+const repliesToYou = replies.filter((reply) => isAccountComment(parentCommentsByCid[reply.parentCid]));
 ```
 
 ## Recipes
