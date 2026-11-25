@@ -24,6 +24,7 @@ const log = Logger("bitsocial-react-hooks:feeds:stores");
 import createStore from "zustand";
 import localForageLru from "../../lib/localforage-lru/index.js";
 import { communityPostsCacheExpired } from "../../lib/utils/index.js";
+import { subscribeToOnlineStatus } from "../../lib/online-status.js";
 import { getPkcGetCommunity } from "../../lib/pkc-compat.js";
 import { getCommunityRefKeys } from "../../lib/community-ref.js";
 import accountsStore from "../accounts/index.js";
@@ -334,6 +335,7 @@ const feedsStore = createStore((setState, getState) => ({
     },
 }));
 let feedsStoreInitialized = false;
+let unsubscribeFromOnlineStatus;
 const initializeFeedsStore = () => __awaiter(void 0, void 0, void 0, function* () {
     if (feedsStoreInitialized) {
         return;
@@ -351,6 +353,8 @@ const initializeFeedsStore = () => __awaiter(void 0, void 0, void 0, function* (
     accountsStore.subscribe(updateFeedsOnAccountsBlockedCidsChange);
     // subscribe to accounts store changes (for account comments)
     accountsStore.subscribe(updateFeedsOnAccountsCommentsChange);
+    // whether an expired community cache may be used depends on the online status
+    unsubscribeFromOnlineStatus = subscribeToOnlineStatus(() => feedsStore.getState().updateFeeds());
     feedsStoreInitialized = true;
 });
 let previousBlockedAddresses = [];
@@ -576,6 +580,8 @@ export const resetFeedsStore = () => __awaiter(void 0, void 0, void 0, function*
         delete feedsCommunitySubscriptions[feedName];
     }
     feedsWithSkippedPageFetches.clear();
+    unsubscribeFromOnlineStatus === null || unsubscribeFromOnlineStatus === void 0 ? void 0 : unsubscribeFromOnlineStatus();
+    unsubscribeFromOnlineStatus = undefined;
     // destroy all component subscriptions to the store
     feedsStore.destroy();
     // restore original state

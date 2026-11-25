@@ -11,6 +11,7 @@ import { getCommunityPages, getCommunityFirstPageCid } from "../communities-page
 import accountsStore from "../accounts/index.js";
 import feedSorter from "./feed-sorter.js";
 import { communityPostsCacheExpired, commentIsValid, removeInvalidComments } from "../../lib/utils/index.js";
+import { isOnline } from "../../lib/online-status.js";
 import { getCommentCommunityAddress, normalizeCommentCommunityAddress } from "../../lib/pkc-compat.js";
 import { doesAddressMatchCommunityRef, getCommunityRefKeys, getMatchingCommunityRefKeys, isCommunityRefBlocked, } from "../../lib/community-ref.js";
 import Logger from "@pkcprotocol/pkc-logger";
@@ -114,7 +115,7 @@ export const getFilteredSortedFeeds = (feedsOptions, communities, communitiesPag
                 continue;
             }
             // if cache is expired and has internet access, don't use, wait for next community update
-            if (communityPostsCacheExpired(community) && window.navigator.onLine) {
+            if (communityPostsCacheExpired(community) && isOnline()) {
                 continue;
             }
             const communityPosts = [];
