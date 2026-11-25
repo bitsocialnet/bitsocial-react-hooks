@@ -82,13 +82,81 @@ const migrate = () => __awaiter(void 0, void 0, void 0, function* () {
     }
     yield Promise.all(promises);
 });
+// BSIP-22 replaced the wallet proof format, and communities on pkc-js 0.0.155+ reject a publication
+// carrying an invalid wallet proof. Whenever the account's eth wallet has an invalid proof, replace
+// it with the wallet derived from the account's own key, freshly signed. That re-signs the built-in
+// wallet, and logs the account out of an external wallet (e.g. 5chan Pass) signed in the old
+// format, the same as the app's own logout: the user signs again to get it back. A valid entry, or
+// one of a signature type this check doesn't implement, is kept. This runs on every load rather
+// than as a one-time migration, so a failed attempt (offline, or the proof code failing to load)
+// is retried next time.
+const repairEthWallet = (account) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c;
+    const ethWallet = (_b = (_a = account.author) === null || _a === void 0 ? void 0 : _a.wallets) === null || _b === void 0 ? void 0 : _b.eth;
+    const privateKey = (_c = account.signer) === null || _c === void 0 ? void 0 : _c.privateKey;
+    // the pkc-js mock signer has no usable key
+    if (ethWallet === undefined || typeof privateKey !== "string" || privateKey === "private key") {
+        return false;
+    }
+    try {
+        const { getKeyAddressFromPkcPrivateKey, verifyAuthorWallet } = yield import("../../lib/chain/author-wallet-proof.js");
+        const authorPublicKey = getKeyAddressFromPkcPrivateKey(privateKey);
+        // without this device's clock: a proof dated ahead of it becomes valid with time, and replacing
+        // it would log the account out of an external wallet for good over a clock difference
+        const { outcome } = verifyAuthorWallet(ethWallet, authorPublicKey, { nowSeconds: Infinity });
+        if (outcome !== "invalid") {
+            return false;
+        }
+        const builtInWallet = yield chain.getEthWalletFromPkcPrivateKey(privateKey);
+        if (!builtInWallet) {
+            return false;
+        }
+        account.author.wallets = Object.assign(Object.assign({}, account.author.wallets), { eth: builtInWallet });
+        return true;
+    }
+    catch (error) {
+        // a malformed key or a failed load mustn't stop accounts from loading
+        log.error("repairEthWallet failed, retrying on the next load", {
+            accountId: account.id,
+            error,
+        });
+        return false;
+    }
+});
+// Saves a repaired wallet in the queue addAccount writes accounts in, onto the stored record as it
+// is then, and only while that record still holds the invalid wallet and the key the repair signed
+// for: a save of the account can land while the repair signs, and writing back the whole record
+// read before it would undo that save. Not awaited, because addAccount loads accounts through
+// getAccountsFromStoredAccounts while holding the queue. A failed save leaves the account loaded
+// with the repaired wallet; the next load repairs it again.
+const saveRepairedEthWallet = (accountId, signerPrivateKey, invalidWallet, repairedWallet) => {
+    queueAccountsMetadataMutation(() => __awaiter(void 0, void 0, void 0, function* () {
+        var _a, _b, _c;
+        const storedAccount = yield accountsDatabase.getItem(accountId);
+        if (((_a = storedAccount === null || storedAccount === void 0 ? void 0 : storedAccount.signer) === null || _a === void 0 ? void 0 : _a.privateKey) !== signerPrivateKey ||
+            !isEqual((_c = (_b = storedAccount === null || storedAccount === void 0 ? void 0 : storedAccount.author) === null || _b === void 0 ? void 0 : _b.wallets) === null || _c === void 0 ? void 0 : _c.eth, invalidWallet)) {
+            return;
+        }
+        storedAccount.author.wallets = Object.assign(Object.assign({}, storedAccount.author.wallets), { eth: repairedWallet });
+        yield accountsDatabase.setItem(accountId, storedAccount);
+    })).catch((error) => log.error("saving the repaired eth wallet failed, retrying on the next load", {
+        accountId,
+        error,
+    }));
+};
 const getAccountsFromStoredAccounts = (storedAccounts) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
     const accounts = {};
     for (const [accountId, storedAccount] of Object.entries(storedAccounts)) {
         const storedVersion = storedAccount.version || 1;
         const migratedAccount = yield migrateAccount(storedAccount);
+        // saved before the repair, so the whole-record write doesn't wait on its signing
         if (storedVersion !== migratedAccount.version) {
             yield accountsDatabase.setItem(accountId, migratedAccount);
+        }
+        const ethWallet = (_b = (_a = migratedAccount.author) === null || _a === void 0 ? void 0 : _a.wallets) === null || _b === void 0 ? void 0 : _b.eth;
+        if (yield repairEthWallet(migratedAccount)) {
+            saveRepairedEthWallet(accountId, migratedAccount.signer.privateKey, ethWallet, migratedAccount.author.wallets.eth);
         }
         accounts[accountId] = normalizeAccountProtocolConfig(migratedAccount, getDefaultChainProviders());
         // protocol options aren't saved to database if they are default

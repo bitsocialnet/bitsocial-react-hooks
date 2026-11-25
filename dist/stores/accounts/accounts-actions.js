@@ -25,7 +25,6 @@ import accountsDatabase from "./accounts-database.js";
 import accountGenerator from "./account-generator.js";
 import Logger from "@pkcprotocol/pkc-logger";
 import validator from "../../lib/validator.js";
-import chain from "../../lib/chain/index.js";
 import assert from "../../lib/assert.js";
 const log = Logger("bitsocial-react-hooks:accounts:stores");
 import * as accountsActionsInternal from "./accounts-actions-internal.js";
@@ -633,7 +632,6 @@ export const setActiveAccount = (accountName) => __awaiter(void 0, void 0, void 
     accountsStore.setState({ activeAccountId: accountId });
 });
 export const setAccount = (account) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
     const { accounts } = accountsStore.getState();
     validator.validateAccountsActionsSetAccountArguments(account);
     assert(accounts === null || accounts === void 0 ? void 0 : accounts[account.id], `cannot set account with account.id '${account.id}' id does not exist in database`);
@@ -643,14 +641,7 @@ export const setAccount = (account) => __awaiter(void 0, void 0, void 0, functio
     if (account.author.address !== accounts[account.id].author.address) {
         const communities = getAccountCommunities(account, communitiesStore.getState().communities);
         account = Object.assign(Object.assign({}, account), { communities });
-        // wallet.signature changes if author.address changes
-        if ((_a = account.author.wallets) === null || _a === void 0 ? void 0 : _a.eth) {
-            const pkcSignerWalletWithNewAuthorAddress = yield chain.getEthWalletFromPkcPrivateKey(account.signer.privateKey, account.author.address);
-            // wallet is using pkc signer, redo signature with new author.address
-            if (account.author.wallets.eth.address === (pkcSignerWalletWithNewAuthorAddress === null || pkcSignerWalletWithNewAuthorAddress === void 0 ? void 0 : pkcSignerWalletWithNewAuthorAddress.address)) {
-                account.author.wallets = Object.assign(Object.assign({}, account.author.wallets), { eth: pkcSignerWalletWithNewAuthorAddress });
-            }
-        }
+        // wallet proofs bind the signer's key address (BSIP-22), not author.address, so they stay valid
     }
     // use this function to serialize and update all databases
     yield accountsDatabase.addAccount(account);

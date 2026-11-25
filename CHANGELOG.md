@@ -1,3 +1,17 @@
+# [0.4.0](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.6...v0.4.0) (2026-11-25)
+
+
+### Bug Fixes
+
+* **accounts:** sign and verify author wallet proofs as BSIP-22 defines them, and prepare 0.4.0 ([#202](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/202)) ([84786f3](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/84786f3fcee44c11be6f422c90b6fcd299909491)), closes [#186](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/186)
+
+
+### BREAKING CHANGES
+
+* **accounts:** validateEthWallet(wallet, authorPublicKey) takes the key address of the account's signing key (account.signer.address, 12D3KooW...) instead of author.address, and rejects a proof in the old format. To sign an external wallet in, have it sign getWalletMessageToSign(account.signer.address, walletAddress, timestamp) from @bitsocial/bitsocial-react-hooks/author-wallet-proof. An account signed in to an external wallet with an old-format proof is signed out of it when it loads and has to sign again.
+
+
+
 ## [0.3.6](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.5...v0.3.6) (2026-11-24)
 
 

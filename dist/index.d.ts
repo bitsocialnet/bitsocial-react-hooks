@@ -69,7 +69,7 @@ declare const hooks: {
     useClientsStates: typeof useClientsStates;
     useCommunitiesStates: typeof useCommunitiesStates;
     usePkcRpcSettings: typeof usePkcRpcSettings;
-    getEthWalletFromPkcPrivateKey: (privateKeyBase64: string, authorAddress: string) => Promise<{
+    getEthWalletFromPkcPrivateKey: (privateKeyBase64: string, _authorAddress?: string) => Promise<{
         address: string;
         timestamp: number;
         signature: {
@@ -77,8 +77,8 @@ declare const hooks: {
             type: string;
         };
     } | undefined>;
-    getEthPrivateKeyFromPkcPrivateKey: (privateKeyBase64: string, authorAddress: string) => Promise<string | undefined>;
-    validateEthWallet: (wallet: import("./types.js").Wallet, authorAddress: string) => Promise<void>;
+    getEthPrivateKeyFromPkcPrivateKey: (privateKeyBase64: string, authorAddress?: string) => Promise<string | undefined>;
+    validateEthWallet: (wallet: import("./types.js").Wallet, authorPublicKey: string) => Promise<void>;
     setPkcJs: typeof setPkcJs;
     restorePkcJs: typeof restorePkcJs;
     deleteDatabases: () => Promise<void>;
