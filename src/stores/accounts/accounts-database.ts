@@ -145,19 +145,23 @@ const repairEthWallet = async (account: any): Promise<boolean> => {
 };
 
 // Saves a repaired wallet in the queue addAccount writes accounts in, onto the stored record as it
-// is then, and only while that record still holds the invalid wallet: a save of the account can
-// land while the repair signs, and writing back the whole record read before it would undo that
-// save. Not awaited, because addAccount loads accounts through getAccountsFromStoredAccounts while
-// holding the queue. A failed save leaves the account loaded with the repaired wallet; the next
-// load repairs it again.
+// is then, and only while that record still holds the invalid wallet and the key the repair signed
+// for: a save of the account can land while the repair signs, and writing back the whole record
+// read before it would undo that save. Not awaited, because addAccount loads accounts through
+// getAccountsFromStoredAccounts while holding the queue. A failed save leaves the account loaded
+// with the repaired wallet; the next load repairs it again.
 const saveRepairedEthWallet = (
   accountId: string,
+  signerPrivateKey: string,
   invalidWallet: unknown,
   repairedWallet: unknown,
 ) => {
   queueAccountsMetadataMutation(async () => {
     const storedAccount: any = await accountsDatabase.getItem(accountId);
-    if (!isEqual(storedAccount?.author?.wallets?.eth, invalidWallet)) {
+    if (
+      storedAccount?.signer?.privateKey !== signerPrivateKey ||
+      !isEqual(storedAccount?.author?.wallets?.eth, invalidWallet)
+    ) {
       return;
     }
     storedAccount.author.wallets = { ...storedAccount.author.wallets, eth: repairedWallet };
@@ -181,7 +185,12 @@ const getAccountsFromStoredAccounts = async (storedAccounts: Accounts) => {
     }
     const ethWallet = migratedAccount.author?.wallets?.eth;
     if (await repairEthWallet(migratedAccount)) {
-      saveRepairedEthWallet(accountId, ethWallet, migratedAccount.author.wallets.eth);
+      saveRepairedEthWallet(
+        accountId,
+        migratedAccount.signer.privateKey,
+        ethWallet,
+        migratedAccount.author.wallets.eth,
+      );
     }
     accounts[accountId] = normalizeAccountProtocolConfig(
       migratedAccount,

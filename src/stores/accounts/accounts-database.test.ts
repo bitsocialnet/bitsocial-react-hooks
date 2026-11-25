@@ -348,6 +348,32 @@ describe("accounts-database", () => {
         (await accountsDatabase.accountsDatabase.getItem<any>("replaced")).author.wallets.eth,
       ).toEqual(newerWallet);
     });
+
+    test("doesn't save the repair onto a signer saved while it signs", async () => {
+      await storeAccount("new-signer", {
+        author: { address: signer.address, wallets: { eth: oldBuiltInWallet } },
+      });
+      const newSigner = { ...signer, privateKey: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=" };
+      const getEthWalletFromPkcPrivateKey = chain.getEthWalletFromPkcPrivateKey;
+      vi.spyOn(chain, "getEthWalletFromPkcPrivateKey").mockImplementationOnce(async (...args) => {
+        await accountsDatabase.addAccount(
+          makeCurrentAccount("new-signer", {
+            signer: newSigner,
+            author: { address: signer.address, wallets: { eth: oldBuiltInWallet } },
+          }) as any,
+        );
+        return getEthWalletFromPkcPrivateKey(...args);
+      });
+      await accountsDatabase.getAccounts(["new-signer"]);
+      // a later queued write runs after the repair's save
+      await accountsDatabase.addAccount(
+        makeCurrentAccount("other", { author: { address: signer.address, wallets: {} } }) as any,
+      );
+      const stored = await accountsDatabase.accountsDatabase.getItem<any>("new-signer");
+      // the proof signed for the old key isn't saved beside the new one; the next load repairs it
+      expect(stored.signer).toEqual(newSigner);
+      expect(stored.author.wallets.eth).toEqual(oldBuiltInWallet);
+    });
   });
 
   describe("migrateAccount (via getAccounts)", () => {
