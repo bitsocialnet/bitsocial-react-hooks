@@ -1220,6 +1220,8 @@ if (state === 'resolving' && nameResolver) {
 }
 ```
 
+**Migrating to 0.4.0.** Communities on pkc-js 0.0.155 or later reject a publication carrying an `author.wallets` proof that doesn't follow [BSIP-22](https://github.com/bitsocialnet/BSIPs/blob/master/BSIPS/bsip-22.md), and 0.4.0 signs and checks proofs that way. `validateEthWallet(wallet, authorPublicKey)` now takes the key address of the account's signing key (`account.signer.address`, `12D3KooW...`) instead of `author.address`, and rejects a proof in the old format. To sign an external wallet in, have it sign `getWalletMessageToSign(account.signer.address, walletAddress, timestamp)`, imported from `@bitsocial/bitsocial-react-hooks/author-wallet-proof`. When accounts load, an `eth` wallet whose proof is invalid is replaced by the built-in wallet, so a user signed in to an external wallet in the old format is signed out of it and signs again.
+
 #### Delete account
 
 > Note: deleting account is unrecoverable, warn the user to export/backup his account before deleting
