@@ -1,3 +1,12 @@
+## [0.4.2](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.4.1...v0.4.2) (2026-11-25)
+
+
+### Bug Fixes
+
+* **accounts:** load the author tag check the first time a comment needs it, and prepare 0.4.2 ([#204](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/204)) ([ffdad9b](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/ffdad9b2acb57c0076b8bb0c1753541123fe08b6))
+
+
+
 ## [0.4.1](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.4.0...v0.4.1) (2026-11-25)
 
 

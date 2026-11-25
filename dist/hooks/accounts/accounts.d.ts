@@ -44,6 +44,9 @@ export declare function useAccountComment(options?: UseAccountCommentOptions): U
  *
  * The signature and the tag are read, not verified: pass comments loaded through the hooks or
  * pkc-js, which verify them, or a comment from another source only after validateComment.
+ *
+ * The tag check loads the first time a comment needs it. Until then a comment recognized only by
+ * its tag returns false; useIsAccountComment rerenders once it has loaded.
  */
 export declare function isAccountComment(comment: Comment | undefined, options?: Pick<UseIsAccountCommentOptions, "accountName">): boolean;
 /**

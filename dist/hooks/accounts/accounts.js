@@ -19,7 +19,7 @@ import { useAccountsWithCalculatedProperties, useAccountWithCalculatedProperties
 import { COMMENT_MODERATION_AUTHOR_SUMMARY_KEY, getAccountEditPropertySummary, addShortCommunityAddressToAccountPublication, } from "../../stores/accounts/utils.js";
 import { getCanonicalCommunityAddress, getEquivalentCommunityAddressGroupKey, pickPreferredEquivalentCommunityAddress, } from "../../lib/community-address.js";
 import { addCommentModeration } from "../../lib/utils/comment-moderation.js";
-import { isCommentBySigner } from "../../lib/pseudonymity-author-tag.js";
+import { isCommentBySigner, useAuthorTagCheckStore } from "../../lib/author-tag-check.js";
 import useInterval from "../utils/use-interval.js";
 import PkcJs from "../../lib/pkc-js/index.js";
 const getCommentEditPropertyValue = (comment, propertyName) => {
@@ -520,6 +520,9 @@ const isInAccountComments = (state, accountId, comment) => {
  *
  * The signature and the tag are read, not verified: pass comments loaded through the hooks or
  * pkc-js, which verify them, or a comment from another source only after validateComment.
+ *
+ * The tag check loads the first time a comment needs it. Until then a comment recognized only by
+ * its tag returns false; useIsAccountComment rerenders once it has loaded.
  */
 export function isAccountComment(comment, options) {
     const state = useAccountsStore.getState();
@@ -542,7 +545,10 @@ export function useIsAccountComment(options) {
     const accountId = useAccountId(accountName) || undefined;
     const signer = useAccountsStore((state) => { var _a; return (_a = state.accounts[accountId || ""]) === null || _a === void 0 ? void 0 : _a.signer; });
     const inAccountComments = useAccountsStore((state) => isInAccountComments(state, accountId, comment));
-    const bySigner = useMemo(() => isCommentBySigner(comment, signer), [comment, signer]);
+    const authorTagCheckLoaded = useAuthorTagCheckStore((state) => state.loaded);
+    const bySigner = useMemo(() => isCommentBySigner(comment, signer), 
+    // a tagged comment reads as not the account's until the author tag check loads
+    [comment, signer, authorTagCheckLoaded]);
     return inAccountComments || bySigner;
 }
 /**
