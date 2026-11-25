@@ -383,6 +383,10 @@ the tag are read, not verified: pass comments loaded through the hooks, or check
 another source with `validateComment` first. A board can tag any post on itself as the account's,
 so a malicious board can produce a false "(You)" on that board only. Anyone holding the account's
 private key can recognize all of its tagged posts, so treat an exported account like a password.
+The tag check's code (about 40 KB) stays out of the startup bundle and loads the first time a
+comment needs it: until then, a comment recognized only by its tag reads as not the account's.
+`useIsAccountComment` rerenders once it has loaded; call `isAccountComment` again later, or on an
+earlier comment, e.g. when a thread opens, to start the load before you need the answer.
 
 ```js
 const isYou = useIsAccountComment({ comment: quotedReply });
