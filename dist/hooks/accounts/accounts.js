@@ -19,6 +19,7 @@ import { useAccountsWithCalculatedProperties, useAccountWithCalculatedProperties
 import { COMMENT_MODERATION_AUTHOR_SUMMARY_KEY, getAccountEditPropertySummary, addShortCommunityAddressToAccountPublication, } from "../../stores/accounts/utils.js";
 import { getCanonicalCommunityAddress, getEquivalentCommunityAddressGroupKey, pickPreferredEquivalentCommunityAddress, } from "../../lib/community-address.js";
 import { addCommentModeration } from "../../lib/utils/comment-moderation.js";
+import { isCommentBySigner } from "../../lib/pseudonymity-author-tag.js";
 import useInterval from "../utils/use-interval.js";
 import PkcJs from "../../lib/pkc-js/index.js";
 const getCommentEditPropertyValue = (comment, propertyName) => {
@@ -487,6 +488,62 @@ export function useAccountComment(options) {
             : {});
         return Object.assign(Object.assign({}, accountComment), { state, error: accountComment.error, errors: accountComment.errors || [] });
     }, [storedAccountComment, account, accountId, state]);
+}
+// A pending account comment has no cid yet, only its index in the account's history. For a cid,
+// commentCidsToAccountsComments names only the last account holding the comment, so the history
+// is scanned only when another account holds the same cid, e.g. a backup imported next to the
+// account it was exported from. A cid nobody holds costs one lookup.
+const isInAccountComments = (state, accountId, comment) => {
+    var _a, _b;
+    if (!accountId || !comment) {
+        return false;
+    }
+    const commentCid = comment.cid;
+    if (typeof commentCid !== "string") {
+        return (typeof comment.index === "number" &&
+            comment.accountId === accountId &&
+            ((_b = (_a = state.accountsComments[accountId]) === null || _a === void 0 ? void 0 : _a[comment.index]) === null || _b === void 0 ? void 0 : _b.accountId) === accountId);
+    }
+    const mapping = state.commentCidsToAccountsComments[commentCid];
+    if (!mapping) {
+        return false;
+    }
+    return (mapping.accountId === accountId ||
+        (state.accountsComments[accountId] || []).some((accountComment) => (accountComment === null || accountComment === void 0 ? void 0 : accountComment.cid) === commentCid));
+};
+/**
+ * Whether the account published a loaded comment: it is in the account's local history (pending
+ * comments included), it is signed by the account's key, or the community that aliased it on a
+ * pseudonymous board tagged it as the account's (`pseudonymityAuthorTag`). The last two work on any
+ * device holding the account key. Defaults to the active account. Use it outside React, e.g. to
+ * check every reply of a thread.
+ *
+ * The signature and the tag are read, not verified: pass comments loaded through the hooks or
+ * pkc-js, which verify them, or a comment from another source only after validateComment.
+ */
+export function isAccountComment(comment, options) {
+    const state = useAccountsStore.getState();
+    const accountId = (options === null || options === void 0 ? void 0 : options.accountName)
+        ? state.accountNamesToAccountIds[options.accountName]
+        : state.activeAccountId;
+    const account = state.accounts[accountId || ""];
+    if (!comment || !account) {
+        return false;
+    }
+    return (isInAccountComments(state, accountId, comment) || isCommentBySigner(comment, account.signer));
+}
+/**
+ * Whether the account published `comment`, see isAccountComment. Rerenders when the account or
+ * its history changes whether the comment is the account's.
+ */
+export function useIsAccountComment(options) {
+    assert(!options || typeof options === "object", `useIsAccountComment options argument '${options}' not an object`);
+    const { comment, accountName } = options !== null && options !== void 0 ? options : {};
+    const accountId = useAccountId(accountName) || undefined;
+    const signer = useAccountsStore((state) => { var _a; return (_a = state.accounts[accountId || ""]) === null || _a === void 0 ? void 0 : _a.signer; });
+    const inAccountComments = useAccountsStore((state) => isInAccountComments(state, accountId, comment));
+    const bySigner = useMemo(() => isCommentBySigner(comment, signer), [comment, signer]);
+    return inAccountComments || bySigner;
 }
 /**
  * Returns the own user's votes stored locally, even those not yet published by the community owner.

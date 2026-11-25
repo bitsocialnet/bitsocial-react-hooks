@@ -1,4 +1,4 @@
-import type { Account, UseAccountCommunitiesOptions, UseAccountCommunitiesResult, UseAccountVoteOptions, UseAccountVoteResult, UseAccountVotesOptions, UseAccountVotesResult, UseAccountCommentsOptions, UseAccountCommentsResult, UseAccountCommentOptions, UseAccountCommentResult, UseNotificationsOptions, UseNotificationsResult, UseAccountEditsOptions, UseAccountEditsResult, UseEditedCommentOptions, UseEditedCommentResult, UseAccountOptions, UseAccountResult, UsePubsubSubscribeOptions, UsePubsubSubscribeResult } from "../../types.js";
+import type { Account, UseAccountCommunitiesOptions, UseAccountCommunitiesResult, UseAccountVoteOptions, UseAccountVoteResult, UseAccountVotesOptions, UseAccountVotesResult, UseAccountCommentsOptions, UseAccountCommentsResult, UseAccountCommentOptions, UseAccountCommentResult, UseIsAccountCommentOptions, Comment, UseNotificationsOptions, UseNotificationsResult, UseAccountEditsOptions, UseAccountEditsResult, UseEditedCommentOptions, UseEditedCommentResult, UseAccountOptions, UseAccountResult, UsePubsubSubscribeOptions, UsePubsubSubscribeResult } from "../../types.js";
 /**
  * @param accountName - The nickname of the account, e.g. 'Account KoXpxTwfnjA5'. If no accountName is provided, return
  * the active account id.
@@ -35,6 +35,22 @@ export declare function useAccountComments(options?: UseAccountCommentsOptions):
  * Returns an account's single comment, e.g. a pending comment they published.
  */
 export declare function useAccountComment(options?: UseAccountCommentOptions): UseAccountCommentResult;
+/**
+ * Whether the account published a loaded comment: it is in the account's local history (pending
+ * comments included), it is signed by the account's key, or the community that aliased it on a
+ * pseudonymous board tagged it as the account's (`pseudonymityAuthorTag`). The last two work on any
+ * device holding the account key. Defaults to the active account. Use it outside React, e.g. to
+ * check every reply of a thread.
+ *
+ * The signature and the tag are read, not verified: pass comments loaded through the hooks or
+ * pkc-js, which verify them, or a comment from another source only after validateComment.
+ */
+export declare function isAccountComment(comment: Comment | undefined, options?: Pick<UseIsAccountCommentOptions, "accountName">): boolean;
+/**
+ * Whether the account published `comment`, see isAccountComment. Rerenders when the account or
+ * its history changes whether the comment is the account's.
+ */
+export declare function useIsAccountComment(options?: UseIsAccountCommentOptions): boolean;
 /**
  * Returns the own user's votes stored locally, even those not yet published by the community owner.
  * Check UseAccountCommentsOptions type in types.tsx to filter them, e.g. filter = {communityAddresses: ['memes.eth']}.

@@ -1,7 +1,7 @@
 import polyfill from "./lib/polyfill.js";
 polyfill();
 // accounts
-import { useAccount, useAccounts, useAccountComment, useAccountComments, useAccountVotes, useAccountVote, useAccountEdits, useEditedComment, useNotifications, useAccountCommunities, usePubsubSubscribe, } from "./hooks/accounts/index.js";
+import { useAccount, useAccounts, useAccountComment, useAccountComments, useIsAccountComment, isAccountComment, useAccountVotes, useAccountVote, useAccountEdits, useEditedComment, useNotifications, useAccountCommunities, usePubsubSubscribe, } from "./hooks/accounts/index.js";
 // comments
 import { useComment, useComments, useCrosspost, useValidateComment, validateComment, } from "./hooks/comments.js";
 // replies
@@ -32,7 +32,7 @@ export * from "./types.js";
 // IMPORTANT: should be the same as 'export default hooks'
 export { 
 // accounts
-useAccount, useAccounts, useAccountComment, useAccountComments, useAccountVotes, useAccountVote, useAccountEdits, useAccountCommunities, useNotifications, usePubsubSubscribe, 
+useAccount, useAccounts, useAccountComment, useAccountComments, useIsAccountComment, isAccountComment, useAccountVotes, useAccountVote, useAccountEdits, useAccountCommunities, useNotifications, usePubsubSubscribe, 
 // comments
 useComment, useComments, useCrosspost, useEditedComment, useValidateComment, validateComment, 
 // replies
@@ -62,6 +62,8 @@ const hooks = {
     useAccounts,
     useAccountComment,
     useAccountComments,
+    useIsAccountComment,
+    isAccountComment,
     useAccountVotes,
     useAccountVote,
     useAccountEdits,

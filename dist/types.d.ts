@@ -55,6 +55,9 @@ export interface UseAccountCommentOptions extends Options {
 }
 export interface UseAccountCommentResult extends Result, AccountComment {
 }
+export interface UseIsAccountCommentOptions extends Options {
+    comment?: Comment;
+}
 export interface UseAccountVotesOptions extends Options {
     filter?: AccountPublicationsFilter;
     vote?: number;
