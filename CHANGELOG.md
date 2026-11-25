@@ -1,3 +1,17 @@
+## [0.4.1](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.4.0...v0.4.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **feeds:** treat a missing navigator.onLine as online, add setOnlineStatus ([#194](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/194)) ([def871a](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/def871a4375cea6e52ab2dc71c13d77af20eb3bc))
+
+
+### Features
+
+* **accounts:** recognize own comments across devices on pseudonymous boards ([#201](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/201)) ([dd92a3a](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/dd92a3a30b9013c0cb63953d757e4ab5f5b2f5f5)), closes [#153](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/153)
+
+
+
 # [0.4.0](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.6...v0.4.0) (2026-11-25)
 
 
