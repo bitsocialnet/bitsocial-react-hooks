@@ -128,11 +128,32 @@ describe("accounts-database", () => {
         type: "eip191",
       },
     };
+    // the current version, so loading writes the account only to save a repair
+    const makeCurrentAccount = (id: string, overrides: any) =>
+      makeAccount({ id, name: id, signer, version: accountsDatabase.accountVersion, ...overrides });
     const storeAccount = (id: string, overrides: any) =>
-      accountsDatabase.accountsDatabase.setItem(
-        id,
-        makeAccount({ id, name: id, signer, ...overrides }),
+      accountsDatabase.accountsDatabase.setItem(id, makeCurrentAccount(id, overrides));
+    // the repair is saved in the background, after getAccounts resolves
+    const waitForStoredEthWallet = (id: string, wallet: unknown) =>
+      vi.waitFor(async () =>
+        expect(
+          (await accountsDatabase.accountsDatabase.getItem<any>(id))?.author.wallets.eth,
+        ).toEqual(wallet),
       );
+    const signExternalWallet = async (timestamp: number) => {
+      const walletKey = "0x0202020202020202020202020202020202020202020202020202020202020202";
+      const walletAddress = new ethers.Wallet(walletKey).address;
+      return {
+        address: walletAddress,
+        timestamp,
+        signature: {
+          signature: await new ethers.Wallet(walletKey).signMessage(
+            getWalletMessageToSign(signer.address, walletAddress, timestamp),
+          ),
+          type: "eip191",
+        },
+      };
+    };
 
     afterEach(() => vi.restoreAllMocks());
 
@@ -146,8 +167,7 @@ describe("accounts-database", () => {
       // bound to the key address even though author.address is a name
       expect(verifyAuthorWallet(oldBuiltInWallet, signer.address).outcome).toBe("invalid");
       expect(verifyAuthorWallet(repairedWallet, signer.address).outcome).toBe("valid");
-      const stored = await accountsDatabase.accountsDatabase.getItem("built-in");
-      expect(stored.author.wallets.eth).toEqual(repairedWallet);
+      await waitForStoredEthWallet("built-in", repairedWallet);
 
       // a valid proof is left as it is on the next load
       const reloaded = await accountsDatabase.getAccounts(["built-in"]);
@@ -172,22 +192,11 @@ describe("accounts-database", () => {
       expect(verifyAuthorWallet(eth, signer.address).outcome).toBe("valid");
       // other chains are left as they are
       expect(sol).toEqual({ address: "sol" });
+      await waitForStoredEthWallet("external", eth);
     });
 
     test("keeps an external wallet with a valid proof and one of an unknown type", async () => {
-      const walletKey = "0x0202020202020202020202020202020202020202020202020202020202020202";
-      const walletAddress = new ethers.Wallet(walletKey).address;
-      const timestamp = Math.floor(Date.now() / 1000);
-      const validExternalWallet = {
-        address: walletAddress,
-        timestamp,
-        signature: {
-          signature: await new ethers.Wallet(walletKey).signMessage(
-            getWalletMessageToSign(signer.address, walletAddress, timestamp),
-          ),
-          type: "eip191",
-        },
-      };
+      const validExternalWallet = await signExternalWallet(Math.floor(Date.now() / 1000));
       const unknownTypeWallet = {
         ...oldBuiltInWallet,
         signature: { signature: "x", type: "future" },
@@ -220,6 +229,7 @@ describe("accounts-database", () => {
       expect(verifyAuthorWallet(retried["retry"].author.wallets.eth, signer.address).outcome).toBe(
         "valid",
       );
+      await waitForStoredEthWallet("retry", retried["retry"].author.wallets.eth);
     });
 
     test("replaces a malformed wallet and loads an account with a malformed key unchanged", async () => {
@@ -238,6 +248,98 @@ describe("accounts-database", () => {
         verifyAuthorWallet(accounts["malformed-wallet"].author.wallets.eth, signer.address).outcome,
       ).toBe("valid");
       expect(accounts["malformed-key"].author.wallets.eth).toEqual(oldBuiltInWallet);
+      await waitForStoredEthWallet(
+        "malformed-wallet",
+        accounts["malformed-wallet"].author.wallets.eth,
+      );
+    });
+
+    test("replaces a present falsy wallet entry and leaves an absent one absent", async () => {
+      await storeAccount("empty-string", {
+        author: { address: signer.address, wallets: { eth: "" } },
+      });
+      await storeAccount("absent", { author: { address: signer.address, wallets: {} } });
+      const accounts = await accountsDatabase.getAccounts(["empty-string", "absent"]);
+      expect(
+        verifyAuthorWallet(accounts["empty-string"].author.wallets.eth, signer.address).outcome,
+      ).toBe("valid");
+      expect(accounts["absent"].author.wallets).toEqual({});
+      await waitForStoredEthWallet("empty-string", accounts["empty-string"].author.wallets.eth);
+    });
+
+    test("keeps an external wallet whose proof is dated ahead of this device's clock", async () => {
+      // e.g. signed on a device whose clock is an hour fast: communities accept it once their own
+      // clocks reach its timestamp
+      const futureWallet = await signExternalWallet(Math.floor(Date.now() / 1000) + 3600);
+      expect(verifyAuthorWallet(futureWallet, signer.address).outcome).toBe("invalid");
+      await storeAccount("future", {
+        author: { address: signer.address, wallets: { eth: futureWallet } },
+      });
+      const accounts = await accountsDatabase.getAccounts(["future"]);
+      expect(accounts["future"].author.wallets.eth).toEqual(futureWallet);
+    });
+
+    test("loads the repaired wallet when saving it fails, and saves it on a later load", async () => {
+      await storeAccount("save-fails", {
+        author: { address: signer.address, wallets: { eth: oldBuiltInWallet } },
+      });
+      const setItem = vi
+        .spyOn(accountsDatabase.accountsDatabase, "setItem")
+        .mockRejectedValueOnce(Error("QuotaExceededError"));
+      const accounts = await accountsDatabase.getAccounts(["save-fails"]);
+      const repairedWallet = accounts["save-fails"].author.wallets.eth;
+      expect(verifyAuthorWallet(repairedWallet, signer.address).outcome).toBe("valid");
+      await vi.waitFor(() => expect(setItem).toHaveBeenCalledTimes(1));
+      expect(
+        (await accountsDatabase.accountsDatabase.getItem<any>("save-fails")).author.wallets.eth,
+      ).toEqual(oldBuiltInWallet);
+
+      const reloaded = await accountsDatabase.getAccounts(["save-fails"]);
+      await waitForStoredEthWallet("save-fails", reloaded["save-fails"].author.wallets.eth);
+    });
+
+    test("saves the repair onto a save of the account that lands while it signs", async () => {
+      await storeAccount("raced", {
+        author: { address: signer.address, wallets: { eth: oldBuiltInWallet } },
+      });
+      const getEthWalletFromPkcPrivateKey = chain.getEthWalletFromPkcPrivateKey;
+      vi.spyOn(chain, "getEthWalletFromPkcPrivateKey").mockImplementationOnce(async (...args) => {
+        await accountsDatabase.addAccount(
+          makeCurrentAccount("raced", {
+            author: { address: signer.address, wallets: { eth: oldBuiltInWallet } },
+            subscriptions: ["newer"],
+          }) as any,
+        );
+        return getEthWalletFromPkcPrivateKey(...args);
+      });
+      const accounts = await accountsDatabase.getAccounts(["raced"]);
+      await waitForStoredEthWallet("raced", accounts["raced"].author.wallets.eth);
+      const stored = await accountsDatabase.accountsDatabase.getItem<any>("raced");
+      expect(stored.subscriptions).toEqual(["newer"]);
+    });
+
+    test("doesn't save the repair over a wallet saved while it signs", async () => {
+      await storeAccount("replaced", {
+        author: { address: signer.address, wallets: { eth: oldBuiltInWallet } },
+      });
+      const newerWallet = await signExternalWallet(Math.floor(Date.now() / 1000));
+      const getEthWalletFromPkcPrivateKey = chain.getEthWalletFromPkcPrivateKey;
+      vi.spyOn(chain, "getEthWalletFromPkcPrivateKey").mockImplementationOnce(async (...args) => {
+        await accountsDatabase.addAccount(
+          makeCurrentAccount("replaced", {
+            author: { address: signer.address, wallets: { eth: newerWallet } },
+          }) as any,
+        );
+        return getEthWalletFromPkcPrivateKey(...args);
+      });
+      await accountsDatabase.getAccounts(["replaced"]);
+      // a later queued write runs after the repair's save
+      await accountsDatabase.addAccount(
+        makeCurrentAccount("other", { author: { address: signer.address, wallets: {} } }) as any,
+      );
+      expect(
+        (await accountsDatabase.accountsDatabase.getItem<any>("replaced")).author.wallets.eth,
+      ).toEqual(newerWallet);
     });
   });
 

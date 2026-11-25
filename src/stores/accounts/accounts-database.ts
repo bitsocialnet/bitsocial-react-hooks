@@ -115,14 +115,17 @@ const repairEthWallet = async (account: any): Promise<boolean> => {
   const ethWallet = account.author?.wallets?.eth;
   const privateKey = account.signer?.privateKey;
   // the pkc-js mock signer has no usable key
-  if (!ethWallet || typeof privateKey !== "string" || privateKey === "private key") {
+  if (ethWallet === undefined || typeof privateKey !== "string" || privateKey === "private key") {
     return false;
   }
   try {
     const { getKeyAddressFromPkcPrivateKey, verifyAuthorWallet } =
       await import("../../lib/chain/author-wallet-proof");
     const authorPublicKey = getKeyAddressFromPkcPrivateKey(privateKey);
-    if (verifyAuthorWallet(ethWallet, authorPublicKey).outcome !== "invalid") {
+    // without this device's clock: a proof dated ahead of it becomes valid with time, and replacing
+    // it would log the account out of an external wallet for good over a clock difference
+    const { outcome } = verifyAuthorWallet(ethWallet, authorPublicKey, { nowSeconds: Infinity });
+    if (outcome !== "invalid") {
       return false;
     }
     const builtInWallet = await chain.getEthWalletFromPkcPrivateKey(privateKey);
@@ -141,14 +144,43 @@ const repairEthWallet = async (account: any): Promise<boolean> => {
   }
 };
 
+// Saves a repaired wallet in the queue addAccount writes accounts in, onto the stored record as it
+// is then, and only while that record still holds the invalid wallet: a save of the account can
+// land while the repair signs, and writing back the whole record read before it would undo that
+// save. Not awaited, because addAccount loads accounts through getAccountsFromStoredAccounts while
+// holding the queue. A failed save leaves the account loaded with the repaired wallet; the next
+// load repairs it again.
+const saveRepairedEthWallet = (
+  accountId: string,
+  invalidWallet: unknown,
+  repairedWallet: unknown,
+) => {
+  queueAccountsMetadataMutation(async () => {
+    const storedAccount: any = await accountsDatabase.getItem(accountId);
+    if (!isEqual(storedAccount?.author?.wallets?.eth, invalidWallet)) {
+      return;
+    }
+    storedAccount.author.wallets = { ...storedAccount.author.wallets, eth: repairedWallet };
+    await accountsDatabase.setItem(accountId, storedAccount);
+  }).catch((error) =>
+    log.error("saving the repaired eth wallet failed, retrying on the next load", {
+      accountId,
+      error,
+    }),
+  );
+};
+
 const getAccountsFromStoredAccounts = async (storedAccounts: Accounts) => {
   const accounts: Accounts = {};
   for (const [accountId, storedAccount] of Object.entries(storedAccounts)) {
     const storedVersion = storedAccount.version || 1;
     const migratedAccount = await migrateAccount(storedAccount);
+    const ethWallet = migratedAccount.author?.wallets?.eth;
     const repairedWallet = await repairEthWallet(migratedAccount);
-    if (storedVersion !== migratedAccount.version || repairedWallet) {
+    if (storedVersion !== migratedAccount.version) {
       await accountsDatabase.setItem(accountId, migratedAccount);
+    } else if (repairedWallet) {
+      saveRepairedEthWallet(accountId, ethWallet, migratedAccount.author.wallets.eth);
     }
     accounts[accountId] = normalizeAccountProtocolConfig(
       migratedAccount,
