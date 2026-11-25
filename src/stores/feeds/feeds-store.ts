@@ -17,6 +17,7 @@ import {
 import createStore from "zustand";
 import localForageLru from "../../lib/localforage-lru";
 import { communityPostsCacheExpired } from "../../lib/utils";
+import { subscribeToOnlineStatus } from "../../lib/online-status";
 import { getPkcGetCommunity } from "../../lib/pkc-compat";
 import { CommunityLookupRef, getCommunityRefKeys } from "../../lib/community-ref";
 import accountsStore from "../accounts";
@@ -583,6 +584,7 @@ const feedsStore = createStore<FeedsState>((setState: Function, getState: Functi
 }));
 
 let feedsStoreInitialized = false;
+let unsubscribeFromOnlineStatus: (() => void) | undefined;
 const initializeFeedsStore = async () => {
   if (feedsStoreInitialized) {
     return;
@@ -600,6 +602,8 @@ const initializeFeedsStore = async () => {
   accountsStore.subscribe(updateFeedsOnAccountsBlockedCidsChange);
   // subscribe to accounts store changes (for account comments)
   accountsStore.subscribe(updateFeedsOnAccountsCommentsChange);
+  // whether an expired community cache may be used depends on the online status
+  unsubscribeFromOnlineStatus = subscribeToOnlineStatus(() => feedsStore.getState().updateFeeds());
   feedsStoreInitialized = true;
 };
 
@@ -901,6 +905,8 @@ export const resetFeedsStore = async () => {
     delete feedsCommunitySubscriptions[feedName];
   }
   feedsWithSkippedPageFetches.clear();
+  unsubscribeFromOnlineStatus?.();
+  unsubscribeFromOnlineStatus = undefined;
   // destroy all component subscriptions to the store
   feedsStore.destroy();
   // restore original state
