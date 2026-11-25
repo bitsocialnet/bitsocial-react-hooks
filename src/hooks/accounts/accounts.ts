@@ -73,6 +73,13 @@ const getCommentEditPropertyValue = (comment: any, propertyName: string) => {
     : undefined;
 };
 
+// A commentModeration.author.banExpiresAt of 0 only removes the ban mark (authorBanExpiresAt) from the comment it
+// is published on (pkc-js 0.0.158+), so it is applied once that comment has no mark
+const isCommentEditPropertyApplied = (comment: any, propertyName: string, value: any) =>
+  propertyName === COMMENT_MODERATION_AUTHOR_SUMMARY_KEY && value?.banExpiresAt === 0
+    ? comment?.authorBanExpiresAt === undefined
+    : isEqual(getCommentEditPropertyValue(comment, propertyName), value);
+
 const applyEditedCommentProperty = (comment: any, propertyName: string, value: any) => {
   if (propertyName !== COMMENT_MODERATION_AUTHOR_SUMMARY_KEY) {
     comment[propertyName] = value;
@@ -86,12 +93,23 @@ const applyEditedCommentProperty = (comment: any, propertyName: string, value: a
     comment.commentModeration.author = value;
   }
 
+  // 0 removes this comment's ban mark and leaves the author's ban as it is
+  if (value?.banExpiresAt === 0) {
+    delete comment.authorBanExpiresAt;
+    return;
+  }
+
   comment.author = comment.author ? { ...comment.author } : {};
   comment.author.community = comment.author.community ? { ...comment.author.community } : {};
   if (value?.banExpiresAt === undefined) {
     delete comment.author.community.banExpiresAt;
   } else {
     comment.author.community.banExpiresAt = value.banExpiresAt;
+  }
+
+  // pkc-js marks the comment a ban was published on with authorBanExpiresAt, and keeps the mark after an unban
+  if (typeof value?.banExpiresAt === "number" && value.banExpiresAt > 0) {
+    comment.authorBanExpiresAt = value.banExpiresAt;
   }
 };
 
@@ -1000,7 +1018,7 @@ export function useEditedComment(options?: UseEditedCommentOptions): UseEditedCo
       // Without a newer update we can only treat recent edits as pending. Older edits that never
       // produced any update are effectively stale and should stop shadowing the live comment.
       if (!comment?.updatedAt) {
-        if (isEqual(getCommentEditPropertyValue(comment, propertyName), propertyNameEdit.value)) {
+        if (isCommentEditPropertyApplied(comment, propertyName, propertyNameEdit.value)) {
           setPropertyNameEditState("succeeded");
         } else if (propertyNameEdit.timestamp > now - expiryTime) {
           setPropertyNameEditState("pending");
@@ -1022,7 +1040,7 @@ export function useEditedComment(options?: UseEditedCommentOptions): UseEditedCo
       // has been received after the edit was published so we can evaluate
       else {
         // comment has propertyNameEdit, propertyNameEdit succeeded
-        if (isEqual(getCommentEditPropertyValue(comment, propertyName), propertyNameEdit.value)) {
+        if (isCommentEditPropertyApplied(comment, propertyName, propertyNameEdit.value)) {
           setPropertyNameEditState("succeeded");
           continue;
         }

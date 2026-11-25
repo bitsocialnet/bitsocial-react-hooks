@@ -1,3 +1,12 @@
+## [0.3.6](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.5...v0.3.6) (2026-11-24)
+
+
+### Features
+
+* **accounts:** show a pending ban on the post it was published from, and prepare 0.3.6 ([#200](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/200)) ([1d5225c](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/1d5225c03e690324400b1b20974bdc95ec8abc5d))
+
+
+
 ## [0.3.5](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.3.4...v0.3.5) (2026-11-23)
 
 

@@ -1635,6 +1635,8 @@ console.log(editedComment.state); // 'unedited' | 'succeeded' | 'pending' | 'fai
 
 Moderation fields are mirrored on both the top-level keys like `comment.removed` and the nested `comment.commentModeration.removed` shape.
 
+A pending or succeeded ban, `commentModeration.author.banExpiresAt`, shows on the edited comment as the author's ban, `author.community.banExpiresAt`, and as the mark pkc-js 0.0.158+ puts on the comment a ban was published on, `authorBanExpiresAt`. A ban of `0` removes that comment's `authorBanExpiresAt` and leaves the author's ban as it is.
+
 #### List all comment and community edits the account has performed
 
 ```jsx
