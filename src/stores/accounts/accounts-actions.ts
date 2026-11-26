@@ -1396,6 +1396,21 @@ const omitPublishCommentCallbacks = (options: PublishCommentOptions) => {
   return publicationOptions;
 };
 
+// Each author.wallets proof names the key that signs the publication (BSIP-22), and the account's
+// proofs name the account's signing key, so pkc-js 0.0.155 and later refuse to publish them under
+// another signer, e.g. one generated for an anonymous publication. Such a publication doesn't
+// inherit the account's wallets.
+const isOtherSigner = (account: Account, signer: any) =>
+  Boolean(signer) && signer !== account.signer && signer.privateKey !== account.signer?.privateKey;
+const getAuthorForSigner = (account: Account, signer: any) => {
+  if (!account.author?.wallets || !isOtherSigner(account, signer)) {
+    return account.author;
+  }
+  const author = { ...account.author };
+  delete author.wallets;
+  return author;
+};
+
 export const publishComment = async (
   publishCommentOptions: PublishCommentOptions,
   accountName?: string,
@@ -1438,6 +1453,9 @@ export const publishComment = async (
   // publish and for each republish whose options onBeforeRepublish returned
   const createPublishCommentOptions = async (options: PublishCommentOptions) => {
     const publicationAuthor = { ...author, ...options.author };
+    if (isOtherSigner(account, options.signer) && options.author?.wallets === undefined) {
+      delete publicationAuthor.wallets;
+    }
     if (
       publicationAuthor.address !== account.author?.address &&
       options.author?.previousCommentCid === undefined
@@ -2115,7 +2133,7 @@ export const publishVote = async (publishVoteOptions: PublishVoteOptions, accoun
 
   let createVoteOptions: any = normalizePublicationOptionsForPkc(account.pkc, {
     timestamp: Math.floor(Date.now() / 1000),
-    author: account.author,
+    author: getAuthorForSigner(account, publishVoteOptions.signer),
     signer: account.signer,
     ...publishVoteOptions,
   });
@@ -2391,7 +2409,7 @@ export const publishCommentEdit = async (
 
   let createCommentEditOptions: any = normalizePublicationOptionsForPkc(account.pkc, {
     timestamp: Math.floor(Date.now() / 1000),
-    author: account.author,
+    author: getAuthorForSigner(account, publishCommentEditOptions.signer),
     signer: account.signer,
     ...publishCommentEditOptions,
   });
@@ -2539,7 +2557,7 @@ export const publishCommentModeration = async (
 
   let createCommentModerationOptions: any = normalizePublicationOptionsForPkc(account.pkc, {
     timestamp: Math.floor(Date.now() / 1000),
-    author: account.author,
+    author: getAuthorForSigner(account, publishCommentModerationOptions.signer),
     signer: account.signer,
     ...publishCommentModerationOptions,
   });
