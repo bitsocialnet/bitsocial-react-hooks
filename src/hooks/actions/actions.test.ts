@@ -2863,6 +2863,43 @@ describe("actions", () => {
       },
     );
 
+    test.each(publishHooks)(
+      "$name ends failed when pkc-js refuses an author wallet proof before sending",
+      async ({ useHook, publish, Publication, options }) => {
+        // like pkc-js 0.0.155 and later: an invalid BSIP-22 author.wallets proof stops the
+        // publication and rejects publish(), with no publishingState change and no error event
+        const walletError = Object.assign(Error("invalid author wallet proof"), {
+          code: "ERR_AUTHOR_WALLET_PROOF_IS_INVALID",
+        });
+        const spy = vi
+          .spyOn(Publication.prototype, "publish")
+          .mockImplementation(async function (this: any) {
+            this.state = "publishing";
+            this.emit("statechange", "publishing");
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            this.state = "stopped";
+            this.emit("statechange", "stopped");
+            throw walletError;
+          });
+        try {
+          const onError = vi.fn();
+          const { rendered, waitFor } = renderPublishHook(useHook, { ...options, onError });
+          await waitFor(() => rendered.result.current.state === "ready");
+          await act(async () => {
+            await rendered.result.current[publish]();
+          });
+          await waitFor(() => rendered.result.current.state === "failed");
+
+          expect(rendered.result.current.state).toBe("failed");
+          expect(rendered.result.current.error).toBe(walletError);
+          expect(onError).toHaveBeenCalledTimes(1);
+          expect(onError.mock.calls[0][2]).toEqual({ final: true });
+        } finally {
+          spy.mockRestore();
+        }
+      },
+    );
+
     test.each(publishHooks.slice(2))(
       "$name keeps a newer publication's result when an earlier one fails later",
       async ({ useHook, publish, options }) => {

@@ -5832,6 +5832,51 @@ describe("accounts-actions", () => {
     );
 
     test.each(publishActions)(
+      "$name reports an author wallet proof pkc-js refused before sending as final",
+      async ({ name, createMethod, publish, editTarget }) => {
+        // like pkc-js 0.0.155 and later when an author.wallets entry has an invalid BSIP-22 proof:
+        // after loading the community it stops the publication and publish() rejects, without a
+        // publishingState change or an error event, and nothing is sent
+        const walletError = Object.assign(Error("invalid author wallet proof"), {
+          code: "ERR_AUTHOR_WALLET_PROOF_IS_INVALID",
+        });
+        const rejectedPublications: any[] = [];
+        mockCreatePublication(createMethod, (publication) => {
+          publication.publish = async () => {
+            rejectedPublications.push(publication);
+            publication.state = "publishing";
+            publication.emit("statechange", "publishing");
+            await new Promise((resolve) => setTimeout(resolve, 10));
+            publication.state = "stopped";
+            publication.emit("statechange", "stopped");
+            throw walletError;
+          };
+        });
+        const onError = vi.fn();
+        await act(async () => {
+          await publish({ onChallenge: () => {}, onChallengeVerification: () => {}, onError });
+        });
+
+        await vi.waitFor(() => expect(onError).toHaveBeenCalled());
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(onError).toHaveBeenCalledTimes(1);
+        expect(onError).toHaveBeenCalledWith(walletError, rejectedPublications[0], {
+          final: true,
+        });
+        if (editTarget) {
+          expect(getStoredEdits(editTarget)).toHaveLength(0);
+        }
+        if (name === "publishComment") {
+          expect(getAccountComment(0)).toMatchObject({
+            state: "stopped",
+            publishingState: "failed",
+            error: walletError,
+          });
+        }
+      },
+    );
+
+    test.each(publishActions)(
       "$name reports an error a stopped publication emitted in its teardown as not final",
       async ({ createMethod, publish, editTarget }) => {
         // like pkc-js when a pubsub provider is down: the failing publish stops the publication, its
