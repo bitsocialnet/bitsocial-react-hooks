@@ -1,3 +1,12 @@
+## [0.4.3](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.4.2...v0.4.3) (2026-11-26)
+
+
+### Bug Fixes
+
+* **deps:** upgrade pkc-js to 0.0.163, keep account wallets out of other signers' publications, and prepare 0.4.3 ([#205](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/205)) ([b5e1818](https://github.com/bitsocialnet/bitsocial-react-hooks/commit/b5e18184041373f7915b24201376d3afff2d2bed)), closes [#606](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/606) [#586](https://github.com/bitsocialnet/bitsocial-react-hooks/issues/586)
+
+
+
 ## [0.4.2](https://github.com/bitsocialnet/bitsocial-react-hooks/compare/v0.4.1...v0.4.2) (2026-11-25)
 
 

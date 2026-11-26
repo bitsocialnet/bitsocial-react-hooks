@@ -1016,6 +1016,20 @@ const omitPublishCommentCallbacks = (options) => {
     }
     return publicationOptions;
 };
+// Each author.wallets proof names the key that signs the publication (BSIP-22), and the account's
+// proofs name the account's signing key, so pkc-js 0.0.155 and later refuse to publish them under
+// another signer, e.g. one generated for an anonymous publication. Such a publication doesn't
+// inherit the account's wallets.
+const isOtherSigner = (account, signer) => { var _a; return Boolean(signer) && signer !== account.signer && signer.privateKey !== ((_a = account.signer) === null || _a === void 0 ? void 0 : _a.privateKey); };
+const getAuthorForSigner = (account, signer) => {
+    var _a;
+    if (!((_a = account.author) === null || _a === void 0 ? void 0 : _a.wallets) || !isOtherSigner(account, signer)) {
+        return account.author;
+    }
+    const author = Object.assign({}, account.author);
+    delete author.wallets;
+    return author;
+};
 export const publishComment = (publishCommentOptions, accountName) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     const { accounts, accountsComments, accountNamesToAccountIds, activeAccountId } = accountsStore.getState();
@@ -1047,23 +1061,26 @@ export const publishComment = (publishCommentOptions, accountName) => __awaiter(
     // builds the options pkc-js publishes from the client's options without callbacks, for the first
     // publish and for each republish whose options onBeforeRepublish returned
     const createPublishCommentOptions = (options) => __awaiter(void 0, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e;
+        var _a, _b, _c, _d, _e, _f;
         const publicationAuthor = Object.assign(Object.assign({}, author), options.author);
-        if (publicationAuthor.address !== ((_a = account.author) === null || _a === void 0 ? void 0 : _a.address) &&
-            ((_b = options.author) === null || _b === void 0 ? void 0 : _b.previousCommentCid) === undefined) {
+        if (isOtherSigner(account, options.signer) && ((_a = options.author) === null || _a === void 0 ? void 0 : _a.wallets) === undefined) {
+            delete publicationAuthor.wallets;
+        }
+        if (publicationAuthor.address !== ((_b = account.author) === null || _b === void 0 ? void 0 : _b.address) &&
+            ((_c = options.author) === null || _c === void 0 ? void 0 : _c.previousCommentCid) === undefined) {
             delete publicationAuthor.previousCommentCid;
         }
         // a comment without author.address may have been published under an alternate author passed to
         // publishComment, so only link it once its immutable author, loaded from its cid, is the account's
         if (previousComment &&
-            !((_c = previousComment.author) === null || _c === void 0 ? void 0 : _c.address) &&
-            ((_d = options.author) === null || _d === void 0 ? void 0 : _d.previousCommentCid) === undefined &&
+            !((_d = previousComment.author) === null || _d === void 0 ? void 0 : _d.address) &&
+            ((_e = options.author) === null || _e === void 0 ? void 0 : _e.previousCommentCid) === undefined &&
             publicationAuthor.previousCommentCid === previousComment.cid) {
             // loaded once, a republish reuses it
             previousCommentAuthorAddressPromise !== null && previousCommentAuthorAddressPromise !== void 0 ? previousCommentAuthorAddressPromise : (previousCommentAuthorAddressPromise = loadCommentAuthorAddress(account, previousComment.cid));
             const previousCommentAuthorAddress = yield previousCommentAuthorAddressPromise;
             if (!previousCommentAuthorAddress ||
-                previousCommentAuthorAddress !== ((_e = account.author) === null || _e === void 0 ? void 0 : _e.address)) {
+                previousCommentAuthorAddress !== ((_f = account.author) === null || _f === void 0 ? void 0 : _f.address)) {
                 // fall back to the newest stored comment that kept the account author address
                 const previousAccountAuthorComment = accountCommentsWithCids
                     .filter((comment) => { var _a; return (_a = comment.author) === null || _a === void 0 ? void 0 : _a.address; })
@@ -1563,7 +1580,7 @@ export const publishVote = (publishVoteOptions, accountName) => __awaiter(void 0
         accountName,
         account,
     });
-    let createVoteOptions = normalizePublicationOptionsForPkc(account.pkc, Object.assign({ timestamp: Math.floor(Date.now() / 1000), author: account.author, signer: account.signer }, publishVoteOptions));
+    let createVoteOptions = normalizePublicationOptionsForPkc(account.pkc, Object.assign({ timestamp: Math.floor(Date.now() / 1000), author: getAuthorForSigner(account, publishVoteOptions.signer), signer: account.signer }, publishVoteOptions));
     delete createVoteOptions.onChallenge;
     delete createVoteOptions.onChallengeVerification;
     delete createVoteOptions.onError;
@@ -1785,7 +1802,7 @@ export const publishCommentEdit = (publishCommentEditOptions, accountName) => __
         accountName,
         account,
     });
-    let createCommentEditOptions = normalizePublicationOptionsForPkc(account.pkc, Object.assign({ timestamp: Math.floor(Date.now() / 1000), author: account.author, signer: account.signer }, publishCommentEditOptions));
+    let createCommentEditOptions = normalizePublicationOptionsForPkc(account.pkc, Object.assign({ timestamp: Math.floor(Date.now() / 1000), author: getAuthorForSigner(account, publishCommentEditOptions.signer), signer: account.signer }, publishCommentEditOptions));
     delete createCommentEditOptions.onChallenge;
     delete createCommentEditOptions.onChallengeVerification;
     delete createCommentEditOptions.onError;
@@ -1872,7 +1889,7 @@ export const publishCommentModeration = (publishCommentModerationOptions, accoun
         accountName,
         account,
     });
-    let createCommentModerationOptions = normalizePublicationOptionsForPkc(account.pkc, Object.assign({ timestamp: Math.floor(Date.now() / 1000), author: account.author, signer: account.signer }, publishCommentModerationOptions));
+    let createCommentModerationOptions = normalizePublicationOptionsForPkc(account.pkc, Object.assign({ timestamp: Math.floor(Date.now() / 1000), author: getAuthorForSigner(account, publishCommentModerationOptions.signer), signer: account.signer }, publishCommentModerationOptions));
     delete createCommentModerationOptions.onChallenge;
     delete createCommentModerationOptions.onChallengeVerification;
     delete createCommentModerationOptions.onError;
