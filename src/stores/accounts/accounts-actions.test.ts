@@ -906,6 +906,116 @@ describe("accounts-actions", () => {
       );
     });
 
+    describe("account wallets and another signer", () => {
+      // the account's proofs name the account's signing key, which pkc-js 0.0.155 and later
+      // check against the key that signs the publication
+      const ethWallet = {
+        address: "0x5050A4F4b3f9338C3472dcC01A87C76A144b3c9c",
+        timestamp: 1790000000,
+        signature: { signature: "0xsigned", type: "eip191" },
+      };
+      const otherSigner = { privateKey: "other private key", address: "other signer address" };
+      const getAccountWithWallet = () => {
+        const account = Object.values(accountsStore.getState().accounts)[0];
+        const accountWithWallet = {
+          ...account,
+          author: { ...account.author, wallets: { eth: ethWallet } },
+        };
+        accountsStore.setState(({ accounts }) => ({
+          accounts: { ...accounts, [account.id]: accountWithWallet },
+        }));
+        return accountWithWallet;
+      };
+      const publishCommentWith = (options: any) =>
+        accountsActions.publishComment({
+          communityAddress: "sub.eth",
+          content: "signer test",
+          onChallenge: () => {},
+          onChallengeVerification: () => {},
+          ...options,
+        });
+
+      test("publishComment signed by another signer doesn't carry the account's wallets", async () => {
+        const account = getAccountWithWallet();
+        const createComment = vi.spyOn(account.pkc, "createComment");
+        await publishCommentWith({
+          signer: otherSigner,
+          author: { displayName: "anon", address: otherSigner.address },
+        });
+
+        const publishedAuthor = createComment.mock.calls[0][0].author;
+        expect(publishedAuthor).toMatchObject({
+          displayName: "anon",
+          address: otherSigner.address,
+        });
+        expect(publishedAuthor).not.toHaveProperty("wallets");
+        // the account itself keeps them
+        expect(accountsStore.getState().accounts[account.id].author.wallets).toEqual({
+          eth: ethWallet,
+        });
+      });
+
+      test("publishComment keeps the account's wallets for the account signer and passed wallets for another", async () => {
+        const account = getAccountWithWallet();
+        const createComment = vi.spyOn(account.pkc, "createComment");
+        await publishCommentWith({ signer: account.signer, author: { displayName: "me" } });
+        expect(createComment.mock.lastCall![0].author.wallets).toEqual({ eth: ethWallet });
+
+        const otherWallets = { eth: { ...ethWallet, timestamp: 1790000001 } };
+        await publishCommentWith({
+          signer: otherSigner,
+          author: { address: otherSigner.address, wallets: otherWallets },
+        });
+        expect(createComment.mock.lastCall![0].author.wallets).toEqual(otherWallets);
+      });
+
+      test.each([
+        {
+          name: "publishVote",
+          createMethod: "createVote",
+          publish: (options: any) =>
+            accountsActions.publishVote({ commentCid: "signer vote cid", vote: 1, ...options }),
+        },
+        {
+          name: "publishCommentEdit",
+          createMethod: "createCommentEdit",
+          publish: (options: any) =>
+            accountsActions.publishCommentEdit({
+              commentCid: "signer edit cid",
+              spoiler: true,
+              ...options,
+            }),
+        },
+        {
+          name: "publishCommentModeration",
+          createMethod: "createCommentModeration",
+          publish: (options: any) =>
+            accountsActions.publishCommentModeration({
+              commentCid: "signer moderation cid",
+              commentModeration: { locked: true },
+              ...options,
+            }),
+        },
+      ])(
+        "$name signed by another signer doesn't carry the account's wallets",
+        async ({ createMethod, publish }) => {
+          const account: any = getAccountWithWallet();
+          const create = vi.spyOn(account.pkc, createMethod);
+          const options = {
+            communityAddress: "sub.eth",
+            onChallenge: () => {},
+            onChallengeVerification: () => {},
+          };
+          await publish(options);
+          expect(create.mock.lastCall![0].author.wallets).toEqual({ eth: ethWallet });
+
+          await publish({ ...options, signer: otherSigner });
+          expect(create.mock.lastCall![0].author).not.toHaveProperty("wallets");
+          expect(create.mock.lastCall![0].author.address).toBe(account.author.address);
+        },
+      );
+    });
+
     describe("pending reply postCid", () => {
       const publishReply = async (options: any) => {
         const account = Object.values(accountsStore.getState().accounts)[0];

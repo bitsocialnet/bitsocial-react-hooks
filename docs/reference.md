@@ -842,6 +842,8 @@ const { publishComment } = usePublishComment(publishCommentOptions);
 await publishComment();
 ```
 
+A publication signed by another signer doesn't carry the account's `author.wallets`: their proofs name the account's signing key, and pkc-js refuses to publish them under another one. To publish a wallet with it, pass `author.wallets` signed for that signer's address.
+
 #### Re-sign a comment before an automatic republish
 
 After a wrong challenge answer, the comment is republished automatically with `timestamp` set to the current time, which is the same as the last timestamp if the republish happens within the same second. A client that signs over its publish options, such as a proof in `author.displayName`, re-signs them in `onBeforeRepublish`.
